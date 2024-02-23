@@ -1,0 +1,676 @@
+Uncovering Temporal Context for Video Question and Answering
+LinchaoZhu§ ZhongwenXu† YiYang† AlexanderG.Hauptmann§
+§SCS,CarnegieMellonUniversity
+†QCIS,UniversityofTechnologySydney
+{zhulinchao7,zhongwen.s.xu,yee.i.yang}@gmail.com alex@cs.cmu.edu
+Abstract Task 2: Infer the past
+He took out_-
+In this work, we introduce Video Question Answering A.mango
+in temporal domain to infer the past, describe the present B.knife
+C.soda
+andpredictthefuture. Wepresentanencoder-decoderap-
+proach using Recurrent Neural Networks to learn tempo-
+ralstructuresofvideosandintroduceadual-channelrank- Task 1: Describe the present
+ing loss to answer multiple-choice questions. We explore He slices
+approaches for finer understanding of video content using A.cucumber
+question form of “fill-in-the-blank”, and managed to col- B.bowl
+C.onion
+lect 109,895 video clips with duration over 1,000 hours
+D.bean
+from TACoS, MPII-MD, MEDTest 14 datasets, while the
+corresponding 390,744 questions are generated from an- Task 3: Predict the future'--
+--
+notations. Extensiveexperimentsdemonstratethatourap-
+He _ cucumber on plate.
+proachsignificantlyoutperformsthecomparedbaselines. A.throws -
+B.places
+C.wipes
+D.rinses
+1.Introduction
+Figure1. Questionsandanswersaboutthepast,thepresentand
+Current research into image analysis is gradually going thefuture.Oursystemincludesthreesubtasks,whichareinferring
+beyond recognition [18] and detection [11]. There are in- the past, describing the present, and predicting the future, while
+creasinginterestsindeeperunderstandingofvisualcontent onlythecurrentframesareobservable.Bestviewedincolor.
+by jointly modeling image and natural language. As Con-
+volutionalNeuralNetworks(ConvNets)haveraisedthebar
+onimageclassificationanddetectiontasks[11,14,34],Re- (Video QA) in temporal domain, which has been largely
+currentNeuralNetworks(RNNs),particularlyLongShort- unaddressed. OurVideoQAconsistsofthreesubtasks. As
+Term Memory (LSTM) [12], play a key role in visual de- shown in Figure 1, if we see a man slicing cucumbers on
+scriptiontasks,suchasimagecaptioning[7,41,44].Asone a cutting board, we can infer that he took out a knife pre-
+stepbeyondimagecaptioning, ImageQuestionAnswering viously, and predict that he will put them on a plate after-
+(ImageQA),whichrequiresanextralayerofinteractionbe- wards. The same as image QA, video QA requires finer
+tweenhumanandcomputers,havestartedtoattractresearch understandingofvideosandsentencesthanvideocaption-
+attentionveryrecently[2,10,23]. ing. Despite the success of these methods for video cap-
+In the area of video analysis, there are a few very re- tioning[40,46],thereareafewresearchchallengesremain
+centsystemsproposedforvideocaptioning[40,46]. These unsolved,whichmakesthemnotreadilyapplicabletoVideo
+methods have demonstrated promising performance in de- QA.
+scribingavideobyasingleshortsentence.Similarasimage First, a Video QA system should explore more knowl-
+captioning,videocaptioningmaynotbeasintelligentasde- edgebeyondjustvisualinformationandthecoarsesentence
+sired, especiallywhenweonlycareaboutaparticularpart annotationsbecauseitrequiresfinerunderstandingofvideo
+orobjectinthevideo[2].Inaddition,itlackstheinteraction contentandquestions. Forthesakeofvideocaptioning,ex-
+betweencomputersandtheusers[10]. isting systems [40, 46] train LSTM models merely based
+In this paper, we focus on Video Question Answering onvideocontentandtheassociatedcoarsesentenceannota-
+1
+5102
+voN
+51
+]VC.sc[
+1v07640.1151:viXra
+tions. Becausethesizeofdescriptionembeddingmatrixis introducingrelatedworks,wedetailthelargescaledataset
+verylargebutmanywordsusuallyappearsonlyafew(less we have collected for video QA tasks. We then present
+than10)timesinalldescriptions, theresultsoverfiteasily. ourapproachofvideotemporalstructuremodelingandthe
+Recent study [22] found that visual and textual informa- dual-channellearningtorankmethodforquestionanswer-
+tionaremutuallybeneficial. Wepavedanewwayofvideo ing. Extensive experiments are conducted to validate our
+QA, by appropriately integrating information of all types, approach.
+including sentences, words, and visual cues, into a joint
+learning framework to maximize the mutual benefits, dur-
+2.RelatedWorks
+ingwhichexternalknowledgebases(e.g.BookCorpus[50]
+and Google News [24]) can be readily incorporated. Be- Neuralnetworksinvideoanalysis. Recently,manyCon-
+cause the external knowledge bases reflect the underlying vNetsbasedvideofeaturelearningmethodshavebeenpro-
+correlationsamongrelatedentities,ourapproachisableto posed. SimonyanandZisserman[31]proposetoutilizeop-
+tobetterparsequestionsandvideoframes. ticalflowimagesextractedfromvideosastheinputstotrain
+Second, a Video QA system should be capable of rea- ConvNets. AlongwiththeordinalRGBstream,two-stream
+soning across video frames, including inferring the past, ConvNets can achieve comparable performance with the
+describing present, and predicting the future, which are state-of-the-art hand-crafted feature improved Dense Tra-
+strongly correlated. Very recently, Gated Recurrent Unit jectories[43]. Tranetal.[36]propose3DConvNetswhich
+(GRU)[4]hasdemonstratedpromisingperformanceonse- capture temporal dynamics in video clips without the very
+quence modeling tasks, partially because it has simpler time-consuming optical flow extraction procedure. Xu et
+neural structure than LSTM. On top of GRU, we propose al. [45] adapt the ConvNet frame-level features by VLAD
+anencoder-decoder approachwithadual-channelranking pooling over the timestamps to generate video representa-
+losstolearnthreevideorepresentations,oneforeachVideo tion,whichshowsgreatadvantagesoverthetraditionalav-
+QA subtasks, i.e., past inference, present description, and erage pooling. Recently, a general sequence to sequence
+futureprediction. Oneappealingfeatureofourapproachis frameworkencoder-decoderwasintroducedbySutskeveret
+that,theencoder-decoderapproachisabletomodelawider al.[33], whichutilizeamultilayeredRNNtoencodease-
+rangeoftemporalinformation, andthereducednumberof quence of input into one hidden state, then another RNN
+weight parameters in GRU makes it more robust to over- takes the encoded state as input and decode it into a se-
+fitting in temporal modeling. Further, the approach avoids quenceofoutput. Ngetal.[25]applytheencoder-decoder
+the needs of creating a large number of labels to train the frameworkonlarge-scalevideoclassificationtasks. Srivas-
+sequencemodelbyembeddingvisualfeaturetoasemantic tava et al. [32] extend this general model to learn features
+space. from consecutive frames and propose a composite model
+forunsupervisedLSTMautoencoder.
+Third, we should have a well-defined quantitative eval-
+uation metric and datasets from different domains to track
+Bridging vision and language: captioning and question
+progressofthisimportantresearch[2]. Manuallyproviding answering. There are increasing interests in the field of
+groundtruth for a large amount of videos is extremely hu- multimodallearningforbridgingcomputervisionandnat-
+manlaborintensive.BLEU[26]hasbeenwidelyusedasan urallanguageunderstanding[7,15,40,41,46]. Captioning
+evaluation metric for image captioning but a few research is one of the most popular tasks among them, and Long
+papers and competition reports have indicated that BLEU Short-Term Memory (LSTM) is heavily used as a recur-
+is not a reliable metric, and cannot reflect human judg- rentneuralnetworklanguagemodeltoautomaticallygener-
+ment [19, 39]. Following [22], we evaluate our question ateasequenceofwordsconditionedonthevisualfeatures,
+and answering approach in the form of “fill-in-the-blank” whichisinspiredbythegeneralrecurrentencoder-decoder
+(FITB)frommultiplechoices. Underthistheme, weman- framework[33]. However,captioningtaskonlygeneratesa
+aged to collect a new dataset consisting of over 100,000 generic description for entire image or video clip and it is
+real-world videos clips, and 400,000 designed questions difficulttoevaluatethequalityofgeneratedsentences,i.e.,
+with more than 1,000,000 candidate answers. This dataset it’shardtojudgeonedescriptionisbetterthananotherone
+willbereleasedtothepublic,whichcanbeusedasbench- ornot.Inaddition,itisstillanopenresearchproblemofde-
+marks for this research. The main advantage is that it is signingapropermetricforvisualcaptioning,whichcanre-
+more convenient for quantitative evaluation than free-style flecthumanjudgment[8,39].Inthiswork,weinsteadfocus
+questionanswering.Notethatthedifficultyofthequestions onmorefine-graineddescriptiononvideocontent,andour
+canbecontrolledindesigningcandidateanswers. method is simple to evaluate in multiple-choice form, i.e.,
+In this paper, we propose a new framework for video correctorwronganswer. Recently,abunchofQAdatasets
+QAbycarefullyaddressingthethreeaforementionedchal- andsystemshavebeendevelopedonimages[2,10,23,28].
+lenges. Therestofthispaperisorganizedasfollows. After Renetal.[28]useafixed-lengthanswerwithonlyoneword
+2
+foransweringquestionsaboutimages. Gaoetal.[10]usea cooking scenario. It provides multiple sentence de-
+morecomplexdatasetwithfree-stylemultilingualquestion- scriptionsinfine-grainedlevels,i.e.,foreachshortclip
+answer pairs, however it is hard to evaluate the answers, inthelongvideos.
+usuallyhumanjudgesarerequired. Linetal.[22]introduce
+2. MPII-MD [29]. MPII-MD is collected from DVD
+aninterestingmultiple-choicefill-in-the-blankquestionan-
+movies where descriptions are generated from movie
+sweringtaskonabstractscene,andYuetal.[48]applythe
+scripts semi-automatically. The dataset contains
+taskonnaturalimageswithvariousquestiontemplates. Im-
+68,375clipsandoneannotationonaverageisprovided
+ages are good sources for recognizing objects, however, a
+foreachclip.
+very important task, question answering on video content
+hasnotbeenexploredyet. Differentfromthestillimages,
+3. TRECVIDMEDTest14[1].TRECVIDMEDTest14
+video analysis can utilize the temporal information across
+is a complex event wild video dataset collected from
+the frames, along with the object and scene information. web hosting services such as YouTube. Videos in the
+The richer structural information in videos introduces po-
+datasetareabout1,300hoursinduration. Thevideos
+tentially better understanding to the visual content while
+areuntrimmedandtheannotationisprovidedforeach
+imposeschallengesatthesametime.
+long video, which can be regarded as a coarse high-
+VideoQuestionAnsweringandtemporalstructurerea- levelsummarizationcomparedwithTACoSandMPII-
+soning. To the best of our knowledge, the only work on MDdatasets.
+video-based question answering is Tu et al. [37], which
+Questiontemplatesgeneration. WeusetheStanfordNLP
+builds a query answering system based on a joint parsing
+Parser[17]togetsyntacticstructuresoforiginalvideode-
+graph from both text and videos. However, Tu et al. [37]
+scriptions. We divide the questions into three categories,
+constraintheirmodelonlyonsurveillancevideosofprede-
+nouns (objects like food, animals, plants), verbs (actions)
+fined structure, which cannot deal with open-ended ques-
+andphrases. Afterwards, questiontemplatesaregenerated
+tions. Differently, we cope with unconstrained videos of
+fromnounphrases(NP)andverbphrases(VP).Duringtem-
+anykind,e.g.,cookingscenario,DVDmovies,webvideos
+plategeneration,weeliminateprepositionalphrasesasmost
+from YouTube, and develop a novel framework for visual
+ofthemaresubjective.WeuseWordNet1andNLTK2toolk-
+understanding with dynamic temporal structure. In the as-
+itstoidentifywordcategoriesandchooseasetofcategories
+pect of temporal structure learning, action forecasting has
+listedinTable1. Wevisualizethedistributionofwordsin
+been initially studied in [42]. To predict the potential ac-
+each category using t-SNE [38] in Figure 2. It shows that
+tions, Vondrick et al. [42] propose to use a regression loss
+categoriescanbeseparated,whereactionsandobjectshave
+builtuponaConvNetandforecastlimitedcategoriesofac-
+aclearmargin.
+tionsandobjectsinaveryshortperiod,e.g.,onesecond. In
+contrast,weutilizeamoreflexibleencoder-decoderframe- Answer candidates generation. We designed two differ-
+work, modeling a wider range of temporal information, ent levels of difficulty in answering questions by altering
+and we mainly focus on multiple-choice question answer- candidate similarities. For easy candidate pairs, we ran-
+ingtasksinthetemporaldomain, whichgoeswellbeyond domly choose three distractors within same category from
+thestandardvisualrecognition. thesamedataset. Stopwordslike“person”, “man”arefil-
+tered in advance and words with frequency less than 10
+3.DatasetCollectionandTaskDefinitions are filtered following the common practice. As for hard
+pairs,basedontheobservationsthatvideoclipsinthesame
+ThegoalofourworkistopresentaVideoQAsystemin
+dataset can be in totally different scenes, e.g., the MPII-
+temporaldomaintoinferthepast,describethepresentand
+MD dataset and the MEDTest 14 dataset, we select the
+predict the future. We first describe our dataset collection
+hard negative candidates from similar descriptions. In ad-
+andthewaytoautomaticallygeneratetemplatequestionsin
+ditiontothevideodatasets,weusedescriptionannotations
+Section3.1. Taskdefinitionsanddatasetanalysiswouldbe
+from Flickr8K [13], Flickr30K [47] and MS COCO [21]
+discussedinSection3.2.
+as description sources for similarity search. We first parse
+3.1.DatasetandQAPairsGeneration the annotations using the way described above and gather
+about8,000phrasesintotal,resultingaveragelengthof6.6
+We in total collect over 100,000 videos and 400,000
+words per phrase. After the preprocessing, we further fil-
+questions, while QA pairs are generated from existing
+terthecandidatesusingword2vec[24]toretrievethenear-
+datasetsindifferentdomains,fromcookingscenario,DVD
+estphrasesincosinedistance. Thephraserepresentationis
+movies,towebvideos:
+generatedbyaveragingthewordvectors[20,22].
+1. TACoS Multi-Level [27]. TACoS dataset consists of 1https://wordnet.princeton.edu
+127 long videos with total 18,227 annotations in the 2http://www.nltk.org/
+3
+Pineapple
+Dog
+Category: Animal Category: food/plant
+plant Q: A/An ____ swims in a pool. Q: A man cutting a ____ in the food market.
+Easy distractors: Hard distractors: Easy distractors: Hard distractors:
+artifact - bee - cat - duck - dolphin - snowball - grapefruit - cucumber
+food - horseback - clam - goose - bear - popcorn - broccoli - lemon
+action - bird - cow - penguin - elephant - seed - orange - strawberry
+- wheat - watermelon
+animal Category: Actions
+Q: He __ her.
+- hugs
+- kisses
+Figure2.t-SNEvisualizationofwordembeddingsforeachcate-
+- beats
+gorylearnedfromword2vecmodel.Bestviewedincolor. - runs towards
+Category: Actions
+Q: Someone walks toward
+Datasets verbs phrases animals food/plant otherobjects t -h ge r efe en tce to ___ Someone. Category: Phrases
+TACoS 268 964 - 62 134 - hit Q: Two boys ____ in a bedroom.
+MPII-MD 869 220 63 129 896 - - k lan uo gc hk - - p swla iny g with toys
+MEDTest14 671 418 98 174 726 - pick up empty recycle bin
+Combineallsources 2,925 5,927 352 598 2,093 - shave facial hair
+Table 1. List of categories and number of collected words in Figure3.ExamplesofQApairsfordifferentcategoriesanddiffi-
+three datasets. Last rows shows the number of all words and culty.Wordscoloredingreenarethecorrectanswers,anddifficult
+phrases collected including those from image domains such as candidatesaremarkedinred.
+MSCOCO[21].
+4.TheProposedApproach
+Ascandidateanswersmightbeambiguoustothecorrect To answer questions about present, past and future, we
+answer,wesetasimilaritythreshold,andthenselect10of first introduce an encoder-decoder framework to represent
+themasthefinalcandidates.WeshowexamplesofQApairs context. Wethenmapthevisualrepresentationtosemantic
+indifferentcategoriesanddifficultyinFigure3. embeddingspaceandlearntorankthecorrectanswerwith
+higherscore.
+3.2.TaskDefinitions
+4.1.LearningtoRepresentVideoSequences
+Besidesdescribingthecurrentclip,weintroduceanother In this section, we describe our model of learning tem-
+two tasks which are inferring the past and anticipating the poral context. We present an encoder-decoder framework
+future. Inthetaskofdescribingthepresent,weuseallthree using Gated Recurrent Unit (GRU) [4]. Compared with
+datasets for evaluation. As to the other two tasks which Long Short-Term Memory (LSTM) [12], GRU is concep-
+arepastinferringandfuturepredicting,weperformexper- tually simpler with only two gates (update gates and reset
+iments on TACoS and MPII-MD datasets only as they are gates) and no memory cells, while the performance on se-
+annotatedinfine-grainedclips.Inthesetasks,givenavideo quence modeling task [5] is as good as LSTM. Note that
+clip, questions about the previous or next clip need to be we trained our model with LSTM as well, but it performs
+answered. Note that for tasks of describing the past and worsethantheonewithGRU.WithGRU,wecanachieve
+future, only the current clip is given and the model has to mAP of 24.9% on MEDTest 14 100Ex classification task,
+reasontemporalstructuresbasedthegivenclip. Werestrict whilewecanonlyget20.4%withLSTM.Wesuspectthat
+thepastandfuturetobenottoofarawayfromthecurrent itisbecauseLSTMwithmoreparametersismoreproneto
+clipandtypicallywechoosethecliprightbeforeorafterthe overfitthanGRU.
+givenone,wherethetimeintervalislessthan10seconds. Gated Recurrent Unit. Denote f1,f2,...,fN as the
+i i i
+Foreachtask,weintroducetwolevelsofquestions. For framesinavideov ,whereN isthenumberofframessam-
+i
+simplicity,wedenoteourtasksasPast-Easy,Present-Easy, pledfromthevideo. Ateachstept,theencodergeneratesa
+Future-Easy, Past-Hard, Present-Hard and Future-Hard. hiddenstateht,whichcanberegardedastherepresentation
+i
+We create three splits for each task and videos are divided of sequence f1,f2,...,ft. Thus the state of hN encodes
+i i i i
+intotraining,validationandtestingsets. thewholesequenceofframes. StatesinGRU[4]arecalcu-
+4
+latedas(droppingthevideosubscriptiforsimplicity): Unsupervised visual context learning
+9'
+rt =σ(W xt+W ht−1) (1)
+xr hr
+Reconstruct
+zt =σ(W xt+W ht−1) (2) 8' future
+xz hz
+(Model III)
+h¯t =tanh(W xh¯xt+W hh¯(rt(cid:12)ht−1)) (3) Learn to Answer
+7'
+ht =(1−zt)(cid:12)ht−1+zt(cid:12)h¯t (4)
+QA pairs 6'
+where xt is the input, rt is the reset gate, zt is the update Reconstruct
+gate,ht istheproposedstateand(cid:12)iselement-wisemulti- 5' present
+State
+(Model I)
+plication. Forthedecoder,weusethesamearchitectureas copy
+theencoder,butitshiddenstateofh0 isinitializedwiththe 6 4'
+hidden state of the last time step N in the encoder. Simi-
+3'
+lar to [32], we construct our GRU encoder-decoder model 5
+(Figure4).Besidesreconstructingtheinputframes,wealso Reconstruct
+2' past
+train another two models which are asked to reconstruct 4
+(Model II)
+the future frames (Figure 4 top) and past frames (Figure 4
+Input frames Encoder 1'
+bottom),respectively. Ourproposedmodelsarecapableof
+learninggoodfeaturesasthenetworkisoptimizedbymin- Decoders Predictions
+imizing the reconstruction error. In order to achieve good Figure4. Theencoder-decodermodel(right):encoderstateoflasttime
+stepispassedtothreedecodersforreconstruction.Learntoanswer(left):
+reconstruction,representationpassedtothedecodershould
+learnedtoanswerquestionsinasupervisedway.
+retain high level abstraction of the target sequence. Note
+thatourthreemodelsarelearnedseparately,whereencoder
+and decoder weights are not shared across models of past,
+ers are stacked. Our decoders are conditioned on the in-
+presentandfuture.
+puts,andweapplyDropoutwithrate0.5atconnectionsbe-
+Training. We first train the encoder-decoder models in an tweenfirstGRUlayerandsecondGRUlayerassuggested
+unsupervised way using videos collected from a subset of byZarembaetal.[49]toimprovethegeneralizationofthe
+MED dataset [1] (exclude MEDTest 13 and MEDTest 14 neural network. We initialized h0 for encoder with zeros,
+videos) which consists of 35,805 videos with duration of
+while weights in input transformation layer are initialized
+over 1,300 hours. The reason to choose MED dataset as
+with a uniform distribution in [-0.01, 0.01] and recurrent
+a source for temporal context learning is that videos in
+weights are with uniform distribution in [-0.05, 0.05]. We
+MED dataset have much longer duration, containing com-
+setthemini-batchsizeto64andclipgradientelement-wise
+plexandprofoundevents,actionsandobjectsforlearning. at 1 × 10−4. Frame sequences from different videos are
+Wecollectdataapartfromourtargettaskdatasetsastolearn
+sampled in each mini-batch. The network is optimized by
+morepowerfulmodelandpractically,itisdifficulttotraina
+RMSprop[35], whichscalesthegradientbyarunningav-
+modelfromscratchinsuchasmalldatasetlikeTACoSwith
+erageofgradientnorm. ThemodelistrainedbytheTorch
+only 127 cooking videos. As frames in video are of high
+library[6]onasingleNVIDIATeslaK20GPUandittakes
+correlations in short range, we sample frames at the frame
+about one day for the models to converge and finish the
+rate of 1 fps. We use time span of 30 seconds and set the
+training.
+unrolllengthT to30forthepresentmodel(ModelI),15for
+Inference.Atinferencetime,wefeedtheConvNetfeatures
+bothpastmodel(ModelII)andfuturemodel(ModelIII).
+extracted from GoogLeNet to the encoder, and obtain the
+As for the input to GRU model, we use ConvNet fea-
+videofeaturesfromhiddenstates. Foreachvideoclip, we
+tures extracted from GoogLeNet [34] with Batch Normal- initializedh0 tozeros, andpassthecurrenthiddenstateto
+ization [14] of dimension 1,024 which was trained from
+thenextstepuntillastinput. Wethenaveragehiddenstates
+scratchwithImageNet2012dataset[30]andwekeepCon-
+ateachtimestepasthefinalrepresentation.
+vNetspartfrozenduringRNNtraining.
+Wenowexplainournetworkstructuresandtrainingpro-
+4.2.Dual-ChannelLearningtoRank
+cess in details. As three models are trained with the same
+hyper-parameters, we take Model I as an example. In our We present the proposed dual-channel learning to rank
+case, reconstruction error is measured by (cid:96) distance be- algorithm which jointly models two channels, i.e., word
+2
+tweenpredictedrepresentationandthetargetsequence. We channelandsentencechannel,forlearning.Kirosetal.[16]
+reversethetargetsequencesinreconstructionscenarioand recently propose the skip-thought vectors to encode a sen-
+asindicatedin[33],itreducesthepathofthegradientflow. tence into a compact vector. The model uses an RNN en-
+We set the size of GRU units to 1,024 and two GRU lay- codertoencodeasentenceandanothertwoRNNdecoders
+5
+areaskedtoreconstructtheprevioussentenceandthenext
+sentence. It was trained using BookCorpus dataset [50]
+whichconsistsof11,038books, 74,004,228sentencesand
+984,846,357 words. The skip-thought vectors model per-
+forms well on many different natural language processing
+(NLP)tasks. Weutilizethecombine-skipmodeltoencode
+Wpvbasketball
+football
+Wvp sentences. Formoredetails,pleasereferto[16].
+Wefirstformulatetheproblemofmultiple-choiceques-
+Wvs Score pos>Score neg tion answering. Given N questions with blanks together
+with corresponding videos, and K candidate answers for
+Kids are plaW ys iv ng Given question: Kids are playing eachquestion,wedenoteeachquestionasq i,i∈1,...,N,
+Kids are playing ___.
+basketball. football. candidateanswersforquestionq i asp ij,j ∈ 1,...,K and
+A. basketball the ground truth for question q as p(cid:48) with index j(cid:48). For
+B. football i i i
+eachquestionq ,lets bethesentenceformedbyfillingthe
+i ij
+blankofquestionq withcandidatep .Forexample,filling
+i ij
+inthetemplateof“A/An swimsinapool”shownin Figure5. Illustrationofdual-channellearningtorank.
+Figure3withcandidate“dog”,wecanformthesentenceof
+“Adogswimsinapool”,andfalsedescription“Ahorseback
+Inference.Welearnedweightoftransformationsattraining
+swimsinapool”isgeneratedwith“horseback”.
+stageandatinferencetime,wecalculatethefollowingscore
+Givenq ,weintroduceadual-channelrankingloss(also
+i
+foreachcandidate,
+illustratedinFigure5)thatistrainedtoproducehighersim-
+ilarityforthevisualcontextandrepresentationvectorofthe
+score=λv Tp +(1−λ)v Ts , (6)
+correctanswerp(cid:48) thanotherdistractorsp ,j (cid:54)= j(cid:48). Wede- p j s j
+i ij i
+fineourlossas:
+and the candidate with the highest score would be our an-
+(cid:88) (cid:88) swer.
+min λ(cid:96) +(1−λ)(cid:96) ,λ∈[0,1], (5)
+word sent
+θ
+v j∈K,j(cid:54)=j(cid:48)
+5.Experiments
+with
+5.1.EvaluationofDescribingthePresent
+(cid:96) word =max(0,α−v pTp j(cid:48) +v pTp j), Inthissection,weevaluateourmodelinthetaskofde-
+(cid:96) sent =max(0,β−v sTs j(cid:48) +v sTs j), scribingthepresent. Wefirstdemonstratetheeffectiveness
+ofourrankingobjectivebycomparingwithCCAandthen
+where v = W v,v = W v and p = W y ,s = conductevaluationofdual-channellearning.
+p vp s vs j pv j j
+W svz j (for simplicity we dropped subscript i). v is the Our dual-channel ranking method improves perfor-
+vector learning from our GRU encoder-decoder model for mance. We compare our dual-channel ranking approach
+videoclipv i,y jistheaverageofword2vecvectorsforeach with Canonical Correlation Analysis (CCA) which com-
+wordincandidatep ij,z j istheskip-thoughtvectorforde- putes the directions of maximal correlation between a pair
+scriptions ij. Weconstrainthesefeaturerepresentationsto ofmulti-dimensionalvariables. TolearnCCA,wetraintwo
+beinunitnorm.θdenotesallthetransformationparameters embeddinglayersseparately. ThefirstCCAmapsthesen-
+neededtolearninthemodel,W vsandW vparetransforma- tencedescriptiontovisualsemanticjoint-embeddingspace
+tionsthatmapvisualrepresentationtosemanticjointspace, and the second one maps the correct answer to the joint
+whileW svandW pvtransformsthesemanticrepresentation. space. In order to answer multiple-choice questions, we
+NotethatW xxcanbealineartransformationormulti-layer embed each candidate and select the answer that is most
+neuralnetworkswithhiddenunits. similartothevideoclipbyEquation6. Weconductcross-
+Training.Duringtrainingprocedure,wesamplefalseterms validation to choose the weight to combine two embed-
+fromnegativecandidatesandpracticallystopsummingaf- dings.
+ter first margin-violating term was found [9]. Empirically, For both methods, we restrict the input features to be
+we choose the sentence embedding dimension to be 500 thesame. Forvisualrepresentation,weaverageframe-level
+and word embedding to be 300. The model is trained by features extracted from the last fully connected layer of
+stochastic gradient descent (SGD) by simply setting the GoogLeNet. Forsemanticrepresentation,weusethesame
+learning rate η to be 0.01 and momentum with 0.9. And method described in Section 4.2, where sentences are en-
+inpractice,wesetthemarginαandβto0.2,andλiscross- coded by skip-thought vectors, and word2vec is used for
+validatedinheld-outvalidationset. wordrepresentation.
+6
+CVPR CVPR
+#**** #****
+CVPR2016Submission#****.CONFIDENTIALREVIEWCOPY.DONOTDISTRIBUTE.
+648 Dataset Splits CCA Ourobjective 702
+Dataset Spl6i4t9 CCA Ourobsjpelict1tive67.1% 77.7% Comparisonbetweendifferentλ703
+spli6 6t5 510 1 67.1%TACoS 77.7ss pp %ll ii tt 32 6 64 3. .9 2% % 7 78 2. .3 9% % 0.85 7 70 04 5
+mean 65.1% 76.3%
+TACoS spli6t522 64.9% 78.3sp%lit1 36.2% 73.4% 0.8 706
+spli6t533 63.2%MPII-MD 72.9sp%lit2 42.9% 72.5% 707
+654 split3 45.7% 69.9% 708
+me6a5n5 65.1% 76.3m%ean 41.6% 72.0% 0.75 709
+split1 63.1% 81.2%
+spli6t516 36.2%MEDTEST1743.4sp%lit2 62.8% 80.9% 710
+MPII-MD spli6 6t5 527
+8
+42.9% 72.5s mp%l ei at n3 6 63 3. .6 2%
+%
+8 81 1. .0 0%
+%
+0.7 7 71 11
+2
+spli6t539 T4 a5 bl. e7 2% .Comparison6 o9 u. r9 o% bjectivewithCCAondescribingthe 0.65 713
+me6a6n0 p4r1es.e6nt%easytask. 72.0% 714
+spli6 t6 11 63.1% 81.2% 0.6 715
+662 716
+MEDTest14 spli6t623 f6ro2m.8c%andidatesat8te0s.t9in%gtime,rankinglossismoresuit- 0.55 TACoS 717
+spli6t634 a6b3le.6fo%rmodelingt8he1p.0ro%blem. MPII-MD 718
+me6 6 6a6 6 6n5 6 7 a d6 g e3 e mA. s o2n e n%a m sl ty a ransi tts eic ho m of wes ae cnn o8 it n u1e g ln d. sc0 le o e% f va esn re ad n gte ip nnh gcr e ta s ws a oe n lw d eve p ei hg lsrh a ot s. fes re.W pH re ee sl r ee ev nwe tar e- - 0.5 0 M 0E .2DTE 0.S 4T1 04 .6 0.8 1 7 7 71 2 29 0 1
+Table2.Comparisonbetwee6n68CCAtionahneldpaonuswreroqbujeestciotnisv.eInoFniguPrer?e?s,ewnets-howasim- λ 722
+Easytask. Thevisualfeatur6 6e6 79 0ofap inl ve Nec Yras aCe gaw nih nde gtr he e“ fnA roatm hmea rn sed pr lli aeb yb vble eas slka e1b tba ,a0s lk l2e it n4ba ol udl to idv -oe or ra cob uri rd tsg ”Fe .igure6.Theeffectivenessofdual-channellear7 7n2 2i3 4ngtorank. We
+mension representations fro6m71 GoNootgeLtheatNtheetcainsdiduatseseadref“boarskebtboaltlh”,“afopo-tball”,“tenc-onducteDxatpaseetsrimenStploitsnPCNrNesAveenragte-EaOusrymotdaelsktoshow72c5ase.λ=0cor-
+proaches.Ourmethodoutpe6 6r7 7f2 3ormn dsi is rCe” c, tCa lyn .Ad Hit woi ws iee tva hes ri ,e ar iflto tahrea gn cs eaw ne dmr idq aau tree sgst ai io rnen .s lob na gse pd ho ran sew s,or fd ors responds TAto CoSusings ss ppe ll ii ttn 21tenc6 6e3 5. .0 8c% %hanne6 65 9l. .5 7o% %nlyandλ7 7=2 26 7 1corresponds
+674 examplethequestionsis“Heis .”,itwouldbebenet-ousingwordchansnpliet3lonl6y4..2% 68.3% 728
+6 67 75 6 fici Wal eto qu us ae ns tie tn at te ivn ec le yd ae nsc ar li yp st ii son hs o. w weight affect perfor- MPII-MD ssm pp lle iia ttn 21 6 5 54 5 3. . .3 3 2% % % 6 5 57 9 6. . .8 6 2% % % 7 72 39 0
+Note that in CCA, th67e7 twmoanceeamndbreesudltdsiisnshgownmonaFtrigiucree?s?.aWreecanseethat Level Datasestplit3 57.1S%plit158.7%Split2 Sp7 l3 i1 t3 Mean
+678 sentencesweighmorethanphrases. Webelieveitisbe- mean 55.2% 58.2% 732
+l ee mar bn ee dd dis ne gp sar aa rt eel iy nta rt odtr ua cin e6 6 6i d7 8 8n9 0 1g att vic sm pa au e Olcse ie i ufi do rcwu a vor itbh sv ij ui e ois acul lt nea s ml mf oste i dh ga t et h aeu ltr g obe uws e e tpr o .ee evp re Tir freg ols o h reh o mn ektt sesm d amo i Co nre e of s nog t vml hto Nw eb o ea c tlo d saa s mb ess o.t dra ec l.ti Won e, EasyMEDTET MSAT P1C4 IIo -S Mss s mpp pll l eii i aDtt t n21 3 7 7 7 72 2 1 2. . . .1 9 8 37 7% % % %9 5. .1 5% %7 7 7 77 6 7 7. . . .6 5 4 2% % % %8 71 4. .9 6% % 7 78 27 7 7. .3 3 31 43 4 5% % 7 79 4. .7 2% %
+o f s ar e nf o n dml ta e lt n ee o acu ref r nu s ss d ai u tn n oag dl a-s c dwe h jn o uat r sne d tnn s eec mle rer bpaa e6 6 6 6 6 6nn r8 8 8 8 8 8 dekd2 3 4 5 6 7s di en iw nngd r i p c sgo tne ooe l as g y nsr am de t aepd fn po i brr lt an a u o la op ems gt crd it n aror oe G ca se n o u st l os oe re bs oav v obo gc rde i tcyu Ls hdlrr u uh ec fi fa iv e No erp l n,ai m as ef it ttu eu t gnp uw .aia ra re Nto ll g er us ym i h sornn f e t .ao g ri es ts rod c erww tme h Wh al wii ai ttc G th ihs ia tn toi ehr hn a eno eid p sg s g n act t r de Lri e moen o gf e s eme n eegNfr g n mpae der t att b t a ier a r mita m i oie mg ss t o eoo e o ne n nn nlo d si es f -nd et iir osle o.v nqm-i Wd u oa oe i fv e to u ee 1rsr r r 0ie a e em 2p ng a 4- - - -- T p Hra eb asl ee rn d3 t. h T MC a Ar Po Cd Im Iot -p a S MM MT Msa k Dr Ai .sE EPo Cn ID DIob -eT TS Mt S 7 7we e 8 5p . .e ls s 5 1D ie tt t % %n 11 1C4 4N S 8 7N 1 3p . .l 9 4ia t % %v 2e8 6 4 6ra3 6 7 3g S 7 7e. . . . 9 1p7 9 4 0 . .a l 1 5in t% % % % % %d 3GR 7 7MU 9 3. .e 8 3a a8 6 4 6 % %nv3 6 9 3er. . . .a0 2 0 9ge% % % %on 8 6 4 62 8 8 27 7 7 7 7 7. . . .3 3 3 3 4 48 2 3 36 7 8 9 0 1% % % % 8 6 4 63 7 8 3. . . .2 1 2 1% % % %
+stratetheeffectivenessof6 6o8 88 9urda pun ad raamw l-e etceu rs hse dat uh nre inns ga em trle airntr iaa nn ngs .f ko Wr im enca goti no dn mul ca tey ce tor hma opn ad dris sa om nse oh nyp theT erable3.RMeEDsTuElStTs14of83o.1%urG82.R2%U8m1.4o%de8l2.2o%nthetask7 7o4 42 3fdescribingthe
+690 taskofdescribingtherepresentforhardsetting,resultsarpereseTanbtle.4.Resultofourmodelontaskofdescribingthepresenton 744
+inTable2. 691 showninTable3. easysetting 745
+692 746
+As we can see, our ob69j3ectiveOuoruentcpodeerr-fdoecromdersmoCdeClpAerfowrmsitbhettearthanCon- 747
+large margin. We believe6 69 9i4 5t isv pbN ore eat ls cia nas foua rv mser aea tig oi onng uaca rrll of sor sa fbm rae jms eel ce sv .te Fil vof re ea ct ou mfre ups lnew teco nu -eld ssl ,o wss et ae lm so- s oo fDn oi uan rg tafc uso leln tt mex ot d. eW lie nv Fi Sis gu pua lrl ieiz te 6p aa nr dt so Eof mt ah ese ywex rP op nae grsimt anHe sn wat erre rdssu al rt es Ea7 7s4 4y8 9Future
+Hard
+tionlearnstointegratetwo6 69 96 7reprr dee ep sso cer rit nbr ie nts gaul ttt his eoo pf nreo ssu e,r ntwm ino hd Te ail blo elen 4Ch ,ar Cds Aetti ung sf eor sthetaskof s sh wo ew rn dua esw toel ml. oN reot ce asnt ph da lidit tah ta 1er sd aq nu de 7s tht 8i eo .1n cs a%na dre idd ai tf efi 6sc 5u a.rl 8t et %o ma on re- 76.97 75 5%0
+1
+66.1%
+afixedembeddingmatrix69d8urin 5.g 2.s Ee vam lua atn iot nic ofw infe eri rg inh gt pl ae sta ar nn di fn ug tu. re reTlaAtedC.oS split2 78.3% 64.4% 79.675%2 65.8%
+Besides, CCA eliminates699negative terms during training, Anotherobservatisopnliistth3atour7m8o.d5e%lcanach6i3ev.e9b%etter 79.775%3 69.9%
+700 Resultsofourmodelonpastandfuturemodelingare resultforfuturepredictionthanpastinferring.Wegiveour 754
+andasmultiple-choiceque70s1tionsh-oawnnsownTeabrlien5g.Itisshorwesqouuriernecdodetroissceap-ableofrea- hypothesisherebutesxpplloitre1inthe7fu2tu.4re%.Forfut4u7re.0pr%edic- 75.975%5 47.1%
+MPII-MD split2 72.0% 47.0% 73.3% 48.8%
+lectananswerfromcandidatesattestingtime,rankingloss
+7 split3 72.0% 46.9% 71.7% 48.1%
+ismoresuitableformodelingtheproblem.
+Evaluation of dual-channel learning. We then show the Table4.ResultsofourGRUmodelsoninferringpastandpredict-
+effectiveness of using two channels for learning. The re- ingthefuture.
+sult of how integrating two representations influences the
+performanceisshowninFigure6. Aswecansee,itisben-
+sametransformationlayerandsamehyper-parametersdur-
+eficialtointegratewordrepresentationsduringtraining,and
+ingtraining. ThisresultisshowninTable5. Detailedanal-
+sentencesareweightedmorethanwords. Itisbecauseour
+ysiswillbediscussedinnextSection.
+visualfeaturesrepresentmoreofglobalabstraction,which
+iscorrespondingtothesentencerepresentation, whilespe-
+5.2.EvaluationofInferringthePastandPredicting
+cific object features corresponding to the word representa-
+Future
+tionhaven’tbeenconsideredinthiswork. Wewillexplore
+thisdirectionindetailsinthefutureworks. WefirstshowtheresultsofourGRUmodelsinalltasks.
+Comparison between our GRU model and ConvNet The results of describing the present is in Table 3, while
+model. To show the effectiveness of our encoder-decoder results of inferring the past and predicting the future are
+approachinmodelingthepresent,wecompareourpresent shown in Table 4. We visualize part of the experiment re-
+model with a strong baseline - averaging frame-level fea- sults using our GRU models in Figure 7 and some wrong
+tures from GoogLeNet. We compare two representations answersareshownaswell.
+byplacingthevisualinputtoourdual-channelrankingob- TodemonstratetheeffectivenessofourGRUmodelsin
+jectivewithConvNetmodelorourGRUmodel. modelingtemporalstructures,weconductaninterestingex-
+Note that the comparison is reasonable as both fea- periment which uses ConvNet features of the given clip to
+tures are with same dimension of 1,024 and we use the modelpastandfuturedirectly. TheresultsareshowninTa-
+7
+tesnoitadilavnoycaruccA
+Describe the present Describe the present Infer the past Describe the present Predict the future Describe the present
+people ride in _ on a lake. He ____ orange. He ____ orange. He peels ____. He put orange on a ___. He put orange on a ___.
+lounge 0.284 peals 0.614 cuts 0.364 food 0.563 plate 0.284 table 0.587
+elevator 0.405 extracts 0.040 washes 0.253 banana 0.752 desk 0.405 plate 0.611
+boat 0.612 cuts off 0.591 picks 0.452 orange 0.831 table 0.612 musk 0.288
+window 0.308 washes 0.802 takes out 0.576 juice 0.201 musk 0.308 desk 0.544
+Describe the present Describe the present Describe the present Describe the present
+people eat ___ in a restaurant. A person feeds a ___. A person ___ a deer. A horse tries to ___.
+sushi 0.589 rabbit 0.761 cooks 0.020 stand up 0.723
+meatball 0.191 deer 0.878 feeds 0.198 dress up 0.434
+catfish 0.125 wolf 0.652 punches 0.202 look 0.121
+breakfast 0.630 groundhog 0.761 meal 0.044 pray 0.019
+Figure7.Exampleresultsobtainedfromourmodel. Eachcandidatehasascorecorrespondingtoaclip. Correctanswersaremarkedin
+greenwhilefailedcasesareinred.
+Past Present Future
+ConvNets Ours Improv ConvNets Ours Improv ConvNets Ours Improv
+Easy 74.8% 78.3% 3.5% 76.3% 79.7% 3.4% 76.4% 78.7% 2.3%
+TACoS Hard 62.7% 64.7% 2.0% 65.5% 67.1% 1.6% 64.5% 67.3% 2.8%
+Easy 66.8% 72.1% 5.3% 72.0% 74.2% 2.2% 68.7% 73.6% 4.9%
+MPII-MD Hard 45.6% 47.0% 1.4% 47.3% 48.2% 0.9% 46.9% 48.0% 1.1%
+Table5.ComparisonsbetweenConvNetsandourmodelforpast,presentandfuturemodeling.
+ble5. Fromtheresult,wehavethefollowingobservations: duetolackofcontext.
+(2) Ourmodel can achievebetter resultsfor futurepre-
+(1)GRUmodeloutperformsConvNetmodelinallcases,
+diction than past inference. For future prediction, we feed
+andrelativelyperformsbetterthanConvNetintasksofin-
+input frames in the order of 4, 5, 6 (Figure 4) and the de-
+ferringthepastandpredictingthefuturecomparedwithde-
+coderisaskedtoreconstructframeintheorder7,8,9. As
+scribing the present. By comparisons of the performance
+to past inferring, we feed the same input, but ask the de-
+among tasks, we find that our GRU model performs rela-
+codertoreconstructtargetsequenceof1,2,3.Asthefuture
+tively better than ConvNets in tasks of inferring the past
+prediction model has shorter term dependencies than past
+andpredictingthefuture,whichshowstheeffectivenessof
+inferring model, future prediction model can be easier to
+our GRU encoder-decoder framework in modeling tempo-
+learn the temporal dependencies, which is consistent with
+ral structures in videos. As our GRU models are trained
+theobservationsandhypothesisin[33].
+to reconstruct the past and future sequences, they can rep-
+resent the past and future in a more reasonable way than
+5.3.LimitationsandFutureWork
+the ConvNet models. Our results also indicate the abil-
+ity of our GRU models to capture wider range of tempo- Although our results on question answering for video
+ral information than ConvNet models. ConvNets trained temporal context are encouraging, our model has multiple
+from still frames can model temporal structures if objects limitations. First, ourmodelisonlyawareofcontextofat
+in scene don’t change too much in short intervals (one ex- most30seconds(thelongestunrolllength). Onemoreflex-
+amplewouldbeinFigure1,“cucumber”occursinbothcur- ibleandpromisingapproachwouldbeincorporatingtheat-
+rentandfutureclip). However,whenitcomestomodeling tentionmechanism[3]tolearnlongersequencesofcontext
+longer sequences, ConvNets will fail to make predictions invideos. Additionally,ourmodelfailstoanswerquestions
+8
+about detailed objects sometimes, due to lack of local vi- [11] R.Girshick,J.Donahue,T.Darrell,andJ.Malik. Richfea-
+sual features, i.e., region-level, bounding boxes based rep- ture hierarchies for accurate object detection and semantic
+resentation. Wewouldliketointegrateobjectdetectionin- segmentation. InCVPR,2014. 1
+gredientstolocalizeobjectsforbettervisualunderstanding. [12] S.HochreiterandJ.Schmidhuber.Longshort-termmemory.
+Lastly,wefixedsentenceandwordrepresentationlearning Neuralcomputation,9(8):1735–1780,1997. 1,4
+partinthiswork. Learningbothvisualandlanguagerepre- [13] M.Hodosh,P.Young,andJ.Hockenmaier. Framingimage
+description as a ranking task: Data, models and evaluation
+sentations simultaneously is an open problem as indicated
+metrics. JAIR,pages853–899,2013. 3
+in[9].
+[14] S.IoffeandC.Szegedy. Batchnormalization: Accelerating
+deepnetworktrainingbyreducinginternalcovariateshift.In
+6.Conclusion
+ICML,2015. 1,5
+Unlike video captioning tasks which generate a generic [15] A. Karpathy and L. Fei-Fei. Deep visual-semantic align-
+andsingledescriptionforavideoclip,weintroduceanap- ments for generating image descriptions. In CVPR, 2015.
+proach of temporal structure modeling for video question 2
+answering. Weutilizeanencoder-decodermodeltrainedin [16] R.Kiros,Y.Zhu,R.Salakhutdinov,R.S.Zemel,A.Torralba,
+an unsupervised way for visual context learning and pro- R. Urtasun, and S. Fidler. Skip-thought vectors. In NIPS,
+pose a dual-channel learning to ranking method to answer 2015. 5,6
+questions. The proposed method is capable of modeling [17] D.KleinandC.D.Manning.Accurateunlexicalizedparsing.
+videotemporalstructureinalongertimerange. Weevalu- InACL,2003. 3
+ateourapproachonthreedatasetswhichhavealargenum- [18] A. Krizhevsky, I. Sutskever, and G. E. Hinton. ImageNet
+berofvideos.Thenewapproachoutperformsthecompared classification with deep convolutional neural networks. In
+baselines,andachievesencouragingquestionansweringre- NIPS,2012. 1
+sults. [19] G.Kulkarni,V.Premraj,S.Dhar,S.Li,Y.Choi,A.C.Berg,
+and T. L. Berg. Baby talk: Understanding and generating
+References imagedescriptions. InCVPR,2011. 2
+[20] R. Lebret, P. O. Pinheiro, and R. Collobert. Phrase-based
+[1] TRECVID MED 14. http://nist.gov/itl/iad/ imagecaptioning. InICML,2015. 3
+mig/med14.cfm,2014. 3,5
+[21] T.-Y.Lin,M.Maire,S.Belongie,J.Hays,P.Perona,D.Ra-
+[2] S. Antol, A. Agrawal, J. Lu, M. Mitchell, D. Batra, C. L. manan,P.Dolla´r,andC.L.Zitnick.MicrosoftCOCO:Com-
+Zitnick,andD.Parikh. VQA:Visualquestionanswering. In monobjectsincontext. InECCV.2014. 3,4
+ICCV,2015. 1,2
+[22] X.LinandD.Parikh.Don’tjustlisten,useyourimagination:
+[3] D.Bahdanau,K.Cho,andY.Bengio.Neuralmachinetrans- Leveraging visual common sense for non-visual tasks. In
+lation by jointly learning to align and translate. In ICLR, CVPR,2015. 2,3
+2015. 8 [23] M.Malinowski,M.Rohrbach,andM.Fritz. Askyourneu-
+[4] K. Cho, B. van Merrienboer, C. Gulcehre, F. Bougares, rons:Aneural-basedapproachtoansweringquestionsabout
+H.Schwenk,andY.Bengio.Learningphraserepresentations images. InICCV,2015. 1,2
+usingRNNencoder-decoderforstatisticalmachinetransla- [24] T. Mikolov, I. Sutskever, K. Chen, G. S. Corrado, and
+tion. InEMNLP,2015. 2,4 J. Dean. Distributed representations of words and phrases
+[5] J. Chung, C. Gulcehre, K. Cho, and Y. Bengio. Empirical andtheircompositionality. InNIPS,2013. 2,3
+evaluation of gated recurrent neural networks on sequence [25] J. Y.-H. Ng, M. Hausknecht, S. Vijayanarasimhan,
+modeling. arXivpreprintarXiv:1412.3555,2014. 4 O.Vinyals,R.Monga,andG.Toderici. Beyondshortsnip-
+[6] R. Collobert, K. Kavukcuoglu, and C. Farabet. Torch7: A pets:Deepnetworksforvideoclassification.InCVPR,2015.
+matlab-likeenvironmentformachinelearning. InBigLearn, 2
+NIPSWorkshop,2011. 5 [26] K.Papineni,S.Roukos,T.Ward,andW.-J.Zhu. BLEU:a
+[7] J.Donahue,L.A.Hendricks,S.Guadarrama,M.Rohrbach, methodforautomaticevaluationofmachinetranslation. In
+S.Venugopalan,K.Saenko,andT.Darrell.Long-termrecur- ACL,2002. 2
+rent convolutional networks for visual recognition and de- [27] M.Regneri,M.Rohrbach,D.Wetzel,S.Thater,B.Schiele,
+scription. InCVPR,2015. 1,2 and M. Pinkal. Grounding action descriptions in videos.
+[8] D. Elliott and F. Keller. Comparing automatic evaluation TACL,1:25–36,2013. 3
+measuresforimagedescription. InACL,2014. 2 [28] M.Ren,R.Kiros,andR.S.Zemel. Imagequestionanswer-
+[9] A.Frome,G.S.Corrado,J.Shlens,S.Bengio,J.Dean,M.A. ing:Avisualsemanticembeddingmodelandanewdataset.
+Ranzato,andT.Mikolov. DeViSE:Adeepvisual-semantic InNIPS,2015. 2
+embeddingmodel. InNIPS,2013. 6,9 [29] A.Rohrbach, M.Rohrbach, N.Tandon, andB.Schiele. A
+[10] H. Gao, J. Mao, J. Zhou, Z. Huang, L. Wang, and W. Xu. datasetformoviedescription. InCVPR,2015. 3
+Areyoutalkingtoamachine?Datasetandmethodsformul- [30] O. Russakovsky, J. Deng, H. Su, J. Krause, S. Satheesh,
+tilingual image question answering. In NIPS, 2015. 1, 2, S.Ma,Z.Huang,A.Karpathy,etal. ImageNetlargescale
+3 visualrecognitionchallenge. IJCV,pages1–42,2014. 5
+9
+[31] K.SimonyanandA.Zisserman. Two-streamconvolutional
+networksforactionrecognitioninvideos. InNIPS,2014. 2
+[32] N. Srivastava, E. Mansimov, and R. Salakhudinov. Unsu-
+pervisedlearningofvideorepresentationsusingLSTMs. In
+ICML,2015. 2,5
+[33] I.Sutskever,O.Vinyals,andQ.V.Le.Sequencetosequence
+learningwithneuralnetworks. InNIPS,2014. 2,5,8
+[34] C. Szegedy, W. Liu, Y. Jia, P. Sermanet, S. Reed,
+D.Anguelov, D.Erhan, V.Vanhoucke, andA.Rabinovich.
+Goingdeeperwithconvolutions. InCVPR,2015. 1,5
+[35] T.TielemanandG.Hinton. Lecture6.5-RMSprop: Divide
+the gradient by a running average of its recent magnitude.
+2012. 5
+[36] D.Tran,L.Bourdev,R.Fergus,L.Torresani,andM.Paluri.
+Learningspatiotemporalfeatureswith3Dconvolutionalnet-
+works. InICCV,2015. 2
+[37] K.Tu,M.Meng,M.W.Lee,T.E.Choe,andS.-C.Zhu.Joint
+videoandtextparsingforunderstandingeventsandanswer-
+ingqueries. MultiMedia,IEEE,21(2):42–70,2014. 3
+[38] L. Van der Maaten and G. Hinton. Visualizing data using
+t-SNE. JMLR,9(2579-2605):85,2008. 3
+[39] R. Vedantam, C. L. Zitnick, and D. Parikh. CIDEr:
+Consensus-based image description evaluation. In CVPR,
+2015. 2
+[40] S. Venugopalan, M. Rohrbach, J. Donahue, R. Mooney,
+T. Darrell, and K. Saenko. Sequence to sequence – video
+totext. InICCV,2015. 1,2
+[41] O.Vinyals,A.Toshev,S.Bengio,andD.Erhan. Showand
+tell:Aneuralimagecaptiongenerator. InCVPR,2015. 1,2
+[42] C. Vondrick, H. Pirsiavash, and A. Torralba. Anticipat-
+ingthefuturebywatchingunlabeledvideo. arXivpreprint
+arXiv:1504.08023,2015. 3
+[43] H.WangandC.Schmid. Actionrecognitionwithimproved
+trajectories. InICCV,2013. 2
+[44] K. Xu, J. Ba, R. Kiros, A. Courville, R. Salakhutdinov,
+R.Zemel,andY.Bengio. Show,attendandtell: Neuralim-
+agecaptiongenerationwithvisualattention.InICML,2015.
+1
+[45] Z. Xu, Y. Yang, and A. G. Hauptmann. A discriminative
+CNN video representation for event detection. In CVPR,
+2015. 2
+[46] L.Yao,A.Torabi,K.Cho,N.Ballas,C.Pal,H.Larochelle,
+andA.Courville. Describingvideosbyexploitingtemporal
+structure. InICCV,2015. 1,2
+[47] P.Young,A.Lai,M.Hodosh,andJ.Hockenmaier.Fromim-
+agedescriptionstovisualdenotations: Newsimilaritymet-
+rics for semantic inference over event descriptions. TACL,
+2:67–78,2014. 3
+[48] L.Yu,E.Park,A.C.Berg,andT.L.Berg. VisualMadlibs:
+Fillintheblankimagegenerationandquestionanswering.
+InICCV,2015. 3
+[49] W. Zaremba, I. Sutskever, and O. Vinyals. Recurrent neu-
+ralnetworkregularization. arXivpreprintarXiv:1409.2329,
+2014. 5
+[50] Y. Zhu, R. Kiros, R. Zemel, R. Salakhutdinov, R. Urtasun,
+A.Torralba,andS.Fidler. Aligningbooksandmovies: To-
+wardsstory-likevisualexplanationsbywatchingmoviesand
+readingbooks. InICCV,2015. 2,6
+10

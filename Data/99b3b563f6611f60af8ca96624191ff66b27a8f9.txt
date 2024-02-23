@@ -1,0 +1,525 @@
+Multi-Head Attention with Diversity for Learning
+Grounded Multilingual Multimodal Representations
+Po-YaoHuang1,XiaojunChang2,AlexanderHauptmann1
+1LanguageTechnologiesInstitute,CarnegieMellonUniversity
+2FacultyofInformationTechnology,MonashUniversity
+poyaoh@cs.cmu.edu, cxj273@gmail.com, alex@cs.cmu.edu
+Abstract 2019b)leveragetripletrankinglossestoalignEn-
+glishsentencesandimagesinthejointembedding
+With the aim of promoting and understand- space. In VSE++ (Faghri et al., 2018), Faghri et
+ing the multilingual version of image search, al. improve VSE by emphasizing hard negative
+we leverage visual object detection and pro-
+samples. RecentadvancementinVSEmodelsex-
+pose a model with diverse multi-head atten-
+plores methods to enrich the English-Image cor-
+tion to learn grounded multilingual multi-
+pora. Shietal.(2018)proposetoaugmentdataset modalrepresentations.Specifically,ourmodel
+attends to different types of textual semantics with textual contrastive adversarial samples to
+in two languages and visual objects for fine- combatadversarialattacks. Recently, Huangetal.
+grainedalignmentsbetweensentencesandim- (2019a) utilize textual semantics of regional ob-
+ages. We introduce a new objective func-
+jects and adversarial domain adaptation for learn-
+tion which explicitly encourages attention di-
+ingVSEunderlow-resourceconstraints.
+versity to learn an improved visual-semantic
+AnemergingtrendgeneralizeslearningVSEin
+embedding space. We evaluate our model in
+themultilingualscenario. Rajendranetal.(2016)
+theGerman-ImageandEnglish-Imagematch-
+ing tasks on the Multi30K dataset, and in the learn M-view representations when parallel data
+SemanticTextualSimilaritytaskwiththeEn- is available only between one pivot view and the
+glish descriptions of visual content. Results rest of views. PIVOT (Gella et al., 2017) extends
+show that our model yields a significant per-
+the work from Calixto et al. (2017) to use images
+formancegainoverothermethodsinallofthe
+as the pivot view for learning multilingual multi-
+threetasks.
+modalrepresentations. Ka´da´retal.(2018)further
+confirmsthebenefitsofmultilingualtraining.
+1 Introduction
+OurworkismotivatedbyGellaetal.(2017)but
+Joint visual-semantic embeddings (VSE) are cen- hasimportantdifferences. First,todisentanglethe
+tral to the success of many vision-language tasks, alignments in the joint embedding space, we em-
+including cross-modal search and retrieval (Kiros ploy visual object detection and multi-head atten-
+etal.,2014;KarpathyandFei-Fei,2015;Guetal., tiontoselectivelyalignsalientvisualobjectswith
+2018), visual question answering (Antol et al., textual phrases, resulting in visually-grounded
+2015; Goyal et al., 2017), multimodal machine multilingual multimodal representations. Second,
+translation (Huang et al., 2016; Elliott and Ka´da´r, as multi-head attention (Vaswani et al., 2017) is
+2017), etc. Learning VSE requires extensive un- appealing for its efficiency and ability to jointly
+derstandingofthecontentinindividualmodalities attend to information form different perspec-
+andanin-depthalignmentstrategytoassociatethe tives, we propose to further encourage the diver-
+complementaryinformationfrommultipleviews. sity among attention heads to learn an improved
+With the availability of large-scale parallel visual-semantic embedding space. Figure 1 il-
+English-Image corpora (Lin et al., 2014; Young lustrates our gradient updates promoting diver-
+et al., 2014), a rich line of research has advanced sity. Theproposedmodelachievesstate-of-the-art
+learning VSE under the monolingual setup. Most performance in the multilingual sentence-image
+recent works (Kiros et al., 2014; Vendrov et al., matching tasks in Multi30K (Elliott et al., 2016)
+2015; Karpathy and Fei-Fei, 2015; Klein et al., and the semantic textual similarity task (Agirre
+2015; Wang et al., 2016, 2018; Huang et al., etal.,2012,2014,2015).
+9102
+peS
+03
+]LC.sc[
+1v85000.0191:viXra
+learn a multilingual multimodal embedding space
+in which the encoded representations (v,e,g) of
+a paired instance (i,xe,xg) are closely aligned to
+eachotherthannon-pairedones.
+Encoders: For a sampled (i,xe,xg) pair, we first
+encode the tokens in the English sentence xe =
+F-RCNN {xe,...,xe } and the tokens in the German sen-
+1 N
+AttAettnentitoionn AttAettnenttioionn tence xg = {xg,...,xg } through the word em-
+1 N
+bedding matrices followed by two bi-directional
+LSTMs. The outputs of the textual encoders are
+ZweiHunderennen…ein Feld …black dog chases a brown
+e = {e ,...,e },e ∈ RH for English and
+1 N n
+Figure1: Multi-headattentionwithdiversityforlearn-
+g = {g ,...,g },g ∈ RH for German, where
+inggroundedmultilingualmultimodalrepresentations. 1 N n
+N is the max sentence length and H is the di-
+(Atwo-headedexamplewithapartofdiversitylosslD
+θ
+coloredinred.) mension of the shared embedding space. For the
+image, we leverage a Faster-RCNN (Ren et al.,
+2015) network with a ResNet (He et al., 2016)
+2 RelatedWorks
+backbone to detect and encode salient visual ob-
+jects in the image. With a trainable one-layered
+Classicattentionmechanismshavebeenaddressed
+perceptron to transform visual features into the
+for learning VSE. These mechanisms can be
+shared embedding space, we encode the image as
+broadly categorized by the types of {Query, Key,
+v = {v ,...,v },v ∈ RH, where M is the
+Value} as discussed in Vaswani et al. (2017). 1 M m
+maximumamountofvisualobjectsinanimage.
+For intra-modal attention, {Query, Key, Value}
+Multi-head attention with diversity: We em-
+are within the same modality. In DAN (Nam
+ploy K-head attention networks to attend to the
+etal.,2017),thecontentineachmodalitiesisiter-
+visual objects in an image as well as the tex-
+ativelyattendedthroughmultiplestepswithintra-
+tual semantics in a sentence then generate fixed-
+modalattention. InSCAN(Leeetal.,2018),inter-
+length image/sentence representations for align-
+modalattentionisperformedbetweenregionalvi-
+ment. Specifically,thek-thattendedGermansen-
+sual features from Anderson et al. (2018) and
+tencerepresentationgk iscomputedby:
+text semantics. The inference time complexity is
+O(MN)(forgeneratingM queryrepresentations
+ak = softmax(tanh(Wkck)(cid:62)tanh(Wkg )) (1)
+for a size N datatset). In contrast to the prior i cg g g i
+N
+works, we leverage intra-modal multi-head atten- (cid:88)
+gk = akg , (2)
+tion,whichcanbeeasilyparallelizedcomparedto i i
+i=1
+DANandiswithapreferredO(M)inferencetime
+complexitycomparedtoSCAN. where ak is the attention weight, Wk ∈
+i g
+Inspired by the idea of attention regularization RH×Hattn,Wk ∈ RHc×Hattn is the learnable
+in Li et al. (2018), for learning VSE, we pro-
+cg
+transformation matrix for German. ck ∈ RHc
+poseanewmargin-baseddiversitylosstoencour- g
+is the learnable H -dimensional contextual vec-
+c
+age a margin between attended outputs over mul-
+torfordistillingimportantsemanticsfromGerman
+tiple attention heads. Multi-head attention diver-
+sentences. The final German sentence representa-
+sity within the same modality and across modali-
+tion isthe concatenation ofK-head attentionout-
+tiesarejointlyconsideredinourmodel.
+puts g = [g0(cid:107)g1(cid:107)...(cid:107)gK]. Similar for encoding
+theEnglishsentencee = [e0(cid:107)e1(cid:107)...(cid:107)eK]andthe
+3 TheProposedModel
+imagev = [v0(cid:107)v1(cid:107)...(cid:107)vK].
+Figure 1 illustrates the overview of the proposed With {V,E,G} where v ∈ V,e ∈ E,g ∈ G
+model. Givenasetofimagesasthepivotingpoints as the set of attended fixed-length image and sen-
+with the associate English and German1 descrip- tence representations in a sampled batch, we use
+tionsorcaptions,theproposedVSEmodelaimsto the widely-used hinge-based triplet ranking loss
+withhardnegativemining (Faghrietal.,2018)to
+1For clarity in notation, we discuss only two languages.
+align instances in the visual-semantic embedding
+The proposed model can be intuitively generalized to more
+languagesbysummingadditionaltermsinEq.4andEq.6-7. space. Taking Image-English instances {V,E} as
+…
+…
+…
+…
+nnooititnnetetAttA
+anexample,weleveragethetripletcorrelationloss attentiontoconcentrateondifferentaspectsofin-
+definedas: formationsparselylocatedinthejointembedding
+(cid:88)(cid:2) (cid:3) spacetopromotefine-grainedalignmentsbetween
+l (V,E) = α−s(v ,e )+s(v ,eˆ )
+θ p p p p + multilingual textual semantics and visual objects.
+p
+With the fact that the shared embedding space is
+(cid:88)(cid:2) (cid:3)
++ α−s(v q,e q)+s(vˆ q,e q) +, multilingual and multimodal, for improving both
+q intra-modal/lingualandinter-modal/lingualdiver-
+(3) sity,wemodeltheoveralldiversitylossas:
+whereαisthecorrelationmarginbetweenpositive lD(V,E,G) = lD(V,V)+lD(G,G)+lD(E,E)
+θ θ θ θ
+and negative pairs, [.] + = max(0,.) is the hinge +lD(V,E)+lD(V,G)+lD(G,E),
+function, and s(a,b) =
+aTb
+is the cosine simi-
+θ θ θ
+(cid:107)a(cid:107)(cid:107)b(cid:107) (6)
+larity. p and q are the indexes of the images and
+wherethefirstthreetermsareintra-modal/lingual
+sentences in the batch. eˆ = argmax s(v ,e )
+p q p q(cid:54)=p
+and the rest are cross-modal/lingual. With Eq. 4
+and vˆ = argmax s(v ,e ) are the hard nega-
+q p p(cid:54)=q q
+andEq.6,weformalizethefinalmodellossas:
+tives. When the triplet loss decreases, the paired
+images and German sentences are drawn closer lAll(V,E,G) = l (V,E,G)+βlD(V,E,G),
+θ θ θ
+down to a margin α than the hardest non-paired (7)
+ones. Our model aligns {V,E}, {V,G} and where β is the weighting parameter which bal-
+{E,G} in the joint embedding space for learning ancesthediversitylossandthetriplerankingloss.
+multilingual multimodal representations with the WetrainthemodelbyminimizinglAll(V,E,G).
+θ
+sampled{V,E,G}batch. Weformulatetheover-
+alltripletlossas: 4 Experiments
+Following Gella et al. (2017), we evaluate on
+l (V,E,G) = l (V,G)+l (V,E)+γl (G,E).
+θ θ θ θ
+themultilingualsentence-imagematchingtasksin
+(4)
+Multi30K (Elliott et al., 2016) and the semantic
+Note that the hyper-parameter γ controls the con-
+textualsimilaritytask(Agirreetal.,2012,2015).
+tribution of l (G,E) since (e, g) may not be a
+θ
+translation pair even though (e, v) and (g, v) are
+4.1 ExperimentSetup
+image-captionpairs.
+WeusethemodelinAndersonetal.(2018)which
+One of the desired properties of multi-head
+is a Faster-RCNN (Ren et al., 2015) network pre-
+attention is its ability to jointly attend to and
+trainedontheMS-COCO(Linetal.,2014)dataset
+encode different information in the embedding
+and fine-tuned on the Visual Genome (Krishna
+space. However,thereisnomechanismtosupport
+etal.,2016)datasettodetectsalientvisualobjects
+that these attention heads indeed capture diverse
+and extract their corresponding features. 1,600
+information. To encourage the diversity among
+types of objects are detectable. We then pack and
+K attention heads for instances within and across
+representeachimageasa36×2048featurematrix
+modalities, we propose a new simple yet effec-
+where36isthemaximumamountofsalientvisual
+tive margin-based diversity loss. As an example,
+objects in an image and 2048 is the dimension of
+themulti-headattentiondiversitylossbetweenthe
+the flattened last pooling layer in the ResNet (He
+sampledimagesandtheEnglishsentences(i.e. di-
+etal.,2016)backboneofFaster-RCNN.
+versityacross-modalities)isdefinedas:
+For the text processing, we lower-case, tok-
+lD(V,E) = (cid:88)(cid:88)(cid:88)(cid:2) α −s(vk,ek(cid:54)=r)] enize, and then truncate the maximum sentence
+θ D p p +
+length to 100. We use 300-dim word embed-
+p k r
+(5) ding matrices initialized either randomly or with
+As illustrated with the red arrows for update in pre-trainedmultilingualembeddings. (Weusethe
+Figure 1, the merit behind this diversity objective multilingual version of FastText (Mikolov et al.,
+is to increase the distance (up to a diversity mar- 2018)). Wealsoexperimentincorporatingthelast
+gin α ) between attended embeddings from dif- layerofcontextualizedmultilingualBERTembed-
+D
+ferent attention heads for an instance itself or its dings(Devlinetal.,2018)toreplacethewordem-
+cross-modalparallelinstances. Asaresult,thedi- bedding matrices as the textual input features for
+versity objective explicitly encourage multi-head thebi-directionalLSTMs.
+Method GermantoImage ImagetoGerman EnglishtoImage ImagetoEnglish
+R@1 R@5 R10 R@1 R@5 R@10 R@1 R@5 R@10 R@1 R@5 R10
+VSE†*(Kirosetal.,2014) 20.3 47.2 60.1 29.3 58.1 71.8 23.3 53.6 65.8 31.6 60.4 72.7
+OE†*(Vendrovetal.,2015) 21.0 48.5 60.4 26.8 57.5 70.9 25.8 56.5 67.8 34.8 63.7 74.8
+DAN*(Nametal.,2017) 31.0 60.9 71.0 46.5 77.5 83.0 39.4 69.2 69.1 55.0 81.8 89.0
+VSE++*(Faghrietal.,2018) 31.3 62.2 70.9 47.5 78.5 84.5 39.6 69.1 79.8 53.1 82.1 87.5
+SCAN*(Leeetal.,2018) 35.7 64.9 74.6 52.3 81.8 88.5 45.8 74.4 83.0 61.8 87.5 93.7
+Pivot†(Gellaetal.,2017) 22.5 49.3 61.7 28.2 61.9 73.4 26.2 56.4 68.4 33.8 62.8 75.2
+Ours†(Random,VGG19) 25.8 54.9 65.1 34.1 65.5 76.5 30.1 62.5 71.6 36.4 68.0 80.9
+Ours(Random,Nodiversity) 36.3 65.3 74.7 53.1 82.3 88.8 46.2 74.7 82.9 63.3 87.0 93.3
+Ours(Random) 39.2 67.5 76.7 55.0 84.7 91.2 48.7 77.2 85.0 66.4 88.3 93.4
+Ours(w/FastText) 40.3 70.1 79.0 60.4 85.4 92.0 50.1 78.1 85.7 68.0 88.8 94.0
+Ours(w/BERT) 40.7 70.5 78.8 56.5 84.6 91.3 48.9 78.3 85.8 66.5 89.1 94.1
+Table1: Comparisonofmultilingualsentence-imageretrieval/matching(German-Image)and(English-Image)re-
+sultsonMulti30K.(Visualencoders:VGG†otherwiseResNetorFaster-RCNN(ResNet).) (Monolingualmodels*.)
+Method MS-Vid Pascal Pascal The training, validation, and testing split contain
+(2012) (2014) (2015)
+29K, 1K, and 1K images respectively. Two types
+STSBaseline 29.9 51.3 60.4
+of annotations are available in Multi30K: (i) One
+STSBestSystem 86.3 83.4 86.4
+GRAN(Wietingetal.,2017) 83.7 84.5 85.0 parallel English-German translation for each im-
+VSE(Kirosetal.,2014) 80.6 82.7 89.6
+age and (ii) five independently collected English
+OE(Vendrovetal.,2015) 82.2 84.1 90.8
+DAN(Nametal.,2017) 84.1 84.3 90.8 and five German descriptions/captions for each
+VSE++(Faghrietal.,2018) 84.5 84.8 91.2 image. Weusethelater. NotethattheGermanand
+SCAN(Leeetal.,2018) 84.0 83.9 90.7
+English descriptions are not translations of each
+PIVOT(Gellaetal.,2017) 84.6 84.5 91.5
+Ours(w/Random) 85.8 87.8 91.5 otherandmaydescribeanimagedifferently.
+Ours(w/FastText) 86.2 88.3 91.8 Asotherpriorworks,weuserecallatk (R@k)
+Ours(w/BERT) 86.4 88.0 91.7
+to measure the standard ranking-based retrieval
+Table 2: Results on the image and video datasets of performance. Given a query, R@k calculates the
+SemanticTextualSimilaritytask. (Pearson’sr×100). percentage of test instances for which the correct
+one can be found in the top-k retrieved instances.
+Fortraining,wesamplebatchesofsize128and HigherR@k ispreferred.
+train 20 epochs on the training set of Multi30K. Table 1 presents the results on the Multi30K
+We use the Adam (Kingma and Ba, 2014) opti- testingset. TheVSEbaselinesinthefirstfiverows
+mizer with 2×10−4 learning rate then 2×10−5 are trained with English and German descriptions
+after 15-th epoch. Models with the best summa- independently. In contrast, PIVOT (Gella et al.,
+tion of validation R@1,5,10 are selected to gen- 2017)andtheproposedmodelarecapableofhan-
+erate image and sentence embeddings for testing. dlingmultilingualinputquerieswithsinglemodel.
+Weight decay is set to 10−6 and gradients larger ForafaircomparisonwithPIVOT,wealsoreport
+than 2.0 are clipped. We use 3-head attention theresultofswappingFaster-RCNNwithVGGas
+(K = 3)andtheembeddingdimensionH = 512. thevisualfeatureencoderinourmodel.
+The same dimension is shared by all the context As can be seen, the proposed models success-
+vectors in the attention modules. Other hyper- fullyobtainstate-of-the-artresults,outperforming
+parameters are set as follows: α = 0.2,α D = other baselines by a significant margin. German-
+0.1,β = 1.0andγ = 0.6.
+Image matching benefit more from joint training
+with English-Image pairs. The models with pre-
+4.2 MultilingualSentence-ImageMatching
+trained multilingual embeddings and contextual-
+We evaluate the proposed model in the multilin- ized embeddings achieve better performance in
+gual sentence-image matching (retrieval) tasks on comparison to randomly initialized word embed-
+Multi30K: (i) Searching images with text queries dings, especially for German. One explanation
+(Sentence-to-Image). (ii) Ranking descriptions is that the degradation from German singletons is
+with image queries (Image-to-Sentence). English alleviated by the multi-task training with English
+andGermanareconsidered. andthepre-trainedembeddings. Whilethemodel
+Multi30K (Elliott et al., 2016) is the multilin- withBERTperformsbetterinEnglish,FastTextis
+gual extension of Flickr30K (Young et al., 2014). preferredforGerman-Imagematching.
+The person in the striped shirt is mountain climbing .
+1 2 3
+Zweipersonensitzenauf einemrasenvoreinemgebäude.
+1 2 3
+The man with pierced ears is wearing
+glasses and an orange hat
+Der mann trägt eine orange wollmütze .
+A man is repelling down a cliff next to a lake .
+1 2 3
+Three childrenin football uniformsof two different A womanmidairvaultingover a bar.
+teams are playing football on a football field . Die frauspringtüberdie stangeauf
+3 kinderam sportplatz, zweiimblauendress, einerim die matte.
+schwarz-weißenmitblauenschutzhelmenrangeln.
+Figure2:Qaulitativetext-to-imagematchingresultson
+Figure 3: t-SNE visualization and grounding of
+Multi30K.Correct(coloredingreen)ifrankedfirst.
+the learned multilingual multimodal embeddings on
+Multi30K.Notethesentencesarenottranslationpairs.
+4.3 SemanticTextualSimilarityResults
+For semantic textual similarity (STS) tasks, we although the English and German sentences de-
+evaluateonthevideotaskfromSTS-2012 (Agirre scribe different aspects of the image, our model
+et al., 2012) and the image tasks from STS- correctlyalignsthesharedsemantics(e.g.(“man”,
+2014-15 (Agirre et al., 2014, 2015). The “mann”), (“hat”, “wollmtze”)) in the embedding
+video descriptions are from the MSR video de- space. Notably, the embeddings are visually-
+scription corpus (Chen and Dolan, 2011) and grounded as our model associate the multilingual
+the image descriptions are from the PASCAL phraseswithexactvisualobjects(e.g.glassesand
+dataset (Rashtchian et al., 2010). In STS, a sys- ears). Weconsiderlearninggroundedmultilingual
+temtakestwoinputsentencesandoutputaseman- multimodaldictionaryasthepromisingnextstep.
+tic similarity ranging from [0,5]. Following Gella As limitations we notice that actions and small
+etal.(2017),wedirectlyusethemodeltrainedon objects are harder to align. Additionally, the
+Multi30K to generate sentence embeddings then alignments tends to be noun-phrase/object-based
+scaled the cosine similarity between the two em- whereas spatial relationships (e.g. “on”, “over”)
+beddingsastheprediction. and quantifiers remain not well-aligned. Resolv-
+Table 2 lists the standard Pearson correlation ingtheselimitationswillbeourfuturework.
+coefficients r between the system predictions and
+5 Conclusion
+the STS gold-standard scores. We report the best
+scores achieved by paraphrastic embeddings (Wi- We have presented a novel VSE model facilitat-
+etingetal.,2017)(textonly)andtheVSEmodels ingmulti-headattentionwithdiversitytoaligndif-
+in the previous section. Note that the compared ferent types of textual semantics and visual ob-
+VSEmodelsareallwithRNNasthetextencoder jects for learning grounded multilingual multi-
+and no STS data is used for training. Our models modal representations. The proposed model ob-
+achieve the best performance and the pre-trained tains state-of-the-art results in the multilingual
+wordembeddingsarepreferred. sentence-image matching task and the semantic
+textualsimilaritytaskontwobenchmarkdatasets.
+4.4 QualitativeResultsandGrounding
+Acknowledgement
+InFigure2wesamplessomequalitativemultilin-
+gualtext-to-imagematchingresults. Inmostcases This research is supported in part by the DARPA
+our model successfully retrieve the one and only grantsFA8750-18-2-0018andFA8750-19-2-0501
+one correct image. Figure 3 depicts the t-SNE vi- under AIDA and LwLL program. It is also sup-
+sualization of the learned visually grounded mul- ported by the IARPA grant via DOI/IBC number
+tilingual embeddings of the (v,e,g) pairs pivoted D17PC00340. We would like to thank the anony-
+on v in the Multi30K testing set. As evidenced, mousreviewersfortheirconstructivesuggestions.
+References the Eighth International Joint Conference on Natu-
+ralLanguageProcessing(Volume1: LongPapers),
+Eneko Agirre, Carmen Banea, Claire Cardie, Daniel
+pages130–141,Taipei,Taiwan.AsianFederationof
+Cer, Mona Diab, Aitor Gonzalez-Agirre, Weiwei
+NaturalLanguageProcessing.
+Guo,InigoLopez-Gazpio,MontseMaritxalar,Rada
+Mihalcea, et al. 2015. Semeval-2015 task 2: Se-
+Fartash Faghri, David J Fleet, Jamie Ryan Kiros, and
+mantic textual similarity, english, spanish and pilot
+Sanja Fidler. 2018. Vse++: Improving visual-
+on interpretability. In Proceedings of the 9th inter-
+semanticembeddingswithhardnegatives.
+nationalworkshoponsemanticevaluation(SemEval
+2015),pages252–263.
+Spandana Gella, Rico Sennrich, Frank Keller, and
+Mirella Lapata. 2017. Image pivoting for learning
+Eneko Agirre, Carmen Banea, Claire Cardie, Daniel
+multilingual multimodal representations. In Pro-
+Cer, Mona Diab, Aitor Gonzalez-Agirre, Weiwei
+ceedingsofthe2017ConferenceonEmpiricalMeth-
+Guo, Rada Mihalcea, German Rigau, and Janyce
+ods in Natural Language Processing, pages 2839–
+Wiebe. 2014. Semeval-2014 task 10: Multilingual
+2845.AssociationforComputationalLinguistics.
+semantic textual similarity. In Proceedings of the
+8th international workshop on semantic evaluation
+(SemEval2014),pages81–91. Yash Goyal, Tejas Khot, Douglas Summers-Stay,
+Dhruv Batra, and Devi Parikh. 2017. Making the
+Eneko Agirre, Daniel Cer, Mona Diab, and Aitor V in VQA matter: Elevating the role of image un-
+Gonzalez-Agirre.2012. Semeval-2012task6: Api- derstandinginVisualQuestionAnswering. InCon-
+lot on semantic textual similarity. In * SEM 2012: ferenceonComputerVisionandPatternRecognition
+The First Joint Conference on Lexical and Compu- (CVPR).
+tational Semantics–Volume 1: Proceedings of the
+main conference and the shared task, and Volume Jiuxiang Gu, Jianfei Cai, Shafiq R. Joty, Li Niu, and
+2: ProceedingsoftheSixthInternationalWorkshop Gang Wang. 2018. Look, imagine and match:
+onSemanticEvaluation(SemEval2012),volume1, Improving textual-visual cross-modal retrieval with
+pages385–393. generative models. In The IEEE Conference on
+ComputerVisionandPatternRecognition(CVPR).
+PeterAnderson,XiaodongHe,ChrisBuehler,Damien
+Teney, Mark Johnson, Stephen Gould, and Lei KaimingHe,XiangyuZhang,ShaoqingRen,andJian
+Zhang.2018. Bottom-upandtop-downattentionfor Sun.2016. Deepresiduallearningforimagerecog-
+imagecaptioningandvisualquestionanswering. In nition. In Proceedings of the IEEE conference on
+CVPR. computervisionandpatternrecognition,pages770–
+778.
+StanislawAntol,AishwaryaAgrawal,JiasenLu,Mar-
+garet Mitchell, Dhruv Batra, C. Lawrence Zitnick,
+Po-Yao Huang, Guoliang Kang, Liu Wenhe, Xiaojun
+andDeviParikh.2015. VQA:VisualQuestionAn-
+Chang, and Alexander G. Hauptmann. 2019a. An-
+swering. InInternationalConferenceonComputer
+notation efficient cross-modal retrieval with adver-
+Vision(ICCV).
+sarialattentivealignment. In2019ACMMultimedia
+ConferenceonMultimediaConference.ACM.
+Iacer Calixto, Qun Liu, and Nick Campbell.
+2017. Multilingual multi-modal embeddings
+Po-Yao Huang, Frederick Liu, Sz-Rung Shiang, Jean
+for natural language processing. arXiv preprint
+Oh, and Chris Dyer. 2016. Attention-based multi-
+arXiv:1702.01101.
+modalneuralmachinetranslation. InProceedingsof
+the First Conference on Machine Translation: Vol-
+David Chen and William Dolan. 2011. Collecting
+ume 2, Shared Task Papers, volume 2, pages 639–
+highly parallel data for paraphrase evaluation. In
+645.
+Proceedingsofthe49thAnnualMeetingoftheAsso-
+ciationforComputationalLinguistics: HumanLan-
+guageTechnologies,pages190–200. Po-Yao Huang, Vaibhav, Xiaojun Chang, and Alexan-
+der G. Hauptmann. 2019b. Improving what cross-
+Jacob Devlin, Ming-Wei Chang, Kenton Lee, and modalretrievalmodelslearnthroughobject-oriented
+KristinaToutanova.2018. Bert:Pre-trainingofdeep inter- and intra-modal attention networks. In Pro-
+bidirectional transformers for language understand- ceedingsofthe2019onInternationalConferenceon
+ing. arXivpreprintarXiv:1810.04805. Multimedia Retrieval, ICMR ’19, pages 244–252,
+NewYork,NY,USA.ACM.
+DesmondElliott,StellaFrank,KhalilSima’an,andLu-
+cia Specia. 2016. Multi30k: Multilingual english- A´kos Ka´da´r, Desmond Elliott, Marc-Alexandre Coˆte´,
+german image descriptions. In Proceedings of the Grzegorz Chrupała, and Afra Alishahi. 2018.
+5th Workshop on Vision and Language, pages 70– Lessons learned in multilingual grounded language
+74.AssociationforComputationalLinguistics. learning. InProceedingsofthe22ndConferenceon
+Computational Natural Language Learning, pages
+Desmond Elliott and A´kos Ka´da´r. 2017. Imagination 402–412, Brussels, Belgium. Association for Com-
+improvesmultimodaltranslation. InProceedingsof putationalLinguistics.
+Andrej Karpathy and Li Fei-Fei. 2015. Deep visual- Cyrus Rashtchian, Peter Young, Micah Hodosh, and
+semantic alignments for generating image descrip- JuliaHockenmaier.2010. Collectingimageannota-
+tions. In Proceedings of the IEEE conference tions using amazon’s mechanical turk. In Proceed-
+on computer vision and pattern recognition, pages ingsoftheNAACLHLT2010WorkshoponCreating
+3128–3137. SpeechandLanguageDatawithAmazon’sMechan-
+icalTurk,pages139–147.AssociationforComputa-
+Diederik P Kingma and Jimmy Ba. 2014. Adam: A tionalLinguistics.
+method for stochastic optimization. arXiv preprint
+arXiv:1412.6980. Shaoqing Ren, Kaiming He, Ross Girshick, and Jian
+Sun. 2015. Faster r-cnn: Towards real-time ob-
+Ryan Kiros, Ruslan Salakhutdinov, and Richard S. ject detection with region proposal networks. In
+Zemel.2014. Unifyingvisual-semanticembeddings Advancesinneuralinformationprocessingsystems,
+with multimodal neural language models. NIPS pages91–99.
+Workshop.
+Haoyue Shi, Jiayuan Mao, Tete Xiao, Yuning Jiang,
+andJianSun.2018. Learningvisually-groundedse-
+Benjamin Klein, Guy Lev, Gil Sadeh, and Lior Wolf.
+mantics from contrastive adversarial samples. In
+2015. Associating neural word embeddings with
+Proceedings of the 27th International Conference
+deep image representations using fisher vectors. In
+onComputationalLinguistics,COLING2018,Santa
+IEEE Conference on Computer Vision and Pattern
+Fe, New Mexico, USA, August 20-26, 2018, pages
+Recognition, CVPR 2015, Boston, MA, USA, June
+3715–3727.
+7-12,2015,pages4437–4446.
+Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob
+RanjayKrishna, YukeZhu, OliverGroth, JustinJohn-
+Uszkoreit, Llion Jones, Aidan N Gomez, Łukasz
+son, Kenji Hata, Joshua Kravitz, Stephanie Chen,
+Kaiser, and Illia Polosukhin. 2017. Attention is all
+Yannis Kalantidis, Li-Jia Li, David A Shamma,
+you need. In Advances in Neural Information Pro-
+Michael Bernstein, and Li Fei-Fei. 2016. Visual
+cessingSystems,pages5998–6008.
+genome: Connecting language and vision using
+crowdsourceddenseimageannotations.
+Ivan Vendrov, Ryan Kiros, Sanja Fidler, and Raquel
+Urtasun. 2015. Order-embeddings of images and
+Kuang-Huei Lee, Xi Chen, Gang Hua, Houdong
+language. arXivpreprintarXiv:1511.06361.
+Hu, and Xiaodong He. 2018. Stacked cross at-
+tention for image-text matching. arXiv preprint LiweiWang,YinLi,JingHuang,andSvetlanaLazeb-
+arXiv:1803.08024. nik.2018. Learningtwo-branchneuralnetworksfor
+image-text matching tasks. IEEE Transactions on
+JianLi,ZhaopengTu,BaosongYang,MichaelRLyu, PatternAnalysisandMachineIntelligence.
+and Tong Zhang. 2018. Multi-head attention with
+disagreement regularization. In Proceedings of the Liwei Wang, Yin Li, and Svetlana Lazebnik. 2016.
+2018 Conference on Empirical Methods in Natural Learning deep structure-preserving image-text em-
+LanguageProcessing,pages2897–2903. beddings. In Computer Vision and Pattern Recog-
+nition (CVPR), 2016 IEEE Conference on, pages
+Tsung-Yi Lin, Michael Maire, Serge Belongie, James 5005–5013.IEEE.
+Hays, Pietro Perona, Deva Ramanan, Piotr Dolla´r,
+and C Lawrence Zitnick. 2014. Microsoft coco: JohnWieting,JonathanMallinson,andKevinGimpel.
+Common objects in context. In European confer- 2017. Learning paraphrastic sentence embeddings
+enceoncomputervision,pages740–755.Springer. from back-translated bitext. In Proceedings of the
+2017 Conference on Empirical Methods in Natural
+Tomas Mikolov, Edouard Grave, Piotr Bojanowski, LanguageProcessing,pages274–285.
+Christian Puhrsch, and Armand Joulin. 2018. Ad-
+Peter Young, Alice Lai, Micah Hodosh, and Julia
+vances in pre-training distributed word representa-
+Hockenmaier. 2014. From image descriptions to
+tions. In Proceedings of the International Confer-
+visual denotations: New similarity metrics for se-
+enceonLanguageResourcesandEvaluation(LREC
+mantic inference over event descriptions. Transac-
+2018).
+tionsoftheAssociationforComputationalLinguis-
+tics,2:67–78.
+Hyeonseob Nam, Jung-Woo Ha, and Jeonghee Kim.
+2017. Dual attention networks for multimodal rea-
+soningandmatching. InComputerVisionandPat-
+tern Recognition (CVPR), 2017 IEEE Conference
+on,pages2156–2164.IEEE.
+Janarthanan Rajendran, Mitesh M Khapra, Sarath
+Chandar, and Balaraman Ravindran. 2016. Bridge
+correlational neural networks for multilingual mul-
+timodal representation learning. In Proceedings of
+NAACL-HLT,pages171–181.

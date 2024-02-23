@@ -1,0 +1,1036 @@
+Efficient Correlated Topic Modeling with Topic Embedding
+JunxianHe∗1,3,ZhitingHu∗1,2,TaylorBerg-Kirkpatrick1,YingHuang3,EricP.Xing1,2
+CarnegieMellonUniversity1 PetuumInc.2 ShanghaiJiaoTongUniversity3
+∗Equalcontribution {junxianh,zhitingh,tberg,epxing}@cs.cmu.edu,hy941001@sjtu.edu.cn
+ABSTRACT poorscalingonlargedata.Forinstance,inCTM,directmodeling
+Correlatedtopicmodelinghasbeenlimitedtosmallmodeland ofpairwisecorrelationsandthenon-conjugacyoflogistic-normal
+problemsizesduetotheirhighcomputationalcostandpoorscaling.
+priorimposeinferencecomplexityofO(K3),whereKisthenumber
+Inthispaper,weproposeanewmodelwhichlearnscompacttopic oflatenttopics,significantlymoredemandingcomparedtoLDA
+embeddingsandcapturestopiccorrelationsthroughthecloseness whichscalesonlylinearly.Whiletherehasbeenrecentworkon
+betweenthetopicvectors.Ourmethodenablesefficientinference improvedmodelingandinference[2,9,35,36],themodelscale
+inthelow-dimensionalembeddingspace,reducingpreviouscubic hasstilllimitedtolessthan1000soflatenttopics.Thisstandsin
+or quadratic time complexity to linear w.r.t the topic size. We starkcontrasttorecentindustrial-scaleLDAmodelswhichhandle
+furtherspeedupvariationalinferencewithafastsamplertoexploit millionsoftopicsonbillionsofdocuments[8,42]forcapturinglong-
+sparsityoftopicoccurrence.Extensiveexperimentsshowthatour tailsemanticsandsupportingindustrialapplications[40],yet,such
+approachiscapableofhandlingmodelanddatascaleswhichare richextractiontaskisexpectedtobebetteraddressedwithmore
+severalordersofmagnitudelargerthanexistingcorrelationresults, expressivecorrelationmodels.Itisthereforehighlydesirabletode-
+withoutsacrificingmodelingqualitybyprovidingcompetitiveor velopefficientcorrelatedtopicmodelswithgreatrepresentational
+superiorperformanceindocumentclassificationandretrieval. powerandhighlyscalableinference,forpracticaldeployment.
+Inthispaper,wedevelopanewmodelthatextractscorrelation
+structuresoflatenttopics,sharingcomparableexpressivenesswith
+CCSCONCEPTS
+thecostlyCTMmodel, whilekeepingasefficientasthesimple
+•Computingmethodologies→Latentvariablemodels;
+LDA.Weproposetolearnadistributedrepresentationforeach
+latenttopic,andcharacterizecorrelatednessoftwotopicsthrough
+KEYWORDS
+theclosenessofrespectivetopicvectorsintheembeddingspace.
+Correlatedtopicmodels;topicembedding;scalability Comparedtopreviouspairwisecorrelationmodeling,ourtopicem-
+beddingschemeisparsimoniouswithlessparameterstoestimate,
+yetflexibletoenablericheranalysisandvisualization. Figure1
+1 INTRODUCTION
+illustratesthecorrelationpatternsof10Ktopicsinferredbyour
+Largeever-growingdocumentcollectionsprovidegreatopportuni-
+modelfromtwomillionNYTimesnewsarticles,inwhichwecan
+ties,andposecompellingchallenges,toinferrichsemanticstruc-
+seecleardependencystructuresamongthelargecollectionoftopics
+tures underlying the data for data management and utilization.
+andgraspthesemanticsofthemassivetextcorpus.
+Topicmodels,particularlytheLatentDirichletAllocation(LDA)
+Wefurtherderiveanefficientvariationalinferenceprocedure
+model[6],havebeenoneofthemostpopularstatisticalframeworks
+combinedwithafastsparsity-awaresamplerforstochastictackling
+toidentifylatentsemanticsfromtextcorpora. Onedrawbackof
+ofnon-conjugacies. Ourembeddingbasedcorrelationmodeling
+LDAderivesfromtheconjugateDirichletprior,asitmodelstopic
+enablesinferenceinthelow-dimensionalvectorspace,resulting
+occurrence(almost)independentlyandfailstocapturerichtopical
+inlinearcomplexityw.r.ttopicsizeaswiththelightweightLDA.
+correlations(e.g.,adocumentaboutvirusmaybelikelytoalsobe
+Thisallowsustodiscover100sof1000soflatenttopicswiththeir
+aboutdiseasewhileunlikelytoalsobeaboutfinance). Effective
+correlationsonnear10millionarticles,whichisseveralordersof
+modelingofthepervasivecorrelationpatternsisessentialforstruc-
+magnitudelargerthanpriorwork[5,9].
+tural topic navigation, improved document representation, and
+Ourworkdiffersfromrecentresearchwhichcombinestopic
+accurateprediction[5,9,37]. CorrelatedTopicModel(CTM)[5]
+modelswithwordembeddings[3,10,22,29]forcapturingword
+extendsLDAusingalogistic-normalpriorwhichexplicitlymodels
+dependencies,asweinsteadfocusonmodelingdependenciesinthe
+correlationpatternswithaGaussiancovariancematrix.
+latenttopicspacewhichexhibituncertaintyandareinferentially
+Despitetheenhancedexpressivenessandresultingricherrep-
+morechallenging. Tothebestofourknowledge,thisisthefirst
+resentations,practicalapplicationsofcorrelatedtopicmodeling
+worktoincorporatedistributedrepresentationlearningwithtopic
+haveunfortunatelybeenlimitedduetohighmodelcomplexityand
+correlationmodeling,offeringbothintuitivegeometricinterpreta-
+tionandtheoreticalBayesianmodelingadvantages.
+Permissiontomakedigitalorhardcopiesofallorpartofthisworkforpersonalor
+Wedemonstratetheefficacyofourmethodthroughextensive
+classroomuseisgrantedwithoutfeeprovidedthatcopiesarenotmadeordistributed
+forprofitorcommercialadvantageandthatcopiesbearthisnoticeandthefullcitation experimentsonvariouslargetextcorpora. Ourapproachshows
+onthefirstpage.CopyrightsforcomponentsofthisworkownedbyothersthanACM greatlyimprovedefficiencyoverpreviouscorrelatedtopicmodels,
+mustbehonored.Abstractingwithcreditispermitted.Tocopyotherwise,orrepublish,
+topostonserversortoredistributetolists,requirespriorspecificpermissionand/ora andscaleswellaswiththemuchsimplerLDA.Thisisachieved
+fee.Requestpermissionsfrompermissions@acm.org. withoutsacrificingthemodelingpower—theproposedmodelex-
+KDD’17,August13–17,2017,Halifax,NS,Canada. tractshigh-qualitytopicsandcorrelations,obtainingcompetitive
+©2017ACM. 978-1-4503-4887-4/17/08...$15.00
+DOI:10.1145/3097983.3098074
+7102
+luJ
+1
+]GL.sc[
+1v60200.7071:viXra
+casualty equipment banana
+d Iru rg a K qu w rea poit rt e rf of lo er t w soh ui rp cp re ed a to mas t geg a s g rc p la l ial cnli t o cf lin oll v e et
+cucumber squash pickle mustard
+deploy country plan destruct warn
+help expect artillery ally
+arm mori dl ei pt la oyr my en t hu dm ipa lon mit aa cr yia n spill s int fr ae nn trg yt hen a c fr uo rlim unaa ir t y w cc uo hr rl ed e f prr oo r uz y re n o d ing npr upia teot e cdn
+r
+r
+u
+fe nlm g a ce ha vni yon tl r e
+diplomat
+outline power far line
+week three point
+decline
+contaminate commercial park
+prost cat ae n m cuta ete r ode ua td bly r ein akf e coc ugt h tras vy nn i sd r mr uo im ts e f lu demand interest Cbj i ou ll ms il t oa pi nfr aig e qie md s l et pg ae o vt r et
+suspect bacteria grocery
+diagnose transmission hex eap de ac ct h p e e red si ea at rr cic h hi go hf ef ri c yii ea ldl ps eo oo pn l e b p aro nx ky o f Cfic itia icl u on ri pt
+dD isia eb aae nt s te ies b i s o y tem ip cip sd t eo mm i c medicine market percent o fl fo sn eg t oq lu d a pr rte or fly i t buckle country organ
+dsu or cdg tii a oc gn ra o l as m e st ho mnt ah car fd l cu hi ia d
+r
+oc p
+n
+p a icr t e ki is e dc nn er yi t b e ns et uro trn ag l c p ol nu fm edm ee rat l fo rp l islo kr wi yv ssa ke ent pe t ti ie cnx ea v xm pep el s re tt
+Figure1:Visualizationof10KcorrelatedtopicsontheNYTimesnewscorpus.Thepointcloudshowsthe10Ktopicembeddings
+whereeachpointrepresentsalatenttopic.Smallerdistanceindicatesstrongercorrelation.Weshowfoursetsoftopicswhich
+arenearbyeachotherintheembeddingspace,respectively.Eachtopicischaracterizedbythetopwordsaccordingtotheword
+distribution.Edgeindicatescorrelationbetweentopicswithstrengthabovesomethreshold.
+orbetterperformancethanCTMindocumentclassificationand thecorrelationpriorwithindependentfactormodelsforfasterin-
+retrievaltasks. ference.However,similartomanyotherapproaches,theproblem
+Therestofthepaperisorganizedasfollows: section2briefly scalehasstilllimitedtothousandsofdocumentsandhundreds
+reviewsrelatedwork;section3presentstheproposedtopicembed- oftopics. Incontrast,weaimtoscalecorrelatedtopicmodeling
+dingmodel;section4showsextensiveexperimental;andsection5 toindustrialleveldeploymentbyreducingthecomplexitytothe
+concludesthepaper. LDAlevelwhichislineartothetopicsize,whileprovidingasrich
+extractionasthecostlyCTMmodel.Wenotethatrecentscalable
+2 RELATEDWORK extensionsofLDAsuchasaliasmethods[28,42]areorthogonal
+toourapproachandcanbeappliedinourinferenceforfurther
+2.1 CorrelatedTopicModeling
+speedup.Weconsiderthisasourfuturework.
+Topicmodelsrepresentadocumentasamixtureoflatenttopics.
+Anotherlineoftopicmodelsorganizeslatenttopicsinahierar-
+AmongthemostpopulartopicmodelsistheLDAmodel[6]which
+chywhichalsocapturestopicdependencies.However,thehierar-
+assumesconjugateDirichletpriorovertopicmixingproportions
+chystructureiseitherpre-defined[7,19,30]orinferredfromdata
+foreasierinference.Duetoitssimplicityandscalability,LDAhas
+usingBayesiannonparametricmethods[4,11]whichareknown
+extractedbroadinterestforindustrialapplications[40,42]. The
+tobecomputationallydemanding[12,17].Ourproposedmodelis
+Dirichletpriorishoweverincapableofcapturingdependenciesbe-
+flexiblewithoutsacrificingscalability.
+tweentopics.TheclassicCTMmodelprovidesanelegantextension
+ofLDAbyreplacingtheDirichletpriorwithalogistic-normalprior
+whichmodelspairwisetopiccorrelationswiththeGaussiancovari-
+ancematrix.However,theenrichedextractioncomeswithcompu- 2.2 DistributedRepresentationLearning
+tationalcost.Thenumberofparametersinthecovariancematrix Therehasbeenagrowinginterestindistributedrepresentation
+growsassquareofthenumberoftopics,andparameterestima- thatlearnscompactvectors(a.k.aembeddings)forwords[27,33],
+tionforthefull-rankmatrixcanbeinaccurateinhigh-dimensional entities[18,31],networknodes[14,38],andothers.Theinduced
+space. More importantly, frequent matrix inversion operations vectorsareexpectedtocapturesemanticrelatednessofthetarget
+duringinferenceleadtoO(K3)timecomplexity,whichhassignifi- items,andaresuccessfullyusedinvariousapplications.Compared
+cantlyrestrictedthemodelanddatascales.Toaddressthis,Chen tomostworkthatinducesembeddingsforobservedunits,welearn
+etal.[9]derivesascalableGibbssamplingalgorithmbasedondata distributed representations of latent topics which poses unique
+augmentation.ThoughbringingdowntheinferencecosttoO(K2) challengeforinference.Somepreviouswork[25,26]alsoinduces
+perdocument,thecomputationisstilltooexpensivetobepractical compacttopicmanifoldforvisualizinglargedocumentcollections.
+inreal-worldmassivetasks.Putthividhyaetal.[36]reformulates Ourworkisdistinctinthatweleveragethelearnedtopicvectors
+Symbol Description
+⇢
+D,K,V numberofdocuments,latenttopics,andvocabularywords
+embedding space Nd numberofwordsindocumentd
+u3
+a
+⌧ M embeddingdimensionoftopicanddocument
+u1 u4 d au dk e em mb be ed dd di in ng gv ve ec ct to or ro of ft do op ci uc mk
+entd
+ad u2 ⌘
+d
+u
+k
+wη dd
+n
+( tu hn en no tr hm wa oli rz ded in)t do op cic umw ee nig th dtvectorofdocumentd
+K
+zdn thetopicassignmentofwordwdn
+↵ ϕk worddistributionoftopick
+z dn Ks numberofnon-zeroentriesofdocument’stopicproportion
+topic weights   Vs numberofnon-zeroentriesoftopicworddistribution
+w   Table1:Notationsusedinthispaper.
+dn k
+u1 u2 u3 u4 Nd K documentvectorwillhavesimilar(eitherlargeorsmall)distances
+D
+tothevectorsoftwosemanticallycorrelatedtopicswhicharethem-
+selvesnearbyeachotherinthespace,andthustendtoassignsimilar
+Figure 2: Graphical model representation. The left part
+probabilitymasstothetwotopics.Figure2,leftpart,schematically
+schematicallyshowsourcorrelationmodelingmechanism,
+illustratestheembeddingbasedcorrelationmodeling.
+where nearby topics tend to have similar (either large or
+Wethusavoidexpensivemodelingofpairwisetopiccorrelation
+small)weightsinadocument.
+matrix,andareenabledtoperforminferenceinthelow-dimensional
+embeddingspace,leadingtosignificantreductioninmodeland
+forefficientcorrelationmodelingandaccountfortheuncertainty
+inferencecomplexity.Wefurtherexploittheintrinsicsparsityof
+ofcorrelations.
+topicoccurrence,anddevelopstochasticvariationalinferencewith
+Anemerginglineofapproaches[3,10,22,29]incorporatesword
+fastsparsity-awaresamplingtoenablehighscalability.Wederive
+embeddings(eitherpre-trainedorjointlyinferred)withconven-
+theinferencealgorithminsection3.3.
+tionaltopicmodelsforcapturingworddependenciesandimproving
+Incontrasttowordrepresentationlearningwherewordtokens
+topiccoherence. Ourworkdifferssinceweareinterestedinthe
+areobservedandembeddingscanbeinduceddirectlyfromword
+topiclevel,aimingatcapturingtopicdependencieswithlearned
+collocationpatterns,topicsarehiddenfromthetext,posingaddi-
+topicembeddings.
+tionalinferentialchallenge.Weresorttogenerativeframeworkas
+inconventionaltopicmodelsbyassociatingaworddistribution
+3 TOPICEMBEDDINGMODEL
+witheachtopic. Wealsotakeintoaccountuncertaintyoftopic
+Thissectionproposesourtopicembeddingmodelforcorrelated
+correlationsforflexibility.Thus,inadditiontotheintuitivegeomet-
+topicmodeling. Wefirstgiveanoverviewofourapproach,and
+ricinterpretationofourembeddingbasedcorrelationscheme,the
+presentthemodelstructureindetail.Wethenderiveanefficient
+fullBayesiantreatmentalsoendowsconnectiontotheclassicCTM
+variationalalgorithmforinference.
+model,offeringtheoreticalinsightsintoourapproach.Wepresent
+themodelstructureinthenextsection.(Table1listskeynotations;
+3.1 Overview
+Figure2showsthegraphicalmodelrepresentationofourmodel.)
+Weaimtodevelopanexpressivetopicmodelthatdiscoverslatent
+topicsandunderlyingcorrelationstructures. Despitethisadded
+3.2 ModelStructure
+representationalpower,wewanttokeepthemodelparsimonious
+Wefirstestablishthenotations.LetW ={w }D beacollectionof
+andefficientinordertoscaletolargetextdata.Asdiscussedabove d d=1
+(section2),CTMcapturescorrelationsbetweentopicpairswitha documents.EachdocumentdcontainsN
+d
+wordsw
+d
+={w dn} nN =d
+1
+Gaussiancovariancematrix,imposingO(K2)parametersizeand fromavocabularyofsizeV.
+O(K3)inferencecost.Incontrast,weadoptanewmodelingscheme WeassumeK topicsunderlyingthecorpus.Asdiscussedabove,
+drawinginspirationfromrecentworkondistributedrepresenta- foreachtopick,wewanttolearnacompactdistributedrepresen-
+tions,suchaswordembeddings[33]whichlearnlow-dimensional tationu ∈RM withlowdimensionality(M (cid:28)K).LetU ∈RK×M
+k
+wordvectorsandhaveshowntobeeffectiveinencodingword denotethetopicvectorcollectionwiththekthrowU
+k·
+=uT k.As
+semanticrelatedness. acommonchoiceinwordembeddingmethods,weusethevector
+Weinducecontinuousdistributedrepresentationsforlatenttop- innerproductformeasuringtheclosenessbetweenembeddingvec-
+ics,and,asinwordembeddings,expecttopicswithrelevantseman- tors. Inadditiontotopicembeddings,wealsoinducedocument
+ticstobeclosetoeachotherintheembeddingspace.Thecontiguity vectorsinthesamevectorspace.Leta ∈RM denotetheembed-
+d
+oftheembeddingspaceenablesustocapturetopicalco-occurrence dingofdocumentd.Wenowcanconvenientlycomputetheaffinity
+patternsconveniently—wefurtherembeddocumentsintothesame ofadocumentdtoatopickthroughuTa .Atopick(cid:48)nearby,and
+k d
+vectorspace,andcharacterizedocument’stopicproportionswith thussemanticallycorrelatedtotopick,willnaturallyhavesimilar
+itsdistancestothetopics.Smallerdistanceindicateslargertopic distancetothedocument,as|uT ka
+d
+−uT k(cid:48)a d| ≤ (cid:107)u
+k
+−u k(cid:48)(cid:107)(cid:107)a d(cid:107)
+weight.Bythetriangleinequalityofdistancemetric,intuitively,a and(cid:107)u
+k
+−u k(cid:48)(cid:107)issmall.
+Weexpressuncertaintyoftheaffinitybymodelingtheactual Algorithm1GenerativeProcess
+topicweightsη d ∈RK asaGaussianvariablecenteredattheaffin- 1. Foreachtopick =1,2,···,K,
+i ut ny cv ee rtc ato inr, tyfo dl elo gw rei eng anη dd is∼ pN re-(U spa ed ci, fiτ e− d1 fI o). rH sie mr pe lτ icic th ya .r Aa sct ie nri lz oe gs ist th ice - •
+•
+D Dr ra aw wt th he et to op pi ic cw emo brd edd dis intr gib uutio ∼n Nϕ (k 0,∼ α−D 1i Ir )(β)
+normalmodels,weprojectthetopicweightsintotheprobability 2. Foreachdocumentd =1,2,···,Dk ,
+ws ui mm e esp nale m t.x p At lo seo ia nb tt coa opi nn ic vt ezo ndp tni ic o∈d ni a{s l1tr t,i o.b p.u i.t c,io K mn } oθ dfd o er l= se ,a es c ao h cft hm w ta o ox r pd( iη cwd kd), n isfr i ao n sm st ohw ce ih ad ti o ec ch d- • •
+•
+D D Dr r ea a riw w vet th h the e ed d do o ic c su u trm m ibe e un n tt t ioe to nm p ob ic ve ed w rd ei tin ogg ph ia t csd η θd∼ ∼N =N( s0 o(, U ftρ ma− d1 aI , x) τ (η−1 I ))
+w eai cth ha obm su erlt vin edom wi oal rddi is str dib rau wtio nn frϕ ok mov ree sr pt eh ce tiw veor wd ov ro dca db isu tl ra ir by u, ta ion nd • (F ao )r De ra ac whw tho erd ton pi= ca1 s, s2 i, g· n· m· e, nN td z, ∼d
+Multi(θ )
+d
+ind Pic ua ttte ind gb ey vi et rs yt to hp ii nc ga ts os gig en thm ee rn ,tt h.
+egenerativeprocessofthepro-
+(b)Drawthewordw
+dn
+∼Multi(d ϕn zdn) d
+posedmodelissummarizedinAlgorithm1. Atheoreticallyap-
+pealingpropertyofourmethodisitsintrinsicconnectiontocon-
+lowerbound(ELBO):
+ventionallogistic-normalmodelssuchastheCTMmodel. Ifwe
+ηm dar ∼gi Nna (l 0iz ,Ueo Uu Ttt +he τ−d 1o Ic )u ,m ree cn ovt ee rm inb ge td hd ein pg aiv rwar ii sa eb tle opa id c, cw ore reo lb at tia oin
+n
+L(q)=(cid:213) kE q (cid:20) logp q(( uu kk ))p q(( ϕϕ kk ))(cid:21) +
+matrixwithlowrankconstraint,whereeachelementisjustthe (cid:213)
+E
+(cid:20) logp(a d)p(η d|a d,U)p(z dn|η d)p(w dn|z dn,ϕ)(cid:21)
+closenessofrespectivetopicembeddings,coherenttotheabove d,n q q(a )q(η )q(z )
+d d dn
+geometricintuitions.Suchcovariancedecompositionhasbeenused (3)
+inothercontext,suchassparseGaussianprocesses[39]forefficient
+WeoptimizeL(q)viacoordinateascent,interleavingtheupdate
+approximationandGaussianreparameterization[23,41]fordiffer-
+ofthevariationalparametersateachiteration. Weemploysto-
+entiationandreducedvariance.Herewerelatelow-dimensional
+chasticvariationalinferencewhichoptimizestheparameterswith
+embeddinglearningwithlow-rankcovariancedecompositionand
+stochasticgradientsestimatedondataminibatchs.Duetothespace
+estimation.
+limitations,hereweonlydescribekeycomputationrulesofthe
+The low-dimensional representations of latent topics enable
+gradients(orclosed-formsolutions).Thesestochasticallyestimated
+parsimoniouscorrelationmodelingwithparametercomplexityof
+quantitiesarethenusedtoupdatethevariationalparametersaf-
+O(MK) (i.e., topic embedding parameters), which is efficient in
+terscaledbyalearningrate. Pleaserefertothesupplementary
+termsoftopicnumberK.Moreover,weareallowedtoperformeffi-
+material[1]fordetailedderivations.
+cientinferenceintheembeddingspace,withinferencecostlinear
+Updatingtopicanddocumentembeddings. Foreachtopic
+inK,ahugeadvancecomparedtopreviouscubiccomplexityof
+vanillaCTM[5]andquadraticofrecentimprovedversion[9].We k,weisolateonlythetermsthatcontainq(u k|µ k,Σ k(u) ),
+deriveourinferencealgorithminthenextsection. (cid:213)
+L(q(u k))=E q[logp(u k)]+ dE q[logp(η d|a d,U)]
+(4)
+3.3 Inference −E q[logq(u k)].
+Posteriorinferenceandparameterestimationisnotanalytically Theoptimalsolutionforq(u )isthenobtainedbysettingthegra-
+k
+tractableduetothecouplingbetweenlatentvariablesandthenon- dienttozero,withthevariationalparameterscomputedas:
+c eo spn eju cig aa llt ye il nog oi ust ric c- on no tr em xta ol fp sr cio ar l. inTh gi ts om una pk re es ct eh de enle ta er dn lyin lg ard gi effi dc au tl at
+µ
+k
+=τΣ(u)·(cid:16)(cid:213)
+dξ dkγ
+d(cid:17)
+,
+(5)
+a inn vd om lvo ed se ol ns li yze cs o. mW pe acd te tv oe plo icp va es ct to oc rh sa ws hti ic chva ar ri eat ci ho en aa plm toe it nh fo ed r,t ah na dt( (1 2) ) Σ(u)= (cid:104) αI+τ(cid:213)
+d
+(cid:16) Σ d(a)+γ dγ dT(cid:17)(cid:105)−1 ,
+includesafastsamplingstrategywhichtacklesnon-conjugacyand wherewehaveomittedthesubscriptk ofthevariationalcovari-
+exploitsintrinsicsparsityofboththedocumenttopicoccurrence ancematrixΣ(u)asitisindependentwithk.Intuitively,theoptimal
+andthetopicalwords.
+variationaltopicembeddingsarethecentersofvariationaldocu-
+Wefirstassumeamean-fieldfamilyofvariationaldistributions:
+mentembeddingsscaledbyrespectivedocumenttopicweightsand
+q(u,ϕ,a,η,z)= transformedbythevariationalcovariancematrix.
+(1) Bysymmetry,thevariationalparametersofdocumentembed-
+(cid:214) (cid:214) (cid:214)
+kq(u k)q(ϕ k) dq(a d)q(η d) nq(z dn). dinga
+d
+issimilarlyupdatedas:
+wherethefactorshavetheparametricforms:
+γ
+=τΣ(a)·(cid:16)(cid:213)
+ξ µ
+(cid:17)
+,
+q(u k)=N(u k|µ k,Σ k(u) ), q(a d)=N(a d|γ d,Σ d(a) ), Σ(ad
+)=
+(cid:104) γI+τ(cid:213)k (cid:16) Σd (k u)k
++µ
+µT(cid:17)(cid:105)−1
+,
+(6)
+q(ϕ )=Dir(ϕ |λ ), q(η )=N(η |ξ ,Σ(η) ), (2) k k k
+q(z
+)=k
+Multi(z
+k |κk
+)
+d d d d where,again,Σ(a)isindependentwithdandthusthesubscriptd
+dn dn dn isomitted.
+VariationalalgorithmsaimtominimizeKLdivergencefromqto Learninglow-dimensionaltopicanddocumentembeddingsis
+thetrueposterior,whichisequivalenttotighteningtheevidence computationallycheap. Specifically, byEq.(5), updatingtheset
+of variational topic vector means {µ }K imposes complexity wherethesecondterm
+k k=1
+SO im(K ilM ar2 ly), ,ban yd Equ .p (6d )a ,tt hin eg coth ste oc fo ov pa tr imia in zc ine gΣ γ(u) ar ne dq Σui (are )s iso Onl (y KMO( )M an3 d). E q[logp(z d|η d)]=(cid:213) k,nq(z
+dn
+=k)E q[log(softmax k(η d))]
+d
+O(KM2),respectively.NotethatΣ(a)issharedacrossalldocuments involves variational expectations of the logistic transformation
+whichdoesnothaveananalyticform.WeconstructafastMonto
+anddoesnotneedupdatesperdocument.Weseethatalltheupdates
+Carloestimatorforapproximation.Particularly,weemployrepa-
+costonlylinearlyw.r.ttothetopicsizeK whichiscriticaltoscale
+rameterizationtrickbyfirstassumingadiagonalcovariancematrix
+tolarge-scalepracticalapplications.
+Sparsity-awaretopicsampling. Wenextconsidertheopti- Σ(η) = diag(σ2) as is commonly used in previous work [5, 23],
+d d
+mizationofthevariationaltopicassignmentq(z dn)foreachword whereσ
+d
+denotesthevectorofstandarddeviations,resultingin
+w .Lettingw =v,theoptimalsolutionis: thefollowingsamplingprocedure:
+dn dn
+q(z
+dn
+=k)∝exp{ξ dk}exp(cid:110) Ψ(λ kv)−Ψ(cid:16)(cid:213) v(cid:48)λ kv(cid:48)(cid:17)(cid:111) , (7) η d(t)=ξ d +σ d (cid:12)ϵ(t); ϵ(t)∼N(0,I), (9)
+where(cid:12)istheelement-wisemultiplication.WithT samplesofη ,
+whereΨ(·)isthedigammafunction;andξ
+d
+andλ
+k
+arethevaria- wecanestimatethevariationallowerboundandthederivatived
+s
+tionalmeansofthedocument’stopicweightsandthevariational
+∇Lw.r.tthevariationalparameters{ξ ,σ }.Forinstance,
+wordweights(Eq.(2)),respectively.Directcomputationofq(z ) d d
+withEq.(7)hascomplexityofO(K),whichbecomesprohibitivedn
+in
+∇ ξdE q[logp(z d|η d)]
+t ah se pep cr te sse on fc ie nto rf inm sia cn sy pl aa rt se in tytt io np tic hs e. mTo oa dd ed lir ne gs :s (t 1h )is Th,w oe ugex hp alo wit ht ow lo
+e
+≈(cid:213)
+k,nq(z dn =k)e k −(N
+d/T)(cid:213)T t=1softmax(cid:16)
+η
+d(t)(cid:17)
+(10)
+corpuscancoveralargediversesetoftopics,asingledocument ≈(cid:213) 1(z˜ =k)e −(N /T)(cid:213)T softmax(cid:16) η(t)(cid:17)
+inthecorpusisusuallyaboutonlyasmallnumberofthem. We k,n dn k d t=1 d
+thusonlymaintainthetopKs entriesineachξ d,whereKs (cid:28)K, wheree kisanindicatorvectorwiththekthelementbeing1andthe
+makingthecomplexityduetothefirsttermintheright-handside rest0.InpracticeT =1isusuallysufficientforeffectiveinference.
+ofEq.(7)onlyO(Ks)forallK topicsintotal;(2)Atopicistypically Thesecondequationappliesthehardtopicsamplementionedabove,
+characterizedbyonlyafewwordsinthelargevocabulary,wethus whichreducesthetimecomplexityO(KN )oftheoriginalstandard
+d
+cutoffthevariationalwordweightvectorλ
+k
+foreachkbymain- computation(thefirstequation)toO(N
+d
++K)(i.e.,O(N d)forthe
+tainingonlyitstopVs entries(Vs (cid:28) V). Suchsparsetreatment firsttermandO(K)forthesecond).
+helpsenhancetheinterpretabilityoflearnedtopics, andallows ThefirstterminEq.(8)dependsonthetopicanddocumentem-
+cheapcomputationwithonaverageO(KVs/V)costforthesecond beddingstoencodetopiccorrelationsindocument’stopicweights.
+term1.Withtheabovesparsity-awareupdates,theresultingcom- Thederivativew.r.ttothevariationalparameterξ iscomputedas:
+d
+ξp al gex r aei rt a ey t sf s eo p lr eeE ce tdq eu. d( p7 u) o sw v ineit r gh t aK he Mto o ip nrii -gc his eni aas plb O dro a(u K tag )h sc tt o rd uso t c.w tTh un reeto ,t woO p h( oK K ss s e+ e cn oK t mV ris pe/ usV to a) f -, HereU˜ isthe∇ cξ od lE leq ct[ il oo ngp o( fη vd a| rU ia, ta iod n) a] l= mτ e( aU˜ nγ sd of− toξ pd i) c. embeddi( n1 g1 s)
+tid onalcostisamortizedacrossallwordsinthedocument,imposing wherethekthrowU˜
+k·
+=µT k.Weseethat,withlow-dimensional
+O(K/N dlogKs)computationperword. Thecostforfindingthe topicanddocumentvectorrepresentations,inferringtopiccorre-
+topVs entriesofλ
+k
+issimilarlyamortizedacrossdocumentsand lationsisoflowcost O(KM)whichgrowsonlylinearlyw.r.tto
+words,andbecomesinsignificant. thetopicsize. ThecomplexityoftheremainingtermsinEq.(8),
+Updatingtheremainingvariationalparameterswillfrequently aswellasrespectivederivativesw.r.tthevariationalparameters,
+involvecomputationofvariationalexpectationsunderq(z ). It hascomplexityofO(KM)(Pleaseseethesupplements[1]formore
+dn
+isthuscrucialtospeedupthisoperation.Tothisend,weemploy details).Insummary,thecostofupdatingq(η )foreachdocument
+d
+sparseapproximationbysamplingfromq(z dn)asingleindicator disO(KM+K+N d).
+z˜ ,andusethe“hard”sparsedistributionq˜(z =k):=1(z˜ = Finally,theoptimalsolutionofthevariationaltopicworddistri-
+dn dn dn
+k)toestimatetheexpectations.Notethatthesamplingoperationis butionq(ϕ k|λ k)isgivenby:
+cheap,havingthesamecomplexitywithcomputingq(z dn)asabove.
+λ
+=β+(cid:213)
+1(w =v)1(z˜ =k). (12)
+Asshownshortly,suchsparsecomputationwillsignificantlyreduce kv d,n dn dn
+ourrunningcost.Thoughstochasticexpectationapproximationis Algorithmsummarization. Wesummarizeourvariational
+commonlyusedfortacklingintractability[24,34],hereweinstead inferenceinAlgorithm2. Asanalyzedabove,thetimecomplex-
+applythetechniqueforfastestimationoftractableexpectations. ityofourvariationalmethodisO(KM2+M3)forinferringtopic
+ExtW rae ctn inex gt oo np lytim thi eze tet rh me sv ia nri Lat (i qo )n ia nl vt oo lp vi ic ngw qe (i ηg dh )t ,s wq( eη gd e| tξ :d,Σ d(η) ). e
+i fn
+om rgb mqe (d
+aa
+id ndi tn
+)
+a,g
+iO
+ns iq
+(
+nK( gu Md q) (). zfTh
+o )r
+.e Thuc po eds
+a
+ot
+t
+vp
+in
+ee rgr ad
+lq
+lo
+(
+cηc ou
+d
+mm
+),
+pe
+a
+ln ent
+xd
+ii ts
+O
+yO
+( f(
+o( KK rsM ea+) chf Ko dVr osc c/o
+V
+um m)Np eu
+d
+nt
+)
+t-
+L(q(η d))=E q[logp(η d|a d,U)]+E q[logp(z d|η d)]
+(8)
+isthusO(KM +(Ksd +KVs/V)N d),whichislineartomodelsize
+−E q[logq(η d)], (K),comparabletotheLDAmodelwhilegreatlyimprovingover
+previouscorrelationmethodswithcubicorquadraticcomplexity.
+Thevariationalinferencealgorithmendowsrichindependence
+1Inpracticewealsosetathresholdssuchthateachwordvneedstohaveatleast
+structuresbetweenthevariationalparameters,allowingstraight-
+s On (mon a- xz {e Kro Ve sn /t Vri ,e ss }i )n
+.
+{λk} kK =1. Thustheexactcomplexityofthesecondtermis
+forwardparallelcomputing. Inourimplementation, updatesof
+Algorithm2Stochasticvariationalinference Dataset #doc(D) vocabsize(V) doclength
+1: Initializevariationalparametersrandomly 20Newsgroups 18K 30K 130
+2: repeat NYTimes 1.8M 10K 284
+3:
+Computelearningrateιiter=1/(1+iter)0.9
+PubMed 8.2M 10K 77
+4: SampleaminibatchofdocumentsB
+5: foralld ∈Bdo Table2: Statisticsofthethreedatasets,includingthenum-
+6: repeat berofdocuments(D),vocabularysize(V),andaveragenum-
+7: Updateq(z )withEq.(7)andsamplez˜ berofwordsineachdocument.
+d d
+8: Updateγ withEq.(6)
+d
+9: Updateq(η )usingrespectivegradientscomputedwith
+d
+Eqs.(10),(11),andmoreinthesupplements[1]. 0.7
+10: untilconvergence
+11: Computestochasticoptimalvaluesµ∗,Σ(u)∗withEq.(5) 0.6
+12: Computestochasticoptimalvaluesλ∗withEq.(12)
+13: Updatex =(1−ιiter)x+ιiterx∗withx ∈{µ,Σ(u),λ} 0.5
+14: UpdateΣ(a)withEq.(6)
+LDA
+15: endfor 0.4 CTM
+16: untilconvergence
+Ours
+0.3
+20 40 60 80 100
+K
+variationaltopicembeddings {µ } (Eq.(5)), topicworddistribu-
+k Figure3:Classificationaccuracyon20newsgroup.
+tions{λ }(Eq.(12)),anddocumentembeddings{γ }(Eq.(6))fora
+k d
+dataminibatch,areallcomputedinparallelacrossmultipleCPU
+cores. Baselines. Wecomparetheproposedmodelwithasetofcarefully
+selectedcompetitors:
+4 EXPERIMENTS • LatentDirichletAllocation(LDA)[6]usesconjugate
+Dirichletpriorsandthusscaleslinearlyw.r.tthetopicsize
+Wedemonstratetheefficacyofourapproachwithextensiveex-
+butfailstocapturetopiccorrelations.Inferenceisbasedon
+periments. (1)Weevaluatetheextractionqualityinthetasksof
+thestochasticvariationalalgorithm[16].Whenevaluating
+documentclassificationandretrieval,inwhichourmodelachieves
+scalability,weleveragethesamesparsityassumptionsas
+similarorbetterperformancethanexistingcorrelatedtopicmodels,
+inourmodelforspeedingup.
+significantlyimprovingoversimpleLDA.(2)Forscalability,ourap-
+• Correlated Topic Model (CTM) [5] employs standard
+proachscalescomparablywithLDA,andhandlesmassiveproblem
+logistic-normalpriorwhichcapturespairwisetopiccor-
+sizesorders-of-magnitudelargerthanpreviouslyreportedcorrela-
+relations.Themodelusesstochasticvariationalinference
+tionresults.(3)Qualitatively,ourmodelrevealsverymeaningful
+withO(K3)timecomplexity.
+topiccorrelationstructures.
+• ScalableCTM(S-CTM)[9]developedascalablesparse
+GibbssamplerforCTMinferencewithtimecomplexity
+4.1 Setup
+of O(K2). Using distributed inference on 40 machines,
+Datasets.WeusethreepubliccorporaprovidedintheUCIrepos- the method discovers 1K topics from millions of docu-
+itory2fortheevaluation:20Newsgroupsisacollectionofnews
+ments,whichtoourknowledgeisthelargestautomatically
+documentspartitioned(nearly)evenlyacross20differentnews- learnedtopiccorrelationstructuressofar.
+groups.Eacharticleisassociatedwithacategorylabel,servingas
+ParameterSetting.Throughouttheexperiments,wesettheem-
+groundtruthinthetasksofdocumentclassificationandretrieval;
+bedding dimension to M = 50, and sparseness parameters to
+NYTimesisawidely-usedlargecorpusofNewYorkTimesnews
+articles;andPubMedisalargesetofPubMedabstracts. Thede-
+Ks = 50 andVs = 100. We found our modeling quality is ro-
+busttotheseparameters.Followingcommonpractice,thehyper-
+tailedstatisticsofthedatasetsarelistedinTable2. Weremoved
+parametersarefixedtoβ =1/K,α =0.1,ρ =0.1,andτ =1.The
+astandardlistof174stopwordsandperformedstemming. For
+baselinesareusingsimilarhyper-parametersettings.
+NYTimesandPubmed,wekeptthetop10Kfrequentwordsinvocab-
+AllexperimentswereperformedonLinuxwith244.0GHzCPU
+ulary,andselected10%documentsuniformlyatrandomastestsets,
+coresand128GBRAM.AllmodelsareimplementedusingC/C++,
+respectively. For20Newsgroups,wefollowedthestandardtrain-
+andparallelizedwheneverpossibleusingtheOpenMPlibrary.
+ing/testsplitting,andperformedthewidely-usedpre-processing3
+byremovingindicativemetatextsuchasheadersandfootersso
+4.2 DocumentClassification
+thatdocumentclassificationisforcedtobebasedonthesemantics
+ofplaintext. Wefirstevaluatetheperformanceofdocumentclassificationbased
+on the learned document representations. We evaluate on the
+20Newsgroupsdatasetwheregroundtruthclasslabelsareavail-
+2http://archive.ics.uci.edu/ml
+3http://scikit-learn.org/stable/datasets/twentynewsgroups.html able.WecompareourproposedmodelwithLDAandCTM.ForLDA
+ycaruccA
+60
+60 60
+50
+50 50
+40
+40 40
+30 30 30
+20 LDA 20 LDA 20 LDA
+CTM CTM CTM
+10 Ours 10 Ours 10 Ours
+0 0 0
+0.1 0.4 1.6 6.4 25.6 100 0.1 0.4 1.6 6.4 25.6 100 0.1 0.4 1.6 6.4 25.6 100
+Recall(%) Recall(%) Recall(%)
+Figure4:Precision-Recallcurveson20Newsgroups.Left:#topicK =20.Middle:K =60.Right:K =100.
+andCTM,amulti-classSVMclassifieristrainedforeachofthem RunningTime
+basedonthetopicdistributionsofthetrainingdocuments,whilefor Dataset K
+LDA CTM S-CTM Ours
+theproposedmodel,theSVMclassifiertakesthedocumentembed-
+dingvectorsasinput.Generally,moreaccuratemodelingoftopic 20Newsgroups 100 11min 60min 22min 20min
+correlationsenablesbetterdocumentmodelingandrepresentations,
+100 2.5hr – 6.4hr 3.5hr
+resultinginimproveddocumentclassificationaccuracy.
+NYTimes 1K 5.6hr – – 5.7hr
+Figure3showstheclassificationaccuracyasthenumberoftop-
+10K 8.4hr – – 9.2hr
+icsvaries.Weseethattheproposedmodelperformsbestinmost
+ofthecases,indicatingthatourmethodcandiscoverhigh-quality PubMed 100K 16.7hr – – 19.9hr
+latenttopicsandcorrelations. BothCTMandourmodelsignifi-
+Table3: Totaltrainingtimeonvariousdatasetswithdiffer-
+cantlyoutperformsLDAwhichtreatslatenttopicsindependently,
+entnumberoftopicsK. Entriesmarkedwith“–”indicates
+validatingtheimportanceoftopiccorrelationforaccuratetextse-
+modeltrainingistooslowtobefinishedin2days.
+manticmodeling.ComparedtoCTM,ourmethodachievesbetteror
+competitiveaccuracyasK varies,whichindicatesthatourmodel,
+achievessimilarorbetterlevelofperformanceastheconventional
+thoughorders-of-magnitudefaster(asshowninthenext),does
+complicatedcorrelatedtopicmodel,herewewantourapproach
+notsacrificemodelingpowercomparedtothecomplicatedand
+to tackle large problem sizes which are impossible for existing
+computationallydemandingCTMmodel.
+correlationmethods,andtoscaleasefficientlyasthelightweight
+LDA,forpracticaldeployment.
+4.3 DocumentRetrieval
+Table3comparesthetotalrunningtimeofmodeltrainingwith
+Wefurtherevaluatethetopicmodelingqualitybymeasuringthe
+differentsizeddatasetsandmodels.Asacommonpractice[16],we
+performanceofdocumentretrieval[15].Weusethe20Newsgroups
+determineconvergenceoftrainingwhenthedifferencebetween
+dataset.Aretrieveddocumentisrelevanttothequerydocument
+thetestsetper-wordlog-likelihoodsoftwoconsecutiveiterationsis
+whentheyhavethesameclasslabel.ForLDAandCTM,document
+smallerthansomethreshold.Onsmalldatasetlike20Newsgroups
+similarityismeasuredastheinnerproductoftopicdistributions,
+(thousandsofdocuments)andsmallmodel(hundredsoftopics),
+andforourmodelweusetheinnerproductofdocumentembedding
+allapproachesfinishtraininginareasonabletime.However,with
+vectors.
+increasing number of documents and latent topics, we see that
+Figure4showstheretrievalresultswithvaryingnumberoftop- thevanillaCTMmodel(withO(K3)inferencecomplexity)andits
+ics,whereweusethetestsetasquerydocumentstoretrievesimilar scalableversionS-CTM(withO(K2)inferencecomplexity)quickly
+documentsfromthetrainingset,andtheresultsareaveragedover
+becomesimpractical,limitingtheirdeploymentinreal-worldscale
+allpossiblequeries.Weobservesimilarpatternsasinthedocument
+tasks.Ourproposedtopicembeddingmethod,bycontrast,scales
+classificationtask. Ourmodelobtainscompetitiveperformance
+linearlywiththetopicsize,andiscapableofhandling100Ktopics
+withCTM,bothofwhichcapturetopiccorrelationsandgreatly
+onover8Mdocuments(PubMed)—aproblemsizeseveralorders
+improveoverLDA.Thisagainvalidatesourgoalthattheproposed
+ofmagnitudelargerthanpreviouslyreportedlargestresults[9]
+methodhaslowermodelingcomplexitywhileatthesametimeisas
+(1Ktopicsonmillionsofdocuments). Notably,evenwithadded
+accurateandpowerfulaspreviouscomplicatedcorrelationmodels.
+modelpowerandincreasedextractionperformancecomparedto
+Inadditiontoefficientmodelinferenceandlearning,ourapproach
+LDA(ashasbeenshowninsections4.2-4.3),ourmodelonlyim-
+basedoncompactdocumentembeddingvectorsalsoenablesfaster
+posesnegligibleadditionaltrainingtime,showingstrongpotential
+documentretrievalcomparedtoconventionaltopicmodelswhich
+ofourmethodforpracticaldeploymentofreal-worldlarge-scale
+arebasedontopicdistributionvectors(i.e.,M (cid:28)K).
+applicationsasLDAdoes.
+Figure5,leftpanel,showstheconvergencecurvesonNYTimes
+4.4 Scalability astraininggoes.Usingsimilartime,ourmodelconvergestoabetter
+Wenowinvestigatetheefficiencyandscalabilityoftheproposed point(highertestlikelihood)thanLDAdoes,whileS-CTMismuch
+model.Comparedtotopicextractionqualityinwhichourmodel slower,failingtoarriveconvergencewithinthetimeframe.
+)%(noisicerP )%(noisicerP )%(noisicerP
+7.6
+60 LDA LDA
+8.0 50 CTM CTM
+S-CTM S-CTM
+40
+Ours Ours
+8.4 3000
+30
+400
+8.8 LDA 20
+S-CTM 10 20
+Ours 5
+9.2 0
+0
+0 4 8 12 16 20 20 40 60 80 100 100 1k 10k 100k
+Time(h) K K
+Figure5:Left:ConvergenceonNYTimeswith1Ktopics.Middle:Totaltrainingtimeon20Newsgroups.Right:Runtimeofone
+inferenceiterationonaminibatchof500NYTimesarticles,wheretheresultpointsofCTMandS-CTMonlargeKareomitted
+astheyfailtofinishoneiterationwithin2hours.
+general
+war exist first science exploration
+nation press launch
+proof Luna
+take useful
+holocaust aggression Europe express Washington
+benefit camera rainer operational
+ray study frequency
+shuttle
+Turkish SSTO analysis
+Armenian Karabakh belief select water fossil
+Armenia Azerbajian launch steam MWRA
+Soviet Istanbul Nagorno religious orp blan ie tt sc ol co kec tk
+ev il
+visual EPA
+program LARC
+conference
+NASA
+Islamic jaeger escrow
+propulsion
+Ghetto jihad key algorithm package system information conductor
+NSA descryptor file large GFCIs grounding
+privacy
+ISDN wire
+insulation
+citizen escrow decode encryption chips
+act cryptography
+penalty
+Figure6:Aportionoftopiccorrelationgraphlearnedfrom20Newsgroups.Eachnodedenotesalatenttopicwhosesemantic
+meaningischaracterizedbythetopwordsaccordingtothetopic’sworddistribution.Thefontsizeofeachwordisproportional
+tothewordweight.Topicswithcorrelationstrengthoversomethresholdareconnectedwithedges.Thethicknessoftheedges
+isproportionaltothecorrelationstrengths.
+Figure5,middlepanel,measuresthetotaltrainingtimewith Figure 6 visualizes the topic correlation graph inferred from
+varyingnumberoftopics.Weusethesmall20Newsgroupsdataset the20Newsgroupsdataset. Wecanseemanytopicsarestrongly
+sinceonlargerdata(e.g.,NYTimesandPubMed)theCTMandS- correlatedtoeachotherandexhibitclearcorrelationstructure.For
+CTMmodelsareusuallytooslowtoconvergeinareasonabletime. instance,thesetoftopicsintherightupperregionaremainlyabout
+WeseethatthetrainingtimeofCTMincreasesquicklyasmore astronomyandareinterrelatedclosely, whiletheirconnections
+topicsareused. S-CTMworkswellinthissmalldataandmodel toinformationsecuritytopicsshowninthelowerpartareweak.
+scale,but,ashavebeenshownabove,itisincapableoftackling Figure7shows100Ktopicembeddingsandtheircorrelationson
+largerproblems.Incontrast,ourapproachscalesasefficientlyas thePubMeddataset.Relatedtopicsareclosetoeachotherinthe
+thesimplerLDAmodel.Figure5,rightpanel,evaluatestheruntime embedding space, revealing diverse substructures of themes in
+ofoneinferenceiterationonaminibatchof500documents.when thecollection. Ourmodeldiscoversverymeaningfulstructures,
+thetopicsizegrowstoalargenumber,CTMandS-CTMfailto providing insights into the semantics underlying the large text
+finishoneiterationin2hours. Ourmodel,bycontrast,keepsas corporaandfacilitatingunderstandingofthelargecollectionof
+scalableasLDAandconsiderablyspeedsupoverCTMandS-CTM. topics.
+5 CONCLUSIONS
+4.5 VisualizationandAnalysis Wehavedevelopedanewcorrelatedtopicmodelwhichinduces
+Wequalitativelyevaluateourapproachbyvisualizingandexploring distributedvectorrepresentationsoflatenttopics,andcharacterizes
+theextractedlatenttopicsandcorrelationpatterns. correlationswiththeclosenessoftopicvectorsintheembedding
+ytilibaborP
+evitciderP
+goL
+)nim(emiT
+hctab
+rep
+)s(emiT
+[8] JianfeiChen,KaiweiLi,JunZhu,andWenguangChen.2016.WarpLDA:aSimple
+tissue differ
+heart
+time
+andEfficientO(1)AlgorithmforLatentDirichletAllocation.InVLDB.
+dp ie aak
+s
+t ti om le
+ic
+ventriculoarterial [9] J inia fn erf ee ni cC eh fe on r, loJu gn istZ ich -u n, orZ mi aW lta on pg i, cX mu on deZ lsh .e In ng N, Ia Pn Sd .2B 4o 45Z –h 2a 4n 53g ..2013. Scalable
+[10] RajarshiDas,ManzilZaheer,andChrisDyer.2015. GaussianLDAfortopic
+treatment
+modelswithwordembeddings.InACL.
+cardiac vasodilator [11] KumarDubey,QirongHo,SineadAWilliamson,andEricPXing.2014.Depen-
+coronary dentnonparametrictreesfordynamichierarchicalclustering.InNIPS.1152–
+unfold DNA endothelial 1160.
+resistant epricardial [12] YarinGalandZoubinGhahramani.2014.PitfallsintheuseofParallelInference
+fortheDirichletProcess..InICML.208–216.
+[13] PrasoonGoyal,ZhitingHu,XiaodanLiang,ChenyuWang,andEricXing.2017.
+NonparametricVariationalAuto-encodersforHierarchicalRepresentationLearn-
+ing.arXivpreprintarXiv:1703.07027(2017).
+[14] AdityaGroverandJureLeskovec.2016.node2vec:Scalablefeaturelearningfor
+RNA networks.InKDD.ACM,855–864.
+rRNA [15] GeoffreyEHintonandRuslanRSalakhutdinov.2009.Replicatedsoftmax:an
+thermo are ss ppo hn es riv ice
+acidophi
+i lnv uad me
+undirectedtopicmodel.InNIPS.1607–1614.
+integrety [16] MatthewDHoffman,DavidMBlei,ChongWang,andJohnWilliamPaisley.
+substract
+reconstruct 2013.Stochasticvariationalinference.JMLR14,1(2013),1303–1347.
+[17] ZhitingHu,QirongHo,AvinavaDubey,andEricPXing.2015. Large-scale
+DistributedDependentNonparametricTrees..InICML.1651–1659.
+factor detect [18] ZhitingHu,PoyaoHuang,YuntianDeng,YingkaiGao,andEricPXing.2015.
+prothesis psym bacteriophage EntityHierarchyEmbedding..InACL.1292–1300.
+seque ven nec ree
+ol
+oe gn yte rohepatic no in ncs riu mr inv ati
+e
+ve [19] Z Gh roit uin ng dinH gu t, oG pa icn mg oL du eo l, sM wr iti hnm kna oy wa lS ea dc gh ea bn a, sE er si .c InX Ii Jn Cg A, Ia .ndZaiqingNie.2016.
+[20] ZhitingHu,ZichaoYang,XiaodanLiang,RuslanSalakhutdinov,andEricPXing.
+2017.ControllableTextGeneration.ICML(2017).
+Figure7:Visualizationof100KcorrelatedtopicsonPubMed. [21] ZhitingHu,ZichaoYang,RuslanSalakhutdinov,andEricPXing.2017. On
+UnifyingDeepGenerativeModels.arXivpreprintarXiv:1706.00550(2017).
+SeethecaptionsofFigure1formoredepictions. [22] DiJiang,RongzhongLian,LeiShi,andHuaWu.2016.LatentTopicEmbedding.
+InCOLING.
+space.Suchmodelingscheme,alongwiththesparsity-awaresam- [23] DiederikPKingmaandMaxWelling.2013.Auto-encodingvariationalBayes.
+arXivpreprintarXiv:1312.6114(2013).
+pling in inference, enables highly efficient model training with [24] MiguelLa´zaro-Gredilla.2014. DoublystochasticvariationalBayesfornon-
+lineartimecomplexityintermsofthemodelsize.Ourapproach conjugateinference.ICML.
+[25] TuanLeandHadyWLauw.2014.Semanticvisualizationforsphericalrepresen-
+scalestounprecedentedlylargedataandmodels,whileachieving
+tation.InKDD.ACM,1007–1016.
+strongperformanceindocumentclassificationandretrieval.The [26] TuanMinhVanLEandHadyWLauw.2014. Manifoldlearningforjointly
+proposedcorrelationmethodisgenerallyapplicabletoothercon- modelingtopicandvisualization.(2014).
+[27] TaoLei,YuanZhang,ReginaBarzilay,andTommiJaakkola.2014. Low-rank
+text,suchasmodelingworddependenciesforimprovedtopical
+tensorsforscoringdependencystructures.ACL.
+coherence. It is interesting to further speedup of the model in- [28] AaronQLi,AmrAhmed,SujithRavi,andAlexanderJSmola.2014.Reducing
+ferencethroughvariationalneuralBayestechniques[13,23]for thesamplingcomplexityoftopicmodels.InKDD.ACM,891–900.
+[29] ShaohuaLi,Tat-SengChua,JunZhu,andChunyanMiao.2016.Generativetopic
+amortized variational updates across data examples. Note that embedding:acontinuousrepresentationofdocuments.InACL.
+ourmodelisparticularlysuitabletoincorporateneuralinference [30] WeiLiandAndrewMcCallum.2006. Pachinkoallocation: DAG-structured
+networksthat,replacingtheper-documentvariationalembedding
+mixturemodelsoftopiccorrelations.InICML.ACM,577–584.
+[31] YuezhangLi,RonghuoZheng,TianTian,ZhitingHu,RahulIyer,andKatia
+distributions,mapdocumentsintocompactdocumentembeddings Sycara.2016.JointEmbeddingofHierarchicalCategoriesandEntitiesforConcept
+directly.Wearealsointerestedincombininggenerativetopicmod- CategorizationandDatalessClassification.InCOLING.
+[32] XiaodanLiang,ZhitingHu,HaoZhang,ChuangGan,andEricPXing.2017.
+elswithadvanceddeeptextgenerativeapproaches[20,21,32]for
+RecurrentTopic-TransitionGANforVisualParagraphGeneration.arXivpreprint
+improvedtextmodeling. arXiv:1703.07022(2017).
+[33] TomasMikolov,IlyaSutskever,KaiChen,GregCorrado,andJeffreyDean.2013.
+DistributedRepresentationsofWordsandPhrasesandTheirCompositionality.
+ACKNOWLEDGMENTS InNIPS.
+[34] DavidMimno,MattHoffman,andDavidBlei.2012.Sparsestochasticinference
+ThisresearchissupportedbyNSFIIS1447676,ONRN000141410684,
+forlatentDirichletallocation.arXivpreprintarXiv:1206.6425(2012).
+andONRN000141712463. [35] JohnPaisley,ChongWang,DavidMBlei,etal.2012.Thediscreteinfinitelogistic
+normaldistribution.BayesianAnalysis7,4(2012),997–1034.
+[36] DuangmaneePewPutthividhya,HagaiTAttias,andSrikantanNagarajan.2009.
+REFERENCES
+Independentfactortopicmodels.InICML.ACM,833–840.
+[1] 2017.Supplementarymaterial.(2017).www.cs.cmu.edu/∼zhitingh/kddsupp [37] RajeshRanganathandDavidMBlei.2016.Correlatedrandommeasures.JASA
+[2] AmrAhmedandEricXing.2007.Ontightapproximateinferenceofthelogistic- (2016).
+normaltopicadmixturemodel.InAISTATS. [38] JianTang,MengQu,andQiaozhuMei.2015.PTE:Predictivetextembedding
+[3] KayhanBatmanghelich,ArdavanSaeedi,KarthikNarasimhan,andSamGersh- throughlarge-scaleheterogeneoustextnetworks.InKDD.ACM,1165–1174.
+man.2016.NonparametricSphericalTopicModelingwithWordEmbeddings.In [39] MichalisKTitsias.2009.VariationalLearningofInducingVariablesinSparse
+ACL. GaussianProcesses.InAISTATS,Vol.5.567–574.
+[4] DavidMBlei,ThomasLGriffiths,andMichaelIJordan.2010.ThenestedChinese [40] YiWang,XueminZhao,ZhenlongSun,HaoYan,LifengWang,ZhihuiJin,Liubin
+restaurantprocessandBayesiannonparametricinferenceoftopichierarchies.J. Wang,YangGao,ChingLaw,andJiaZeng.2015.Peacock:Learninglong-tail
+ACM57,2(2010),7. topicfeaturesforindustrialapplications.TIST6,4(2015),47.
+[5] DavidMBleiandJohnDLafferty.2007.Acorrelatedtopicmodelofscience.The [41] AndrewGWilson,ZhitingHu,RuslanRSalakhutdinov,andEricPXing.2016.
+AnnalsofAppliedStatistics(2007),17–35. StochasticVariationalDeepKernelLearning.InNIPS.2586–2594.
+[6] DavidMBlei,AndrewYNg,andMichaelIJordan.2003. LatentDirichlet [42] JinhuiYuan,FeiGao,QirongHo,WeiDai,JinliangWei,XunZheng,EricPoXing,
+allocation.JMLR3,Jan(2003),993–1022. Tie-YanLiu,andWei-YingMa.2015. LightLDA:Bigtopicmodelsonmodest
+[7] JordanLBoyd-Graber,DavidMBlei,andXiaojinZhu.2007.ATopicModelfor computerclusters.InWWW.ACM,1351–1361.
+WordSenseDisambiguation..InEMNLP-CoNLL.1024–1033.
+A INFERENCE
+A.1 StochasticMean-FieldVariationalInference
+Wefirstassumeamean-fieldfamilyofvariationaldistributions:
+(cid:214) (cid:214) (cid:214)
+q(u,ϕ,a,η,z)= q(u )q(ϕ ) q(a )q(η ) q(z ), (A.13)
+k k k d d d n dn
+wherethefactorshavetheparametricforms:
+q(u )=N(u |µ ,Σ(u) ), q(a )=N(a |γ ,Σ(a) ),
+k k k k d d d d
+q(ϕ )=Dir(ϕ |λ ), q(η )=N(η |ξ ,Σ(η) ), (A.14)
+k k k d d d d
+q(z )=Multi(z |κ ).
+dn dn dn
+VariationalalgorithmsaimtominimizeKLdivergencefromqtothetrueposterior,whichisequivalenttotighteningtheevidencelower
+bound(ELBO):
+L(q)=E q[logp(u,a,η,z,w,ϕ|α,β,ρ,τ)]−E q[logq(u,a,η,z,ϕ)]
+=E q[logp(u|α)]+E q[logp(ϕ|β)]+E q[logp(a|ρ)]+E q[logp(η|u,a,τ)] (A.15)
++E q[logp(z|η)]+E q[logp(w|ϕ,z)]−E q[logq(u,a,η,z,ϕ)].
+A.2 Optimizeq(z)
+q(z dn =k)∝exp(cid:8)E −zdn (cid:2)logp(z dn =k|η d)(cid:3)+E −zdn[logp(w dn|ϕ k,z dn =k)](cid:9)
+∝exp(cid:8)E −zdn[log(softmax k(η d))]+E −zdn (cid:104)(cid:213) v1(w dn =v)logϕ kv(cid:105)(cid:9)
+(A.16)
+V
+∝exp(cid:8) ξ
+dk
++(cid:213) v1(w
+dn
+=v)(Ψ(λ kv)−Ψ((cid:213) λ kv(cid:48)))(cid:9) .
+v(cid:48)=1
+Sparsity-awaretopicsampling.Directcomputationofq(z )withEq.(A.16)hascomplexityofO(K),whichbecomesprohibitivein
+dn
+thepresenceofmanylatenttopics.Toaddressthis,weexploittwoaspectsofintrinsicsparsityinthemodeling:(1)Thoughawholecorpus
+cancoveralargediversesetoftopics,asingledocumentinthecorpusisusuallyaboutonlyasmallnumberofthem.Wethusonlymaintain
+thetopKs entriesineachξ d,whereKs (cid:28)K,makingthecomplexityduetothefirsttermintheright-handsideofEq.(A.16)onlyO(Ks)for
+allK topicsintotal;(2)Atopicistypicallycharacterizedbyonlyafewwordsinthelargevocabulary,wethuscutoffthevariationalword
+weightvectorλ
+k
+foreachkbymaintainingonlyitstopVs entries(Vs (cid:28)V).Suchsparsetreatmenthelpsenhancetheinterpretabilityof
+learnedtopics,andallowscheapcomputationwithaverageO(KVs/V)costforthesecondterm4.Withtheabovesparsity-awareupdates,
+theresultingcomplexityforEq.(A.16)withK topicsisbroughtdowntoO(Ks +KVs/V),agreatspeedupovertheoriginalO(K)cost.The
+topKs entriesofξ
+d
+areselectedusingaMin-heapdatastructure,whosecomputationalcostisamortizedacrossallwordsinthedocument,
+imposingO(K/N dlogKs)computationperword.ThecostforfindingthetopVs entriesofλ
+k
+issimilarlyamortizedacrossdocumentsand
+words,andbecomesinsignificant.
+Besides,updatingtheremainingvariationalparameterswillfrequentlyinvolvecomputationofvariationalexpectationsunderq(z ).Itis
+dn
+thuscrucialtospeedupthisoperation.Tothisend,weemploysparseapproximationbysamplingfromq(z )asingleindicatorz˜ ,anduse
+dn dn
+the“hard”sparsedistributionq˜(z =k):=1(z˜ =k)toestimatetheexpectations.Notethatthesamplingoperationischeap,havingthe
+dn dn
+samecomplexitywithcomputingq(z )asabove.Asshownshortly,suchsparsecomputationwillsignificantlyreduceourrunningcost.
+dn
+A.3 Optimizeq(ϕ)
+Foreachtopick,weisolateonlythetermsthatcontainq(ϕ ),
+k
+q(ϕ k)∝exp(cid:8)E −ϕk(log(cid:214) vϕ kβ v−1 )+E −ϕk(log(cid:214) d,n,vϕ k1( vwdn=v)·1(z˜ dn=k) )(cid:9)
+(A.17)
+∝(cid:214) ϕβ−1+(cid:205) d,n1(wdn=v)·1(z˜ dn=k)
+.
+v kv
+Therefore,
+q(ϕ )∼Dir(λ ), (A.18)
+k k
+(cid:213)
+λ =β+ 1(w =v)·1(z˜ =k). (A.19)
+kv d,n dn dn
+Thecostforupdatingq(ϕ)isgloballyamortizedacrossdocumentsandwords,andthusinsignificantcomparedwithotherlocalparameter
+update.
+4Inpracticewealsosetathresholdssuchthateachwordvneedstohaveatleastsnon-zeroentriesin{λk} kK =1.ThustheexactcomplexityofthesecondtermisO(max{KVs/V,s}).
+A.4 Optimizeq(u)andq(a)
+q(u k)∝exp(cid:8)E −uk [logp(u k|α)]+(cid:213) dE −uk [logp(η d|a d,u,τ)](cid:9) , (A.20)
+(cid:34) (cid:35)
+E −uk [logp(u k|α)]=E −uk log(cid:8)
+(2π)M
+21
+α−M 2
+exp(−α 2uT ku k)(cid:9)
+(A.21)
+α
+∝− uTu ,
+2 k k
+(cid:34) (cid:35)
+E −uk [logp(η d|a d,u,τ)]=E −uk log(cid:8) (2π)M 21 τ−M 2 exp(−τ 2(η d −Ua d)T(η d −Ua d))(cid:9) (A.22)
+=−τ uT (cid:104)(cid:213) (Σ(a)+γ γT)(cid:105) u +τ(cid:213) ξ γTu +C.
+2 k d d d d k d dk d k
+Therefore,
+q(u )∝exp(cid:8) − 1 uT (cid:104) αI+(cid:213) (τΣ(a)+τγ γT)(cid:105) u +τ(cid:213) ξ γTu (cid:9) , (A.23)
+k 2 k d d d d k d dk d k
+whereΣ(a)isthecovariancematrixofa .FromEq.(A.23),weknowq(u )∼N(µ ,Σ(u) ).
+d d k k k
+Σ(u)= (cid:104) αI+(cid:213) (τΣ(a)+τγ γT)(cid:105)−1 . (A.24)
+k d d d d
+NoticethatΣ(u)isunrelatedtok,whichmeansalltopicembeddingssharethesamecovariancematrix,wedenoteitasΣ(u).
+k
+µ
+=τΣ(u)·((cid:213)
+ξ γ ). (A.25)
+k d dk d
+Analogously,
+γ
+=τΣ(a)·((cid:213)
+ξ µ ), (A.26)
+d k dk k
+Σ(a)= (cid:104) γI+τKΣ(u)+(cid:213) τµ µT(cid:105)−1 . (A.27)
+k k k
+SinceΣ(a)isunrelatedtod,wecanrewriteEq.(A.24)as
+Σ(u)= (cid:104) αI+τDΣ(a)+(cid:213) τγ γT(cid:105)−1 . (A.28)
+d d d d
+Thecostforoptimizingγ isO(KDM). Updatingthesetofvariationaltopicvectormeans{µ }K andΣ(a) bothimposescomplexity
+d k k=1
+O(KM2),andupdateofΣ(u)costsO(M3).Sinceµ,Σ(a),andΣ(u)areallglobalparameters,weupdatetheminadistributedmanner.
+A.5 Optimizeq(η)
+Assumeq(η )isGaussianDistributionanditscovariancematrixisdiagonal,i.e.,η ∼N(ξ ,Σ(η) ),Σ(η)=diag(σ ).
+d dk dk d d d
+WecanisolatethetermsinELBOincludingη ,
+d
+L(η d)=E q[logp(η d|U,a d)]+E q[logp(z d|η d)]−E q[logq(η d)], (A.29)
+E q[logp(η d|U,a d)]=−τ 2(cid:213) k(ξ d2
+k
++σ d2 k)+τξ dTµγ
+d
++C, (A.30)
+(cid:213)
+E q[logp(z d|η d)]= k,n1(z
+dn
+=k)E q[log(softmax k(η d))], (A.31)
+(cid:213)
+E q[logq(η d)]=− klogσ
+dk
++C. (A.32)
+ForEq.(A.31),theexpectationisintractableduetonormalizationterminsoftmax.Asaresult,weusereparameterizationtrickandMonto
+Carloestimatortoapproximatetheexpectation:
+η(t)=ξ +σ (cid:12)ϵ(t); ϵ(t)∼N(0,I), (A.33)
+d d d
+where(cid:12)istheelement-wisemultiplication.WithT samplesofη ,wecanestimatethevariationallowerboundandthederivatives∇Lw.r.t.
+d
+thevariationalparameters{ξ ,σ }.
+d d
+∇ ξdE q[logp(η d|U,a d)]=τ(U˜ γ
+d
+−ξ d). (A.34)
+HereU˜ isthecollectionofvariationalmeansoftopicembeddingswherethekthrowU˜
+k·
+=µ k.
+∇ ξdE q[logp(z d|η d)]=E
+q
+(cid:2) ∇
+ξd
+logp(z d|η d)(cid:3)
+≈ T1 (cid:213)T t=1(cid:213) k,n1(z˜ dn =k)(cid:104) e k −softmax(ξ d +σ d (cid:12)ϵ d(l) )(cid:105) (A.35)
+≈(cid:213)
+1(z˜ =k)e −(N
+/T)(cid:213)T softmax(cid:16) η(t)(cid:17)
+,
+k,n dn k d t=1 d
+wheree isanone-hotvector,whichevaluatesto1initskth entry.T isthesamplenumber.
+k
+∇ σdE q[logp(η d|U,a d)]=−τσ d, (A.36)
+∇ σdE q[logp(z d|η d)]=E
+q
+(cid:2) ∇
+σd
+logp(z d|η d)(cid:3) =0, (A.37)
+1
+∇ σdE q[logq(η d)]=−
+σ
+, (A.38)
+d
+where 1 iselement-wisecomputation.Therefore,
+σd
+∇ L=τ(U˜ γ −ξ )+(cid:213) 1(z˜ =k)e −(N /T)(cid:213)T softmax(cid:16) η(t)(cid:17) , (A.39)
+ξd d d k,n dn k d t=1 d
+1
+∇ σdL=−τσ
+d
++
+σ
+. (A.40)
+d
+Wecanconcludethatσ =τ andthusthereisnoupdateforσ inouralgorithm.Intheexperiment,wesetT =1anduseAdagradto
+dk
+updateξ .FromEq.(A.39),thetimecomplexityforupdatingvariationalmeantopicweightvectorξ isO(KM+N +K).
+d d d

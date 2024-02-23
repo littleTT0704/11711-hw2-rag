@@ -1,0 +1,508 @@
+Fusion-in-T5: Unifying Document Ranking Signals for Improved
+Information Retrieval
+ShiYu1∗,ChenghaoFan2∗,ChenyanXiong3,DavidJin4,ZhiyuanLiu15,andZhenghaoLiu6
+1Dept. ofComp. Sci. &Tech.,InstituteforAI,TsinghuaUniversity,Beijing,China
+2SchoolofComp. Sci.,HuazhongUniversityofScienceandTechnology,Wuhan,China
+3MicrosoftResearch,Redmond,USA 4MIT,Cambridge,USA
+5BeijingNationalResearchCenterforInformationScienceandTechnology,Beijing,China
+6Dept. ofComp. Sci. &Tech.,NortheasternUniversity,Shenyang,China
+Abstract an extra pair/list-wise re-ranker (Nogueira et al.,
+2019; Zhang et al., 2022), or using pseudo rele-
+CommonIRpipelinesaretypicallycascadesys-
+vance feedback (PRF) to expand the query with
+temsthatmayinvolvemultiplerankersand/or
+potentiallyrelevantdocumentinformation(Zheng
+fusion models to integrate different informa-
+tion step-by-step. In this paper, we propose etal.,2020;Yuetal.,2021;Lietal.,2023). These
+anovelre-rankernamedFusion-in-T5(FiT5), techniques ultimately transform the ranking pro-
+which integrates document text information, cessintoataskthatdemandscarefulengineering
+retrieval features, and global document in- inordertoachieveoptimalperformance.
+formation into a single unified model using
+templated-basedinputandglobalattention. Ex- Inthispaper,weintroduceFusion-in-T5(FiT5),
+perimentsonpassagerankingbenchmarksMS
+aT5-based(Raffeletal.,2020)re-rankingmodel
+MARCO and TREC DL show that FiT5 sig-
+thatcollectsrankingsignalsandranksdocuments
+nificantlyimprovesrankingperformanceover
+within a unified framework. FiT5 is designed to
+prior pipelines. Analyses find that through
+consolidate multiple IR features, including doc-
+globalattention,FiT5isabletojointlyutilize
+therankingfeaturesviagraduallyattendingto ument texts, ranking features, and global docu-
+relateddocuments,andthusimprovethedetec- ment information, into a single learnable model.
+tionofsubtlenuancesbetweenthem. Ourcode Specifically, the input to FiT5 is formulated us-
+willbeopen-sourced. ingatemplatethatincorporatesthedocumenttext
+with the ranking feature, which is represented as
+1 Introduction
+discretizedintegers. Additionally,toleverageinfor-
+Informationretrieval(IR)aimstoretrievearelevant mationfromotherdocuments,weintroduceglobal
+setofdocumentsfromalargecollection, givena attentionontherepresentationtokenfromthelate
+userquery(Croftetal.,2010). Thetaskposeschal- layersofFiT5encoders,enablingdocument-wise
+lengesforresearcherstobuildmodelsthatareable informationflowduringencodingwhilemitigating
+toprocessvastamountsofinformationinresponse theincreaseincomputationalcost. FiT5functions
+toasingleinputquery. as a re-ranking model within a typical two-stage
+retrieve-and-rerankpipeline,withouttheneedfor
+The information-rich nature of IR motivates
+additionalstagesorhyperparameters.
+researchers to construct intricate, cascade sys-
+tems (Yates et al., 2021; Zhang et al., 2021; Dai
+Experimentalresultsonwidely-usedIRbench-
+etal.,2018). NeuralIRmodelsoftenserveasthe
+marks,namelyMSMARCO(Nguyenetal.,2016)
+foundationofsuchsystems,directlycapturingtext
+and TREC DL 2019 (Craswell et al., 2020) &
+relevanceinacoarse-to-fineapproach(Yatesetal.,
+2020(Craswelletal.,2021),demonstratethatFiT5
+2021;Nogueiraetal.,2019;Pradeepetal.,2021).
+exhibitssubstantialimprovementsovertraditional
+Tocapturerankingfeaturesobservedfromthedata
+retrieve-and-rerankpipelines. Furthermore,FiT5
+or the rankers, a learning-to-rank (LeToR) mod-
+outperformssystemswithmorere-rankingstages
+uleisoftenapplied(Zhangetal.,2020;Sunetal.,
+and/orlargermodelsontheMSMARCOdataset.
+2021; Zhang et al., 2021, 2022; Dai et al., 2018).
+FurtheranalysisrevealsthatFiT5effectivelylever-
+Furtherapproachesareintroducedtoincorporate
+agesrankingfeaturesthroughitsglobalattention
+globalinformationfromthedocumentsatthecost
+architecture, enabling the model to better differ-
+of an additional ranking stage, such as designing
+entiatebetweensimilardocumentsandultimately
+∗Equalcontribution. producebetterrankingresults.
+3202
+yaM
+42
+]RI.sc[
+1v58641.5032:viXra
+textevidencesthroughthedecoder-encoderatten-
+tionandgeneratetheanswerforopen-domainQA.
+Transformer-XHbuildseXtraHopattentionacross
+thetextevidencesinsidetheBERTlayerstomodel
+thestructureoftextsformulti-hopQA.Inthispa-
+per,weintegratethesimilarattentionmechanism
+intotheT5encoderandbuildafully-connectedat-
+tentiongraphtomodelallthemutualrelationships
+betweencandidatedocuments.
+3 Methodology
+3.1 Overview
+FiT5performsre-rankingonasetofcandidatedoc-
+uments D = {d ,d ,...,d } retrieved by a first-
+1 2 n
+stage retriever, given a query q. Unlike typical
+Figure 1: Architecture of Fusion-in-T5. The query,
+document, and ranking feature are filled in the input re-rankingmodelswhichcalculates i solelybased
+templatetoformtheinput. Weuseretrievalscoreasthe on the query and one document text, denoted as
+rankingfeature. s = f(q,d ),FiT5goesbeyondtheapproachby
+i i
+furtherincorporatingtherankingfeaturer andthe
+i
+information from all the documents in D, which
+2 RelatedWork
+canbeformulatedass = f(q,d ,r ,D).
+i i i
+IR Pipelines Recent IR pipelines are often Figure 1 presents the overall architecture of
+cascade systems consisting of a retriever and FiT5. FiT5isbasedontheencoder-decodermodel
+one/multiplere-ranker(s)(Yatesetal.,2021). The T5(Raffeletal.,2020). Ittakesatripleof(q,d ,r )
+i i
+simplest form of a re-ranker is a pre-trained lan- astheinputandoutputsarelevantscores . Global
+i
+guage model (PLM)-based model, which takes a attentionisintroducedinthelatelayersoftheen-
+pairof(query,document)textsasinputandoutputs coder to incorporate information from other doc-
+arelevancescore,e.g. BERTRe-ranker(Nogueira uments in D. We describe the input and output
+and Cho, 2019) and monoT5 (Nogueira et al., formatin§3.2andtheglobalattentionin§3.3.
+2020). Learning-to-rank (LeToR) models (Liu
+3.2 InputandOutput
+et al., 2009) are often used to learn a final rank-
+ing score based on a set of data or ranker fea- We pack (q,d ,r ) using a template to form the
+i i
+tures, such as linear models (Vogt and Cottrell, input to FiT5. The template consists of slots for
+1999;MetzlerandBruceCroft,2007)andneural inputdataandseveralprompttokens,definedas
+networks (Han et al., 2020; Burges et al., 2005;
+Query: [q] Title: [t] Feature: [f] Passage: [d] Relevant:
+Zhang et al., 2022). To leverage features from
+(1)
+othercandidatedocuments,researchershavepro-
+where,[q],[t]and[d]areslotsfortextfeatures,
+posedpseudorelevancefeedback(PRF)toexpand
+correspondingtothequeryq,thetitleandthebody
+the query (Zheng et al., 2020; Yu et al., 2021; Li
+ofthedocumentd ,respectively. [f]istheslotfor
+i
+etal.,2023),andpair/list-wisere-rankingmodels
+thefeaturer (i.e. theretrievalscoreinthispaper),
+i
+duoT5(Pradeepetal.,2021)andHLATR(Zhang
+representedasanormalized,discretizedinteger.
+et al., 2022). Despite their effectiveness, these
+methodsintroduceanextrastageinranking,which The model is fine-tuned to decode the token
+maybringanadditionalefficiencyburden. “true”or“false”accordingtotheinput. Duringin-
+ference,thefinalrelevancescoreisobtainedfrom
+Attention over Multiple Texts Our work thenormalizedprobabilityofthetoken“true”.
+leverages similar ideas from Fusion-in-Decoder
+3.3 GlobalAttention
+(FiD)(IzacardandGrave,2021)andTransformer-
+XH(Zhaoetal.,2020)toincorporateglobalinfor- In the document set D, there may exist many re-
+mation. FiDaddsaT5decodermodelontopofthe lated documents that may share similar content
+independentT5documentencoderstofuseallthe withthecurrentexample. Thedistinctionsbetween
+MSMARCO TRECDL’19 TRECDL’20
+Model #Params
+MRR@10 MAP NDCG@10 MRR NDCG@10 MRR
+FirstStageRetrieval
+BM25 – 18.7 19.5 50.58 70.36 47.96 65.85
+coCondenser(2022) – 38.3 37.6 71.45 86.75 67.97 84.41
+Two-stageRanking(coCondenser→*)
+BERTRe-ranker(2019) 110M 39.2 38.6 70.12 83.80 69.23 82.26
+monoT5(2020) 220M 40.6 39.9 72.55 84.79 67.73 85.05
+FiT5 227M 43.9 43.3 77.63 87.40 75.24 85.48
+Three-stageRanking(ForReference)
+HLATR-base(2022) 132M 42.5 – – – – –
+HLATR-large(2022) 342M 43.7 – – – – –
+Expando-Mono-Duo(2021) 2×3B 42.0 – – – 78.37 87.98
+Table1: OverallresultsonMSMARCOandTRECDL19&20.
+these documents may not be captured effectively 2016)andevaluateitonthedevelopmentsetand
+viapoint-wiseinferenceoverthe“local”informa- TRECDeepLearningTracks(TRECDL)2019&
+tion (q,d ,r ). To enhance the effectiveness of 2020(Craswelletal.,2020,2021). MSMARCO
+i i
+ranking, we propose global attention in FiT5 to labelsarebinarysparselabelsderivedfromclick
+enablethemodeltobettercomprehendanddiffer- data with often one positive document per query.
+entiatethesedocumentsintherankingprocess. TREC DL labels are dense judgments on a four-
+point scale from irrelevant to perfectly relevant
+In FiT5, each (q,d ,r ) pair first runs through
+i i
+andthusaremorecomprehensive(Craswelletal.,
+l − 1 transformer encoder layers independently,
+2020,2021). WereportMRR@10,MAPandMS
+as in vanilla T5. Global attention is injected into
+MARCO,andNDCG@10,MRRonTRECDL.
+every layer j ≥ l. The representation of the first
+token[CLS](prependedtotheinput),denotedas Implementation Details We use T5-base
+hj i,[CLS] ∈ Rc, is picked out from the normal self- model (Raffel et al., 2020) as the backbone
+attention: of our model. Global attention modules are
+added starting from the third to last layer (i.e.
+hj ,Hˆj =TF(Hj−1) (2)
+i,[CLS] i i l = 10). Were-rankthetop100documentsfrom
+whereHˆj
+denotestheremainingpartofthehidden
+coCondenser (Gao and Callan, 2022) ans use
+i
+coCondenser retrieval score as ranking features
+representation, c is the hidden size and TF is the
+in the template (Eq. 1). We first train a FiT5
+transformerlayer. Therepresentationsofthefirst
+without the features to warm-up the model for
+tokensfromallnencodersarethenfedintoaglobal
+400ksteps,andthentrainitwithfeaturesfor1.5k
+attentionlayer:
+stepstoobtainthefinalmodel. Itisacceptableto
+hˆj ,...,hˆj incorporatemoreadditionalrankingfeaturesina
+1,[CLS] n,[CLS]
+(3)
+=Global_Attn(hj ,...,hj ) templatetooptimizethemodel.
+1,[CLS] n,[CLS]
+Finally, the globally-attended representation Baselines We compare FiT5 with typical two-
+hˆj isaddedbacktothehiddenrepresentation: stage retrieve-and-rerank pipelines including
+i,[CLS]
+BERT Re-ranker (Nogueira and Cho, 2019) and
+Hj =[hj +hˆj ;Hˆj] (4) monoT5(Nogueiraetal.,2020). Thesere-rankers
+i i,[CLS] i,[CLS] i
+simplyassignascorefora(q,d )textpair. Tohave
+i
+afaircomparison,thefirst-stageretrievalforsuch
+In this way, the global information is modeled
+pipelinesiskeptthesameasFiT5. Wealsoreport
+intherepresentationofthe[CLS]tokenandcanbe
+the performance of three-stage ranking pipelines
+further leveraged by the following layer(s). This
+HLATR(Zhangetal.,2022)andExpando-Mono-
+providesachanceforthemodeltoadjusttherepre-
+Duo(Pradeepetal.,2021)forreference.
+sentationaccordingtootherrelatingdocuments.
+4 ExperimentalMethodology 5 EvaluationResults
+Datasets and Metrics We train FiT5 on MS This section presents the overall results of FiT5,
+MARCO passage ranking dataset (Nguyen et al., andanalysesitseffectiveness.
+Model MARCO DL’19 DL’20 3 3
+Layer 10 3 0
+monoT5 40.56 72.55 67.73
+Layer 11 3 1
+monoT5(w/feature) 40.95 72.12 68.73 Layer 12 (last layer) 3 2
+FiT5(w/ofeature) 42.79 74.94 70.02 2 2 3 3
+FiT5(linearcombination) 43.65 75.41 70.95
+FiT5 43.93 77.63 75.24
+1 1
+Table2: AblationstudyofFiT5. Theevaluationmetric
+isMRR@10onMSMARCOandNDCG@10onTREC
+DL. 0 0.0 0.5 1.0 0 0.0 0.5 1.0
+Attention Value Attention Value
+(a)Ateachlayer. (b)Atlastlayer.
+Model FiT5(w/ofeature) FiT5
+Alllayers(l=1) 41.23 40.83
+Figure2: AttentionweightsdistributiononTRECDL
+Top-6layers(l=7) 42.49 43.36
+Top-3layers(l=10) 42.79 43.93 20. (a) presents the attention weights from passages
+Top-2layers(l=11) 42.95 43.43 labeled3(perfectlyrelevant)tootherpassagesineach
+Top-1layer(l=12) 42.78 43.07 globalattentionlayer. (b)depictsthelast-layerattention
+Noglobalattention 41.49 40.95
+weightsbetweenperfectly-relevantdocsandothers.
+Table3: PerformanceonMSMARCOwithglobalat-
+tentionstartedtointroduceattop-ktransformerlayers. 3 3
+0 2
+TheevaluationmetricisMRR@10. 1 3
+2 2
+5.1 OverallPerformance
+1 1
+TheresultsofpassagerankingonMSMARCOand
+TREC DL are presented in Table 1. By incorpo-
+0 0
+ratingmultipletypesofrankinginformation,FiT5 0.0 0.5 1.0 0.0 0.5 1.0
+score score
+greatlyimprovesoverthefirst-stageretrievalmodel
+(a)monoT5(w/ret.score). (b)FiT5.
+coCondenser, andoutperformstypicalBERTRe-
+Figure3: Outputscoredistributionsonpassagesatdif-
+rankerandmonoT5thatre-rankontopofthesame
+ferentannotatedrelevancelevelsfromTRECDL20. 0,
+retriever. On MS MARCO, FiT5 further outper-
+1, 2, and 3 are relevance levels from irrelevant (0) to
+formsthree-stagerankingpipelinesHLATR-large
+perfectlyrelevant(3).
+andExpando-Mono-Duo,whichusessignificantly
+largermodels(RoBERTa-large (Liuetal.,2019)/
+2×T5-3B)andoneadditionalre-rankingstage. onthemodel’sperformance. Were-trainFiT5on
+MSMARCOwithtop1,2,3,6,and12layer(s)in-
+5.2 AblationStudy
+corporatedwithglobalattention,respectively. The
+Inthissection,westudythecontributionofaddi- resultspresentedinTable3revealthatstartingto
+tionalrankingfeatures(retrievalscore)andglobal integrateglobalattentionfromalatelayer(l = 10)
+attentionintheeffectivenessofFiT5andpresent is an optimal choice. Starting the integration too
+the results in Table 2. Removing the feature earlymaymisleadthemodelfromthebeginning,
+score (FiT5 (w/o feature)) or the global attention whereasstartingtoolatemayprovideinsufficient
+(monoT5 (w/ feature)) both results in significant pathsforreasoningoverrankingfeatures.
+performancedrop. Notably,monoT5(w/feature)
+5.4 AttentionandScoreDistribution
+doesn’t have a significant performance gain over
+monoT5,indicatingthattherankingfeaturescan’t Inthisexperiment,westudytheattentionandscor-
+beeffectivelycapturedinapoint-wisemodel. Us- ing behavior of FiT5. In Figure 2, we analyze
+inglinearcombinationofthere-rankerscoreand thedistributionoftheglobalattentionvalues. As
+features still lags behind FiT5, revealing that the showninFigure2a,asthelayerdepthincreases,the
+useofglobalattentionisthekeytoeffectivelyinte- attentionvaluesbetweenpassageslabeled3(per-
+gratingtheinformationfromtheretrieverandother fectlyrelevant)andotherpassagesbecomecloser
+documents. to0. AsshowninFigure2b,inthelastlayer,the
+attention values between most relevant passages
+5.3 AttentionDepth
+aresignificantlylargerthanthosewithlessrelevant
+Inthisexperiment,weinvestigatetheimpactofthe passages. The attention patterns indicate that, by
+numberoftransformerlayerswithglobalattention passing through multiple global attention layers,
+noitcnuF
+ytisineD
+ytilibaborP
+noitcnuF
+ytisineD
+ytilibaborP
+noitcnuF
+ytisineD
+ytilibaborP
+noitcnuF
+ytisineD
+ytilibaborP
+ourmodellearnstograduallyattendtotherelated vancefeedbackwithdeeplanguagemodelsanddense
+relevant documents. In Figure 3, we present the retrievers: Successesandpitfalls. TOIS,41(3):1–40.
+scoresofdocumentswithdifferentlabels. Itcanbe Tie-YanLiuetal.2009. Learningtorankforinforma-
+observedthatFiT5producesmoredistinguishable tionretrieval. FoundationsandTrends®inInforma-
+distributions, indicating that it can better capture tionRetrieval,3(3):225–331.
+thenuancesbetweensimilardocuments. YinhanLiu,MyleOtt,NamanGoyal,JingfeiDu,Man-
+dar Joshi, Danqi Chen, Omer Levy, Mike Lewis,
+6 Conclusion Luke Zettlemoyer, and Veselin Stoyanov. 2019.
+Roberta: A robustly optimized bert pretraining ap-
+In this paper, we propose Fusion-in-T5 (FiT5), proach. arXivpreprintarXiv:1907.11692.
+which collects and unifies IR features on the re- Donald Metzler and W Bruce Croft. 2007. Linear
+ranking stage. We conduct experiments on MS feature-basedmodelsforinformationretrieval. Infor-
+MARCOandTRECDL,demonstratingFiT5’sad- mationRetrieval,10:257–274.
+vantage in effectiveness. In addition, we provide TriNguyen,MirRosenberg,XiaSong,JianfengGao,
+ananalyticaldemonstrationtoshowtherationale Saurabh Tiwary, Rangan Majumder, and Li Deng.
+2016. Msmarco: Ahumangeneratedmachineread-
+oftheeffectivenessofFiT5inincorporatingglobal
+ingcomprehensiondataset. choice,2640:660.
+documentinformationandrankingfeatures.
+Rodrigo Nogueira and Kyunghyun Cho. 2019. Pas-
+sage re-ranking with bert. arXiv preprint
+References arXiv:1901.04085.
+RodrigoNogueira,ZhiyingJiang,RonakPradeep,and
+Chris Burges, Tal Shaked, Erin Renshaw, Ari Lazier,
+Jimmy Lin. 2020. Document ranking with a pre-
+MattDeeds,NicoleHamilton,andGregHullender.
+trainedsequence-to-sequencemodel. InFindingsof
+2005. Learningtorankusinggradientdescent. In
+EMNLP,pages708–718.
+ProceedingsofICML,pages89–96.
+Rodrigo Nogueira, Wei Yang, Kyunghyun Cho, and
+N.Craswell,B.Mitra,E.Yilmaz,andD.Campos.2021.
+Jimmy Lin. 2019. Multi-stage document ranking
+Overview of the trec 2020 deep learning track. In
+withbert. arXivpreprintarXiv:1910.14424.
+TREC.
+Ronak Pradeep, Rodrigo Nogueira, and Jimmy Lin.
+NickCraswell,BhaskarMitra,EmineYilmaz,Daniel
+2021. The expando-mono-duo design pattern for
+Campos,andEllenMVoorhees.2020. Overviewof
+text ranking with pretrained sequence-to-sequence
+thetrec2019deeplearningtrack. InTREC.
+models. arXivpreprintarXiv:2101.05667.
+WBruceCroft,DonaldMetzler,andTrevorStrohman. ColinRaffel,NoamShazeer,AdamRoberts,Katherine
+2010. Search Engines: Information Retrieval in Lee,SharanNarang,MichaelMatena,YanqiZhou,
+Practice,volume520. Addison-WesleyReading. WeiLi,andPeterJ.Liu.2020. Exploringthelimits
+oftransferlearningwithaunifiedtext-to-texttrans-
+Zhuyun Dai, Chenyan Xiong, Jamie Callan, and
+former. J.Mach.Learn.Res.,21:140:1–140:67.
+ZhiyuanLiu.2018. Convolutionalneuralnetworks
+forsoft-matchingn-gramsinad-hocsearch. InPro- SiSun,YingzhuoQian,ZhenghaoLiu,ChenyanXiong,
+ceedingsofWSDM,pages126–134. KaitaoZhang,JieBao,ZhiyuanLiu,andPaulBen-
+nett.2021. Few-shottextrankingwithmetaadapted
+LuyuGaoandJamieCallan.2022. Unsupervisedcor-
+syntheticweaksupervision. InProceedingsofACL,
+pusawarelanguagemodelpre-trainingfordensepas-
+pages5030–5043.
+sageretrieval. InProceedingsofACL,pages2843–
+2853. ChristopherCVogtandGarrisonWCottrell.1999. Fu-
+sionviaalinearcombinationofscores. Information
+LuyuGao,XueguangMa,JimmyLin,andJamieCallan.
+retrieval,1(3):151–173.
+2022. Tevatron: Anefficientandflexibletoolkitfor
+denseretrieval. arXivpreprintarXiv:2203.05765. AndrewYates,RodrigoNogueira,andJimmyLin.2021.
+Pretrainedtransformersfortextranking: Bertandbe-
+ShuguangHan,XuanhuiWang,MikeBendersky,and yond. InProceedingsofWSDM,pages1154–1156.
+Marc Najork. 2020. Learning-to-rank with bert in
+tf-ranking. arXivpreprintarXiv:2004.08476. HongChienYu,ChenyanXiong,andJamieCallan.2021.
+Improvingqueryrepresentationsfordenseretrieval
+GautierIzacardandÉdouardGrave.2021. Leveraging with pseudo relevance feedback. arXiv preprint
+passage retrieval with generative models for open arXiv:2108.13454.
+domainquestionanswering. InProceedingsofEACL,
+Kaitao Zhang, Chenyan Xiong, Zhenghao Liu, and
+pages874–880.
+ZhiyuanLiu.2020. Selectiveweaksupervisionfor
+Hang Li, Ahmed Mourad, Shengyao Zhuang, Bevan neuralinformationretrieval. InProceedingsofThe
+Koopman, and Guido Zuccon. 2023. Pseudo rele- WebConference2020,pages474–485.
+Yanzhao Zhang, Dingkun Long, Guangwei Xu, and
+PengjunXie.2022. Hlatr: enhancemulti-stagetext
+retrievalwithhybridlistawaretransformerreranking.
+arXivpreprintarXiv:2205.10569.
+YueZhang,ChengChengHu,YuqiLiu,HuiFang,and
+Jimmy Lin. 2021. Learning to rank in the age of
+muppets: Effectiveness–efficiencytradeoffsinmulti-
+stageranking. InProceedingsoftheSecondWork-
+shoponSimpleandEfficientNaturalLanguagePro-
+cessing,pages64–73.
+Chen Zhao, Chenyan Xiong, Corby Rosset, Xia
+Song, Paul Bennett, and Saurabh Tiwary. 2020.
+Transformer-xh:Multi-evidencereasoningwithextra
+hopattention. InProceedingsofICLR.
+ZhiZheng,KaiHui,BenHe,XianpeiHan,LeSun,and
+AndrewYates.2020. Bert-qe: Contextualizedquery
+expansionfordocumentre-ranking. InFindingsof
+EMNLP,pages4718–4728.
+A Datasets refertoasHLATR-baseandHLATR-large,respec-
+tively.
+MSMARCOpassage (Nguyenetal.,2016)is
+a ranking dataset with 8.8M passages, which is Expando-Mono-Duo: (Pradeep et al., 2021)
+constructedfromBing’ssearchquerylogsandweb Expando-Mono-Duo is a multi-stage ranking
+documentsretrievedbyBing. Thetrainingsethas model based on T5-3B, which requires pairwise
+about530Kqueries. Thedevelopmentsetscontain comparisononthecandidatedocuments.
+6,900respectively.WetrainFiT5onMSMARCO
+C TrainingDetails
+passage ranking. For every query, we take top-
+100documentsretrievedusingcoCondenserforre-
+InthetrainingofFiT5(w/ofeature),thelearning
+ranking,whichisimplementedwithTevatron(Gao rate for the document ranking task is 2 × 10−5,
+etal.,2022). WedivideMSMARCOtrainingintoa
+and the total batch size is 16. Each global atten-
+trainingsetof495ksamplesandourownvalidation
+tionmoduleappliesstandardmulti-headattention
+setof3195samples.
+with 12 attention heads. We train the model for
+400k steps on the MS MARCO training set and
+TRECDeepLearningTracks arethetestcol-
+takethebest-performingcheckpointonourvalida-
+lectionsdesignedtostudyadhocrankinginalarge
+tion set. In order to gain a deeper understanding
+dataregime. ThepassagecorpusofMSMARCO
+of ranking features (retrieval scores in FiT5) and
+issharedwithTREC-DL’19(Craswelletal.,2020)
+integrate them into the FiT5 model, we continue
+and TREC-DL’20 (Craswell et al., 2021) collec-
+the training on FiT5 (w/o feature) using the tem-
+tionswith43and54queriesrespectively. Weeval-
+plate with feature-related components like Eq 1.
+uateourmodelonthesecollections.
+Beforeincorporatingfeaturescores,wenormalize
+B Baselines thecoCondenserscoreto[0,1]usingmin-maxnor-
+malization. Toreducetheimpactofextremevalues,
+Wecompareagainstthefollowingbaselines:
+wesettheminimumvalueat165andthemaximum
+BERT Re-ranker: (Nogueira and Cho, 2019) at190duringnormalization. Thescoresarethen
+We use BERT-base to re-rank the top 100 docu- discretized to an integer in [0,100] by retaining
+mentsfromcoCondenserandtakethecheckpoint twodecimalplaces,inputtothemodelasnormal
+at100kstepsastheresult. Inordertomaintaincon- strings. In the training of FiT5, the learning rate
+sistencywithFiT5,titleinformationisalsoadded forthedocumentrankingtaskis2×10−5,andthe
+duringtrainingofBERT-reranker. total batch size is 256. We train FiT5 on the MS
+MARCOtrainingsetfromthecheckpointsavedof
+monoT5: (Nogueira et al., 2020) We use
+FiT5 (w/o feature) and use the result of the 1.5k
+monoT5 to re-rank the top 100 documents from
+stepsasthefinalresult.
+coCondenser, with the same training details as
+monoT5. Wetakethecheckpointat100kstepsas In addition to incorporating feature informa-
+theresult. Then,followingthetrainingstepasFiT5 tionastextfeatureandfusingthemwithlanguage
+(w/feature),weusecoCondenserretrievalscores model,wealsoemployedalinearfusionmethod,as
+as an additional ranking feature in the template showninthetable2asFiT5(linearcombination).
+(Eq 1).We train the model on the MS MARCO We used the linear fusion method in coor-ascent
+trainingsetusingthecheckpointobtainedfromthe fromRankLib1 tofusetherankingscoresobtained
+previous step, and use the checkpoint which that fromthefirststageFiT5(w/ofeature)andthefea-
+achievesthebestperformanceonourvalidationset ture scores from coCondenser. Specifically, we
+(i.e. monoT5(w/feature). Inordertomaintaincon- randomlysampled10kinstancesfromthetraining
+sistencywithFiT5,titleinformationisalsoadded data and trained RankLib to obtain the best lin-
+duringtrainingofmonoT5. earfusionmodel,whichwasusedasFiT5(linear
+combination).
+HLATR: (Zhangetal.,2022)HLATRisamodel
+trained on the coCondenser retrieval results and D ExperimentDetails
+also utilizes retrieval scores to enhance docu-
+Intheexperimentanalyzingattentiondistribution
+ment information representation during the re-
+in§5.4,wecomputeattentionvaluesusingthefol-
+ranking stage. It is trained on MS MARCO us-
+ingRoBERTa-baseandRoBERTa-large,whichwe 1https://sourceforge.net/p/lemur/code/HEAD/tree/RankLib/
+lowing method. We assume that the global atten-
+tionsimilaritybetweenthei-thandk-thsamplesin
+thej-thlayeroftransformersisdenotedbyAj
+:
+i,k
+hˆj ·hˆj
+Aj = i,[CLS] k,[CLS] (5)
+i,k ||hˆj ||||hˆj ||
+i,[CLS] k,[CLS]
+Assumingthei-thsampleisassociatedwitharel-
+evancelabell forqueryq,wecomputethemean
+i
+valueofglobalattentionsimilarityAj(R ,R )in
+q 1 2
+the j-th layer between samples with relevance
+scoresR andR ,whichindicatethemodel’sabil-
+1 2
+itytodistinguishbetweensimilardocuments.
+(cid:80)n (cid:80)n Aj
+Aj(R ,R ) = i=1,li=R1 k=1,r k=R2 i,k
+q 1 2 (cid:80)n (cid:80)n 1
+i=1,li=R1 k=1,l k=R2
+(6)
+To facilitate smoother visualization of the results
+forallqueries,weperformmin-maxnormalization
+onthethosescoresinthesamelayerj.
+{Aj(R ,R )} = Min-Max({Aj(R ,R )}) (7)
+q 1 2 q 1 2
+For j equal to 10, 11, and 12, with R and R
+1 2
+rangingfrom0to3,theoutcomesarepresentedin
+Figure 2a. Additionally,forj equalto12,withR
+1
+at3andR rangingfrom0to3,theoutcomesare
+2
+showninFigure 2b.

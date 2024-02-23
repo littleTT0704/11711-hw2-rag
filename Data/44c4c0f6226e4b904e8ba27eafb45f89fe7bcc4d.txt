@@ -1,0 +1,716 @@
+Wang et al. BMC Bioinformatics (2021) 22:50
+https://doi.org/10.1186/s12859-021-03959-2
+METHODOLOGY ARTICLE Open Access
+Coupled mixed model for joint genetic
+analysis of complex disorders with two
+independently collected data sets
+Haohan Wang1, Fen Pei2, Michael M. Vanyukov3, Ivet Bahar2, Wei Wu1* and Eric P. Xing1*
+*Correspondence:
+Abstract
+weiwu2@cs.cmu.edu;
+epxing@cs.cmu.edu Background: In the last decade, Genome-wide Association studies (GWASs) have
+1 School of Computer
+contributed to decoding the human genome by uncovering many genetic variations
+Science, Carnegie Mellon
+University, Pittsburgh, PA, associated with various diseases. Many follow-up investigations involve joint analysis
+USA of multiple independently generated GWAS data sets. While most of the computa-
+Full list of author information
+tional approaches developed for joint analysis are based on summary statistics, the
+is available at the end of the
+article joint analysis based on individual-level data with consideration of confounding factors
+remains to be a challenge.
+Results: In this study, we propose a method, called Coupled Mixed Model (CMM), that
+enables a joint GWAS analysis on two independently collected sets of GWAS data with
+different phenotypes. The CMM method does not require the data sets to have the
+same phenotypes as it aims to infer the unknown phenotypes using a set of multivari-
+ate sparse mixed models. Moreover, CMM addresses the confounding variables due to
+population stratification, family structures, and cryptic relatedness, as well as those aris-
+ing during data collection such as batch effects that frequently appear in joint genetic
+studies. We evaluate the performance of CMM using simulation experiments. In real
+data analysis, we illustrate the utility of CMM by an application to evaluating common
+genetic associations for Alzheimer’s disease and substance use disorder using datasets
+independently collected for the two complex human disorders. Comparison of the
+results with those from previous experiments and analyses supports the utility of our
+method and provides new insights into the diseases. The software is available at https
+://githu b.com/Haoha nWang /CMM.
+Keywords: Joint analysis, Mixed model, Deconfounding
+Background
+Genome-wide Association Studies (GWASs) have helped reveal about 10,000 associa-
+tions between genetic variants in the human genome and diseases [1]. With the suc-
+cess of GWASs involving analysis of single data sets, a natural follow-up is to investigate
+multiple data sets [2], which we refer to as joint analysis. A joint analysis may uncover
+genetic mechanisms that cannot be discovered in a single analysis [3]. For exam-
+ple, recent studies have revealed overlapping genetic factors that influence multiple
+© The Author(s) 2021. Open Access This article is licensed under a Creative Commons Attribution 4.0 International License, which permits
+use, sharing, adaptation, distribution and reproduction in any medium or format, as long as you give appropriate credit to the original
+author(s) and the source, provide a link to the Creative Commons licence, and indicate if changes were made. The images or other third
+party material in this article are included in the article’s Creative Commons licence, unless indicated otherwise in a credit line to the mate-
+rial. If material is not included in the article’s Creative Commons licence and your intended use is not permitted by statutory regulation or
+exceeds the permitted use, you will need to obtain permission directly from the copyright holder. To view a copy of this licence, visit http://
+creat iveco mmons .org/licen ses/by/4.0/. The Creative Commons Public Domain Dedication waiver (http://creat iveco mmons .org/publi
+cdoma in/zero/1.0/) applies to the data made available in this article, unless otherwise stated in a credit line to the data.
+Wang et al. BMC Bioinformatics (2021) 22:50 Page 2 of 14
+Fig. 1 Illustration of the existing challenges when conducting a joint analysis on two independently
+collected data sets with two different phenotypes
+psychiatric disorders [4], genetic correlations between schizophrenia, ADHD, depres-
+sion, and cannabis use [5], as well as an association between schizophrenia and illicit
+drug use [6]. Also, co-occurrences of substance use disorders (SUDs) and psychopathol-
+ogy have been observed in national epidemiologic surveys [7, 8], which suggests a fur-
+ther joint analysis should be conducted to uncover potential common genetic factors
+underlying both SUDs and diseases involving cognitive dysfunction.
+However, a joint genetic analysis using two independently collected data sets can be
+very challenging. In addition to the issues commonly expected from single data sets such
+as population stratification [9], a straightforward application of computational methods
+proposed for single data sets for the joint analysis could result in false discoveries caused
+by confounding factors such as the batch effects due to different data collection proce-
+dures. Moreover, two independently collected data sets do not often share the pheno-
+types of interest. To help better understand these challenges, we illustrate them in detail
+in Fig. 1. For the two data sets 1 and 2 originally collected for independent studies of the
+red and blue phenotype, respectively, a joint analysis aims to discover common genetic
+variants associated with both of these phenotypes. However, in order to perform such
+analysis, as shown in Fig. 1, all the information that is enclosed in the boxes with dashed
+lines needs to be inferred which could pose major challenges for these analyses; ques-
+tions need to be answered involve, e.g., what is the blue phenotype of the samples in data
+set 1 since the blue phenotype may not be collected when the data set 1 is generated?
+How to deal with different confounding factors present in different data sets, includ-
+ing population stratification, family structures, cryptic relatedness, and data collection
+confounders?
+Existing methods for joint analysis on genetic data are mostly built on summary statis-
+tics e.g., [10–20]. More recently, [21] introduced multi-trait analysis of GWAS (MTAG)
+that can perform joint analysis using the summary statistics calculated from cohorts
+with overlapping samples. [22] proposed a regularized Gaussian mixture model called
+iMAP to infer the association between SNPs to correlated phenotypes. [23] presented a
+heritability-informed power optimization method that finds an optimal linear combina-
+tions of association coefficients.
+W ang et al. BMC Bioinformatics (2021) 22:50 Page 3 of 14
+While summary statistics can help uncover common genetic factors from joint analy-
+sis, individual-level data nonetheless contains more information that allows the analyst
+to adjust for patient-level covariates, repeated measures, etc. [24]. Recently, [25] pro-
+posed a method for joint analysis which integrates individual-level data together with
+summary-level data. [26] directly used individual-level data for the joint analysis of traits
+that are collected separately from different cohorts. However, none of these methods
+took advantage of the rich information of the distribution of SNPs in the individual-level
+data, which allows the analyst to infer and correct the sample population structure or
+other potential confounding factors. In this work, we introduce a computational method
+for joint genetic analysis using individual-level data with correction of potential con-
+founding factors.
+Here, we propose a method, namely Coupled Mixed Model (CMM), for a joint asso-
+ciation analysis that directly operates on two GWAS sequence data sets. CMM aims to
+address all the challenges above and to provide a reliable joint analysis of the data sets
+by inferring the missing information as illustrated in Fig. 1. In particular, CMM infers
+the missing phenotypes and various confounding factors with the maximum likelihood
+estimation. It is also noteworthy that our method is different from the approaches for
+missing phenotype imputation such as [27, 28] in that our method aims to address the
+challenges when there are no empirical data which allows the correlation between differ-
+ent phenotypes to be measured—a common situation for independently collected data
+sets which are not originally generated for joint analysis purposes. We first verify the
+performance of our methods with simulation experiments, and then apply our method
+to real GWAS data sets previously generated for investigating genetic variants associ-
+ated with substance use disorders (SUDs) and Alzheimer’s disease (AD), respectively, for
+joint analysis.
+Results
+Simulation experiments
+We compare CMM to several approaches using simulated data sets.
+• HG(W): Joint analysis conducted with the hypergeometric tests [10] when the two
+independent problems are each solved by the standard univariate Wald testing with
+the Benjamini-Hochberg (BH) procedure [29]. This is the most popular approach in
+GWAS for a single data set.
+• HG(L): Joint analysis conducted with the hypergeometric tests [10] when the two
+independent problems are each solved by a standard linear mixed model with the
+Benjamini-Hochberg (BH) procedure [29].
+• CD: Combining data-set approach. CD merges two data sets X 1 and X 2 into one
+X =[X 1;X 2] and create a pseudo phenotype y∈{0,1}n1+n2 where y(i)=1 if the ith
+sample has either one of the two diseases.
+• iMAP: integrative MApping of Pleiotropic association, which is a method for joint
+analysis that models summary statistics from GWAS results by integrating SNP
+annotations in the model [22]. For a fair comparison of the methods, we do not use
+the SNP annotations with this method.
+Wang et al. BMC Bioinformatics (2021) 22:50 Page 4 of 14
+• MTAG: multi-trait analysis of GWAS [21], which is also a method for joint analysis
+of GWAS data sets using summary statistics, which accounts for potential confound-
+ers due to population stratification or cryptic relatedness.
+ℓ
+• LR: 1-regularized logistic regression, which can be directly applied to the two inde-
+pendent data sets for joint analysis. We select the intersection of the identified SNPs
+associated with each of the phenotypes as the SNPs jointly associated with both phe-
+notypes.
+• AL: Adaptive Lasso, which is an extension of the Lasso that weighs the regulariza-
+tion term [30] (enabled by the method introduced in [31] for high-dimensional data).
+AL is applied to the independent data sets in the same manner as LR. We use the
+logistic-regression version of the method if the phenotypes are binary.
+• PL: Precision Lasso, a novel variant of the Lasso, that is developed for analyzing data
+with correlated and linearly dependent features, commonly seen in genomic studies
+[32]. PL is applied to the independent data sets in the same manner as LR.
+• JL: Joint Lasso, which is a method we implement in this study for a fair comparison
+of our proposed CMM method. JL solves the lasso problems jointly with the con-
+β(1) =β(2)
+straint with ADMM. This approach can be seen as a CMM method with-
+out consideration of the confounding factors in the data.
+• CMM: Coupled Mixed Model. Our proposed method.
+We simulate two independent data sets with binary phenotypes, whose SNPs are gener-
+ated via SimuPop [33] with population structures. We also introduce the influences from
+confounding factors, resulting in a roughly 0.25 signal-to-noise ratio for effect sizes. We
+mainly experiment with two different settings: the number of the associated SNPs and
+the fraction of these SNPs that are jointly associated with both phenotypes. We repeat
+the experiments with 10 different random seeds. Details of simulation are in Additional
+file 1: Section S5.1.
+We first evaluate these methods with the focus on finding the SNPs associated with
+both phenotypes, and compare the performance of the competing methods with ROC
+curves. For the univariate testing methods (HG, CD, MTAG), the curves are plotted by
+varying the null-hypothesis-rejecting threshold of p-values, while for multivariate regu-
+larized regression methods, the curves are plotted by varying the regularizing hyperpa-
+rameter (200 different choices evenly distributed in logspace from
+10−5
+to
+105
+), except
+the Precision Lasso which is tested with only 20 choices because of its limitation in
+scalability.
+Figure 2 shows the ROC curves of the compared methods in terms of their abilities
+to find the SNPs associated with both phenotypes. Overall, the results favor our CMM
+method significantly. In comparison with the other methods, the superiority of the pro-
+posed CMM is more evident when there are fewer associated SNPs in each data set, and
+also when there are fewer SNPs associated with both phenotypes. For example, as shown
+in Fig. 2, when only 0.1% of the SNPs are associated with a phenotype (first row), the
+advantage of CMM can be clearly seen; however, when 1% of SNPs are associated with a
+phenotype (last row), CMM barely outperforms HG(L) methods.
+By comparing the performances of the compared methods in different columns in
+Fig. 2, we can see how the common SNPs (i.e., those associated with both phenotypes)
+W ang et al. BMC Bioinformatics (2021) 22:50 Page 5 of 14
+Fig. 2 The ROC curves of the compared methods in terms of identifying the SNPs that are jointly associated
+with both phenotypes
+affect the results: as the percentage of the common SNPs increases, in general, the per-
+formances of all the compared methods increase. Also, we notice that the performance
+of CMM does not vary significantly as the number of the common SNPs varies, This
+observation indicates that the Constraint (3) in our optimization problem does not nec-
+essarily deteriorate the method’s performance even when the two phenotypes are less
+related.
+With the clear advantage of CMM, we now proceed to discuss more about the other
+competing methods. We notice that multivariate methods (LR, AL, JL) tend to perform
+well when there are less associated SNPs as well as less common SNPs, while univari-
+ate methods (HG(W), HG(L), CD) favor the opposite scenarios with more associated
+SNPs and more common SNPs. For instance, JL, which can be considered as a multi-
+variate version of CD, barely outperforms CD. As the number of the common SNPs
+increases, the performance of CD improves clearly, while that of JL does not. This result
+can be explained as follows: CD only aims to recover the common SNPs, while JL bal-
+ances between minimizing the two logistic regression cost functions and minimizing the
+differentiation between coefficients which may not result in a more effective recovery
+of the common SNPs. Unfortunately, summary statistics-based methods (iMAP and
+MTAG) do not perform well in our simulation experiment settings, most likely due to
+the presence of the multiple sources of confounding factors in the simulated data. Also,
+iMAP is introduced as a method which leverages the power of SNP annotations for joint
+analysis, but we do not include the annotation information in the experiments for fair
+comparisons.
+We also notice that LMM performs surprisingly well when there are many associ-
+ated SNPs. For example, when there are 1% of the associated SNPs (last row of Fig. 2),
+LMM performs as the second best method. However, LMM does not perform well with
+fewer associated SNPs, as shown in the first two rows of Fig. 2. Furthermore, we plot the
+results of the ROC curves of the compared methods regarding their abilities in uncov-
+ering the associated SNPs separately for each data set, which are shown in Additional
+Wang et al. BMC Bioinformatics (2021) 22:50 Page 6 of 14
+file 1: Section S4.2. Together, these simulation results demonstrate that CMM outper-
+forms the other methods in terms of finding common SNPs associated with both pheno-
+types, as well as finding associated SNPs with individual phenotype.
+We also tested our CMM method for predicting the phenotypes across data sets in
+comparison to the other competing regression-based methods. The results are presented
+in Additionalfile 1: Section S5.2 and S5.3.
+Real data analysis: joint genetic analysis for Alzheimer’s disease and substance use
+disorder
+Application of CMM to two GWAS data sets for AD and SUDs
+In the real data analysis, we apply our proposed CMM method to two GWAS data sets
+independently generated previously to investigate genetic association for AD and SUDs,
+respectively. The AD data set was collected from the Alzheimer’s Disease Neuroimag-
+ing Initiative (ADNI)1 and the SUD data set was collected by the CEDAR Center at the
+University of Pittsburgh2. For the AD data set, we only used the data generated from the
+individuals diagnosed with either AD or normal controls. There are 477 individuals in
+the final AD data set with 188 case samples and 289 control samples. For the SUD data
+set, we consider the subjects with drug abuse history as the case group and the sub-
+jects with neither drug abuse nor alcohol abuse behavior as the control group, exclud-
+ing the subjects with only alcohol abuse behavior (but not drug abuse history), because
+alcoholism is usually believed to be related to drug abuse. There are 359 patients in the
+final SUD data set with 153 case samples and 206 control samples. We also exclude
+the SNPs on X-chromosome following suggestions of previous studies [34]. There are
+257361 SNPs in these two data sets left to be examined. Even though the sample sizes
+of the AD and the SUD data sets are small, which unfortunately is a common situation
+for genetic studies of complex human diseases, particularly for SUDs, our results sug-
+gest that our CMM method can help identify promising genetic variants that are worth
+further investigation.
+Due to the statistical limitation of selecting hyperparameters using cross-validation
+and information criteria in high dimensional data [32], we tune the hyperparameters
+according to the number of SNPs we aim to select, following previous work [32, 35,
+36] and the hyperparameters of our model will be tuned automatically through binary
+search for the set of parameters according to the number of SNPs we inquire. This
+hyperparameter selection procedure has been shown to generate less false positives in
+general than cross-validation, even when the queried number of SNPs is (reasonably)
+misspecified [32]. To mitigate the computation load, the algorithm will terminate the
+hyperparameter search when the number of the reported SNPs lies within 50–200% of
+the number we inquire.
+We inquire for 30 SNPs selected in each data set, and CMM identified five SNPs that
+are associated with both SUD and AD, which is reported in Table 1. CMM reported
+15 additional SNPs and 35 additional SNPs for SUD and AD respectively, which are
+reported in Tables S1 and S2 (Additional file 1: Section S7). Notably, we do not find
+1 http://adni.loni.usc.edu/.
+2 http://www.pitt.edu/~cedar /.
+W ang et al. BMC Bioinformatics (2021) 22:50 Page 7 of 14
+Table 1 The SNPs that the CMM method identifies from both the SUD and the AD data sets
+SNP SUD rank AD rank Chr. Chr. position Gene
+rs2131691 1 1 11 26574855 ANO3
+rs1709317 5 8 2 23536638 KLHL29
+rs4713797 6 10 6 34490756 PACSIN1
+rs224534 12 3 17 3583408 TRPV1
+rs1057744 16 11 14 105150705 JAG2
+The SNPs are ranked by the absolute values of their estimated effect sizes, and showed in the “SUD rank” and “AD rank”
+columns. The information of whether a SNP is located within a region of a gene is taken from the Database for Single
+Nucleotide Polymorphisms (dbSNP) [60], and listed in the “Gene” column
+Table 2 The minor allel frequencies (MAFs) of the five identified SNPs in the case (“AD”
+column) and the control (“C” column) samples. The overall MAFs (in “all” column are
+reported for reference
+AD SUD
+All C AD p value All C SUD p value
+rs2131691 0.47 0.41 0.44 4.78E05 0.47 0.46 0.48 4.64E-01
+rs1709317 0.36 0.31 0.45 6.82E 06 0.27 0.30 0.22 2.28E 02
+− −
+rs4713797 0.48 0.47 0.41 6.04E 04 0.41 0.45 0.37 5.32E 02
+− −
+rs224534 0.33 0.28 0.43 1.41E 06 0.25 0.26 0.25 7.91E 01
+− −
+rs1057744 0.49 0.45 0.42 4.81E 04 0.39 0.42 0.35 3.71E 02
+− −
+The p values of the student’s t tests are also reported. The statistically significant p values which are below the threshold of
+0.05 are shown in bold
+much overlap between our findings and those from the previous studies in the GWAS
+Catalog [37], and we believe this is because our method explicitly favors to identify the
+SNPs that are jointly associated with both of the disease phenotypes. Nevertheless, we
+find many pieces of evidence supporting our findings. The following discussion focuses
+on the validation of these five identified SNPs.
+Validation of the identified common SNPs associated with both AD and SUDs
+Statistical validation In order to validate the five identified common SNPs, we first
+compared the distribution differences of SNPs between the case and control samples in
+each of the diseases. We notice that in most cases, the allele frequencies are different
+between the case and the control samples (shown in Table 2). Also, we examine the sta-
+tistical significance of independence between the SNPs in the control group vs. the case
+group with the student’s t test. Seven out of the ten tests report a statistically significant
+sign of independence (shown in Table 2).
+Literature support Due to the lack of direct information on the SNPs and the disease
+phenotypes, we also verify our findings via literature search based on the relationship
+between the genes where the identified SNPs reside and the phenotypes.
+Our results show that rs224534 identified by CMM to be associated with both AD
+and SUD resides in TRPV1 which encodes transient receptor potential cation chan-
+nel subfamily V member 1. Previous evidence showed that positive modulation of
+the TRPV1 channels could be a potential target for mitigation of AD [38], suggesting
+an important involvement of TRPV1 in AD. In addition, [39] have also shown that
+Wang et al. BMC Bioinformatics (2021) 22:50 Page 8 of 14
+Fig. 3 The interactions between TRPV1 and 9 SUD-related drugs. Violet ellipses represent drugs of abuse;
+black solid edges represent known interactions in DrugBank; and red dashed edges represent predicted
+interactions using the PMF model
+TRPV1 plays a key role in morphine addiction. Blednov and Harris [40] showed that
+the deletion of TRPV1 in mice altered behavioral effects of ethanol which indicates a
+connection between TRPV1 and alcoholism.
+Moreover, TRPV1 mediates long-term synaptic depression in the hippocampus [41],
+which is key to reward-related learning and addiction [42]. Further, we notice that
+in the “Inflammatory mediator regulation of TRP channels” pathway of the KEGG
+database [43], TRPV1 serves as a Ca2 channel. Ca2 binding to calmodulin (CaM)
++ +
+activates Ca2 /CaM-dependent protein kinase II (CAMKII). CaMKII is involved in
++
+many signaling cascades and is an important mediator of learning and memory [44],
+which plays an important role in neuropsychiatric disorders including drug addiction,
+schizophrenia, depression and multiple neurodevelopmental disorders [45, 46].
+Additional evidence using an independent approach In addition to the statisti-
+cal and literature support, we also validate TRPV1 as a SUD-related protein using an
+independent study of the drug-target interaction analysis.
+In this drug-target interaction analysis, we identified the known ligands of the cor-
+responding proteins of each gene through drug/ligand-target interactions compiled
+in DrugBank [47] and STITCH [48] databases. In addition, predicted ligands with
+high confidence were obtained by applying a probabilistic matrix factorization (PMF)
+model [49] on known drug/ligand-target interactions in DrugBank and STITCH. The
+data and the method are accessible on our online server (http://quarta ta.csb.pitt.edu).
+Among the identified known and predicted ligands, we focused on the drugs that are
+associated with either SUD or AD. The results show that 4 SUD-related drugs are
+known to interact with TRPV1 and 5 SUD-related drugs are predicted to interact with
+TRPV1, which supports the association between TRPV1 and SUD.
+In particular, as illustrated in Fig. 3, our analysis shows that TRPV1 is the known
+target of medical cannabis (plant use of marijuana), as well as three cannabinoids
+W ang et al. BMC Bioinformatics (2021) 22:50 Page 9 of 14
+(nabiximols, cannabidivarin, and cannabidiol) in cannabis, according to the annota-
+tions in DrugBank. In the PMF prediction model, TRPV1 is the predicted target of
+two cannabinoids (tetrahydrocannabivarin, cannabichromene) extracted from can-
+(cid:31)
+nabis, two synthetic cannabinoids (dronabinol and nabilone) of 9-THC (another
+cannabinoid from cannabis), as well as a central nervous system (CNS) depressant
+(flunitrazepam). These drugs are commonly known as drugs of abuse, and thus these
+results help verify the association between TRPV1 and SUD.
+Together, these results suggest that our findings, although explorative, may reveal
+novel genetic connections between SUD and AD. More discussions on the SNPs shown
+in Table 1 are presented in Additional file 1: Section S6. For other SNPs identified by
+CMM which are associated with either AD or SUD, we discuss them in detail in Addi-
+tional file 1: Section S7.
+Conclusion
+Following previous successes in joint genetic analysis using summary statistics-based
+approaches, we propose a novel method, Coupled Mixed Model (CMM), that operates
+on individual-level SNP data and aims to address challenges illustrated in Fig. 1. We fur-
+ther present an algorithm that allows an efficient parameter estimation of the objective
+function derived from our model.
+With extensive simulation experiments, we showed the superior performance of the
+CMM method in comparison with several competing approaches. In the real data analy-
+sis, we applied our method to identify the common SNPs associated with both AD and
+SUD. CMM identified five SNPs associated with both of the disease phenotypes. Notably,
+one of the identified SNPs reside in the gene TRPV1, which has been linked to both AD
+and SUD by multiple pieces of evidence, including statistical tests showing differences
+in the allele frequencies between the case and the control samples, previous evidence in
+the literature, as well as results from an independent study of the drug-target interaction
+analysis. Together, we show that our proposed CMM method is able to uncover promis-
+ing genetic variants that are associated with different disease phenotypes using individu-
+ally collected GWAS data sets and reveal novel connections between diseases.
+Methods
+Coupled mixed model
+The following are the notations we use in this work: The subscript denotes the identifier
+of data set, and the superscript in parentheses denotes the identifier of phenotypes. Geno-
+types and phenotypes are denoted as X and y , respectively. Also, n denotes the sample
+size, and p denotes the number of SNPs. Specifically, consider a scenario as illustrated
+in Fig. 1, X 1 and X 2 represent the genotypes of the samples in data sets 1 and 2 with the
+dimension of n 1×p and n 2×p , respectively. y 1(1) and y 1(2) denote the vectors of pheno-
+types 1 and 2, respectively, of the dimension n 1×1 for the samples in data set 1. Note
+that y
+1(2)
+is not observed. Similarly, y
+2(1)
+and y
+2(2)
+denote the vectors of phenotypes 1 and
+2, respectively, of the dimension n 2×1 for the samples in data set 2. y
+2(1)
+is not observed.
+Our method does not require n 1 =n 2 . However, for the convenience of the discussion,
+we will assume n 1 =n 2 =n . The case of n 1 =n 2 can be easily generalized by weighing
+the corresponding cost function components with
+1/n
+1 and
+1/n
+2 , respectively. Following
+Wang et al. BMC Bioinformatics (2021) 22:50 Page 10 of 14
+the similar logic, we introduce our method with the simplest linear models, but our
+method can be extended to the case of generalized linear models; for example, for case-
+control data, one can directly apply our method to binary trait data, as done by many
+previous examples [22, 50–53]. Also, one can use our method with the residual pheno-
+type after regressing other additional covariates (e.g, age or sex).
+Straightforwardly, for the scenario shown in Fig. 1, we have:
+y(1)
+=X
+β(1)+u(1)
++v
++ǫ(1)
+1 1 1 1 1
+y(2)
+=X
+β(2)+u(2)
++v
++ǫ(2)
+1 1 1 1 1
+y(1)
+=X
+β(1)+u(1)
++v
++ǫ(1) (1)
+2 2 2 2 2
+y(2)
+=X
+β(2)+u(2)
++v
++ǫ(2)
+2 2 2 2 2
+(j)
+where u i accounts for the confounding effects due to population stratification, family
+structures and cryptic relatedness in data set i with phenotype j; and v i accounts for the
+(j)
+ǫ
+confounding effects due to data collection (e.g., batch effects) in data set i; i stands
+for residual noises for data set i with phenotype j, and ǫ i(j) ∼N(0,Iσ ǫ2) , where I is an
+identity matrix with the shape of
+n×n
+. Notice that we will drop the unidentifiable term
+(j)
+ǫ
+i later during parameter estimation, otherwise these terms will turn the entire model
+unidentifiable.
+We have u i(j) ∼N(0,K iσ u2 (j)) for data set i with phenotype j. As observed by [9], pop-
+ulation stratification can cause false discoveries because there exist real associations
+between a phenotype and untyped SNPs that have similar allele frequencies with some
+typed SNPs that are not actually associated with the phenotype, which, as a result, can
+lead to false associations between the phenotype and the typed SNPs. Since these false
+associations due to confounders from population stratification are phenotype specific,
+σ2
+we model u(j) as phenotype-specific. Hence, although we have four different variance
+terms (i.e., u
+1(1)
+, u
+1(2)
+, u
+2(1)
+, and u
+2(2)
+) accounting for population confounders, they are
+only parameterized by two scalars, σ u2 (1) and σ u2 (2) . K i =X iX iT is the kinship matrix, con-
+structed following the genetics convention [54]. A more sophisticated construction of
+the kinship matrix may be used to improve detection of the signals, but these details are
+beyond the scope of this paper. One can refer to examples in [55–57] for more details.
+To model the confounders due to data collection, we have v i ∼N(0,Iσ v2 i) for data set
+i. Because these confounders are only related to the data collection procedure, we model
+σ2
+vi as data set-specific.
+For the independently collected data sets, we only observe (cid:31)X 1,y 1(1) (cid:30) and (cid:31)X 2,y 2(2) (cid:30) .
+Since we are interested in estimating β(1) and β(2) , we also need to estimate y 1(2) , y 2(1) , σ u2 1 ,
+σ2 σ2 σ2 ǫ(j)
+u2 , v1 , and v2 in Eq. 1. As noted earlier, we drop the i . to avoid the model to become
+unidentifiable.
+β(1) β(2)
+In order to estimate and , we minimize the joint negative log-likelihood func-
+tion. Because there are only a subset of SNPs that contribute to the phenotype, we intro-
+ℓ β(1) β(2)
+duce the standard 1 regularization by setting the prior distribution of and as a
+Laplace distribution. Additionally, to encourage our method to find common SNPs asso-
+ciated with both phenotypes, we use a simple constraint, as shown in Constraint (3).
+Taken together, the optimization problem for solving our model in Eq. 1 can be repre-
+sented as follows:
+W ang et al. BMC Bioinformatics (2021) 22:50 Page 11 of 14
+σ σ
+argmin 22 ||y(1) −X β(1)||2+ 11 ||y(2) −X β(2)||2
+2t 1 1 2 2t 2 2 2
+β(1),β(2),t (cid:31) (cid:31)
+(2)
+1
++ logt+(cid:31) ||β(1)||1+(cid:31) ||β(2)||1
+2 1 1 2 1
+s.t. ||β(1)−β(2)||<ξ (3)
+where
+σ =(y(1) )T(y(1) )+(β(1))T(X )T(X )(β(1))
+11 1 1 2 2
++2tr(K σ2 )+σ2 +σ2
+(cid:31) 1 u(1) v1 v2
+σ 22 =(y 2(2) )T(y 2(2) )+(β(2))T(X 1)T(X 1)(β(2)) (4)
++2tr(K σ2 )+σ2 +σ2
+(cid:31) 2 u(2) v1 v2
+t =|�|
+(cid:31)
+where is the covariance matrix defined as:
+σ σ
+� = 11 12
+(cid:31)σ 21 σ 22(cid:29)
+(cid:30) (cid:30)
+(cid:30) (cid:30)
+and we have:
+σ =σ =(y(1) )TX β(2)+(β(1))TX y(2)
+12 21 1 1 2 2
++ tr(K σ2 )+tr(K σ2 )+σ2 +σ2,
+(cid:31) (cid:31) 1 u(1) 2 u(2) v1 v2
+ξ
+and denotes a small number. The detailed derivation is described in Additional file 1:
+Section S1. The key steps involve replacing y 1(2) with X 1β(2) , and replacing y 2(1) with
+X 2β(1) , and then writing out the joint likelihood function of Eq. 1.
+To solve the optimization Function (2), we propose a strategy as follows. We first esti-
+mate the parameters
+{σ u2 (1),σ u2 (2),σ v2 1,σ v2 2}
+following the P3D set-up [58]. Then we propose
+an iterative updating algorithm that decouples the dependency between
+{β(1),β(2)}
+and
+t in the optimization function 2 and solves for
+{β(1),β(2)}
+and t with ADMM [59], which
+naturally uses the Constraint 3. We also offer a proof to show that our iterative updat-
+ing algorithm will converge. The details of the algorithm and the convergence proof are
+presented in the Additional file 1: Section S2 and S3, respectively. While the method
+presented above works reasonably well (as we will show below), we hope to remind the
+readers that an alternative approach is to marginalize y
+1(2)
+and y
+2(1)
+instead of replacing
+them with the MLE estimation. However, this approach is not the focus of this paper and
+we will leave it for future study.
+Implementation
+The implementation of the CMM method is available as a python software. Without instal-
+lation, one can run the software with a single command line. It takes standard Plink format
+as input. If there are mismatched SNPs between the data sets, CMM will use the intersec-
+tion of these SNPs. We recommend the users to query CMM to identify a specific num-
+ber of SNPs for each data set and CMM can tune the hyperparameters accordingly [32].
+Wang et al. BMC Bioinformatics (2021) 22:50 Page 12 of 14
+However, users can also choose to specify the regularization parameters. If none of the
+above information is specified, CMM will automatically conduct five-fold cross-validation
+ξ
+to tune parameters. does not need to be specified or tuned, because it can be dropped due
+to ADMM. The implementation is available as a standalone software (https ://githu b.com/
+Haoha nWang /CMM). More detailed instructions of how to use the software are presented
+in Additional file 1: Section S4.
+In theory, the computational complexity of the first step of the algorithm is
+O(n3)
+, and
+complexity of the second step is O(np). In practice, as we observe on two data sets with
+hundreds of samples and 200k SNPs, it takes CMM around a minute to converge given a set
+of hyperparameters on a modern server (2.30 GHz CPU and 128G RAM, Linux OS), and
+up to an hour to finish the entire hyperparameter tuning process.
+Supplementary Information
+The online version supplementary material available at https ://doi.org/10.1186/s1285 9-021-03959 -2.
+Additional file 1. Supporting information including mathematical details of the derivations, software instructions
+and additional experimental results.
+Abbreviations
+LMM: Linear mixed model; CMM: Coupled Mixed Model; MAF: Minor allele frequency; SNP: Single nucleotide polymor-
+phism; AD: Alzheimer’s disease; SUD: Substance use disorder; GWAS: Genome Wide Association Studies.
+Acknowledgements
+The authors would like to thank Seunghak Lee and Ben Lengerich for suggestions and comments in the preparation of
+this manuscript. The authors would also like to thank Miaofeng Liu for help in the convergence proof of the algorithm.
+The authors would also like to thank Alzheimer’s Disease Neuroimaging Initiative (ADNI) (National Institutes of Health
+Grant U01 AG024904) and DOD ADNI (Department of Defense Award Number W81XWH-12-2-0012) for the availability
+of the data.
+Authors’ contributions
+HW proposed and the idea, conducted the experiment and wrote the manuscript. FP analyzed the results. MMV pre-
+pared the Alcoholism data. WW designed the experiment, read and wrote the manuscript. IB and EPX read and wrote
+the manuscript. All authors read and approved of the final manuscript.
+Funding
+This work is supported by the National Institutes of Health Grants R01-GM093156 and P30-DA035778. The funding
+sources had no role in the design of the study, the collection, analysis, and interpretation of data or in writing the
+manuscript.
+Availability of data and materials
+The programs CMM is available at https ://githu b.com/Haoha nWang /CMM The datasets used and analysed during the
+current study are available from the corresponding author on reasonable request.
+Ethics approval and consent to participate
+Not applicable.
+Consent for publication
+Not applicable.
+Competing interests
+The authors declare that they have no competing interests.
+Author details
+1 School of Computer Science, Carnegie Mellon University, Pittsburgh, PA, USA. 2 Department of Computational and Sys-
+tems Biology, School of Medicine, University of Pittsburgh, Pittsburgh, PA, USA. 3 Department of Pharmaceutical Sciences,
+Departments of Psychiatry, and Human Genetics, University of Pittsburgh, Pittsburgh, PA, USA.
+Received: 8 July 2020 Accepted: 6 January 2021
+References
+1. Visscher PM, Wray NR, Zhang Q, Sklar P, McCarthy MI, Brown MA, Yang J. 10 years of GWAS discovery: biology, func-
+tion, and translation. Am J Hum Genet. 2017;101(1):5–22.
+W ang et al. BMC Bioinformatics (2021) 22:50 Page 13 of 14
+2. Wu C, Wang Z, Song X, Feng X-S, Abnet CC, He J, Hu N, Zuo X-B, Tan W, Zhan Q, et al. Joint analysis of three
+genome-wide association studies of esophageal squamous cell carcinoma in Chinese populations. Nat Genet.
+2014;46(9):1001–6.
+3. Mukherjee S, Thornton T, Naj A, Kim S, Kauwe J, Fardo D, Valladares O, Wijsman E, Schellenberg G, Crane P. GWAS of
+the joint ADGC data set identifies novel common variants associated with late-onset Alzheimer’s disease. Alzhei-
+mer’s Dement J Alzheimer’s Assoc. 2013;9(4):550.
+4. Pain O, Dudbridge F, Cardno AG, Freeman D, Lu Y, Lundstrom S, Lichtenstein P, Ronald A. Genome-wide analysis of
+adolescent psychotic-like experiences shows genetic overlap with psychiatric disorders. bioRxiv; 2018. 265512.
+5. Walters RK, Adams MJ, Adkins AE, Aliev F, Bacanu S-A, Batzler A, Bertelsen S, Biernacka J, Bigdeli TB, Chen L-S, et al.
+Trans-ancestral GWAS of alcohol dependence reveals common genetic underpinnings with psychiatric disorders.
+bioRxiv; 2018. 257311.
+6. Mallard TT, Harden KP, Fromme K. Genetic risk for schizophrenia influences substance use in emerging adulthood:
+an event-level polygenic prediction model. bioRxiv; 2018.157636.
+7. Grant BF, Goldstein RB, Saha TD, Chou SP, Jung J, Zhang H, Pickering RP, Ruan WJ, Smith SM, Huang B, et al. Epidemi-
+ology of dsm-5 alcohol use disorder: results from the national epidemiologic survey on alcohol and related condi-
+tions iii. JAMA Psychiatry. 2015;72(8):757–66.
+8. Grant BF, Saha TD, Ruan WJ, Goldstein RB, Chou SP, Jung J, Zhang H, Smith SM, Pickering RP, Huang B, et al.
+Epidemiology of dsm-5 drug use disorder: results from the national epidemiologic survey on alcohol and related
+conditions-iii. JAMA Psychiatry. 2016;73(1):39–47.
+9. Devlin B, Roeder K. Genomic control for association studies. Biometrics. 1999;55(4):997–1004.
+10. McGeachie MJ, Clemmer GL, Lasky-Su J, Dahlin A, Raby BA, Weiss ST. Joint GWAS analysis: comparing similar GWAS
+at different genomic resolutions identifies novel pathway associations with six complex diseases. Genomics Data.
+2014;2:202–11.
+11. Giambartolomei C, Vukcevic D, Schadt EE, Franke L, Hingorani AD, Wallace C, Plagnol V. Bayesian test for colocalisa-
+tion between pairs of genetic association studies using summary statistics. PLoS Genet. 2014;10(5):1004383.
+12. Kang EY, Han B, Furlotte N, Joo JWJ, Shih D, Davis RC, Lusis AJ, Eskin E. Meta-analysis identifies gene-by-environment
+interactions as demonstrated in a study of 4,965 mice. PLoS Genet. 2014;10(1):1004022.
+13. Zhu X, Feng T, Tayo BO, Liang J, Young JH, Franceschini N, Smith JA, Yanek LR, Sun YV, Edwards TL, et al. Meta-analysis
+of correlated traits via summary statistics from GWASs with an application in hypertension. Am J Hum Genet.
+2015;96(1):21–36.
+14. Bulik-Sullivan B, Finucane HK, Anttila V, Gusev A, Day FR, Loh P-R, Duncan L, Perry JR, Patterson N, Robinson EB, et al.
+An atlas of genetic correlations across human diseases and traits. Nat Genet. 2015;47(11):1236.
+15. Nieuwboer HA, Pool R, Dolan CV, Boomsma DI, Nivard MG. GWIS: genome-wide inferred statistics for functions of
+multiple phenotypes. Am J Hum Genet. 2016;99(4):917–27.
+16. Hu Y, Lu Q, Liu W, Zhang Y, Li M, Zhao H. Joint modeling of genetically correlated diseases and functional annota-
+tions increases accuracy of polygenic risk prediction. PLoS Genet. 2017;13(6):1006836.
+17. Wen X, Pique-Regi R, Luca F. Integrating molecular qtl data into genome-wide genetic association analysis: probabil-
+istic assessment of enrichment and colocalization. PLoS Genet. 2017;13(3):1006646.
+18. Liu J, Wan X, Wang C, Yang C, Zhou X, Yang C. LLR: a latent low-rank approach to colocalizing genetic risk variants in
+multiple GWAS. Bioinformatics. 2017;33(24):3878–86.
+19. Sha Q, Wang Z, Zhang X, Zhang S. A clustering linear combination approach to jointly analyze multiple phenotypes
+for GWAS. Bioinformatics. 2019;35(8):1373–79.
+20. Guo B, Wu B. Powerful and efficient SNP-set association tests across multiple phenotypes using GWAS summary
+data. Bioinformatics. 2019;35(8):1366–72.
+21. Turley P, Walters RK, Maghzian O, Okbay A, Lee JJ, Fontana MA, Nguyen-Viet TA, Wedow R, Zacher M, Furlotte NA,
+et al. Multi-trait analysis of genome-wide association summary statistics using mtag. Nat Genet. 2018;50(2):229.
+22. Zeng P, Hao X, Zhou X. Pleiotropic mapping and annotation selection in genome-wide association studies with
+penalized Gaussian mixture models. Bioinformatics. 2018;34(16):2797–807.
+23. Qi G, Chatterjee N. Heritability informed power optimization (HIPO) leads to enhanced detection of genetic associa-
+tions across multiple traits. PLoS Genet. 2018;14(10):1007549.
+24. Siddique J, Reiter JP, Brincks A, Gibbons RD, Crespi CM, Brown CH. Multiple imputation for harmonizing longitudinal
+non-commensurate measures in individual participant data meta-analysis. Stat Med. 2015;34(26):3399–414.
+25. Dai M, Wan X, Peng H, Wang Y, Liu Y, Liu J, Xu Z, Yang C. Joint analysis of individual-level and summary-level GWAS
+data by leveraging pleiotropy. Bioinformatics. 2019;35(10):1729–36.
+26. Yang Y, Dai M, Huang J, Lin X, Yang C, Chen M, Liu J. LPG: a four-group probabilistic approach to leveraging pleiot-
+ropy in genome-wide association studies. BMC Genomics. 2018;19(1):503.
+27. Dahl A, Iotchkova V, Baud A, Johansson Å, Gyllensten U, Soranzo N, Mott R, Kranis A, Marchini J. A multiple-pheno-
+type imputation method for genetic studies. Nat Genet. 2015;47(3):466.
+28. Hormozdiari F, Kang EY, Bilow M, Ben-David E, Vulpe C, McLachlan S, Lusis AJ, Han B, Eskin E. Imputing phenotypes
+for genome-wide association studies. Am J Hum Genet. 2016;99(1):89–103.
+29. Benjamini Y, Hochberg Y. Controlling the false discovery rate: a practical and powerful approach to multiple testing.
+J R Stat soc Ser B (Methodological). 1995;57:289–300.
+30. Zou H. The adaptive lasso and its oracle properties. J Am Stat Assoc. 2006;101(476):1418–29.
+31. Huang J, Ma S, Zhang C-H. Adaptive lasso for sparse high-dimensional regression models. Stat Sin. 2008;18:1603–18.
+32. Wang H, Lengerich BJ, Aragam B, Xing EP. Precision Lasso: accounting for correlations and linear dependencies in
+high-dimensional genomic data. Bioinformatics. 2019;35(7):1181–87.
+33. Peng B, Kimmel M. simuPOP: a forward-time population genetics simulation environment. Bioinformatics.
+2005;21(18):3686–7.
+34. Bertram L, Lange C, Mullin K, Parkinson M, Hsiao M, Hogan MF, Schjeide BM, Hooli B, DiVito J, Ionita I, et al. Genome-
+wide association analysis reveals putative Alzheimer’s disease susceptibility loci in addition to apoe. Am J Hum
+Genet. 2008;83(5):623–32.
+Wang et al. BMC Bioinformatics (2021) 22:50 Page 14 of 14
+35. Wu TT, Chen YF, Hastie T, Sobel E, Lange K. Genome-wide association analysis by lasso penalized logistic regression.
+Bioinformatics. 2009;25(6):714–21.
+36. Marchetti-Bowick M, Yin J, Howrylak JA, Xing EP. A time-varying group sparse additive model for genome-wide
+association studies of dynamic complex traits. Bioinformatics. 2016;32(19):2903–10.
+37. Welter D, MacArthur J, Morales J, Burdett T, Hall P, Junkins H, Klemm A, Flicek P, Manolio T, Hindorff L, et al. The NHGRI
+GWAS catalog, a curated resource of SNP-trait associations. Nucleic Acids Res. 2013;42(D1):1001–6.
+38. Jayant S, Sharma B, Sharma B. Protective effect of transient receptor potential vanilloid subtype 1 (TRPV1) modula-
+tor, against behavioral, biochemical and structural damage in experimental models of Alzheimer’s disease. Brain Res.
+2016;1642:397–408.
+39. Nguyen T-L, Kwon S-H, Hong S-I, Ma S-X, Jung Y-H, Hwang J-Y, Kim H-C, Lee S-Y, Jang C-G. Transient receptor poten-
+tial vanilloid type 1 channel may modulate opioid reward. Neuropsychopharmacology. 2014;39(10):2414–22.
+40. Blednov Y, Harris R. Deletion of vanilloid receptor (TRPV1) in mice alters behavioral effects of ethanol. Neuropharma-
+cology. 2009;56(4):814–20.
+41. Gibson HE, Edwards JG, Page RS, Van Hook MJ, Kauer JA. TRPV1 channels mediate long-term depression at synapses
+on hippocampal interneurons. Neuron. 2008;57(5):746–59.
+42. Kauer JA, Malenka RC. Synaptic plasticity and addiction. Nat Rev Neurosci. 2007;8(11):844.
+43. Kanehisa M, Furumichi M, Tanabe M, Sato Y, Morishima K. KEGG: new perspectives on genomes, pathways, diseases
+and drugs. Nucleic Acids Res. 2016;45(D1):353–61.
+44. Yamauchi T. Neuronal ca2 /calmodulin-dependent protein kinase ii-discovery, progress in a quarter of a century,
++
+and perspective: implication for learning and memory. Biol Pharm Bull. 2005;28(8):1342–54.
+45. Robison A. Emerging role of Camkii in neuropsychiatric disease. Trends Neurosci. 2014;37(11):653–62.
+46. Müller CP, Quednow BB, Lourdusamy A, Kornhuber J, Schumann G, Giese KP. Cam kinases: from memories to addic-
+tion. Trends Pharmacol Sci. 2016;37(2):153–66.
+47. Wishart DS, Feunang YD, Guo AC, Lo EJ, Marcu A, Grant JR, Sajed T, Johnson D, Li C, Sayeeda Z, et al. Drugbank 50: a
+major update to the drugbank database for 2018. Nucleic Acids Res. 2017;46(D1):1074–82.
+48. Szklarczyk D, Santos A, von Mering C, Jensen LJ, Bork P, Kuhn M. STITCH 5: augmenting protein–chemical interaction
+networks with tissue and affinity data. Nucleic Acids Res. 2015;44(D1):380–4.
+49. Cobanoglu MC, Liu C, Hu F, Oltvai ZN, Bahar I. Predicting drug–target interactions using probabilistic matrix factori-
+zation. J Chem Inf Model. 2013;53(12):3399–409.
+50. Moser G, Lee SH, Hayes BJ, Goddard ME, Wray NR, Visscher PM. Simultaneous discovery, estimation and prediction
+analysis of complex traits using a Bayesian mixture model. PLoS Genet. 2015;11(4):1004969.
+51. Speed D, Balding DJ. Multiblup: improved SNP-based prediction for complex traits. Genome Res. 2014;24(9):1550–7.
+52. Weissbrod O, Geiger D, Rosset S. Multikernel linear mixed models for complex phenotype prediction. Genome Res.
+2016;26(7):969–79.
+53. Zhou X, Carbonetto P, Stephens M. Polygenic modeling with Bayesian sparse linear mixed models. PLoS Genet.
+2013;9(2):1003264.
+54. Yang J, Zaitlen NA, Goddard ME, Visscher PM, Price AL. Advantages and pitfalls in the application of mixed-model
+association methods. Nat Genet. 2014;46(2):100–6.
+55. Listgarten J, Lippert C, Heckerman D. Fast-LMM-select for addressing confounding from spatial structure and rare
+variants. Nat Genet. 2013;45(5):470.
+56. Tucker G, Price AL, Berger B. Improving the power of GWAS and avoiding confounding from population stratifica-
+tion with PC-select. Genetics. 2014;197(3):1045–9.
+57. Wang H, Aragam B, Xing EP. Variable selection in heterogeneous datasets: a truncated-rank sparse linear mixed
+model with applications to genome-wide association studies. In: IEEE international conference on bioinformatics
+and biomedicine (BIBM). IEEE. 2017.
+58. Zhang Z, Ersoz E, Lai C-Q, Todhunter RJ, Tiwari HK, Gore MA, Bradbury PJ, Yu J, Arnett DK, Ordovas JM, et al. Mixed
+linear model approach adapted for genome-wide association studies. Nat Genet. 2010;42(4):355–60.
+59. Boyd S, Parikh N, Chu E, Peleato B, Eckstein J. Distributed optimization and statistical learning via the alternating
+direction method of multipliers. Found Trends Mach Learn. 2011;3(1):1–122.
+60. Sherry ST, Ward M-H, Kholodov M, Baker J, Phan L, Smigielski EM, Sirotkin K. DBSNP: the NCBI database of genetic
+variation. Nucleic Acids Res. 2001;29(1):308–11.
+Publisher’s Note
+Springer Nature remains neutral with regard to jurisdictional claims in published maps and institutional affiliations.

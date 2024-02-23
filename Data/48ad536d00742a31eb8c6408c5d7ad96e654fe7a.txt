@@ -1,0 +1,915 @@
+Dissecting Transformer Length Extrapolation via
+The Lens of Receptive Field Analysis
+Ta-ChungChi Ting-HanFan
+CarnegieMellonUniversity PrincetonUniversity
+tachungc@andrew.cmu.edu tinghanf@princeton.edu
+AlexanderI.Rudnicky PeterJ.Ramadge
+CarnegieMellonUniversity PrincetonUniversity
+air@cs.cmu.edu ramadge@princeton.edu
+Abstract
+* ) 0
+" "
+Lengthextrapolationpermitstrainingatrans-
+* ) * ) 1 0
+formerlanguagemodelonshortsequencesthat # " # # 1
+− × 2'
+preservesperplexitieswhentestedonsubstan- * ) * ) * ) 2 1 0
+$ " $ # $ $
+tiallylongersequences. Arelativepositional
+embeddingdesign,ALiBi,hashadthewidest * ) * ) * ) * ) 3 2 1 0
+% " % # % $ % %
+usagetodate. WedissectALiBiviathelensof
+receptivefieldanalysisempoweredbyanovel
+Figure 1: ALiBi. For a transformer language model
+cumulativenormalizedgradienttool. Thecon- withH attentionheads,therangeofhisn· 8,where
+H
+ceptofreceptivefieldfurtherallowsustomod-
+n = {1...H}. Left = self-attention matrix, right =
+ifythevanillaSinusoidalpositionalembedding
+temporalbiasesmatrix.
+to create Sandwich, the first parameter-free
+relativepositionalembeddingdesignthattruly
+lengthinformationuseslongerthanthetrain- * ) 0
+" "
+ingsequence. SandwichshareswithKERPLE
+andT5thesamelogarithmicdecayingtemporal * ) * ) 0 0
+# " # #
+biaspatternwithlearnablerelativepositional −
+embeddings;theseelucidatefutureextrapolat- * $) " * $) # * $) $ ∞ 0 0
+ablepositionalembeddingdesign.
+* ) * ) * ) * ) ∞ ∞ 0 0
+% " % # % $ % %
+1 Introduction
+Figure2: WindowedAttention. Thisisthesamedesign
+Thelengthofinputsequencesisanimportanthy- as Longformer (Beltagy et al., 2020). We limit the
+perparameterchoiceforpretrainingatransformer contextwindowsizetow =2inthisexample. Left=
+self-attentionmatrix,right=temporalbiasesmatrix.
+language model. A vanilla transformer language
+model has a quadratic training cost w.r.t L , the
+tr
+training sequence length. As the value of L in-
+tr including Sinusoidal (Vaswani et al., 2017), Ro-
+creases, cost becomes impractical. However, we
+tary(Suetal.,2021),andT5(Raffeletal.,2020),
+can use the model for substantially longer evalu-
+resultingintheadoptionofALiBifortherecently
+ation sequence lengths L ≫ L as gradients
+ex tr releasedBloom(Scaoetal.,2022)model. Despite
+no longer need to be recorded. The discrepancy
+thesignificantempiricalsuccessofALiBi,thereis
+betweenL andL motivatesthetaskoflength
+tr ex stillalackoffundamentalunderstandingofwhyit
+extrapolation (Press et al., 2022): Can a trans-
+works.1
+formerlanguagemodelmaintainequallygood,if
+Figure 1 shows the implementation of ALiBi.
+notbetter,perplexitieswhenlongersequencesare
+Wehereinafterrefertothecoefficient 1 asslope.
+usedinthetestingstage? 2h
+Intuitively, ALiBi encourages a token to focus
+Several extrapolatable transformer language
+on neighbors based on its temporal biases ma-
+modelshavebeenproposedincludingALiBi(Press
+trix. Whentwotokensaredistant,ALiBibecomes
+et al., 2022) and KERPLE (Chi et al., 2022), of
+highlysimilartowindowedattention,showninFig-
+whichtherelativepositionalembeddingdesignis
+ure2. Experimentsin§4willfurtherestablishthe
+hypothesizedtobecriticaltosuccess. Empirically,
+they extrapolate to L ≫ L much better than
+ex tr 1https://github.com/ofirpress/attention_with_
+otherabsoluteandrelativepositionalembeddings linear_biases#why-do-you-think-alibi-works
+3202
+yaM
+32
+]LC.sc[
+2v65301.2122:viXra
+connectionbetweenthetwo. rizeexistingpositionalembeddingsintoabsolute
+Windowedattentionallowstheeasyderivation (APE)(Vaswanietal.,2017)andrelative(RPE)(Su
+of a theoretical (maximum) receptive field: wR etal.,2021;Raffeletal.,2020;Pressetal.,2022;
+foranRlayertransformermodelwithwindowed Chietal.,2022)variants. APEoftenassignsone
+attentionsizew. Awindowedattentionmodelcan positionalembeddingpertokenandcombinesthem
+extrapolate if L > wR because 1) wR is fully directlywithinputembeddings. Incontrast,RPE
+tr
+coveredbyL duringthetrainingstage,and2)it addstemporalbiastermstotheself-attentionma-
+tr
+simplyignorestheadditionalL −wRtokensdur- trixtoencodetherelativedistancebetweentoken
+ex
+ingthetestingstage. Surprisingly,amodelcanstill pairs. For example, the right triangular matrix in
+extrapolatewhenL < wRwhichweshowin§4. Figure 1 shows the set of temporal bias terms. It
+tr
+Thiscallsfortheneedforempiricalreceptivefield ischallengingforAPEtoextrapolatewellwithout
+measurementandmotivatesourmodel-agnosticcu- any further fine-tuning since either the beyond L
+mulative normalized gradient tool. The tool we positionalembeddingsdonotexist, orthemodel
+developcanbeappliedbackonALiBitoshowthat needstoprocessunseenpositionalembeddings(e.g.
+L coversmostofitsempiricalreceptivefield. unseensinusoidalembeddings).(Pressetal.,2022;
+tr
+Our analysis tool also provides critical con- Chi et al., 2022). In contrast, RPE usually per-
+text for explaining the length extrapolation fail- formsbetterlengthextrapolationsinceitiseasier
+ure (Press et al., 2022; Chi et al., 2022) of Sinu- toconstructtheadditionaltemporalbiasterms.
+soidal(Vaswanietal.,2017)andRotary(Suetal.,
+2021) by showing their violation of the empiri- 2.3 WindowedandSparseAttention
+calreceptivefieldcoverageprinciple. Sinusoidal
+We will see later that ALiBi can be viewed as
+can be fixed by dropping the intermediate terms
+imposingawindowedattentionmaskontheself-
+andkeepingonlythedecay-with-distancebiases;
+attention matrix, similar to previous transformer
+this leads to the creation of Sandwich, the first
+modelswithsparseattention(Beltagyetal.,2020;
+parameter-freerelativepositionalembeddingthat
+Zaheeretal.,2020;Ainslieetal.,2020;Guptaand
+uses information beyond L . Sandwich shares a
+tr Berant, 2020). Interpreting ALiBi from the per-
+similar temporal bias pattern with trainable posi-
+spectiveofwindowedattentionallowsustoeasily
+tional embeddings such as KERPLE (Chi et al.,
+calculatethetheoreticalreceptivefieldofamodel.
+2022)andT5(Raffeletal.,2020),andtheyjointly
+suggest the future design of extrapolatable trans- 2.4 ReceptiveField
+formerpositionalembeddings.
+A model’s receptive field is defined as the size
+2 RelatedWork of the input region that contributes the most to
+modeloutputs. Itisoftenmeasuredinthecontext
+2.1 LengthExtrapolation
+ofconvolutionneuralnetworks(Luoetal.,2016;
+In the context of language modeling, we expect Daietal.,2017;Araujoetal.,2019;Raghuetal.,
+token-levelperplexitiestoremainatleastthesame, 2021; Dosovitskiy et al., 2021) and their dilated
+if not lower (i.e. better), when L ≫ L variants(Oordetal.,2016;YuandKoltun,2016;
+ex tr
+sequences are provided. Recurrent neural net- Changetal.,2017;Beltagyetal.,2020)withthe
+works(Mikolovetal.,2010;MikolovandZweig, ultimategoalofreceptivefieldsizemaximization.
+2012; Zaremba et al., 2014) can easily perform Even though we focus on transformer language
+length extrapolation. But this is not an easy task models,weborrowtheideatoshowthattheempir-
+for transformer language models, among which icalreceptivefieldcoverageofamodeliscrucial
+onlythoseequippedwithspecialrelativepositional toitslengthextrapolationperformance.
+embeddings (Press et al., 2022; Chi et al., 2022)
+arelengthextrapolatable. 3 BackgroundandNotations
+2.2 PositionalEmbeddings 3.1 TransformerLanguageModel
+Itis widelybelieved thatthe designof positional GivenasequenceofL ∈ {L ,L }inputembed-
+tr ex
+embeddingsisthekeytosuccessfullengthextrapo- dings{e }L inRd,anRlayertransformerlan-
+m m=1
+lationoftransformerlanguagemodels(Pressetal., guagemodelwithH attentionheadsconvertseach
+2022; Chi et al., 2022). We can roughly catego- e into its corresponding query, key, and value
+m
+vectorsinR Hd ateachlayer:
+q = W e , k = W e , v = W e ,
+m q m m k m m v m
+where W q, W k, W v ∈ R Hd×d are learnable ma- The quick brown fox jumps over the lazy dog
+trices. Theresultingvectorsareprocessedbythe
+self-attentionmoduleforpre-Softmaxlogits:
+(cid:40)
+⟨q ,k ⟩, ifm ≥ n
+m n
+l =
+mn
+−inf, otherwise
+Figure3: Wealwaysevaluatetheperplexitiesofthe5
+tokensnumberedfrom1to5. Theupperbracketsrep-
+followedbythescaledsoftmaxnormalization:
+resentL =5. ThelowerbracketsrepresentL =3.
+ex ex
+(cid:112) Thisformulationensuresthesame5tokensarealways
+exp(l / d/H)
+m,n evaluatedwithdifferentnumbersofprevioustokens.
+a = (1)
+m,n (cid:80)L
+exp(l
+/(cid:112)
+d/H)
+i=1 m,i
+3.3 WindowedAttention
+(h) (h) (h)
+Tobeprecise,thematrices(W ,W ,W ),
+q k v
+Ifthewindowedattentionhasasizew,then:
+(h) (h) (h) (h) (h)
+vectors (q , k , v , o ), and scalars (l ,
+m m m m mn
+(h) (cid:40)
+a mn) are associated with a head number h. For ⟨q m,k n⟩, ifn+w > m ≥ n
+l =
+notationsimplicity,weonlyshowthedependency mn
+−inf, otherwise
+on h when we need it. For example, the output
+(h)
+vectoro atpositionmforheadhis:
+m
+3.4 EvaluationofLengthExtrapolation
+L We prepare N = 1000 text segments of length
+(cid:88)
+o(h) = a(h) v(h)
+m m,n n L ex > L tr from the evaluation dataset. For each
+n=1 segment, we alter the number of previous tokens
+rangingfrom1toL −1ofthelasttokenandonly
+AlltheH outputvectorsareconcatenated,denoted ex
+by ⊕, and transformed by W ∈ Rd×d to obtain calculateitsperplexity:
+o
+o m ∈ Rd: (cid:32) N (cid:33)
+1 (cid:88)
+PPL = exp −logp ,
+o = W (o(1)⊕o(2)⊕···⊕o(H)) N i
+m o m m m i=1
+Alayernormalization(Baetal.,2016)ono m,i.e. wherep i isthepredictedprobabilityfromEq.(2)
+LayerNorm(o m),givestheinputembeddingtothe ofthelast(L ex-th)tokeninthei-thsegment. This
+nextlayer. AfterRlayersofpropagation,thelast ensuresthatthesamesetoftokensisalwaysused
+o istransformedbyV ∈ Rv×d andnormalized forperplexitycalculationandonlytheirnumberof
+m
+by Softmax to get the distribution p ∈ Rv over previoustokensisvaried,seeFigure3.2
+vocabularysizev:
+4 ALiBiandWindowedAttention
+p = Softmax(Vo m) (2) Here,wealtertheslope( 1 )ofALiBitocheckif
+2h
+the length extrapolation property persists and re-
+WesetR = 12,H = 12,d = 768,andL = 512
+tr vealtheconnectionbetweenALiBiandwindowed
+forallexperimentsreportedinthispaper.
+attention. We present three experiments on two
+datasets,ArXivandOpenWebText2(AppendixA),
+3.2 ALiBi
+toensurethattheobservationsareconsistentacross
+ALiBimodifiesl tobe:
+m,n differenttextdomains,showninTable1and4.
+(cid:40) ⟨q ,k ⟩− 1 (m−n), ifm ≥ n 2There exists another evaluation protocol named non-
+l = m n 2h overlapping subsequences adopted in the main experiment
+mn
+−inf, otherwise tablesofALiBi(Pressetal.,2022). Itisnotthemostsuit-
+ableprotocolforlengthextrapolationevaluationasitsuffers
+(3)
+fromthe“earlytoken”curse.PleaserefertoAppendixBof
+Therangeofhisn· 8,wheren = {1...H}. ALiBi(Pressetal.,2022)fordetails.
+H
+Shiftallhby∆ Samehforallheads WindowedAttentionwithSizew
+L
+ex ∆:-3 0 2 4 6 8 h:0 2 4 6 8 w:40 80 100 120 160 320
+512 5.76 5.57 5.50 5.63 5.70 5.70 9.45 6.65 5.85 5.60 5.70 8.27 7.28 7.04 6.77 6.41 6.04
+1024 7.15 5.64 5.31 5.81 55.4 55.4 9.20 7.01 8.66 25.4 55.4 8.27 7.29 7.02 8.90 67.4 178
+2048 7.15 5.94 5.89 6.92 94.4 94.4 9.21 7.08 8.66 31.7 94.4 8.27 7.29 7.03 8.90 67.5 202
+4096 7.15 5.95 5.92 6.94 96.0 96.0 9.21 7.08 8.66 31.8 96.0 8.27 7.29 7.02 8.90 67.5 202
+8192 7.15 5.95 5.92 6.94 96.0 96.0 9.21 7.08 8.66 31.8 96.0 8.27 7.29 7.02 8.90 67.5 202
+Table1: ThethreeexperimentsontheArxivdataset.
+4.1 SlopeShift(Shiftallhby∆) section,wewillusetheconceptofreceptivefield
+toexplaintheseobservations.
+Wefirstinvestigatedwhetherslopediversity(each
+attentionheadhasoneslope)isthekeytolength
+5 ReceptiveFieldMeasurement
+extrapolation. Weshifthbyafixedamount∆and
+findthatthemodel, unfortunately, failstoextrap-
+Followingthedefinitionofwindowedattentionsize
+olatebeyondacertainquantity. Thisimpliesthat
+w,anRlayertransformerhasatheoreticalrecep-
+diversityitselfmightnotbethedecidingfactor,but
+tive field (TRF) of wR, which is the maximum
+thattheactualslopevalueismoreimportant.
+numberoftokensthatcontributetotheprediction
+4.2 SlopeEqualization(Samehforallheads) ofthenexttoken. Inpractice,aneuralmodeloften
+uses a subset of TRF, named empirical receptive
+Toidentifytheslopemagnitudethatenableslength
+field(ERF).Whilepreviouswork(Luoetal.,2016;
+extrapolation,wesetallslopestobethesamein-
+Daietal.,2017;Araujoetal.,2019;Raghuetal.,
+steadoftheoriginalgeometricsequence. Wethen
+2021;Dosovitskiyetal.,2021;Beltagyetal.,2020)
+steadily increase the slope value from 0 to 8 and
+aimstoincreaseERFtomatchTRF,weshowthat
+find that only large slopes ( 1 ), or equivalently
+2h decreasing ERF could serve as one feasible ap-
+smallh,allowamodeltoextrapolatewell. Large
+proachtoenablesuccessfullengthextrapolation.
+slopesimplicitlyenforceanarrowwindowedbias
+ConsiderthecasewhereTRF≤ L : Thismodel
+ontheself-attentionmatrixsuchthatdistanttokens tr
+canextrapolateeasilybecauseitsTRFisfullycov-
+cannotinteractwitheachother.
+ered and trained. Concretely, if we set R = 12,
+4.3 WindowedAttention(Sizew) L tr = 512inTable1and4,weknowthataslong
+as w < 42.6 = 512/12, TRF will be fully cov-
+We make the implicit window effect explicit as
+ered by L . Surprisingly, the model is still able
+shownbyEq.(3),whichisalsoadoptedbyLong- tr
+toextrapolateuptow = 100,leadingtoaTRFof
+former (Beltagy et al., 2020). We define the win-
+100∗12 = 1200 ≫ 512. This can be explained
+dowed attention size to be w. The model under-
+bytheERFandTRFdiscrepancydiscussedabove;
+performs at small w and diverges on long L at
+ex
+thiscallsfortheneedtoquantifyERF.
+largew. Thesametrendholdsinthefirsttwoex-
+perimentswhenhistoosmallorlarge.
+5.1 QuantifyingEmpiricalReceptiveField
+4.4 OtherObservations
+We first calculate the normalized gradient (Luo
+First, ALiBi does not in fact extrapolate since its etal.,2016)ofeachinputtokenw.r.ttheprediction
+perplexitiesallincreaseinsteadofstayingthesame ofthenexttoken:
+whenL > L . Incontrast,windowedattention
+ex tr
+∥g ∥
+modelsareextrapolatableuptow = 100. Second, s = m 2 ,
+we can clearly see that once L ex passes a certain
+m (cid:80)L
+n=ex 1∥g n∥ 2
+threshold, the perplexity either remains the same
+where g is the gradient vector of the input em-
+orexplodes. Thissuggeststhatthemodeliseither m
+ignoring tokens beyond a certain length (same)3 beddinge m. Wethencalculatethecumulativesum
+as:
+or not using it properly (explosion). In the next
+(cid:88)Lex
+3AlimitedbutsimilarobservationwasmadeinAppendix c = s , 0 ≤ c ≤ 1,
+m n m
+B.2ofALiBi(Pressetal.,2022).
+n=m
+1.0 1.0
+0.8 0.8
+0.6 0.6
+w = 40 =-3
+w = 80 =0
+0.4 0.4
+w = 100 =2
+w = 120 =4
+0.2 w = 160 0.2 =6
+w = 320 =8
+0.0 0.0
+0 512 1024 1536 2048 0 512 1024 1536 2048
+Position Position
+Figure4: CumulativenormalizedgradientonArXiv Figure5: CumulativenormalizedgradientonArXiv
+whenpredictingthenext(2048-th)token. whenpredictingthenext(2048-th)token.
+Visualizations of c for the slope shift and win- tocovertheirERFs. WeincreaseL to1024for
+m tr
+dowed attention experiments are shown in Fig- windowed attention with w = 160; For shifted
+ures4and5. WedefinetheERFofamodelas: ALiBi with ∆ = 6, we need L = 2048 tokens.
+tr
+Table2showsthatbotharenowabletomaintain
+ERF = min{m | c > 0.99}.
+m
+stableperplexities.
+Figure4demonstrateshowwederivethemodel’s
+ERFwhenitispredictingthe2048-thtoken. For WindowedAttention
+Shiftallhby∆=6
+models with w ∈ [40,80,100], the most recent L w =160
+ex
+L = L = 512 (1536-th to 2047-th) covers Arxiv OpenWebText2 Arxiv OpenWebText2
+ex tr
+more than 99% of the total (1.0) normalized gra- 2048 4.4 15.2 6.2 19.9
+dient, so their ERF is smaller than 512. In con- 4096 6.2 19.8 6.2 19.9
+trast, models with w ∈ [120,160,320] have ERF 8192 6.2 19.9 6.2 19.9
+=768,1024,and1536tokens,respectively. Since
+Table 2: Fixing failed cases with longer L : L =
+L = 512 does not fully cover their ERFs, they tr tr
+tr
+2048forALiBiwith∆ = 6andL = 1024forwin-
+failtoextrapolatewell. tr
+dowedattentionwithw =160.
+We next focus on the more complex Figure 5,
+inwhichneitheroftheconfigurationsreaches0.99
+within the most recent L = 512 tokens. Gener- 5.3 AnalysesofSinusoidalandRotary
+tr
+ally,thisexplainswhytheperplexityoftenbumps
+Sinusoidal(Vaswanietal.,2017)constructsthepo-
+upwhenL goesfrom512to1024: Modelscan-
+ex sitionalembeddingatpositionmand∀i ∈ [1,d/2]
+notperfectlyprocessmoretokensthantheywere
+as:
+trained on. If we take a closer look, the ∆ = −3
+(cid:16) m (cid:17)
+modelhasthestrongestwindowingeffectandthe p =sin ,
+m,2i
+100002i/d
+smallestERF=768tokens,thereforeitsperplexity
+(cid:16) m (cid:17)
+plateausthesoonestatL ex = 1024inTable1. The p m,2i+1 =cos 100002i/d (5)
+remaining models all need ERF=2048 tokens to
+reach c = 0.99, which explains why their per- They will be added with the input embeddings
+m
+plexities become stable only after L
+ex
+= 2048 {e m}L
+m=1
+followed by the query and key trans-
+(Table 1). For ∆ ∈ [6,8] models specifically, the formations as shown in Eq. (4). Unlike addition,
+differencebetweenL andERFistoolargetobe Rotary(Suetal.,2021)multiplieseachtokenem-
+tr
+handled,resultinginexplodedperplexities. beddinge mwithaposition-specificrotationmatrix
+R e .
+m m
+5.2 FixingFailedCases
+What could c tell us when it is applied to
+m
+WefixthefailedcasesinTable1section1(varying the non-extrapolatable Sinusoidal and Rotary po-
+∆) and section 3 (varying w) by increasing L sitional embeddings? As we can see in Figure 6
+tr
+1.0 1.0
+128
+512
+0.8 0.8
+0.6 0.6
+0.4
+0.4
+0.2
+0.2
+0.0
+0.0
+0 512 1024 1536 2048 0 512 1024 1536 2048
+Position Position
+Figure6: CumulativenormalizedgradientofRotary Figure7: CumulativenormalizedgradientofSinusoidal
+onArXivwhenpredictingthelast(2048-th)token onArXivwhenpredictingthelast(2048-th)token
+withL =512. withL ∈[128,512].
+tr tr
+(W (e +p ))⊤(W (e +p )) = (4)
+q m m k n n
+e⊤W⊤W e⊤+e⊤W⊤W p +p⊤W⊤W e +p⊤W⊤W p ≈ e⊤W⊤W e⊤+ p⊤p
+m q k n m q k n m q k n m q k n m q k n m n
+(cid:124) (cid:123)(cid:122) (cid:125) (cid:124) (cid:123)(cid:122) (cid:125) (cid:124) (cid:123)(cid:122) (cid:125) (cid:124) (cid:123)(cid:122) (cid:125)
+semanticinfo. mixtureofsemanticandpositionalinfo. semanticinfo. positionalinfo.
+and7,theybothfailtofocusonthemostrecentL [1,L]becomethetemporalbiastermsofSandwich:
+tr
+tokensbecauseneitheroftheirformulationsguar-
+d¯/2
+(cid:18) (cid:19) (cid:18) (cid:19)
+anteesaL tr-boundedreceptivefield. Figure7tells p⊤p = (cid:88) sin m sin n +
+additionalstories: Topredictthelasttoken(2048- m n 100002i/d¯ 100002i/d¯
+i=1
+th),Sinusoidalfocusesonthe512-thtokenwhen (cid:18) (cid:19) (cid:18) (cid:19)
+m n
+L = 512andthe128-thtokenwhenL = 128 cos cos
+tr tr 100002i/d¯ 100002i/d¯
+as indicated by the sudden jump on their normal-
+d¯/2
+(cid:18) (cid:19)
+izedgradientplots. Thisisbecausethemodelhas (cid:88) m−n
+= cos
+onlyseenatmostL
+tr
+positionalembeddingsand 100002i/d¯
+i=1
+overfitted on them, which provides explicit evi-
+A similar observation was previously made in a
+dencetotheSinusoidal,orAPEingeneral,overfit-
+tinghypothesismadebytheauthorofALiBi4. It context different from length extrapolation (Yan
+etal.,2019).
+alsoexplainswhyRPEisabetterchoiceforlength
+Thelargestvalueofp⊤p happensatthepoint
+extrapolatable transformers: They cannot overfit m n
+wherem−n = 0,whichgivesthemaximumvalue
+onthepositionalembeddings.
+of d¯/2. To align L with the ERF of Sandwich,
+tr
+6 ANewRPEforLengthExtrapolation weneedtofurthercheckthatp⊤p demonstrates
+m n
+asimilarwindowedattentioneffectasALiBi. This
+6.1 IntroductiontoSandwich can be done by subtracting all p⊤p by d¯/2 and
+m n
+WefixtheoverfittingissueofSinusoidalbytrans- furtherdividingthembyasetofpredefinedcom-
+forming it into a new RPE, Sandwich, shown in pression ratios. for the sake of simplicity, we set
+Eq.(4). Specifically,wedropthecrosstermsand thecompressionratiostobethesameasALiBi’s
+keeponlytheinnerproductoftwopositionalem- h = n· 8 withn ∈ {1...H}:
+H
+beddings5 at m and n. Now p⊤p with m,n ∈
+m n p⊤p −d¯/2
+m n (6)
+4https://twitter.com/OfirPress/status/ h
+1435690039925567489
+Eq. (6) is added after the scaled softmax is done
+5Wesetp to2dasdoingsogivesbetterempiricalper-
+m,n
+formance;itonlyneedstobecomputedoncebeforetraining. inEq.(1). Figures8and9showavisualizationof
+0 0
+0
+1000
+2 2
+2000
+3000 4
+4
+4000
+6
+5000 6
+6000 8
+8
+7000
+10
+0 2000 4000 6000 8000
+8000
+0 2000 4000 6000 8000
+Figure9: WeplotthelastrowinFigure8. Theredcurve
+is the least-squared fitted log function: y = −0.825 ·
+Figure8: ThevisualizationofEq.(6)whenthe
+compressionratioh=8andd¯=128. log(|m−n|)+1)−0.8withm=8192inthisexample.
+work(Pressetal.,2022;Chietal.,2022). Table3
+0.0
+presentstheresults;theleftpartcontainsallmodels
+2.5
+without learnable parameters, and the right part
+5.0 containsmodelswithlearnableparameters. These
+numbersshouldnotbecomparedacrosssections.
+7.5
+In general, models on the right achieve lower
+10.0
+perplexities across the three datasets. This is ex-
+12.5
+pectedastheycanadapttoindividualdatasetsmore
+d=64
+15.0 easily thanks to the additional learnable parame-
+d=128
+ters. However,thereisnofreelunch: Theyoften
+17.5 d=256
+consumemoreGPUmemoryandrunmuchslower.
+0 2000 4000 6000 8000
+For example, T5 is 10% slower than Sandwich
+Figure10: Weexperimentwithdifferentd¯andfindthey duringthetrainingstage. NotethatSandwichcan
+createdifferentwindowedattentioneffect. alsobeequippedwithlearnableparameterssuchas
+learnablecompressionratiosh;thisislefttofuture
+work. We now shift our focus to the left section.
+Sandwichwhenh = 8. Sandwichindeedhasthe
+When L = L = 512, Sandwich is compara-
+samedecay-with-distancepatternasALiBi.6 ex tr
+ble to other models except that Rotary performs
+Notethatwedeliberatelydecouplethisd¯ fromd
+abitbetteronOpenWebText2. Onceweincrease
+inEq.(5)sincewetreatd¯
+asahyperparameterthat
+L ,Sandwichbeginstorevealitsadvantages: On
+controlstheshapeofSandwich.
+Alargerd¯
+leadsto
+ex
+ArXivandGitHub,itisconsistentlybetterthanall
+astrongerwindowedattentioneffectasshownin
+thebaselinesbutonlymarginallyworsethanALiBi
+Figure10. Wesetd¯= 128inthisworkforallthe
+whenL ≥ 4096onOpenWebText2.
+ex
+experiments. Wealsoexperimentwithsmallerand
+ItisworthmentioningthatSandwichisthefirst
+largerd¯
+andonlyfindworseperformance. Finally,
+parameter-free RPE that truly makes use of dis-
+readerscanfindthereferencePythonimplementa-
+tanttokeninformationbeyondL = 512. Tosee
+tr
+tioninAppendixE.
+this,noticethatlower(better)perplexitiesoccurat
+L > L = 512. The gradient analysis tool in
+6.2 ExperimentsandDiscussion ex tr
+§5.1furthercorroboratesthisinFigure11,which
+To verify the performance of Sandwich, we train revealsareceptivefieldpatterndistinctfromthatof
+atransformerlanguagemodelfollowingprevious ALiBiandwindowedattention. EventhoughSand-
+wich allocates about 60% of the total cumulative
+6Funfact:Weimaginedifferentcompressionratiosasthe
+gradientonthemostrecentL = 512tokens,dis-
+waysweeatsandwiches: Forahugesandwich,wehaveto tr
+squeezeitmoretofitinourmouths! tanttokensbeyondL tr stillcontributesubstantially
+OpenWebText2
+L Sandwich Smoothed ALiBi Sinusoidal Rotary KERPLE T5
+ex
+512 23.5±3.8 23.2±3.7 22.8±±±3.3 26±1† 23.0±3.4∗ 22.6±±±3.5∗ 22.6±3.6∗
+1024 23.0±±±3.6 23.1±3.6 23.3±3.4 14168† 61† 22.0±±±3.3∗ 22.2±3.3∗
+2048 23.3±3.5 23.2±±±3.2 23.5±3.3 20370† 96† 21.9±±±3.1∗ 23.0±3.1
+4096 23.8±3.3 23.6±3.0 23.5±±±3.3∗ 42003† 232† 22.1±±±2.9∗ 26.8±3.2†
+8192 24.7±3.4 24.0±2.9 23.5±±±3.3∗ 67869† 343† 22.3±±±2.9∗ 38.6±7.2†
+ArXiv
+L Sandwich Smoothed ALiBi Sinusoidal Rotary KERPLE T5
+ex
+512 5.27±0.33 5.33±0.32 5.25±±±0.33 5.8† 5.25±±±0.33 5.22±0.37 5.16±±±0.37∗
+1024 5.05±±±0.33 5.13±0.32 5.41±0.36† 1070† 16.02† 4.95±0.34∗ 4.91±±±0.35∗
+2048 5.02±±±0.34 5.15±0.36 5.58±0.40† 1784† 33.76† 4.83±±±0.35∗ 4.92±0.35∗
+4096 5.15±±±0.39 5.33±0.39 5.58±0.40† 18050† 71.96† 4.84±±±0.34∗ 5.35±0.36
+8192 5.28±±±0.44 5.45±0.42 5.58±0.40† 44100† 111† 4.90±±±0.33∗ 6.74±0.90†
+GitHub
+L Sandwich Smoothed ALiBi Sinusoidal Rotary KERPLE T5
+ex
+512 2.88±0.12 2.88±0.17 2.83±0.11† 4† 2.82±±±0.11 2.81±0.14∗ 2.76±±±0.14∗
+1024 2.71±0.09 2.70±±±0.07 2.97±0.11† 8342† 3.86±0.25† 2.67±0.10∗ 2.61±±±0.08∗
+2048 2.69±±±0.11 2.74±0.08 3.01±0.10† 9179† 5.94±0.64† 2.65±0.10∗ 2.65±±±0.05
+4096 2.73±±±0.12 2.78±0.08 3.01±0.10† 11017† 11.1±1.55† 2.70±±±0.09 2.91±0.12
+8192 2.79±±±0.15 2.83±0.08 3.01±0.10† 11270† 20.2±2.75† 2.75±±±0.08 3.68±0.50†
+Table3: PerplexityComparisonontheOpenWebText2,GitHub,andArXivdatasets. Allmodelsaretrainedfor
+50kstepswithatraininglengthof512andfiverandomseeds. Themodelsintheleftsectionhaveparameter-free
+positionalembeddings.Incontrast,bothKERPLEandT5areequippedwithlearnableparameters.Afaircomparison
+shouldonlybemadewithinthesamesection. x† meanssandwichisstatisticallysignificantlybetterthanx. x∗
+meanssandwichisstatisticallysignificantlyworsethanx. Thetestusedispairedtwo-sidedt-testwithα=0.05.
+MoredetailsaboutthedatasetsandhyperparametersareprovidedinAppendixCandD.
+tothemodelprediction. needstoaverageovermorehistoricaltokenswhen
+WhydoALiBiandwindowedattentionneedto itextrapolatestolongerL . Incontrast,ALiBi’s
+ex
+have their ERFs covered by L while Sandwich linear bias lacks the middle ground to learn the
+tr
+doesnot? Toanswerthisquestion,werevisitFig- averagingbehavior: Iteitherdecayssofastthatdis-
+ure9andapproximate(least-squared)theoriginal tanttokensaremaskedoutorsoslowthattheERF
+temporalbiaspatternusingalogcurve,whichgives becomes much greater than L . The averaging
+tr
+asnugfit7: y = −0.825·log(1+|m−n|)−0.8. hypothesisalsoexplainswhySandwich,KERPLE,
+Table3showsitslanguagemodelingperformance and T5’s perplexities go up in Table 3 instead of
+underthe“smoothed”column. Pictorially,thelog continuing to decrease after some L (4096 on
+ex
+curve decays relatively fast when two tokens are ArXivforexample): Whileaveraginganddenois-
+nearby and plateaus when the distance between ingimproveperformance,doingsoovertoomany
+themincreases. Inotherwords,tokensthatarefar historicaltokens(verylargeL )willreintroduce
+ex
+away from the last one (m = 8192) share simi- noises.
+lartemporalbiases,possiblyleadingtobeneficial
+averaginganddenoisingeffects. Notethattheav- 6.3 ConnectiontoKERPLEandT5
+eragingeffectdoesnotcomeoutofthinairduring
+KERPLE (Chi et al., 2022) has the formulation
+theextrapolationstage: Thealmostlinearsegment
+of c−r ·log(1+r |m−n|). The −0.8 in our
+rangingfrom1536to1792suggeststhatSandwich 1 2
+fittedlogcurvetermcanbeabsorbedbyc,asSoft-
+wastrainedtoperformaveragingwithinL ;itjust
+tr
+max is shift-invariant, and if we set r = 0.825
+1
+7Intheactualimplementation,wefitthecurveusingthe and r = 1, Sandwich becomes a special case of
+2
+mostrecent50pointsofSandwich.Thereasonisbecausethe
+KERPLE.T5(Raffeletal.,2020)adoptsthelog-
+mostrecenttokensaremoreimportant,andwewantthemto
+beclosertotheoriginalSandwich. binningstrategythatassignsdistinctbinstonearby
+ingofhuman-writtentext,itisproblematicinother
+1.0
+scenarios.
+Letusconsiderthetaskofparityprediction: A
+0.8
+model needs to predict whether a bit string has
+anevenoroddnumberofones. Forexample,the
+0.6
+parityof[1,1,0,1]isodd(or1)andtheparityof[1,
+0,1,0]iseven(or0). Unlikehuman-writtentext,
+0.4
+Sandwich_Smoothed everysinglebitisequallyimportant. Transformer
+Sandwich languagemodelswithcurrentRPEsstillstruggle
+0.2 KERPLE
+onthissimpletask(Aniletal.,2022). Itsdifficulty
+T5
+canbeexplainedbytherecencybiaseffectthatwe
+0.0
+0 512 1024 1536 2048 described. Devising a new positional embedding
+Position ortransformermodelarchitecturethatsolvesthis
+problemisapromisingdirectionforfuturework.
+Figure 11: Cumulative normalized gradient of Sand-
+wich,SmoothedSandwich,KERPLE,andT5onArXiv
+EthicsStatement
+when predicting the last (2048-th) token with L =
+tr
+512.
+Ourworkadvancestheunderstandingofpositional
+embeddingsadoptedinalmostalltransformermod-
+els. Inaddition,ourproposednewpositionalem-
+tokens whereas distant tokens all share the same
+beddingsignificantlyreducesenergyconsumption
+bin. Inspirit,T5treatsdistanttokenssimilarlyto
+andtrainingcostthankstoitslengthextrapolation
+Sandwich. Figure11verifiesthatallthreeofthem
+property. Finally,ourworklaysthegroundworkfor
+shareasimilarempiricalreceptivefieldpattern.
+developingfuturetransformersthataregreenerand
+7 Conclusion morecost-efficientenabledbyimprovedlengthex-
+trapolation. Inappropriateusageofourtechnique
+Inthispaper,wefirstestablishtheconnectionbe- might have negative societal impacts. These in-
+tweenALiBiandwindowedattentionthroughtheir cludetheethicalchallengesofimpropertextgen-
+constructionsandlanguagemodelingperformance. erationandprivacyissuesinherentinthedatacol-
+Wethendevelopacumulativenormalizedgradient lection process. These implications apply to any
+tool to measure the empirical receptive field. It natural language processing research and are not
+showsthatlengthextrapolationofALiBiandwin- uniquetothisspecificwork.
+dowed attention is possible when the training se-
+Acknowledgment
+quencelengthcoverstheempiricalreceptivefield.
+It also reveals the models’ limitation of not uti-
+TheauthorsacknowledgethesupportfromBoeing
+lizing information beyond the training sequence
+(2019-STU-PA-259),Amazon(CCADV00474341
+length. Fortunately, this is overcome by our new
+2021TR),NSFMRIAward1919452,andPrince-
+relative positional embedding, Sandwich, which
+tonResearchComputing.
+issimplifiedfromtheearliestproposedSinusoidal
+positionalembedding. Finally,Sandwichdemon-
+stratesalog-decayingtemporalbiaspatternsimilar References
+tothatpreviouslyseeninthedesignofKERPLE
+Joshua Ainslie, Santiago Ontanon, Chris Alberti, Va-
+andT5,andsuchpatternislikelytobethesecret clavCvicek,ZacharyFisher,PhilipPham,Anirudh
+tosuccessfullengthextrapolation. Togetherthese Ravula, Sumit Sanghai, Qifan Wang, and Li Yang.
+2020. ETC:Encodinglongandstructuredinputsin
+findings supports more effective design of future
+transformers. InProceedingsofthe2020Conference
+extrapolatabletransformerlanguagemodels.
+onEmpiricalMethodsinNaturalLanguageProcess-
+ing(EMNLP),pages268–284,Online.Association
+Limitations forComputationalLinguistics.
+AlthoughSandwich,KERPLE,andT5useinforma- AlexAndonian,QuentinAnthony,StellaBiderman,Sid
+Black,PreethamGali,LeoGao,EricHallahan,Josh
+tionbeyondtrainingsequencelength,theirrecep-
+Levy-Kramer, Connor Leahy, Lucas Nestler, Kip
+tivefieldsstillhighlyfavorthemostrecenttokens.
+Parker,MichaelPieler,ShivanshuPurohit,TriSongz,
+Whilethisrecencybiasisbeneficialtothemodel- WangPhil,andSamuelWeinbach.2021. GPT-NeoX:
+LargeScaleAutoregressiveLanguageModelingin TomasMikolov,MartinKarafiát,LukasBurget,JanCer-
+PyTorch. nocky`,andSanjeevKhudanpur.2010. Recurrentneu-
+ralnetworkbasedlanguagemodel. InInterspeech,
+CemAnil,YuhuaiWu,AndersJohanAndreassen,Aitor
+volume2,pages1045–1048.Makuhari.
+Lewkowycz, Vedant Misra, Vinay Venkatesh Ra-
+masesh,AmbroseSlone,GuyGur-Ari,EthanDyer, TomasMikolovandGeoffreyZweig.2012. Contextde-
+andBehnamNeyshabur.2022. Exploringlengthgen- pendentrecurrentneuralnetworklanguagemodel. In
+eralizationinlargelanguagemodels. InAdvancesin 2012IEEESpokenLanguageTechnologyWorkshop
+NeuralInformationProcessingSystems. (SLT),pages234–239.
+AndreAraujo,WadeNorris,andJackSim.2019. Com-
+Aaron van den Oord, Sander Dieleman, Heiga Zen,
+puting receptive fields of convolutional neural net-
+Karen Simonyan, Oriol Vinyals, Alex Graves,
+works. Distill. Https://distill.pub/2019/computing-
+Nal Kalchbrenner, Andrew Senior, and Koray
+receptive-fields.
+Kavukcuoglu.2016. Wavenet: Agenerativemodel
+forrawaudio. Citearxiv:1609.03499.
+JimmyLeiBa,JamieRyanKiros,andGeoffreyEHin-
+ton. 2016. Layer normalization. arXiv preprint
+Ofir Press. 2022. The use case for relative position
+arXiv:1607.06450.
+embeddings.
+IzBeltagy,MatthewE.Peters,andArmanCohan.2020.
+Longformer: Thelong-documenttransformer. OfirPress,NoahSmith,andMikeLewis.2022. Train
+short,testlong: Attentionwithlinearbiasesenables
+Shiyu Chang, Yang Zhang, Wei Han, Mo Yu, Xiaox- inputlengthextrapolation. InInternationalConfer-
+iaoGuo,WeiTan,XiaodongCui,MichaelWitbrock, enceonLearningRepresentations.
+MarkAHasegawa-Johnson,andThomasSHuang.
+2017. Dilated recurrent neural networks. In Ad- Colin Raffel, Noam Shazeer, Adam Roberts, Kather-
+vances in Neural Information Processing Systems, ine Lee, Sharan Narang, Michael Matena, Yanqi
+volume30.CurranAssociates,Inc. Zhou,WeiLi,andPeterJ.Liu.2020. Exploringthe
+limitsoftransferlearningwithaunifiedtext-to-text
+Ta-Chung Chi, Ting-Han Fan, Peter J Ramadge, and transformer. JournalofMachineLearningResearch,
+AlexanderIRudnicky.2022. Kerple: Kernelizedrel- 21(140):1–67.
+ativepositionalembeddingforlengthextrapolation.
+arXivpreprintarXiv:2205.09921. MaithraRaghu,ThomasUnterthiner,SimonKornblith,
+ChiyuanZhang,andAlexeyDosovitskiy.2021. Do
+JifengDai,HaozhiQi,YuwenXiong,YiLi,Guodong
+visiontransformersseelikeconvolutionalneuralnet-
+Zhang,HanHu,andYichenWei.2017. Deformable
+works? InAdvancesinNeuralInformationProcess-
+convolutionalnetworks. In2017IEEEInternational
+ingSystems.
+ConferenceonComputerVision(ICCV),pages764–
+773. Teven Le Scao, Angela Fan, Christopher Akiki, El-
+lie Pavlick, Suzana Ilic´, Daniel Hesslow, Roman
+Alexey Dosovitskiy, Lucas Beyer, Alexander
+Castagné,AlexandraSashaLuccioni,FrançoisYvon,
+Kolesnikov, Dirk Weissenborn, Xiaohua Zhai,
+Matthias Gallé, et al. 2022. Bloom: A 176b-
+Thomas Unterthiner, Mostafa Dehghani, Matthias
+parameteropen-accessmultilinguallanguagemodel.
+Minderer, Georg Heigold, Sylvain Gelly, Jakob
+arXivpreprintarXiv:2211.05100.
+Uszkoreit, and Neil Houlsby. 2021. An image
+is worth 16x16 words: Transformers for image
+JianlinSu,YuLu,ShengfengPan,BoWen,andYun-
+recognitionatscale. InInternationalConferenceon
+feng Liu. 2021. Roformer: Enhanced transformer
+LearningRepresentations.
+with rotary position embedding. arXiv preprint
+LeoGao,StellaBiderman,SidBlack,LaurenceGold-
+arXiv:2104.09864.
+ing, Travis Hoppe, Charles Foster, Jason Phang,
+Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob
+Horace He, Anish Thite, Noa Nabeshima, Shawn
+Uszkoreit, Llion Jones, Aidan N Gomez, Łukasz
+Presser, and Connor Leahy. 2020. The Pile: An
+Kaiser,andIlliaPolosukhin.2017. Attentionisall
+800gbdatasetofdiversetextforlanguagemodeling.
+youneed. Advancesinneuralinformationprocessing
+arXivpreprintarXiv:2101.00027.
+systems,30.
+AnkitGuptaandJonathanBerant.2020. GMAT:global
+memory augmentation for transformers. CoRR, Hang Yan, Bocao Deng, Xiaonan Li, and Xipeng
+abs/2006.03274. Qiu. 2019. Tener: adapting transformer encoder
+for named entity recognition. arXiv preprint
+Wenjie Luo, Yujia Li, Raquel Urtasun, and Richard arXiv:1911.04474.
+Zemel.2016. Understandingtheeffectivereceptive
+fieldindeepconvolutionalneuralnetworks. InPro- FisherYuandVladlenKoltun.2016. Multi-scalecon-
+ceedings of the 30th International Conference on textaggregationbydilatedconvolutions. In4thIn-
+Neural Information Processing Systems, NIPS’16, ternationalConferenceonLearningRepresentations,
+page4905–4913,RedHook,NY,USA.CurranAsso- ICLR2016,SanJuan,PuertoRico,May2-4,2016,
+ciatesInc. ConferenceTrackProceedings.
+Manzil Zaheer, Guru Guruganesh, Avinava Dubey,
+Joshua Ainslie, Chris Alberti, Santiago Ontañón,
+PhilipPham,AnirudhRavula,QifanWang,LiYang,
+andAmrAhmed.2020. Bigbird: Transformersfor
+longersequences. CoRR,abs/2007.14062.
+WojciechZaremba,IlyaSutskever,andOriolVinyals.
+2014. Recurrentneuralnetworkregularization. Cite
+arxiv:1409.2329.
+A ResultsonOpenWebText2 asingleNVIDIAA-100GPU.Wedonottuneany
+hyperparametersandjustusethedefaultones.
+Table4includesthethreeexperimentsconducted
+in§4onOpenWebText2. Theircorrespondingre-
+ceptivefieldplotsareshowninFigure12and13.
+B EfficientInference
+Although ALiBi might not be using token infor-
+mationfurtherthanL ,ithasthenicepropertyof
+tr
+efficient inference (Press, 2022). Tables 1 and 4
+show that ALiBi perplexities stay constant when
+L ≥ 2048. This suggests a cache window size
+ex
+w¯ = 2048forinference. Thegenerationofthefirst
+w¯ tokensremainsthesame,andwecanstillcache
+all q , k , and v vectors for m ∈ [1,2048].
+m m m
+When it comes to generating the w¯ +1-th token,
+we simply discard the first cached q , k , and v
+1 1 1
+and use the rest of w¯ − 1 tokens along with the
+newly added token to perform self-attention. If
+wewanttogeneratealengthL textsnippet,the
+ex
+complexityisO(w¯×L )insteadofO(L2 ). This
+ex ex
+complexityisalsobetterthanthatofanAPEmodel,
+whichisO(w¯2×L )sinceanAPEmodelneedsto
+ex
+completelyre-encodethepreviousw¯ vectorswhen
+generatingnewtokensfollowingthefirstw¯ ones.
+We implement the process discussed above to
+verifythatALiBiindeedallowsforefficientinfer-
+ence. The results, along with ones for Sandwich,
+arepresentedinTable5. BothALiBiandSandwich
+permitefficientinferencebysettingw¯ = 2048. It
+isworthpointingoutthattheperformanceofSand-
+wichatL = 4096becomesabitworsecompared
+ex
+tothatinTable3. ThisismoreevidencethatSand-
+wichisusinglongerthanL tokeninformation.
+tr
+C ScientificArtifacts
+Weusethegpt-neoxlibrary(Andonianetal.,2021)
+under Apache-2.0 license and the datasets (Gao
+et al., 2020) released by the authors of gpt-neox.
+The codebase and datasets (Table 6) are publicly
+released for research purposes. The steps taken
+to protect the privacy and anonymization are dis-
+cussed in Gao et al. (2020) section 6 and 7. Fi-
+nally,Gaoetal.(2020)section5alsodiscussesthe
+distribution and statistics of the datasets used in
+thiswork.
+D ImplementationDetails
+The configurations and hyperparameters are out-
+linedinTable7. Thepretrainingtakes5hourson
+Shiftallhby∆ Samehforallheads WindowedAttentionSizew
+L
+ex ∆:-3 0 2 4 6 8 h:0 2 4 6 8 w:40 80 100 120 160 320
+512 18.6 19.0 19.5 20.0 20.5 20.5 32.7 22.2 19.7 19.7 20.5 25.3 23.7 23.1 24.0 22.9 21.9
+1024 21.6 19.3 19.6 24.8 232 232 32.8 23.2 24.9 146 232 25.3 23.7 23.2 137 234 353
+2048 21.6 19.7 20.5 29.3 299 299 32.8 23.2 24.9 165 299 25.3 23.7 23.2 137 236 408
+4096 21.6 19.7 20.5 29.4 299 299 32.9 23.2 24.9 165 299 25.3 23.7 23.2 137 236 408
+8192 21.6 19.7 20.5 29.4 299 299 32.9 23.2 24.9 165 299 25.3 23.7 23.2 137 236 408
+Table4: ThethreeexperimentsontheOpenWebText2dataset.
+1.0 1.0
+0.94
+0.8 0.8
+0.6
+0.6
+40 -3
+80 0
+0.4
+100 0.4 2
+120 4
+0.2
+160 0.2 6
+320 8
+0.0
+0 500 1024 1536 2048 0 500 1024 1536 2048
+Figure12: Cumulativenormalizedgradienton Figure13: Cumulativenormalizedgradienton
+OpenWebText2whenpredictingthelast(2048-th) OpenWebText2whenpredictingthelast(2048-th)token.
+token. WindowedAttentionSizew = Shiftallhby∆=
+OpenWebText2 Arxiv GitHub
+L
+ex
+Sandwich ALiBi Sandwich ALiBi Sandwich ALiBi
+4096 23.9 23.5 5.31 5.59 2.79 3.01
+8192 24.1 23.5 5.35 5.59 2.81 3.01
+16384 24.1 23.5 5.35 5.59 2.81 3.01
+Table5: EfficientInferencewithw¯ =2048.
+OpenWebText2 GitHub ArXiv
+RawSize 66.77GB 95.16GB 56.21GB
+Type Internet Coding Academic
+Table6: DatasetOverview. RawSizeisthesizebefore
+anyup-ordown-sampling.
+#Layers HiddenSize #AttentionHeads TrainSeq. Len. #TrainableParams.
+12 64 12 512 162M
+Optimizer BatchSize TrainSteps Precision #TrainableParams. forRPEs
+Adam(lr6e-4) 32 50,000 bfloat16 0
+Table7: 162MModelConfigurations.
+E PythonImplementationofSandwich
+import numpy as np
+base = 1e4
+heads = 12
+seq_len = 8192
+positions = np.arange(seq_len)[..., None]
+bar_d = 128 # This is the hyperparameter of Sandwich
+i = np.arange(bar_d // 2)
+pos_embs = np.concatenate([np.sin(positions / base ** (2 * i / bar_d)),
+np.cos(positions / base ** (2 * i / bar_d))],
+axis=-1)
+sandwich = np.matmul(pos_embs, pos_embs.T)
+compression_ratio = np.arange(1, heads + 1) * 8 / heads
+multi_head_sandwich = sandwich[None, ...] / compression_ratio[..., None, None]

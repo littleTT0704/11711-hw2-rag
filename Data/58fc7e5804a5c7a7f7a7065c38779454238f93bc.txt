@@ -1,0 +1,409 @@
+Identifying the Provision of Choices in Privacy Policy Text
+KanthashreeMysoreSathyendra ShomirWilson
+SchoolofComputerScience EECSDepartment
+CarnegieMellonUniversity UniversityofCincinnati
+ksathyen@andrew.cmu.edu shomir.wilson@uc.edu
+FlorianSchaub SebastianZimmeck NormanSadeh
+SchoolofInformation SchoolofComputerScience SchoolofComputerScience
+UniversityofMichigan CarnegieMellonUniversity CarnegieMellonUniversity
+fschaub@umich.edu szimmeck@andrew.cmu.edu sadeh@cs.cmu.edu
+Abstract can exercise, they are not willing or able to find
+these choices in policy text. Choices for privacy
+Websites’ and mobile apps’ privacy poli-
+controls, which are the most actionable pieces of
+cies, written in natural language, tend to
+information in these documents, are frequently
+be long and difficult to understand. Infor-
+“hidden in plain sight” among other information.
+mation privacy revolves around the fun-
+However,thenatureofthetextandthevocabulary
+damental principle of notice and choice,
+used to present choices provide us with an oppor-
+namely the idea that users should be able
+tunitytoautomaticallyidentifychoices,agoalthat
+to make informed decisions about what
+wefocusuponinthispaper.
+information about them can be collected
+We define a choice instance as a statement in a
+and how it can be used. Internet users
+privacy policy that indicates that the user has dis-
+want control over their privacy, but their
+cretion over aspects of their privacy. An example
+choices are often hidden in long and con-
+(whichnotablyfeaturesahyperlink)isthefollow-
+voluted privacy policy documents. More-
+ing:
+over, little (if any) prior work has been
+done to detect the provision of choices If you would like more information on
+in text. We address this challenge of en- how to opt out of information collec-
+abling user choice by automatically iden- tionpractices,gotowww.aboutads.
+tifyingandextractingpertinentchoicelan- info.1
+guageinprivacypolicies. Inparticular,we
+present a two-stage architecture of classi- Someexamplesofchoicesofferedtousersinclude
+ficationmodelstoidentifyopt-outchoices opt-outs or controls for the sharing of personal
+in privacy policy text, labelling common information with third parties, receiving targeted
+varieties of choices with a mean F1 score ads, or receiving promotional emails. Analyzing
+of 0.735. Our techniques enable the cre- thesechoiceinstancesinaggregatewillhelptoun-
+ation of systems to help Internet users to derstandhownoticeandchoiceisimplementedin
+learn about their choices, thereby effectu- practice,whichisofinteresttolegalscholars,pol-
+atingnoticeandchoiceandimprovingIn- icymakersandregulators. Furthermore,extracted
+ternetprivacy. choice options can be presented to users in more
+concise and usable notice formats (Schaub et al.,
+1 Introduction
+2015),suchasabrowserplug-inoraprivacybased
+questionansweringsystem.
+Website privacy policies are long, verbose docu-
+For this paper, we treat the identification of
+ments that are often difficult to understand. It has
+choice instances as a binary classification prob-
+been shown that an average Internet user would
+lem, in which we label each sentence in the pri-
+require an impractical amount of time to read the
+vacypolicytextascontainingachoiceinstanceor
+privacy policies of online services that they use
+not. We use the OPP-115 Corpus (Wilson et al.,
+andwouldnotproperlyunderstandthem(McDon-
+2016) for training and evaluation of our models.
+ald and Cranor, 2008). Although Internet users
+are concerned about their privacy and would like
+1http://www.nurse.com/privacy/ (last up-
+to be informed about the privacy controls they datedonJuly13,2015)
+2774
+Proceedingsofthe2017ConferenceonEmpiricalMethodsinNaturalLanguageProcessing,pages2774–2779
+Copenhagen,Denmark,September7–11,2017.(cid:13)c2017AssociationforComputationalLinguistics
+We further annotate a second dataset2 and de- troduce an unsupervised model for the automatic
+velopacompositemodelarchitecturetoautomati- alignment of privacy policies and show that Hid-
+cally identify and label different types of opt-out den Markov Models are more effective than clus-
+choices offered in privacy policies. We primar- tering and topic models. Liu et al. (2016a) mod-
+ily focus on extracting opt-out instances with hy- elledthelanguageofvaguenessinprivacypolicies
+perlinks because these are some the most com- usingdeepneuralnetworks.
+monandusefulchoicesdescribedinprivacypoli- Manyoftheseeffortsconsiderlegaldocuments
+cies. Moreover, these choice expressions are ac- asawhole,andtheyfocuslessonidentifyingspe-
+tionable: the first step of the action to be taken cific attributes of data practices such as choices.
+(i.e., following a hyperlink) is clearly represented We focus on choices in the present work because
+inthetextoftheseinstances. oftheirpotentialtopresentInternetuserswithen-
+Theworkpresentedinthispaperhasbeencon- gaging,directlyactionableinformation.
+ducted in the context of the ‘Usable Privacy Pol-
+icy’ project, which combines crowdsourcing, ma- 3 Approach
+chine learning and natural language processing to
+We used the OPP-115 Corpus to train and eval-
+overcome the limitations of today’s approach to
+uate our models for identifying opt-out choices.
+‘noticeandchoice’inprivacy(Sadehetal.,2013).
+The corpus consists of 115 website privacy poli-
+2 RelatedWork cies and annotations (created by law students) for
+data practices that appear in them. A data prac-
+TheFederalTradeCommissionidentifies“Notice tice is a statement about how a website user’s
+and Choice” as one of the core principles of in- personal information is collected, processed or
+formation privacy protection under the Fair Infor- shared. Each data practice consists of a selection
+mation Practice Principles (Federal Trade Com- of a category (i.e., a theme associated with the
+mission, 2000). However, privacy policies, being practice, such as “First Party Collection/Use”), a
+long, complicated documents full of legal jargon, setofvaluesforattributesspecifictothecategory,
+are sub-optimal for communicating information andtextspansfromthepolicyassociatedwiththe
+to individuals (Cranor, 2012; Cate, 2010; Schaub value selections (Wilson et al., 2016). The at-
+etal.,2015;Reidenbergetal.,2015). Anto´netal. tributes representing choice instances are present
+(2002) conducted a study in which they identi- in multiple categories of data practices, namely
+fied multiple privacy-related goals in accordance “First Party Collection/Use,” “Third Party Shar-
+with Fair Information Practices, which included ing/Collection,”“UserAccess,EditandDeletion,”
+‘Choice/Consent’asoneoftheprotectiongoals. “PolicyChange,”and“UserChoice/Control.” The
+ThepotentialfortheapplicationofNLPandin- dataset contains annotations for different types of
+formation retrieval techniques to legal documents user choice instances, namely “opt-in,” “opt-out,”
+hasbeenrecognizedbylawpractitioners(Mahler, “opt-out link,” “opt-out via contacting company,”
+2015), with multiple efforts applying NLP tech- “deactivate account,” “delete account (full),” and
+niquestolegaldocuments. Bachetal. (2013)use “deleteaccount(partial).”
+amulti-layersequencelearningmodelandinteger
+linear programming to learn logical structures of 3.1 DatasetRefinement
+paragraphs in legal articles. Galgani et al. (2012)
+We treated the problem of extracting choice in-
+presentahybridapproachtosummarizationofle-
+stances as a binary classification problem where
+gal documents, based on creating rules to com-
+welabeledsentencesfromaprivacypolicyascon-
+binedifferenttypesofstatisticalinformationabout
+taining a choice instance (positive) or not (nega-
+text. Earlyworkonautomaticallyextractinganno-
+tive). We focused specifically on opt-out choices,
+tationsfromprivacypoliciesincludesthatofAm-
+as they are among the most common choices of-
+mar et al. (2012). Montemagni et al. (2010) in-
+fered to Internet users and because opting out is
+vestigate the peculiarities of the language in legal
+notoriously difficult for users (Leon et al., 2012).
+textwithrespecttothatinordinarytextbyapply-
+Allsentencesthatcontainedanopt-outuserchoice
+ing shallow parsing. Ramanath et al. (2014) in-
+(as specified by the OPP-115 annotations) were
+considered positive, and the rest were considered
+2Available for download at https://www.
+usableprivacy.org/data negative. This resulted in a gold standard set of
+2775
+Stemmed Unigrams and Bigrams. We re-
+moved most stop words from the feature set, al-
+thoughsomewereretainedforthemodalverband
+opt-out features (described below). Bigrams are
+importanttocapturepertinentphrasessuchas“opt
+out.”
+RelativeLocationintheDocument. Thiswas
+Figure1: Activelearningwithrelabelling.
+aratiobetweenthenumberofsentencesappearing
+labeled sentences with 251 positive instances and before the sentence instance and the total number
+approximately12Knegativeinstances. ofsentencesintheprivacypolicy.
+Differences between our problem formulation
+Topic Model Features. We represented the
+and the OPP-115 annotation scheme led to the
+OPP-115segment(roughly,aparagraph)contain-
+need for a few label adjustments. Opt-out text
+ing the sentence instance as a topic distribution
+spanswhichcrossedsentenceboundariesresulted
+vectorusinglatentDirichletallocation(Bleietal.,
+in positive labels for all involved sentences, al-
+2003) and non-negative matrix factorization (Xu
+though often only one of the sentences in a span
+et al., 2003) with 8 and 10 topics, respectively.
+was positive. Additionally, during the OPP-115
+Previous work on vocabulary intersections of ex-
+annotationprocedure,thefactthathyperlinkswere
+pert annotations and topic models for data prac-
+not shown to annotators meant that some choice
+ticesinprivacypolicies(Liuetal.,2016b)inspired
+instances were not correctly identified. This re-
+ustotakethisapproach.
+sultedinnoisylabelsinourderiveddataset.
+Modal Verbs and Opt-Out specific phrases.
+The unbalanced distribution of the opt-out la-
+Weobservedvocabularycuesinpositiveinstances
+bels allowed us to manually verify and correct la-
+thatsuggestedadomain-independent“vocabulary
+bels in the positive class. However, correcting
+ofchoice”. Manypositiveinstanceswereimpera-
+errors in the much larger negative class (of 12K
+tivesentencesandcontainedmodalwordssuchas
+instances) was a challenge, since comprehensive
+may,might,orcan. Wealsoidentifiedkeyphrases
+manual verification was infeasible. Instead, we
+inthetrainingsetsuchasunsubscribeandopt-out
+adoptedasemi-automated,iterativerelabellingap-
+thatwereindicativeofopt-outchoices.
+proachwithactivelearning. Werandomlydivided
+Syntactic Parse Tree Features. We obtained
+the dataset into train (70%) and test (30%) sets.
+constituency parse trees for sentences using the
+We trained a binary logistic regression classifier
+Stanford Parser (Manning et al., 2014) and ex-
+using bag of n-gram features on the training data,
+tractedproductionrulesandnon-terminalsasfea-
+andthenusedittoclassifythetestdata. Thiswas
+tures. We included the maximum depth and aver-
+essentially a weak classifier, since it was trained
+agedepthoftheparsetreeasfeatures,astheseare
+onnoisy(unverified)data. Wemanuallyexamined
+indicationsofspecificity.
+the false positives and false negatives as given by
+Weusedlogisticregressionclassificationforthe
+this model and relabelled incorrectly labelled in-
+coarse-grained classification stage. Model hyper-
+stances, thus reducing noise in the dataset. Per-
+parametersweretunedbasedon5-foldcrossvali-
+forming multiple iterations of this approach, each
+dationonthetrainingset. Thefinalparametersfor
+time with a different train and test set, resulted
+thebestperformingmodelhadtheinverseL2reg-
+in a much cleaner dataset (Figure 1). Following
+ularizationconstantsetatC=1.3andclass-weights
+thisrefinement,themodelF1scoresimprovedand
+of1.5and1forpositiveandnegativeclass,respec-
+were also more accurate. For all our experiments
+tively.
+thereon,weusedthisrefinedversionofthedataset
+fortrainingandevaluation.
+3.3 Fine-GrainedClassification
+3.2 Coarse-GrainedClassification
+Wealsodevelopedafine-grained modeltodiffer-
+We divided the dataset into train and test sets of entiatebetweenvarietiesofopt-outinstances. For
+85 and 30 privacy policies, respectively. We ex- training data, we annotated a set of 125 positive
+perimented with a variety of features for coarse- instancestoassigntwoadditionallabelstoeachof
+grained classification, to separate positive and them; these were Party Offering Choice and Pur-
+negativeinstances: pose. PartyOfferingChoicecouldbeoneofFirst
+2776
+Figure2: Two-TierClassificationModel.
+4 ResultsandDiscussion
+Annotation #Instances
+This work is one of the first efforts to automati-
+TH,AD 52
+cally detect the provision of choices in text. For
+FI,CM 19
+the coarse-grained task, we consider a simple
+FI,AD 15
+baseline that labels sentences as positive if they
+FI,SH 6
+containoneormoreopt-outspecificwords,which
+TH,AN 4
+BR,CK 2 come from a vocabulary set that we identified by
+TH,SH 2 examining positive instances in the training set.
+FI,CK 1 TheF1ofthebaselinewas0.554.
+TH,CK 1 Weperformedablationtestsexcludingonefea-
+ture at a time from the coarse-grained classifier.
+Table1: Distributionofdifferentannotationtypes. The results of these tests are presented in Table 2
+as precision, recall, and F1 scores for the positive
+class, i.e., the opt-out class. Using the F1 scores
+Party (FI), Third Party, (TH), or Browser (BR). astheprimaryevaluationmetric,itappearsthatall
+Purpose could be one of Advertisement (AD), featureshelpinclassification. Theunigram, topic
+Data Sharing (DS), Communications (CM), An- distribution,nonterminal,andmodalverbandopt-
+alytics (AN) or Cookies (CK). Table 1 shows the out phrase features contribute the most to perfor-
+distribution of these annotations. To predict these mance. Including all the features results in an F1
+labels, we trained eight binary logistic regression scoreof0.735. Ablationtestwithoutunigramfea-
+classifiers,oneforeachoftheprecedingvalues. If turesresultedinthelowestF1scoreof0.585,and
+multipleclassifiersinalabelsetreturnedpositive, by analyzing features with higher logistic regres-
+weselectedthepredictionwiththehigherloglike- sion weights, we found n-grams such as unsub-
+lihood. The features we used for these classifiers scribe to have intuitively high weights. We also
+were: foundtheproductionrule“S→SBAR,VP”tohave
+Stemmed Unigrams and Bigrams. We col- ahighweight,indicatingthatpresenceofsubordi-
+lected bags of n-grams from the sentence under nateclauses(SBARs)helpinclassification.
+considerationanditscontainingsegment. For an additional practical evaluation, we cre-
+Anchor Text. The anchor text of the hyperlink ated a second dataset of sentences from the pri-
+inthesentence. vacy policies of the 180 most popular websites
+(as determined by Alexa rankings. We selected
+HyperlinkURLTokens. WesplittheURLby
+only those sentences that contained hyperlinks,
+punctuation (such as ‘/’ and ‘.’) and extracted to-
+since they are associated with particularly action-
+kens.
+able choices in privacy policy text. We used our
+Privacy Policy URL Tokens. We also ex-
+model (as trained on the OPP-115 Corpus) to la-
+tractedtokensfromthepolicyURLasfeatures.
+bel the 3,842 sentences in this set, and then man-
+URL Similarity Measure. We calculated the uallyverifiedthe124positivepredictions,observ-
+Jaccard index between the vocabulary of the pol- ingperfectprecision. Althoughwewereunableto
+icy URL and the hyperlink URL. This feature is measure recall using this method, the high preci-
+used to identify whether the hyperlink was to a sion suggests the robustness of the model and the
+first-partypageorathird-partypage. practicalapplicabilityofthisapproachtotoolsfor
+Figure 2 illustrates the overall architecture of Internetusers.
+our system. We first use the coarse-grained step The results for the opt-out type classification
+to identify the presence of an opt-out instance, are shown in Table 3. Because of data sparsity,
+andthenusethefine-grainedsteptoascertainkey weshowperformancefiguresforonlythetoptwo
+propertiesofanopt-outchoiceifoneispresent. most frequent label combinations. These results
+2777
+Features/Models Precision Recall F1 References
+All 0.862 0.641 0.735
+Waleed Ammar, Shomir Wilson, Norman Sadeh, and
+All-Unigrams 0.731 0.487 0.585
+Noah A Smith. 2012. Automatic categorization of
+All-Bigrams 0.885 0.590 0.708
+privacypolicies: Apilotstudy.
+All-Rel.Location 0.889 0.615 0.727
+All-TopicModels 0.852 0.590 0.697
+All-Productions 0.957 0.564 0.710 Annie I Anto´n, Julia Brande Earp, and Angela Reese.
+All-Nonterminals 0.913 0.538 0.677 2002. Analyzing website privacy requirements us-
+All-Max.Depth 0.857 0.615 0.716 ing a privacy goal taxonomy. In Requirements En-
+All-Avg.Depth 0.857 0.615 0.716 gineering, 2002. Proceedings. IEEE Joint Interna-
+PhraseInclusion-Baseline 0.425 0.797 0.554 tionalConferenceon,pages23–31.IEEE.
+ParagraphVec.-50Dimensions 0.667 0.211 0.320
+ParagraphVec.-100Dimensions 0.667 0.158 0.255 NgoXuanBach,NguyenLeMinh,TranThiOanh,and
+Akira Shimazu. 2013. A two-phase framework for
+Table 2: Results of ablation tests for the coarse- learninglogicalstructuresofparagraphsinlegalar-
+grainedclassifier. ticles. ACMTransactionsonAsianLanguageInfor-
+mationProcessing(TALIP),12(1):3.
+Precision Recall F1 David M Blei, Andrew Y Ng, and Michael I Jordan.
+2003. Latent dirichlet allocation. Journal of ma-
+FI,CM 0.947 0.947 0.947
+chineLearningresearch,3(Jan):993–1022.
+TH,AD 0.905 0.977 0.940
+Fred H Cate. 2010. The limits of notice and choice.
+Table3: Fine-grainedclassifierresults. IEEESecurity&Privacy,8(2):59–62.
+Lorrie Faith Cranor. 2012. Necessary but not suf-
+ficient: Standardized mechanisms for privacy no-
+also demonstrate a practical level of performance
+tice and choice. J. on Telecomm. & High Tech. L.,
+forInternetuser-orientedtools.
+10:273.
+5 Conclusion Federal Trade Commission. 2000. Privacy Online: A
+ReporttoCongress. Technicalreport,FederalTrade
+Commission.
+We presented an approach to the problem of au-
+tomatically identifying privacy choices in privacy
+FilippoGalgani,PaulCompton,andAchimHoffmann.
+policy text. Our experiments show that a two- 2012. Combining different summarization tech-
+stagesupervisedlearningprocedureisappropriate niques for legal text. In Proceedings of the Work-
+shop on Innovative Hybrid Approaches to the Pro-
+for this task. Our approach is to initially iden-
+cessingofTextualData,pages115–123.Association
+tify choices offered by the text and then to de-
+forComputationalLinguistics.
+termine their properties. Using ablation tests, we
+showed that a mixture of feature types can im- PedroLeon,BlaseUr,RichardShay,YangWang,Re-
+prove upon the performance of a baseline bag-of- becca Balebako, and Lorrie Cranor. 2012. Why
+johnnycan’toptout: ausabilityevaluationoftools
+wordsmodel. Plannedfutureworkforthisproject
+to limit online behavioral advertising. In Proceed-
+will include the creation of a browser plug-in to
+ings of the SIGCHI Conference on Human Factors
+presentopt-outhyperlinkstoInternetusers. inComputingSystems,pages589–598.ACM.
+Fei Liu, Nicole Lee Fella, and Kexin Liao. 2016a.
+6 Acknowledgements
+Modelinglanguagevaguenessinprivacypoliciesus-
+ing deep neural networks. In 2016 AAAI Fall Sym-
+ThisworkhasbeensupportedbytheNationalSci- posiumSeries.
+enceFoundationaspartoftheUsablePrivacyPol-
+Frederick Liu, Shomir Wilson, Florian Schaub, and
+icy Project (www.usableprivacy.org) under Grant
+NormanSadeh.2016b. Analyzingvocabularyinter-
+No. CNS 13-30596. The views and conclu-
+sections of expert annotations and topic models for
+sionscontainedhereinarethoseoftheauthorsand datapracticesinprivacypolicies. In2016AAAIFall
+shouldnotbeinterpretedasnecessarilyrepresent- SymposiumSeries.
+ingtheofficialpoliciesorendorsements,eitherex-
+Lars Mahler. 2015. What is nlp and why
+pressedorimplied,oftheNSF,ortheUSGovern-
+should lawyers care? http://www.
+ment
+lawpracticetoday.org/article/
+nlp-lawyers/.
+2778
+ChristopherD.Manning,MihaiSurdeanu,JohnBauer,
+Jenny Finkel, Steven J. Bethard, and David Mc-
+Closky. 2014. The Stanford CoreNLP natural lan-
+guageprocessingtoolkit. InAssociationforCompu-
+tational Linguistics (ACL) System Demonstrations,
+pages55–60.
+Aleecia M McDonald and Lorrie Faith Cranor. 2008.
+Costofreadingprivacypolicies,the. ISJLP,4:543.
+SimonettaMontemagni,WimPeters,andDanielaTis-
+cornia. 2010. Semantic Processing of Legal Texts.
+Springer.
+RohanRamanath,FeiLiu,NormanSadeh,andNoahA
+Smith. 2014. Unsupervised alignment of privacy
+policiesusinghiddenmarkovmodels.
+JoelRReidenberg,TravisBreaux,LorrieFaithCranor,
+BrianFrench,AmandaGrannis,JamesTGraves,Fei
+Liu, Aleecia McDonald, Thomas B Norton, Rohan
+Ramanath, Cameron Russell, Norman Sadeh, and
+Florian Schaub. 2015. Disagreeable privacy poli-
+cies: Mismatches between meaning and users’ un-
+derstanding. BerkeleyTech.LJ,30:39.
+NormanSadeh,AlessandroAcquisti,TravisDBreaux,
+Lorrie Faith Cranor, Aleecia M McDonald, Joel R
+Reidenberg, Noah A Smith, Fei Liu, N Cameron
+Russell,FlorianSchaub,etal.2013. Theusablepri-
+vacypolicyproject. Technicalreport,TechnicalRe-
+port, CMU-ISR-13-119, Carnegie Mellon Univer-
+sity.
+Florian Schaub, Rebecca Balebako, Adam L. Durity,
+and Lorrie Faith Cranor. 2015. A design space for
+effective privacy notices. In Eleventh Symposium
+On Usable Privacy and Security (SOUPS 2015),
+pages1–17,Ottawa.USENIXAssociation.
+SWilson,FSchaub,ADara,FLiu,SCherivirala,PG
+Leon, M S Andersen, S Zimmeck, K Sathyendra,
+NCRussell, TBNorton, EHovy, JRReidenberg,
+and N Sadeh. 2016. The creation and analysis of a
+websiteprivacypolicycorpus. InAnnualMeetingof
+the Association for Computational Linguistics, Aug
+2016.ACL.
+WeiXu,XinLiu,andYihongGong.2003. Document
+clustering based on non-negative matrix factoriza-
+tion. In Proceedings of the 26th annual interna-
+tionalACMSIGIRconferenceonResearchandde-
+velopment in informaion retrieval, pages 267–273.
+ACM.
+2779

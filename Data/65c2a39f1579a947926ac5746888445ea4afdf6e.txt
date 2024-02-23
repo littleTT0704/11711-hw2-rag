@@ -1,0 +1,1200 @@
+The Return of Lexical Dependencies:
+Neural Lexicalized PCFGs
+HaoZhu, YonatanBisk, GrahamNeubig
+LanguageTechnologiesInstitute,CarnegieMellonUniversity
+zhuhao@cmu.edu, {ybisk, gneubig}@cs.cmu.edu
+Abstract syntactic formulation (Yuret, 1998; Carroll and
+Charniak,1992;Paskin,2002).Specifically,thede-
+Inthispaperwedemonstratethatcontextfree
+pendencymodelwith valence (DMV) (Klein and
+grammar(CFG)based methodsforgrammar
+Manning, 2004) forms the basis for many mod-
+inductionbenefitfrommodelinglexicaldepen-
+ern approaches in dependency induction. Most
+dencies. This contrasts to the most popular
+recentmodelsforgrammarinduction, bethey for
+currentmethodsforgrammarinduction,which
+PCFGs, DMVs, or other formulations, have gen-
+focus on discovering either constituents or
+erally coupled these models with some variety of
+dependencies. Previous approaches to marry
+neural model to use embeddings to capture word
+thesetwodisparatesyntacticformalisms(e.g.,
+similarities,improvetheflexibilityofmodelpara-
+lexicalized PCFGs) have been plagued by
+meterization, or both (He et al., 2018; Jin et al.,
+sparsity, making them unsuitable for unsu-
+2019;Kimetal.,2019;Hanetal.,2019).
+pervisedgrammarinduction.However,inthis
+Notably,thetwodifferentsyntacticformalisms
+work,wepresentnovelneuralmodelsoflex-
+capture very different views of syntax. Phrase
+icalized PCFGs that allow us to overcome
+structure takes advantage of an abstracted recur-
+sparsityproblemsandeffectivelyinduceboth
+siveviewoflanguage,whilethedependencystruc-
+constituents and dependencies within a sin-
+turemoreconcretelyfocusesonthepropensityof
+gle model. Experimentsdemonstrate that this
+particular words in a sentence to relate to each
+unified framework results in stronger results
+othersyntactically. However,fewattempts atun-
+on both representations than achieved when
+supervisedgrammarinductionhavebeenmadeto
+modelingeitherformalismalone.1
+marrythetwoandletbothbenefiteachother.This
+is precisely the issue we attempt to tackle in this
+paper.
+1 Introduction
+Asaspecificformalismthatallowsustomodel
+Unsupervisedgrammarinductionaimsatbuilding both formalisms at once, we turn to lexicalized
+aformaldevicefordiscoveringsyntacticstructure probabilistic context-free grammars (L-PCFGs;
+from natural language corpora. Within the scope Collins, 2003). L-PCFGs borrow the underlying
+of grammar induction, there are two main direc- machinery from PCFGs but expand the grammar
+tionsofresearch:unsupervisedconstituencypars- by allowing rules to include information about
+ing, which attempts to discover the underlying the lexical heads of each phrase, an example of
+structure of phrases, and unsupervised depen- which is shown in Figure 1. The head annotation
+dency parsing, which attempts to discover the intheL-PCFGprovideslexicaldependenciesthat
+underlying relations between words. Early work canbe informative in estimating the probabilities
+on induction of syntactic structure focused on of generation rules. For example, the probability
+learningphrasestructureandgenerallyusedsome of VP[CHASING] → VBZ[IS] VP[CHASING] is much
+variant of probabilistic context-free grammars higherthanVP→VBZVP,because‘‘chasing’’is
+(PCFGs; Lari and Young, 1990; Charniak, a present participle. Historically, these grammars
+1996; Clark, 2001). In recent years, dependency have been mostly used for supervised parsing,
+grammars have gained favor as an alternative combinedwithtraditionalcount-basedestimators
+of rule probabilities (Collins, 2003). Within this
+1Code is available at https://github.com
+/neulab/neural-lpcfg. context, lexicalized grammar rules are powerful,
+647
+TransactionsoftheAssociationforComputationalLinguistics,vol.8,pp.647–661,2020.https://doi.org/10.1162/tacla00337
+ActionEditor:SlavPetrov.Submissionbatch:3/2020;Revisionbatch:6/2020;Published10/2020.
+(cid:13)c 2020AssociationforComputationalLinguistics.DistributedunderaCC-BY4.0license.
+Downloaded
+from
+http://direct.mit.edu/tacl/article-pdf/doi/10.1162/tacl_a_00337/1923563/tacl_a_00337.pdf
+by
+Carnegie
+Mellon
+University
+user
+on
+22
+February
+2024
+Figure1:Lexicalizedphrasestructuretreefor‘‘the
+dog is chasing the cat.’’ The head word of each
+constituentisindicatedwithparentheses.
+but the counts available are sparse, and thus re-
+quired extensive smoothing to achieve com- Figure 2: Model diagram of lexicalized com-
+petitive results (Bikel, 2004; Hockenmaier and pound PCFG. Black lines indicate production
+Steedman,2002). rules, and red dashed lines indicate that the
+In this paper, we contend that with recent compound variable and parameters participating
+advances in neural modeling, it is time to return inproductions.
+to modeling lexical dependencies, specifically
+In neural grammar induction models,
+in the context of unsupervised constituent-based
+is it possible to jointly and effectively
+grammarinduction.WeproposeneuralL-PCFGs
+learn both phrase structure and lexical
+as a parameter-sharing method to alleviate the
+dependencies? Is using both in concert
+sparsity problem of lexicalized PCFGs. Figure 2
+better at the respective tasks than spe-
+illustrates the generation procedure of a neural
+cializedmethodsthatmodelonlyoneat
+L-PCFG. Different from traditional lexicalized
+atime?
+PCFGs, the probabilities of production rules
+are not independently parameterized, but rather Our experiments (§5.3) answer in the affir-
+conditioned on the representations of non- mative, with better performance than baselines
+terminals, preterminals, and lexical items (§3).
+designed specially for either dependency or
+Apart from devising lexicalized production rules
+constituency parsing under multiple settings.
+(§2.3) and their corresponding scoring function,
+Importantly, our detailed ablations show that
+we also follow Kim et al.’s (2019) compound methods of factorization play an important role
+PCFG model for (non-lexicalized) constituency in the performance of neural L-PCFGs (§5.3.2).
+parsingwithcompoundvariables(§3.2),enabling Finally, qualitatively (§5.4), we find that latent
+modeling of a continuous mixture of grammar labelsinducedbyourmodelalignwith annotated
+rules.2 We define how to efficiently train (§4.1) goldnon-terminalsinPTB.
+and perform inference (§4.2) in this model using
+dynamicprogrammingandvariationalinference. 2 Motivationand Definitions
+Puttogether,weexpectthistoresultinamodel
+In this section, we will first provide the back-
+that both is effective,and simultaneously induces
+groundofconstituencygrammarsanddependency
+both phrase structure and lexical dependencies,3
+grammars, and then formally define the general
+whereas previous work has focused on only
+L-PCFG, illustrating how both dependencies and
+one. Our empirical evaluation examines this
+phrasestructurescanbeinducedfromL-PCFGs.
+hypothesis,askingthefollowingquestion:
+2.1 PhraseStructuresandCFGs
+2Inother words,wedonotinduce asinglePCFG,but a
+distributionoverafamilyofPCFGs.
+3Note that by ‘‘lexical dependencies’’ we are referring
+tounilexicaldependenciesbetweentheheadwordandchild
+non-terminals,asopposedtobilexicaldependenciesbetween
+two words (as are modeled in many dependency parsing
+models).
+648
+Downloaded
+from
+http://direct.mit.edu/tacl/article-pdf/doi/10.1162/tacl_a_00337/1923563/tacl_a_00337.pdf
+by
+Carnegie
+Mellon
+University
+user
+on
+22
+February
+2024
+The phrase structure of a sentence is formed constituencyparsercanprovidetheconstraintthat
+by recursively splitting constituents. In the parse the cat of my neighbor’s is a constituent, thereby
+above: The sentence is split into a noun phrase requiringchasingtobetheheadofthephrase.
+(NP) and a verb phrase (VP), which can them- Lexicalized CFGs are based on a backbone
+selves be further split into smaller constituents; similar to standard CFGs but parameterized to
+forexample,theNPcomprisesadeterminer(DT) be sensitive to lexical dependencies such as
+‘‘the’’andanormalnoun(NN)‘‘dog.’’ those used in dependency grammars. Similarly
+Such phrase structures are represented as a to CFGs, L-CFGs are defined as a five-tuple
+context-freegrammar4(CFG),whichcangenerate T = (S,N,P,Σ,R). The differences lie in the
+an infinite set of sentences via the repeated formulationofrulesR:
+applicationofafinitesetRofrules:
+1 S → A[α], A ∈N
+S → A, A∈ N
+2l A[α] → B[α]C[β], A∈ N,B,C ∈ N ∪P
+A → BC, A∈ N,B,C ∈ N ∪P
+2r A[α] → B[β]C[α], A∈ N,B,C ∈ N ∪P T → α, T ∈ P
+3 T[α] → α, T ∈ P
+S denotes a start symbol, N is a finite set of
+non-terminals, P is a finite set of preterminals, where α,β ∈ Σ are words, and mark the head of
+andΣisasetofterminalsymbols(i.e.,wordsand constituentwhentheyappearin‘‘[·]’’.6Branching
+punctuation).
+rules 2l and 2r encode the dependencies
+(α,β).7
+2.2 DependencyStructuresandGrammars
+Inalexicalized CFG, asentencexcanbegen-
+ROOT erated by iterative binary splitting and emission,
+nsubj nobj formingaparsetreet =[r ,r ,...,r ],where
+det aux det 1 2 2|x|
+rules r are sorted from top to bottom and from
+i
+The dog is chasing the cat
+left to right. We will denote the set of parsetrees
+thatgeneratexwithingrammarT asT .
+Inadependencytreeofasentence,thesyntactic x
+nodes are the words in the sentence. Here the
+2.4 GrammarInductionwithL-PCFGs
+root is the root word of the sentence, and
+In this subsection, we will introduce L-PCFGs,
+the children of each word are its dependents.
+the probabilistic formulation for L-CFGs. The
+Above, the rootword is chasing,which has three
+task of grammar induction is to ask, given a
+dependents,itssubject(nsubj)dog,auxiliaryverb
+corpus C ⊂ Σ+, how can we obtain the
+(aux) is, and object (nobj) cat. A dependency
+probabilistic generative grammar that maximizes
+grammar5 specifiesthepossiblehead-dependent
+its likelihood. With the induced grammar,we are
+pairsD = {(α ,β )} ∈(V∪{ROOT})×V,where
+i i also interested in how to obtain the trees that
+thesetV denotesthevocabulary.
+are most likely given an individual sentence—in
+other words, syntactic parsing according to this
+2.3 LexicalizedCFGs grammar.
+Although both the constituency and dependency We begin by defining the probability distribu-
+grammars capture some aspects of syntax, we tion over sentences x, by marginalizing over all
+aimtoleveragetheir relativestrengthsin asingle parsetreesthatmayhavegeneratedx:
+unified formalism. In a unified grammar, these
+1
+two types ofstructurecan benefiteachother. For p (x) = p (t)= p˜ (t) (1)
+z z z
+Z(T,z)
+example, in The dog is chasing the cat of my X X
+t∈Tx t∈Tx
+neighbor’s, while the phrase of my neighbor’s
+might be incorrectly marked as the adverbial where p˜ z(t) is an unnormalized probability of
+phrase of chasing in a dependency model, the a parse tree (which we will refer to as an
+4Note ǫ ∈/ T and Σ∩T = ∅, so this formulation does 6Without loss of generality, we only consider binary
+branchinginT.
+notcapturethestructureofsentencesoflengthzeroorone.
+5Thisworkassumesaprojectivetree. 7Notethatrootseekingrule 1 encodes(ROOT,α).
+649
+Downloaded
+from
+http://direct.mit.edu/tacl/article-pdf/doi/10.1162/tacl_a_00337/1923563/tacl_a_00337.pdf
+by
+Carnegie
+Mellon
+University
+user
+on
+22
+February
+2024
+energy function), Z(T,z) = p˜ (t) is the has O(|N|(|N|+|P|)2) production rules, the L-
+t∈T z
+normalizing constant, and zPis a compound PCFGrequiresO(|V||N|(|N|+|P|)2)production
+variable (§3.2) that allows for more complex and rules. Because traditionally rules of L-PCFGs
+expressive generative grammars (Robbins et al., havebeenparameterizedindependentlybyscalars,
+1951). namely, g (r ,z) = θ (Collins, 2003), these
+θ i i
+We define the energy function of a parse tree parameterswere hard to estimate becauseof data
+byexponentiatingascoreG (t,z) sparsity.
+θ
+We propose an alternate parameterization, the
+p˜ z(t)∝ expG θ(t,z) (2) neuralL-PCFG,whichamelioratesthesesparsity
+problems through parameter sharing, and the
+where θ is the parameter of function G .
+θ compoundL-PCFG,whichallowsamoreflexible
+Theoretically,G (t)couldbeanarbitraryscoring θ sentence-by-sentence parameterization of the
+function, but in this paper, as with most previous
+model. Below, we explain the neural L-PCFG
+work,weconsideracontext-freescoringfunction,
+factorization that we found performed best but
+where the score of each rule r is independent of
+i includeablationsofourdecisionsinSection5.3.2.
+theotherrulesintheparsetreet:
+3.1 NeuralL-PCFGFactorization
+k
+G (t,z) = g (r ,z), (3) Thescoreofanindividualruleiscalculatedasthe
+θ θ i
+X i=1 combinationofseveralcomponentprobabilities:
+whereg θ(r,z) : R×Rn → Ris therule-scoring roottonon-terminalprobabilityp z(S → A):
+function which maps the rule and latent variable Probability that the start symbol produces a
+z ∈ Rn to real space, assigning a log likelihood non-terminalA.8
+toeachrule.Thisformulationallowsforefficient
+calculationusingdynamicprogramming.Wealso wordemissionprobabilityp z(A→ α):
+includearestrictionthattheenergiesmustbetop- Probabilitythattheheadwordofaconstituent
+down locally-normalized, under which the par- is α conditioned on that the non-terminal of
+tition functionshouldautomaticallyequateto1 theconstituentisA.
+headnon-terminalprobability
+Z(T,z) = expG (t,z) = 1 (4)
+θ
+X
+t∈T
+p z(B,x| A,α)orp z(C,y| A,α):
+Probability of the headedness direction and
+To train an L-PCFG, we maximize the log head-inheriting child9 conditioned on the
+likelihood of the corpus (the latent variable is parentnon-terminalandheadwords.
+marginalizedout):
+non-inheritingchildprobability
+θ∗ =argmax logE zp z(x) (5) p z(C | A,B,α,x)orp z(B | A,C,α,y):
+θ X Probability of the non-inheriting child
+x∈C
+conditioned on the headedness direc-
+And obtain the most likely parse tree of a sen- tion, and parent and head-inheriting child
+tencebymaximizingtheposteriorprobability: non-terminals.
+t∗ = argmaxE zexpG θ∗(t,z) (6) Thescoreofroot-seekingrule 1 isfactorized
+t∈Tx
+astheproductoftheroottonon-terminalscoreand
+3 Neural LexicalizedPCFGs wordemissionscores,asshowninEquation(7).
+As noted, one advantage of L-PCFGs is that the
+gθ(S →A[α],z)=logpz(S →A)+logpz(A→α)
+obtainedt∗encodesbothdependenciesandphrase (7)
+structures, allowing both to be induced simulta-
+neously. We also expect this to improve perfor- The scores of branching rules 2l and 2r
+mance, because different information is capture are factorized as the sum of a binary non-
+by each of these two structures. However, this terminal score, a head non-terminal score, and
+expressivity comes at a price: more complex
+8thatis,Aisthenon-terminalofthewholesentence
+rules. In contrast to the traditional PCFG, which 9Childnon-terminalsthatinherittheparent’sheadword.
+650
+Downloaded
+from
+http://direct.mit.edu/tacl/article-pdf/doi/10.1162/tacl_a_00337/1923563/tacl_a_00337.pdf
+by
+Carnegie
+Mellon
+University
+user
+on
+22
+February
+2024
+awordemissionscore.Equation(8)describesthe Therespectiveheadnon-terminalscoresare
+factorizationofthescoreofrule 2l and 2r :
+x
+expπ (A[α] → B[α])
+p (B,x| A,α) = z
+z
+Z(A,α,z)
+g (A[α] → B[α]C[β],z)
+θ y
+expπ (A[α] → B[α])
+= logp (B,x|A,α)+logp (C|A,B,α,x) p (C,y| A,α) = z
+z z z
+Z(A,α,z)
++logp z(C → β)
+π z(A[α]
+→x
+B[α]) = f(3)([u A;u α;z])Tv Bx
+g (A[α] → B[β]C[α],z)
+θ y
+= logp (C,y|A,α)+logp (B|A,C,α,y) π z(A[α] → B[α]) = f(3)([u A;u α;z])Tv By
+z z (12)
++logp (B → β)
+z
+(8) where the partition function satisfies p (B,
+B z
+Because the head of preterminals is already x|A,α)+ Cp z(C,y|A,α) =1.P
+specified upon generation of one of the ancestor Here vecPtors u,v,w ∈ Rd represent the
+embeddings of non-terminals, preterminals and
+non-terminals, the score of emission rule 3
+words. f(i),i = 1,2,3 are multilayer perceptrons
+is0.
+with different set of parameters, where we use
+The component probabilities are all similarly
+residual connections10 (He et al., 2016) between
+parameterized, vectors corresponding to compo-
+layerstofacilitatetrainingofdeepermodels.
+nent non-terminals or terminals are fed through
+a multi-layer perceptron denoted f(·), and a dot 3.2 CompoundGrammar
+product is taken with another vector correspond-
+Amongvariousexistinggrammarinductionmod-
+ingtoacomponentnon-terminalorterminal.Spe-
+els, the compound PCFG model of Kim et al.
+cifically,theroottonon-terminalprobabilityis
+(2019)bothshowshighlycompetitive resultsand
+follows a PCFG-based formalism similar to
+p z(S → A) = expπ z(S → A)/Z(z) ours, and thus we build upon this method. The
+(9)
+π (S → A) = f(1)([u ;z])Tv compound in compound PCFG refers to the fact
+z S A
+that it uses a compound probability distribution
+(Robbinsetal.,1951)inmodelingandestimation
+where;denotesconcatenationandthewordemis-
+of its parameters.A compound probability distri-
+sionprobabilityis
+bution enables continuous variants of grammars,
+allowing the probabilities of the grammar to
+p (A→ α) = expπ (A→ α)/Z(A,z)
+z z change based on the unique characteristics of the
+(10)
+π (A→ α) = f(2)([u ;z])Tv sentence. In general, compound variables can be
+z A α
+devised in any way that may inform the spec-
+ificationoftheruleprobabilities(e.g.,astructured
+withpartitionfunctionsZ(z)suchthat p
+A∈N z variable to provide frame semantics or the social
+(S → A) = 1 and Z(A,z) s.t. Pp (A →
+α∈Σ z
+context in which the sentence is situated). In this
+α) =1. P
+way, compound grammar increases the capacity
+The non-inheriting child probabilities for left-
+oftheoriginalPCFG.
+andright-headeddependenciesare
+Inthispaper,weusealatentcompoundvariable
+x z that is sampled from a standard spherical
+expπ (A[α] → B[α]C)
+p z(C | A,B,α,x) = Z(z
+A,B,α,x,z)
+Gaussiandistribution.
+y
+p (B | A,C,α,y) = expπ z(A[α] → BC[α]) z ∼ N(0,I) (13)
+z Z(A,C,α,x,z)
+π (A[α] →x B[α]C) = [wx ;wx ;z]Tv We denote the probability of latent variable z
+z A α BC
+π (A[α] →y BC[α]) = [wy ;wy ;z]Tv
+asp N(0,I)(z).Bymarginalizingoutthecompound
+z A α BC variable, we obtain the log likelihood of a
+(11)
+sentence:
+where partition functions satisfy p (C |
+C z
+A,B,α,x)and Bp z(B | A,C,α,Py) = 1. logp(x) = log Z zp z(x)p N(0,I)(z)dz (14)
+P
+651
+Downloaded
+from
+http://direct.mit.edu/tacl/article-pdf/doi/10.1162/tacl_a_00337/1923563/tacl_a_00337.pdf
+by
+Carnegie
+Mellon
+University
+user
+on
+22
+February
+2024
+Algorithm 1 Generative Procedure of Neural where q (z | x) is the proposal probability
+φ
+L-PCFGs: Sentences Are Generated from Start parameterized by an inference network, similar
+SymbolSandCompoundVariablezRecursively. to those used in variantial autoencoders(Kingma
+Require: N,T,P ,P and Welling, 2014). The ELBo can be estimated
+1 2
+functionRECURSIVE(N,α,z) byMonteCarlosampling:
+N ,N ,d,β ∼ P (N ,N ,d,β | N,α,z)
+1 2 2 1 2
+if d =ythen 1 L
+L(x) = logp (x)
+α,β ← β,α L zi (17)
+X
+endif i=1
+if N ∈ N then
+−KL[q φ(z | x)kp N(0,I)(z)]
+1
+S
+l
+←RECURSIVE(N 1,α,z)
+where {z }L are sampled from q (z | x). We
+else i i=1 φ
+model the proposal probability as an orthogonal
+S ← [α]
+l
+Gaussiandistribution:
+endif
+if N ∈ N then 2
+q (z | x) =p (z) (18)
+S
+r
+←RECURSIVE(N 2,β,z) φ N(µ,diag(σ))
+else
+where(µ,σ)areoutputbytheinferencenetwork
+S ← [β]
+r
+endif
+µ = f (x),σ =f (x) (19)
+µ σ
+returnCONCATENATE(S l,S r)
+endfunction
+Both f and f are parameterized as LSTMs
+µ σ
+z ∼ N(0,I)
+(Hochreiter and Schmidhuber, 1997). Note that
+N,α ∼ P (N,α | S,z)
+1 the inference network could be optimized by the
+returnRECURSIVE(N,α,z)
+reparameterization trick (Kingma and Welling,
+2014):
+Algorithm 1 shows the procedure to generate
+a sentence recursively from a random compound zˆ ∼ N(0,I),z = µ+σ⊙zˆ (20)
+variable and a distribution over the production
+rules in a pre-order traversal manner, where P where ⊙ denotes Hadamard operation. The KL
+1
+and P are defined using g from Equations (7) divergencebetweenq (z | x)andN(0,I)is
+2 θ φ
+and(8),respectively:
+KL[q φ(z | x)kp N(0,I)(z)]
+P 1(N,α|S,z)=exp(gθ(S →A[α],z))
+n 1 (21)
+P 2(N 1,N 2,x,β |N,α,z) = − 2( (logσ i−σ i+1)−kµk2 2)
+=exp(gθ(A[α]→B[α]C[β],z)) X i=1
+P (N ,N ,y,β |N,α,z)
+2 1 2
+Initialization We initialize word embeddings
+=exp(gθ(A[α]→B[β]C[α],z))
+(15) using GloVe embeddings (Pennington et al.,
+2014). We further cluster word embeddings
+4 Training andInference
+with k-means (MacQueen, 1967), as shown in
+Figure 3, and use the centroids of the clusters to
+4.1 Training
+initialize the embeddings of preterminals. The
+It is intractable to obtain either the exact log
+k-means algorithm is initialized using the k-
+likelihood by integration over z, and estimation
+means++ method and trained until convergence.
+by Monte Carlo sampling would be hopelessly
+Theintuitionthereinisthatthisgivesthemodela
+inefficient. However, we can optimize the evi-
+rough idea of syntactic categories before starting
+dencelowerbound(ELBo):
+grammar induction. We also consider the variant
+L(x) = E logp (x) without pretrained word embeddings, where we
+qφ(z|x) z
+initializewordembeddingsandpreterminalsboth
+−KL[q φ(z | x)kp N(0,I)(z)] (16)
+by drawing from N(0,I). Other parameters are
+≤ E p (x)
+p N(0,I)(z) z initialized byXaviernormalinitialization (Glorot
+10f(x)=σ(W (σ(W x+b ))+b)+x. andBengio,2010).
+2 1 1
+652
+Downloaded
+from
+http://direct.mit.edu/tacl/article-pdf/doi/10.1162/tacl_a_00337/1923563/tacl_a_00337.pdf
+by
+Carnegie
+Mellon
+University
+user
+on
+22
+February
+2024
+Hyperparameter Value
+|N|,|P| 10,20
+n 60
+d 300
+α 10
+#layersoff(1),f(2),f(3) 6,6,4
+non-linearactivation relu
+Table1:Hyper-parametersandvalues.
+5 Experiments
+Figure3:TheclusteringResultofGloVeEmbed-
+dings. Different colors represent cluster class of 5.1 DataSetup
+each word, and larger black points represent the
+AllmodelsareevaluatedusingthePennTreebank
+initial embeddings of preterminals, i.e., cluster
+(Marcusetal.,1993)asthetestcorpus,following
+centroids. The two-dimension visualization is
+the splits and preprocessing methods, including
+obtainedbyTSNE(MaatenandHinton,2008).
+removing punctuation, provided by Kim et al.
+(2019).Toconverttheoriginalphrasebracketand
+Curriculum Learning We also apply curricu- label annotations to dependency annotations, we
+lum learning (Bengio et al., 2009; Spitkovsky use Stanford typed dependency representations
+etal.,2010)tolearnthegrammargradually.Start- (DeMarneffeandManning,2008).
+ing at half of the maximum length in the training We use three standard metrics to measure the
+set,weraisethelengthlimit byα%eachepoch. performanceof models on the validation and test
+sets: directed and undirected attachment score
+(DAS and UAS) for dependency parsing, and
+4.2 Inference
+unlabeled constituent F1 score for constituency
+We are interested in the induced parse tree for
+parsing.
+eachsentenceinthetaskofunsupervisedparsing,
+Wetunehyperparametersofthemodeltomin-
+thatis,themostprobabletreetˆ
+imizeperplexityonthevalidationset.Wechoose
+perplexity because it requires only plain text and
+tˆ= argmaxp(t | x)
+t not annotated parse trees. Specifically, we tuned
+(22)
+the architecture of f(i),i = 1,2,3 in the space
+= argmax p (t)p(z | x)dz
+z t∈Tx Z z of multilayer perceptrons, with the dimension of
+each layer being n + d, with residual connec-
+where p(z | x) is the posterior over compound
+tionsanddifferentnon-linearactivationfunctions.
+variables.However,itisintractabletogetthemost
+Table 1 shows the final hyper-parameters of our
+probabletree.Henceweusethemeanµ = f (x) µ model. Due to memory constraints on a single
+predicted by the inference network and replace
+graphiccard,we setthe number ofnon-terminals
+p(z | x) with a Dirac delta distribution δ(z −µ)
+andpreterminalsto10and20,respectively.Later
+inplaceoftherealdistributiontoapproximatethe
+we will show that the compound PCFG’s perfor-
+integral11
+mance is benefited by a larger grammar; it is
+therefore possible the same is true for our neu-
+tˆ≈ argmax p (t)δ(z−µ)dz
+z ral L-PCFG. Section 7 includes a more detailed
+t∈Tx Z z (23)
+discussionofspacecomplexity.
+= argmaxp (t)
+µ
+t∈Tx
+5.2 Baselines
+Themostprobabletreecanbeobtainedvia the
+We compare our neural L-PCFGs with the
+CYKalgorithm.
+followingbaselines:
+11Note that it is also possible to use other methods for CompoundPCFG ThecompoundPCFG(Kim
+approximation. Forexample,wecanuseq (z |x)inplace
+φ et al., 2019) is an unsupervisedconstituency par-
+ofposteriordistribution.However,usingitstillresultsinhigh
+sing model that is a PCFG model with neural
+predictionvarianceofthemaxfunction.Wedidnotobserve
+asignificantimprovementwithothermethods. scoring. The main difference between this model
+653
+Downloaded
+from
+http://direct.mit.edu/tacl/article-pdf/doi/10.1162/tacl_a_00337/1923563/tacl_a_00337.pdf
+by Carnegie
+Mellon
+University
+user
+on
+22
+February
+2024
+DAS UAS F1
+GoldTags WordEmbedding Dev Test Dev Test Dev Test
+CompoundPCFG∗∗ ✗ N(0,I) 21.2 23.5 38.9 40.8 - 55.2
+CompoundPCFG ✗ N(0,I) 15.6(3.9) 17.8(4.2) 27.7(4.1) 30.2(5.3) 45.63(1.71) 47.79(2.32)
+CompoundPCFG ✗ GloVe 16.4(2.4) 18.6(3.7) 28.7(3.5) 31.6(4.5) 45.52(2.14) 48.20(2.53)
+DMV ✗ - 24.7(1.5) 27.2(1.9) 43.2(1.9) 44.3(2.2) - -
+DMV ✓ - 28.5(1.9) 29.9(2.5) 45.5(2.8) 47.3(2.7) - -
+NeuralL-PCFGs ✗ N(0,I) 37.5(2.7) 39.7(3.1) 50.6(3.1) 53.3(4.2) 52.90(3.72) 55.31(4.03)
+NeuralL-PCFGs ✗ GloVe 38.2(2.1) 40.5(2.9) 54.4(3.6) 55.9(3.8) 45.67(0.95) 47.23(2.06)
+NeuralL-PCFGs ✓ N(0,I) 35.4(0.5) 39.2(1.1) 50.0(1.3) 53.8(1.7) 51.16(5.11) 54.49(6.32)
+Table2:Dependencyandconstituencyparsingresults.DAS/UASstandfordirected/undirectedaccuracy.
+For the compound PCFG we use heuristic head rules to obtain dependencies (§5.2). Figures in the
+parenthesis show the standard deviation calculated from five runs with different random seeds.
+∗∗indicates a large (30 NT, 60 PT) compound PCFG from Kim et al. (2019) – we could not use this
+size in ourexperimentsdue to memory constraints.Results arenotdirectly comparablewith the other
+rowsduetomodelsize,butwereportthemforcompleteness.Bestaverageperformancesareindicated
+inbold.
+andneuralL-PCFGisthemodelingofheadedness word and a constituent with full right valence.
+andthe dependencybetweenheadword andgen- Therefore, it could be seen as a special case
+eratednon-terminalsorpreterminals.Weapplythe of lexicalized PCFG where the generation rules
+same hyperparameters and techniques, including provide inductive biases for dependency parsing
+number of non-terminals and preterminals, ini- but are also restricted—for example, a void-
+tialization, curriculum learning and variational valenceconstituentcannotproduceafull-valence
+training to compound PCFGs for a fair compar- constituentwiththesamehead.
+ison. Because compound PCFGs have no notion NotethatDMVusesfarfewerparametersthan
+of dependencies, we extract dependencies from the PCFG-based models, O(|P|2). The neural L-
+thecompoundPCFGwiththreekindsofheuristic PCFGusesasimilar numberofparametersaswe
+head rules: left-headed, right-headed, and large- do,O(n(|P|+|N|)+n2).
+headed.Left-/right-headedmeanalwayschoosing Wecomparemodelsundertwosettings:(1)with
+the root of the left/right child constituent as the gold tag information and (2) without it, denoted
+root of the parent constituent, whereas large- by ✓ and ✗ , respectively in Table 2. To use gold
+headednessisgeneratedbyaheuristicrulewhich tag information in training the neural L-PCFG,
+choosesthe root of largerchild constituent as the weassign the 19most frequenttags ascategories
+root of the parent constituent. Among these, we and combine the rest into a 20th ‘‘other’’ cate-
+choose the method that obtains the best parsing gory.Thesecategoriesareusedassupervisionfor
+accuracy on the dev set (making these results an thepreterminals.Inthissetting,insteadofoptimiz-
+oracle with access to more information than our ingthelogprobabilityofthesentence,weoptimize
+proposedmethod). the log joint probability of the sentence and
+thetags.
+DependencyModelwithValence(DMV) The
+DMV (Klein and Manning, 2004) is a model for
+5.3 QuantitativeResults
+unsuperviseddependencyparsing,wherevalence
+stands for the number of arguments controlled First, in this section, we present and discuss
+by a head word. The choices to attach words as quantitativeresults,asshowninTable2.
+children are conditioned on the head words and
+5.3.1 MainResults
+valences. As shown in Smith (2006), the DMV
+modelcanbeexpressedasahead-drivencontext- Firstcomparing neuralL-PCFGs with compound
+free grammar with a set of generation rules and PCFGs,wecanseethatL-PCFGsperformslightly
+scores, where the non-terminals represent the better on phrase structure prediction and achieve
+valenceofheadwords.Forexample,‘‘L[CHASING] much better dependency accuracy. This shows
+→ L 0[IS] R[CHASING]’’ denotes that a left-hand that(1)lexicaldependenciescontributesomewhat
+constituent with full left valence produces a to the learning of phrase structure, and (2) the
+654
+Downloaded
+from
+http://direct.mit.edu/tacl/article-pdf/doi/10.1162/tacl_a_00337/1923563/tacl_a_00337.pdf
+by
+Carnegie
+Mellon
+University
+user
+on
+22
+February
+2024
+Compound Neural
+DAS UAS F1
+PRPN ON
+PCFG L-PCFG
+NeuralL-PCFG 35.5 51.4 44.5
+SBAR 50.0% 51.2% 42.36% 53.60%
+w/xavierinit 27.2 47.6 43.6
+NP 59.2% 64.5% 59.25% 67.38%
+w/FactorizationI 16.4 33.3 25.7
+VP 46.7% 41.0% 39.50% 48.58%
+w/FactorizationII 22.3 42.7 39.6
+PP 57.2% 54.4% 62.66% 65.25%
+w/FactorizationIII 25.9 46.9 34.7
+ADJP 44.3% 38.1% 49.16% 49.83%
+ADVP 32.8% 31.6% 50.58% 58.86%
+Table 4: An ablation of dependency and cons-
+Table3:Fractionofgroundtruthconstituentsthat tituency parsing results on the validation set with
+were predicted as a constituent by the models different settings of neural L-PCFG. All models
+broken down by label (i.e., label recall). Results are trained with GloVe word embeddings and
+ofPRPNandONarefromKimetal.(2019). without gold tags. ‘‘w/ xavier init’’ means that
+preterminals are not initialized by clustering
+head rules learned by neural L-PCFGs are centroids by xavier normal distribution. ‘‘w/
+significantly more accurate than the heuristics FactorizationN’’representsdifferentfactorization
+that we applied to standard compound PCFGs. methods(§5.3.2).
+We also find that GloVe embeddings can help
+(unsupervised) dependency parsing, but do not
+which influences the parsing result significantly.
+benefitconstituencyparsing.
+Although Factorization II is as general as our
+Next, we can compare the dependency induc-
+proposedmethod,itusesseparaterepresentations
+tion accuracy of the neural L-PCFGs with the
+for different directions, v BCx and v BCy.
+DMV. The results indicate that neural L-PCFGs
+Factorization III assumes the independence
+without gold tags achieve even better accuracy
+between direction and dependent non-terminals.
+than DMV with gold tags on both directed
+These results indicate that our factorization
+accuracy and undirected accuracy. As discussed
+strikes a good balance between modeling lexical
+before, DMV can be seen as a special case of
+dependencies and directionality, and avoiding
+L-PCFGwheretheattachmentofchildreniscon-
+over-parameterizationofthemodelthatmaylead
+ditioned on the valence of the parent tag, while
+tosparsityanddifficultiesinlearning.
+in L-PCFG the generated head directions are
+conditioned on the parent non-terminal and the
+5.4 QualitativeAnalysis
+headword,whichismoregeneral.Comparatively
+positive results show that conditioning on
+We analyze our best model without gold tags in
+generation rules not only is more general but
+detail. Figure 4 visualizes the alignment between
+alsoyieldsabetterpredictionofattachment.
+our induced non-terminals and gold constituent
+Table3showslabel-levelrecall(i.e.,unlabeled
+labels on the overlapping constituents of induced
+recall of constituents annotated by each non-
+trees and the ground-truth. For each constituent
+terminal). We observe that the neural L-PCFG
+label, we show the frequency of it annotating
+outperforms all baselines on these frequent
+the same span of each non-terminal. We observe
+constituentcategories.
+from the first map that a clear alignment
+between certain linguistic labels and induced
+5.3.2 ImpactofFactorization
+non-terminals (e.g., VP and NT-4, S and NT-2,
+Table 4 compares the effects of three alternate
+PP,andNT-8).Butforothernon-terminals,there’s
+factorizationsofg (A[α] → B[α]C[β],z):
+θ no clearalignment with induced classes.One hy-
+g (A[α] → B[α]C[β],z) =p (C → β)+ pothesis for this diffusion is the diversity of the
+θ z
+syntacticrolesoftheseconstituents.Toinvestigate
+FI: logp (B,C|A)+logp (x|A→ BC)
+z z this, we zoom in on noun phrases in the second
+FII: logp (B,C,x| A,α) map, and observe that NP-SBJ, NP-TMP, and
+z
+FIII:logp (B,x|A,α)+logp (C|A,B,α) NP-MNRarecombinedintoasinglenon-terminal
+z z
+NT-5 in the induced grammar, and that NP, NP-
+Factorization I assumes that the child non- PRD, and NP-CLR corresponds to NT-2, NT-6,
+terminals donotdependon theheadlexicalitem, andNT-0,respectively.
+655
+Downloaded
+from
+http://direct.mit.edu/tacl/article-pdf/doi/10.1162/tacl_a_00337/1923563/tacl_a_00337.pdf
+by
+Carnegie
+Mellon
+University
+user
+on
+22
+February
+2024
+that combine with the subject instead of modify-
+ing verb phrases. For example, the neural L-
+PCFG parses ‘‘...the exchange will look at the
+performance...’’ as ‘‘((the exchange) will) (look
+(at (the performance)))’’,whereas the compound
+PCFGproducesthecorrectparse‘‘((theexchange)
+(will(look(at(theperformance)))))’’.Apossible
+reasonforthismistakeisthatEnglishverbphrases
+arecommonlyleft-headed,whichmakesattaching
+anauxiliaryverblessprobableastheleftchildofa
+verbphrase.Thistypeoferrormaystemfromthe
+model’s inability to assess the semantic function
+ofauxiliaryverbs(BiskandHockenmaier,2015).
+6 RelatedWork
+Dependency vs Constituency Induction The
+decision to focus on modeling dependencies
+and constituencies has largely split the grammar
+Figure 4: Alignment between all induced induction community into two camps. The
+non-terminals (x-axis) and gold non-terminals most popular approach has been focused on
+annotated in the PTB (y-axis). In the upper dependency formalisms (Klein and Manning,
+figure, we show the seven most frequent gold 2004; Spitkovsky et al., 2010, 2011, 2013;
+non-terminals, and list them by frequency from MarecˇekandStraka,2013;Jiangetal.,2016;Tran
+lefttoright.Foreachgoldnon-terminal,weshow and Bisk, 2018), whereas a second community
+the proportion of each induced non-terminal. In has focused on inducing constituencies (Lane
+the lower map, we breakdown the results of the and Henderson, 2001; Ponvert et al., 2011;
+nounphrase(NP)intosubcategories.Darkercolor Golland et al., 2012; Jin et al., 2018). Induced
+indicateshigherproportion,andviceversa. constituencies can in the case of CCG (Bisk and
+Hockenmaier,2012,2013)producedependencies,
+but unlike our proposal, existing approaches do
+We also include an example set of parses
+notjointlymodelbothrepresentations.CFGshave
+for comparing the DMV and neural L-PCFG in
+been used for decades to represent, analyze and
+Table 5. Note that DMV uses ‘‘to’’ as the head
+modelthephrasestructureoflanguage(Chomsky,
+of ‘‘know’’, the neural L-PCFG correctly inverts
+1956;PullumandGazdar,1982;LariandYoung,
+this relationship to produce a parse that is better
+1990;KleinandManning,2002;Bod,2006).
+aligned with the gold tree. One of the possible
+reasons that the DMV tends to use ‘‘to’’ as the Similarly, the compound PCFG (Kim et al.,
+head is that DMV has to carry the information 2019), which we extend, falls into this camp
+that the verb is in the infinitive form, which will of models that induce only phrase-structure
+be lost if it uses ‘‘know’’ as the head. In our grammar.However,in thispaperwedemonstrate
+model,however,suchinformationiscontainedin anovellexicallyinformedneuralparameterization
+thetypesofnon-terminals.Inthisway,ourmodel that extends their model to induce a
+uses the open class word ‘‘know’’ as the root. unifiedphrase-structureanddependency-structure
+Note that we also illustrate a similar failure case grammar.
+inthis example.NeuralL-PCFGuses‘‘if’’asthe
+head of the if-clause, which is probably due to
+theindependencybetweentherootoftheif-clause Unifying Phrase Structure and Dependency
+and‘‘know’’. Grammar Head-driven phrase structure gram-
+A common mistake made by the neural L- mar (Sag and Pollard, 1987) and lexicalized tree
+PCFG is treating auxiliary verbs like adjectives adjoining grammar (Schabes et al., 1988) are
+656
+Downloaded
+from
+http://direct.mit.edu/tacl/article-pdf/doi/10.1162/tacl_a_00337/1923563/tacl_a_00337.pdf
+by
+Carnegie
+Mellon
+University
+user
+on
+22
+February
+2024
+Table5:ComparisonbetweenNeuralL-PCFGandDMVonacasefromPTBtrainingset.
+approachesto representing dependencies directly Bikel (2004)’s analysis of prominent models
+inphrasestructure. at the time found that lexical dependencies pro-
+The notion that abstract syntactic structure vided only veryminor benefitsand that choosing
+should providescaffoldingfordependencies,and appropriate smoothing parameters was key to
+thatlexicaldependenciesshouldprovideaseman- performance and robustness. Hackenmaier and
+tic guideforsyntax,wasmostfamouslyexplored Steedman (2002) also explores this for combi-
+in Collins (2003) through the introduction of an natorialcategorialgrammar (CCG),showing that
+L-PCFG. In addition, Carroll and Rooth (1998) lexical sparsity and smoothing have dramatic
+explored the problem of head induction in effects regardless of the formalism. The sparsity
+L-PCFG;CharniakandJohnson(2005)improves andexpenseoflexicalizedPCFGshaveprecluded
+L-PCFGs with coarse-to-fineparsingand rerank- theiruseinmostcontexts,thoughPrescher(2005)
+ing.Recently, (GreenandZˇabokrtsky`,2012;Ren proposes a latent-head model to alleviate the
+etal.,2013;Yoshikawaetal.,2017)exploredvar- sparsedataproblem.
+ious methods to jointly inferphrasestructure and
+dependencies. 7 Conclusion
+Klein and Manning (2004) show that a combi-
+In this paper, we propose neural L-PCFG, a
+ned DMV and CCM (Klein and Manning, 2002)
+neural parameterization method for lexicalized
+model, where each tree is scored with the pro-
+PCFGs,forbothunsuperviseddependencyparsing
+ductoftheprobabilitiesfromtheindividualmod-
+and constituency parsing. We also provide a
+els, outperforms either individual model. These
+variational inference method to train our model.
+resultsdemonstratethatthetwovarietiesofunsu-
+By modeling both representations together, our
+pervised parsing models can benefit from
+ensembling.Incontrast,ourmodelconsidersboth approachoutperformsmethodsspeciallydesigned
+phrase-and dependency structure jointly. Seginer foreithergrammarformalismalone.
+(2007) introduces a parser using a representation Importantly, our work also adds novel in-
+like dependency structure, which helps con- sights for the unsupervised grammar induction
+stituencyparsing. literature by probing the role that factorizations
+657
+Downloaded
+from
+http://direct.mit.edu/tacl/article-pdf/doi/10.1162/tacl_a_00337/1923563/tacl_a_00337.pdf
+by
+Carnegie
+Mellon
+University
+user
+on
+22
+February
+2024
+and initialization have on model performance. not be interpreted as representing the official
+Different factorizations of the same probability policies, either expressed or implied, of the
+distribution can lead to dramatically different U.S. Government. The U.S. Government is
+performanceand should be viewed as playing an authorized to reproduce and distribute reprints
+important role in the inductive bias of learning for Government purposes notwithstanding any
+syntax. Additionally, where others have used copyrightnotationhereon.Theauthorswouldlike
+pretrainedwordvectorsbefore,weshowthatthey to thank Junxian He and Yoon Kim for helpful
+too contain abstract syntactic information which feedbackabouttheproject.
+canbiaslearning.
+Finally,althoughoutofscopeforonepaper,our
+References
+results point to severalinteresting potential roads
+forward, including the study of the effectiveness Yoshua Bengio, Je´roˆme Louradour, Ronan
+of jointly modeling constituency-dependency Collobert,andJasonWeston.2009.Curriculum
+representations on freer word order languages, learning. In Proceedings of the 26th Annual
+and whether other distributed word presentations International Conference on Machine Learn-
+(e.g.,large-scaletransformers)mightprovideeven ing, pages 41–48. DOI: https://doi
+strongersyntacticsignalsforgrammarinduction. .org/10.1145/1553374.1553380
+Despite the demonstrated success of lexical
+Daniel M. Bikel. 2004. Intricacies of Collins’
+dependencies, it should be noted that these
+parsing model. Computational Linguistics,
+are only unilexical dependencies, in contrast to
+30(4):479–511. DOI: https://doi.org
+bilexical dependencies, which also consider the
+/10.1162/0891201042544929
+dependenciesbetweenheadanddependentwords.
+Modeling these dependencies would require YonatanBiskandJuliaHockenmaier.2012.Sim-
+marginalizing over all possible dependents for plerobustgrammarinductionwithcombinatory
+each span-head pair. In this case, the time categorial grammars. In Proceedings of the
+complexity of exhaustive dynamic programming Twenty-Sixth Conference on Artificial Intelli-
+overonesentencewouldbecomeO(L5|N|(|N|+ gence (AAAI-12), pages 1643–1649. Toronto,
+|P|)2), where L stands for the length of the Canada.
+sentence.Assumingenoughparallelworkers,this
+Yonatan Bisk and Julia Hockenmaier. 2013. An
+timecomplexitycanbereducedtoO(L),butitstill
+HDP model for inducing combinatory catego-
+requires O(L4|N|(|N|+|P|)2) auxiliary space.
+rialgrammars.Transactionsofthe Association
+In contrast, our model runs for O(L4|N|(|N|+
+for Computational Linguistics, pages 75–88.
+|P|)2). Assuming enough parallel workers, this
+DOI: https://doi.org/10.1162/tacl
+time complexity can also be reduced to O(L),
+a 00211
+butstillrequiresO(L3|N|(|N|+|P|)2)auxiliary
+space. These auxiliary data can be stored in a Yonatan Bisk and Julia Hockenmaier. 2015.
+32GBgraphiccardin our experiments(e.g.,with Probing the linguistic strengths and limitations
+N = 20), whereas the bilexical model cannot. of unsupervised grammar induction. In Pro-
+There are several potential methods to side-step ceedings of the 53rd Annual Meeting of the
+thisproblem,includingtheuseofsamplinginlieu Association for Computational Linguistics
+ofdynamicprogramming,usingheuristicmethods and the 7th International Joint Conference
+toprunethegrammar,anddesigningacceleration on Natural Language Processing (Volume 1:
+methodsonGPU(Halletal.,2014). Long Papers). DOI: https://doi.org
+/10.3115/v1/P15-1135
+Acknowledgments
+RensBod.2006.Anall-subtreesapproachtounsu-
+This work was supported by the DARPA pervised parsing. In Proceedings of the 21st
+GAILA project (award HR00111990063), and International Conference on Computational
+some experiments made use of computation Linguistics and 44th Annual Meeting of the
+credits graciously provided by Amazon AWS. Association for Computational Linguistics,
+The views and conclusions contained in this pages 865–872. DOI: https://doi.org
+document are those of the authors and should /10.3115/1220175.1220284
+658
+Downloaded
+from
+http://direct.mit.edu/tacl/article-pdf/doi/10.1162/tacl_a_00337/1923563/tacl_a_00337.pdf
+by
+Carnegie
+Mellon
+University
+user
+on
+22
+February
+2024
+Glenn Carroll and Eugene Charniak. 1992. Two DaveGolland,JohnDeNero,andJakobUszkoreit.
+experiments on learning probabilistic depen- 2012.A feature-richconstituentcontextmodel
+dency grammars from corpora. Department of for grammar induction. In Proceedings of the
+ComputerScience,Univ. 50th Annual Meeting of the Association for
+Computational Linguistics (Volume 2: Short
+Glenn Carroll and Mats Rooth. 1998. Valence
+Papers), pages 17–22, Jeju Island, Korea.
+induction with ahead-lexicalizedPCFG.arXiv
+AssociationforComputationalLinguistics.
+preprintcmp-lg/9805001.
+Nathan David Green and Zdeneˇk Zˇabokrtsky`.
+Eugene Charniak. 1996. Tree-bank grammars. In
+2012. Hybrid combination of constituency and
+Proceedings of the National Conference on
+dependencytreesintoanensembledependency
+ArtificialIntelligence,pages1031–1036.
+parser. In Proceedings of the Workshop
+Eugene Charniak and Mark Johnson. 2005. on Innovative Hybrid Approaches to the
+Coarse-to-fine n-best parsing and maxent dis- Processing of Textual Data, pages 19–26.
+criminative reranking. In Proceedings of the AssociationforComputationalLinguistics.
+43rd Annual Meeting on Association for
+David Hall, Taylor Berg-Kirkpatrick, and Dan
+Computational Linguistics, pages 173–180.
+Klein. 2014. Sparser, better, faster GPU pars-
+AssociationforComputationalLinguistics.DOI:
+ing. In Proceedings of the 52nd Annual
+https://doi.org/10.3115/1219840
+Meeting of the Association for Computa-
+.1219862
+tional Linguistics (Volume 1: Long Papers),
+Noam Chomsky. 1956. Three models for the pages 208–217, Baltimore, Maryland. Asso-
+description of language. IRE Transactions on ciation for Computational Linguistics. DOI:
+InformationTheory,2(3):113–124.IEEE.DOI: https://doi.org/10.3115/v1/P14
+https://doi.org/10.1109/TIT.1956 -1020
+.1056813
+Wenjuan Han, Yong Jiang, and Kewei Tu.
+Alexander Clark. 2001. Unsupervised induction 2019. Enhancing unsupervised generative
+of stochastic context-free grammars using dis- dependencyparserwithcontextualinformation.
+tributional clustering. In Proceedings of the In Proceedings of the 57th Annual Meeting of
+2001 Workshop on Computational Natural the Association for Computational Linguistics,
+Language Learning-Volume 7, page 13. Asso- pages5315–5325.
+ciation for Computational Linguistics. DOI:
+Junxian He, Graham Neubig, and Taylor
+https://doi.org/10.3115/1117822
+Berg-Kirkpatrick.2018.Unsupervisedlearning
+.1117831
+ofsyntacticstructurewithinvertibleneuralpro-
+Michael Collins. 2003. Head-driven statistical jections.arXivpreprintarXiv:1808.09111.
+models for natural language parsing. Com-
+putational Linguistics, 29(4):589–637. DOI: Kaiming He,XiangyuZhang,ShaoqingRen,and
+https://doi.org/10.1162/0891201 Jian Sun. 2016. Deep residual learning for
+03322753356 imagerecognition.InProceedingsofthe IEEE
+Conference on Computer Vision and Pattern
+Marie-CatherineDeMarneffeandChristopherD. Recognition,pages770–778.
+Manning. 2008. Stanford typed dependencies
+manual, Technical report, Stanford Univer- Sepp Hochreiter and Ju¨rgen Schmidhuber. 1997.
+sity. DOI: https://doi.org/10.3115 Longshort-termmemory.NeuralComputation,
+/1608858.1608859 9(8):1735–1780. DOI: https://doi.org
+/10.1162/neco.1997.9.8.1735,PMID:
+Xavier Glorot and Yoshua Bengio. 2010.
+9377276
+Understanding the difficulty of training deep
+feedforward neural networks. In Proceedings Julia Hockenmaier and Mark Steedman. 2002.
+of the Thirteenth International Conference Generative models for statistical parsing with
+on Artificial Intelligence and Statistics, combinatory categorial grammar. In Proceed-
+pages249–256. ingsof40thAnnualMeetingoftheAssociation
+659
+Downloaded
+from
+http://direct.mit.edu/tacl/article-pdf/doi/10.1162/tacl_a_00337/1923563/tacl_a_00337.pdf
+by
+Carnegie
+Mellon
+University
+user
+on
+22
+February
+2024
+forComputationalLinguistics,pages335–342. Association for Computational Linguistics,
+Philadelphia, Pennsylvania, USA. DOI: page 478. Association for Computational Lin-
+https://doi.org/10.3115/1073083 guistics. DOI: https://doi.org/10.3115
+.1073139 /1218955.1219016
+Yong Jiang, Wenjuan Han, and Kewei Tu. 2016. Peter C.R. Lane and James B. Henderson.
+Unsupervised neural dependency parsing. In 2001. Incremental syntactic parsing of natural
+Proceedingsofthe2016ConferenceonEmpir- language corpora with simple synchrony
+icalMethodsinNaturalLanguageProcessing, networks. IEEE Transactions on Knowledge
+pages763–771.AssociationforComputational and Data Engineering, 13(2):219–231. DOI:
+Linguistics. DOI: https://doi.org/10 https://doi.org/10.1109/69.917562
+.18653/v1/D16-1073
+KarimLariandSteveJ.Young.1990.Theestima-
+Lifeng Jin, Finale Doshi-Velez, Timothy Miller, tion of stochastic context-free grammars using
+William Schuler, and Lane Schwartz. 2018. theinside-outsidealgorithm.ComputerSpeech
+Unsupervised grammar induction with depth- & Language, 4(1):35–56. DOI: https://
+bounded PCFG. Transactions of the Associa- doi.org/10.1016/0885-2308(90)
+tionforComputationalLinguistics,6:211–224. 90022-X
+DOI: https://doi.org/10.1162/tacl
+a 00016 Laurens van der Maaten and Geoffrey Hinton.
+2008.Visualizingdatausingt-SNE.Journalof
+Lifeng Jin, Finale Doshi-Velez, Timothy Miller, MachineLearningResearch,9(Nov):2579–2605.
+LaneSchwartz,andWilliamSchuler.2019.Un-
+supervisedlearningofPCFGSwithnormalizing JamesMacQueen.1967.Somemethodsforclassi-
+flow. In Proceedingsofthe 57th AnnualMeet- fication and analysis of multivariate observa-
+ing of the Association for Computational Lin- tions. In Proceedings of the Fifth Berkeley
+guistics,pages2442–2452. Symposium on Mathematical Statistics and
+Probability,volume1,pages281–297.Oakland,
+Yoon Kim, Chris Dyer, and Alexander M. Rush. CA,USA.
+2019. Compound probabilistic context-free
+grammars for grammar induction. In Pro- Mitchell Marcus, Beatrice Santorini, and Mary
+ceedings of the 57th Annual Meeting of the AnnMarcinkiewicz.1993.Buildingalargean-
+Association for Computational Linguistics, notatedcorpusofEnglish:ThePennTreebank.
+pages 2369–2385. DOI: https://doi Computational Linguistics, 19(2):313–330.
+.org/10.18653/v1/P19-1228, PMID: DOI: https://doi.org/10.21236/
+31697821,PMCID:PMC6539514 ADA273556
+Diederik P. Kingma and Max Welling. 2014. David Marecˇek and Milan Straka. 2013. Stop-
+Auto-encoding variational bayes. In Pro- probability estimates computed on a large
+ceedingsofICLR. corpus improve unsupervised dependency
+parsing. In Proceedings of the 51st Annual
+Dan Klein and Christopher D. Manning. 2002. Meeting of the Association for Computational
+A generative constituent-context model for Linguistics (Volume 1: Long Papers),
+improved grammar induction. In Proceedings
+pages 281–290, Sofia, Bulgaria. Association
+of the 40th Annual Meeting on Association
+forComputationalLinguistics.
+forComputationalLinguistics,pages128–135.
+Association for Computational Linguistics. DOI: Mark A. Paskin. 2002. Grammatical bigrams. In
+https://doi.org/10.3115/1073083 Advances in Neural Information Processing
+.1073106 Systems,pages91–97.
+Dan Klein and Christopher D. Manning. 2004. Jeffrey Pennington, Richard Socher, and
+Corpus-based induction of syntactic structure: ChristopherD. Manning. 2014. GloVe: Global
+Models of dependency and constituency. In vectorsforwordrepresentation.InProceedings
+Proceedings of the 42nd Annual Meeting on of the 2014 Conference on Empirical Methods
+660
+Downloaded
+from
+http://direct.mit.edu/tacl/article-pdf/doi/10.1162/tacl_a_00337/1923563/tacl_a_00337.pdf
+by
+Carnegie
+Mellon
+University
+user
+on
+22
+February
+2024
+in Natural Language Processing (EMNLP), Annual Meeting of the Association of Com-
+pages1532–1543.DOI:https://doi.org putationalLinguistics,pages384–391.
+/10.3115/v1/D14-1162
+Noah Smith. 2006. Novel estimation methods
+Elias Ponvert, Jason Baldridge, and Katrin Erk. for unsupervised discovery of latent structure
+2011.Simple unsupervisedgrammar induction in natural language text. Ph.D. thesis, Johns
+from raw text with cascaded finite state HopkinsUniversity.
+models. In Proceedings of the 49th Annual
+Valentin I. Spitkovsky, Hiyan Alshawi,
+Meeting of the Association for Computational
+Angel X. Chang, and Daniel Jurafsky. 2011.
+Linguistics: Human Language Technologies,
+Unsuperviseddependencyparsingwithoutgold
+pages 1077–1086, Portland, Oregon, USA.
+part-of-speechtags.InProceedingsofthe2011
+AssociationforComputationalLinguistics.
+Conference on Empirical Methods in Natural
+Detlef Prescher. 2005. Head-driven PCFGs with Language Processing, pages 1281–1290,
+latent-head statistics. In Proceedings of the Edinburgh, Scotland, UK. Association for
+NinthInternationalWorkshoponParsingTech- ComputationalLinguistics.
+nology, pages 115–124, Vancouver, British
+Valentin I. Spitkovsky, Hiyan Alshawi, and
+Columbia. Association for Computational
+Daniel Jurafsky. 2010. From baby steps to
+Linguistics.
+leapfrog:How ‘‘less is more’’ in unsupervised
+Geoffrey K. Pullum and Gerald Gazdar. 1982. dependency parsing. In Human Language
+Natural languages and context-free languages. Technologies:The 2010 Annual Conferenceof
+Linguistics and Philosophy, 4(4):471–504. theNorthAmericanChapteroftheAssociation
+DOI: https://doi.org/10.1007 forComputationalLinguistics,pages751–759.
+/BF00360802 LosAngeles,California.
+Xiaona Ren, Xiao Chen, and Chunyu Kit. 2013. Valentin I. Spitkovsky, Hiyan Alshawi, and
+Combine constituent and dependency parsing Daniel Jurafsky. 2013. Breaking out of local
+via reranking. In Twenty-Third International optima with count transforms and model
+JointConferenceonArtificialIntelligence. recombination: A study in grammar induction.
+In Empirical Methods in Natural Language
+HerbertRobbinsandothers.1951.Asymptotically
+Processing. Association for Computational
+subminimax solutions of compound statistical
+Linguistics.
+decision problems. In Proceedings of the
+Second Berkeley Symposium on Mathematical Ke Tran and Yonatan Bisk. 2018. Inducing
+Statistics and Probability. The Regents of the grammars with and for neural machine
+UniversityofCalifornia. translation.InProceedingsofthe2ndWorkshop
+on Neural Machine Translation. Melbourne,
+IvanA. Sagand CarlPollard. 1987.Information-
+Australia.
+based syntax and semantics. CSLI Lecture
+Notes,13.
+Masashi Yoshikawa, Hiroshi Noji, and Yuji
+Matsumoto. 2017. A* CCG parsing with a
+Yves Schabes, Anne Abeille, and Aravind K.
+supertag and dependency factored model. In
+Joshi. 1988. Parsing strategies with ’lexical-
+Proceedings of the 55th Annual Meeting of
+ized’ grammars: application to tree adjoining
+the Association for Computational Linguistics
+grammars. In Proceedings of the 12th Confer-
+(Volume1:LongPapers),pages277–287,Van-
+ence on Computational Linguistics-Volume 2,
+couver,Canada.AssociationforComputational
+pages 78–583. Association for Computational
+Linguistics.
+Linguistics. DOI: https://doi.org/10
+.3115/991719.991757
+Deniz Yuret. 1998. Discovery of linguistic re-
+Yoav Seginer. 2007. Fast unsupervised incre- lations using lexical attraction. arXiv preprint
+mental parsing. In Proceedings of the 45th cmp-lg/9805009.
+661
+Downloaded
+from
+http://direct.mit.edu/tacl/article-pdf/doi/10.1162/tacl_a_00337/1923563/tacl_a_00337.pdf
+by
+Carnegie
+Mellon
+University
+user
+on
+22
+February
+2024

@@ -1,0 +1,325 @@
+SEQUENCE-BASEDMULTI-LINGUALLOWRESOURCESPEECHRECOGNITION
+SiddharthDalmia,RamonSanabria,FlorianMetzeandAlanW.Black
+LanguageTechnologiesInstitute,CarnegieMellonUniversity;Pittsburgh,PA;U.S.A.
+{sdalmia|ramons|fmetze|awb}@cs.cmu.edu
+ABSTRACT aretypicallyfewerhyper-parameterstotune.Weshowthatsequence
+traininginmulti-lingualsettingscancreatefeatureextractors,which
+Techniques for multi-lingual and cross-lingual speech recognition
+candirectlybeportedtonewlanguagesusingalineartransformation
+canhelpinlowresourcescenarios,tobootstrapsystemsandenable
+(onverylimiteddata),orre-trainedonmoredata,openingadoorto
+analysisofnewlanguagesanddomains. End-to-endapproaches,in
+end-to-endlanguageuniversalspeechrecognition.
+particularsequence-basedtechniques,areattractivebecauseoftheir
+simplicityandelegance. Whileitispossibletointegratetraditional
+multi-lingual bottleneck feature extractors as front-ends, we show 2. RELATEDWORKANDBABELDATASET
+thatend-to-endmulti-lingualtrainingofsequencemodelsiseffective
+oncontextindependentmodelstrainedusingConnectionistTempo- Some of the early works in multi-lingual and cross-lingual speech
+ral Classification (CTC) loss. We show that our model improves recognitioninvolvedtheuseoflanguageindependentfeatureslike
+performance on Babel languages by over 6% absolute in terms of articulatoryfeatures[8]totrainHMMbasedsystems.Authorsin[9]
+word/phonemeerrorratewhencomparedtomono-lingualsystems usedsubspaceGaussianmixturemodeltomapphonemesofdiffer-
+builtinthesamesettingfortheselanguages. Wealsoshowthatthe entlanguagestogether.Authorsin[10]introducetheuseofashared
+trainedmodelcanbeadaptedcross-linguallytoanunseenlanguage phonesettobuildHMMbasedlanguageindependentacousticmod-
+usingjust25%ofthetargetdata.Weshowthattrainingonmultiple els and show the adaptation of pre-existing models towards a new
+languagesisimportantforverylowresourcecross-lingualtargetsce- language.
+narios, butnotformulti-lingualtestingscenarios. Here, itappears Withtheon-setofdeeplearningthefocusofthemodelsshiftedto
+beneficialtoincludelargewellprepareddatasets. learningfeaturesacrosslanguageswhichcanbemappedtothesame
+space[3,11].Authorsin[12]lookedatunsupervisedpretrainingon
+IndexTerms— multi-lingualspeechrecognition,cross-lingual
+differentlanguagesforacrosslingualrecognition.Thedominantar-
+adaptation,connectionisttemporalclassification,featurerepresenta-
+chitectureformulti-lingualorcross-lingualspeechrecognitionhas
+tionlearning
+1. INTRODUCTION
+State-of-the-artspeechrecognitionsystemswithhuman-likeperfor-
+mance [1, 2] are trained on hundreds of hours of well-annotated
+speech. Sinceannotationisanexpensiveandtime-consumingtask,
+similar performance is typically unattainable on low resource lan-
+guages. Multi-lingualorcross-lingualtechniquesallowtransferof
+modelsorfeaturesfromwell-trainedscenariostothosewherelarge
+amountsoftrainingdatamaynotbeavailable,cannotbetranscribed,
+orareotherwisehardtocomeby[3,4].
+The standard approach is to train a context dependent Hidden
+MarkovModelbasedDeepNeuralNetworkacousticmodelwitha
+“bottleneck” layer using a frame based criterion on a large multi-
+lingualcorpus[5,6,7]. Thenetworkuptothebottlenecklayercan
+beusedasalanguage-independentfeatureextractorwhileadapting
+toanewlanguage. Generatingsuchamodelrequirestheprepara-
+tionofframelevelsegmentationineachlanguage,whichisusually
+achieved by training separate mono-lingual systems first. This is
+acumbersomemulti-stepprocess. Moreover,ifthespeakingstyle,
+acoustic quality, or linguistic properties of the recordings are very
+differentacrossasetoflanguages,thesegmentationsmaybeincon-
+sistentacrosslanguagesandthussub-optimalforgeneratingfeatures
+inanewlanguage.
+On the other hand, end-to-end training approaches which di-
+rectly model context independent phones are elegant, and greatly
+facilitate speech recognition training. Most do not require an ex- Fig. 1. Multi-lingual CTC model following the “shared hidden
+plicit alignment of transcriptions with the training data, and there layer”approachforLSTMlayers.
+ToappearinProc.ICASSP2018,April15-20,2018,Calgary,Canada (cid:13)c IEEE2018
+8102
+raM
+6
+]LC.sc[
+2v02470.2081:viXra
+been the so-called “shared hidden layer” model, in which data is turesX=(x ,...,x )withthelabelsequencez=(z ,...,z ),
+1 n 1 u
+passedthroughaseriesofsharedfeed-forwardlayers,beforebeing themodeltriestomaximizethelikelihoodofallpossibleCTCpaths
+separatedintomultiplelanguage-specificsoftmaxlayers,whichare p = (p ,...,p )whichleadtothecorrectlabelsequencezafter
+1 n
+trainedusingcross-entropy[13,5,14].Thisarchitecturecanalsobe reduction. AreducedCTCpathisobtainedbygroupingthedupli-
+usedasa“bottleneck”featureextractor, fromwhich“languagein- catesandremovingthe∅(e.g.B(AA∅AABBC)=AABC).
+dependent”featuresareextracted,ontopofwhichatarget-language
+(cid:88)
+acousticmodelcanbebuilt.Authorsin[15]showedthatthesemulti- P(z|X)= P(p|X)
+lingualmodelscanbeadaptedtothespecificlanguagetoimprove p∈CTCPath(z)
+performancefurther. Theworkby[5,16]presentedbottleneckfea-
+Likein[20]weusethislossalongwithstackedBidirectionalLSTM
+tures for multi-lingual systems where they showed feature porting
+layerstoencodetheacousticinformationandmakeframe-wisepre-
+ispossibleandgavecompetitiveresultswhencomparedtosystems
+dictions.
+withmono-lingualfeatures. Otherapproaches[17,18]constructed
+InourCTCmulti-lingualmodel, wesharethebidirectionalLSTM
+asharedlanguageindependentphoneset,whichcouldthenalsobe
+encodinglayertillthefinallayerandprojectthelearnedembedding
+adaptedtothetargetlanguage. Ourproposedmodelisinspiredby
+layertothephonesoftherespectivetargetlanguages. Theintuition
+theformerapproachwhichtriestolearnlatentfeaturesbysharing
+behind this model is that training on more than one language will
+hiddenlayersacrosslanguages.
+helpinbetterregularizationofweightsandlearningabetterrepre-
+Connectionist Temporal Classification (CTC, [19]) lends itself
+sentationoffeatures,asitwillbetrainedonmoredata.Wehypothe-
+tolow-resourcemulti-lingualexperiments,becausesystemsbuilton
+sizethatthefinalphonemediscriminationcanbelearnedinalinear
+CTC tend to be significantly easier to train than those that have
+projectionofthelastlayer.Figure1showstheschematicdiagramof
+beentrainedusinghiddenMarkovmodels[20,21].[22]showsthat
+ourmulti-lingualmodel.Mathematicallythiscanbewrittenas,
+multi-lingualCTCsystemswithsharedphonescanimproveperfor-
+manceinalimiteddatasetting. Asperourknowledgetherehasnot X={X ∪X ∪X ...X } X =(x1 ,...,xn )
+beenanypriorworkthathavelookedintolearning“bottleneck”like L1 L2 L3 Ln Li Li Li
+features for a CTC based model and seen how it performs multi- e=Encoder BiLSTM(X) e∈Rn×2∗hdim
+linguallyandcross-linguallywithadaptation.
+For this paper we use several languages from IARPA’s Babel1 
+softmax(W e+b ) ifX∈X
+p vero rsje ac tit ot no alte ss pt eo eu cr hm do ad tael i. nT ahe ls oe war re esm ouo rs ct ely lt ae nl gep uh ago en .y( T8 hk eH sz e) wco en re- P(p|X)=softmax(WL L1 2e+bL L1
+2)
+ifX∈XL L1
+2
+a sec sc so mm ep na tn Mied ethb oy da sPle hx oic no en tican Ad lpd hi ac bti eo tn (a Xry -Si An MEx PAte )nd foed rmS ap t.ee Tc ah blA es 1- . s. o.
+ftmax(W e+b ) ifX∈X
+Ln Ln Ln
+summarizestheamountoftrainingdatainhoursalongwiththenum-
+berofphonemes(includingtheCTCblanksymbol)presentforthe Unlike[5],wedonothaveanybottlenecklayer,andthewhole
+languagesweusedinourexperimentsonthe“FullLanguagePack” model is sequence trained based on CTC loss. Note that here we
+(FLP)condition. recognizeasequenceofphonemeswhichisamuchharderproblem.
+TraditionalHMM/DNNsystemsperformframe-wiserecognitionof
+individualphonemes,usuallyrelyingonalignmentsthathavebeen
+Table1.OverviewoftheFLPBabelCorporausedinthiswork. generatedbymono-lingualmodels. Thiscanbeconsideredamuch
+Subset Language #Phones+∅ TrainingData simplertaskthantherecognitionofaphonesequence.
+Turkish 50 79hrs
+MLing Haitian 40 67hrs
+4. EXPERIMENTSANDOBSERVATIONS
+Kazakh 70 39hrs
+Mongolian 61 46hrs
+4.1. Multi-lingualCTCmodel
+Amharic 67 43hrs
+Bab300 Tamil 41 69hrs Toalignwithprojectgoals,wechosetoperformexperimentsona
+Tagalog 48 85hrs setoffourlanguageswhicharetheclosest/havemaximumphone
+Pashto 54 78hrs overlapwithKurmanji–Kazakh,Turkish,MongolianandHaitian.
+For Kurmanji 45 42hrs We used a 6-layer bidirectional LSTM network with 360 cells in
+testing Swahili 40 44hrs eachdirection, whichperformedbestonaverageacrossthemajor-
+ityofBabellanguagesinasystematicsearchexperiment. Table2
+showstheresults. Forconsistency,weusedabsolutelyidenticalset-
+tingsacrossalllanguages,anddidnotperformanylanguage-specific
+3. MULTI-LINGUALCTCMODEL
+tuning,otherthanchoosingthelowestperplexitylanguagemodelbe-
+tween3-gramand4-grammodelsforWFST-baseddecoding. Tech-
+A model trained with CTC loss is a sequence based model which
+niquessuchasblankscalingandapplyingasoftmaxtemperaturecan
+automatically learns alignment between input and output by intro-
+oftenimproveresultssignificantly,butwedidnotapplyanyofthem
+ducinganadditionallabelcalledtheblanksymbol(∅),whichcorre-
+hereforconsistency.
+spondsto‘nooutput’prediction. Givenasequenceofacousticfea-
+In our multi-lingual experiments, we use the same 6-layer Bi-
+1This work used releases IARPA-babel105b-v0.4, IARPA-babel201b- LSTM network with 360 cells (per direction) in each layer as our
+v0.2b,IARPA-babel401b-v2.0b,IARPA-babel302b-v1.0a(these4languages shared encoded representation2. Again, this setup performed best
+will be called the “MLing” set), and IARPA-babel106b-v0.2g, IARPA- on average on a larger set of languages. Multi-lingual training on
+babel307b-v1.0b, IARPA-babel204b-v1.1b, IARPA-babel104b-v0.4bY
+(these4languageswillbecalledthe“BAB300”set),andIARPA-babel202b- 2The code to train the multi-lingual model will be released as part of
+v1.0dandIARPA-babel205b-v1.0fortesting. EESEN[20].
+2
+Table2.Word(%WER)andphonemeerrorrate(%PER)foreachofthetestlanguages,ontheBabelconversationaldevelopmenttestsets.
+Model Kazakh Turkish Haitian Mongolian
+WER PER WER PER WER PER WER PER
+Mono-lingual 55.9 40.9 53.1 36.2 49.0 36.9 58.2 45.2
+Multi-lingual(MLing) 53.2 36.5 52.8 34.4 47.8 34.9 55.9 41.1
+MLing&FineTuning(FT) 50.6 35.1 49.0 32.2 46.6 33.2 53.4 39.6
+MLing+SWBD 52.3 36.6 51.3 33.0 45.8 33.9 54.5 40.2
+MLing+SWBD&FT 48.2 33.5 48.7 31.9 44.3 31.9 51.5 37.8
+the “MLing” set (the four languages shown in Table 2) improves (or“layers”inthemulti-lingualcase)ofa“donor”CTCmodelwith
+WERby1.7%(absolute)onaverage,whilekeepingtheLSTMlay- asinglesoftmax,whichwethentrainwithvaryingamountsofdata
+erssharedacrossalllanguages. Ifwefine-tunetheentiremodelto- from the target language, Kurmanji in our case. Figure 2 shows
+wardseachlanguagespecifically,performanceimprovesfurther,by howdifferent“donor”modelsbehaveinthissituation. Inthecross-
+4.4%onaverageoverthebaseline.Ifweroughlydoubletheamount lingual case, it becomes beneficial to train the LSTM layers with
+oftrainingdatabyaddingtheSwitchboard300htrainingsettothe asmanydifferentlanguagesaspossible(“MLing+BAB300”outper-
+“MLing”trainingdata,performanceimprovesyetagain,forboththe forms “MLing+SWBD” and “MLing”), while a single related lan-
+universal (MLing+SBWD) and language-specific (MLing+SWBD guage(Turkish)outperformsadaptationonalargeramountofdata
+& FT) case. Overall, WER and PER improve by about 6% abso- fromanunrelatedlanguage(SWBD).Thereisalargegapbetween
+lute(>10%relative),whichisinlinewithotherresultsreportedon mono-lingualsystemsandmulti-lingualsystems.Improvementsbe-
+comparabletasksdiscussedinsection2. come smaller once training is performed on 4h (10%) of data or
+Asexpected,reductionsintheerrorratestendtobehigherfor more, but even then the re-estimation of the softmax layer (with
+thelowerresourcelanguages,likeKazakhandMongolian. ca.32kparameters)benefitsfrommoredata.
+4.2. DataSelection
+Giventhataddingaseeminglyunrelated,buthighresourcelanguage
+improved the performance of the model on four low resource lan-
+guages,wefurtherstudiedtheimpactofvaryingthesource(s)ofthe
+extradata. Specifically,wereplacedthe300hSwitchboardcorpus
+withfourmoreunrelatedBabellanguages,“BAB300”composedof
+Tamil, Amharic, Pashto, and Tagalog. The results on the test data
+are summarized in Table 3. We can see that adding Switchboard
+dataoutperformsaddingmoreunrelatedBabellanguages.
+Table 3. Word error rate (% WER) on the test languages when
+switchingtheSWBDdatawith300hrsequivalentofBabel.
+Model Kazakh Turkish Haitian Mongolian
+MLing+BAB300 57.5 52.0 47.8 56.7
+MLing+SWBD 52.3 51.3 45.8 54.5
+Whileourmaingoalherehasbeenthecreationofamulti-lingual
+Fig.2. Cross-lingualtrainingofCTCsoftmaxlayeronlyontopof
+recognizer,weverifiedthatmodelsthathavebeentrainedonasin-
+different“donor”models.
+gle Babel language plus 300h of Switchboard do not outperform
+the fine-tuned MLing+SWBD system, while there is no clear pat-
+It thus seems that multi-lingual systems do indeed learn a
+ternonotherlanguages. Thisindicatesthatitisgenerallybeneficial
+portable,languageindependentrepresentation,whichisusefulwhen
+to train (sequence-based) multi-lingual systems on closely related
+porting to a new language, while the sheer amount of data is less
+languages, and/oronlargeamountsofwell-preparedbutunrelated
+beneficial.
+mono-lingualdata,butthataddingalargenumberoflanguagesmay
+infactpreventthemodelfromtrainingwell.
+4.4. Cross-lingualExplorations
+4.3. RepresentationLearning
+Figure4showsthatforbothrelatedandunrelatedlanguages,amulti-
+In order to study to what extent the CTC sequence models have lingualsystemsurpassesthemono-lingualbaselineonceabout25%
+learnedusefulbottlenecklikediscriminatoryaudiofeaturesthatare oftheoriginaldatahasbeenseen. Thebehaviorofretraining(“full
+independent of the input language, we attempt to port a model to networkadaptation”)seemsindependentoftheoriginaltrainedlan-
+anunseenlanguage.Weaimtousethetrainedmodelasalanguage- guages.
+independentfeatureextractorthatcanlinearlyseparateanylanguage Tofurtherinvestigatehowmulti-lingualmodelscanbeusedin
+intoaphonemesequence. Todothis,wereplacethesoftmaxlayer cross-lingualsettings,andwithvaryingamountsoftrainingdata,we
+3
+(a)AdaptationofsoftmaxlayeronlyforKurmanjiandSwahili (b)Adaptationofentirenetwork(re-training)totargetlanguages.
+targets.Kurmanjiperformswell,becausethelanguageissimilarto Thisoutperformssoftmaxadaptation(ontheleft)assoonas2-4hofdata
+sometraininglanguages. becomeavailable.
+Fig.3.Cross-lingualtrainingofKurmanjiandSwahilisystems.
+compare“softmax”adaptationandfullnetworkadaptation(retrain- ratherthanframe-levelstatelabels. Unlikemulti-lingualbottleneck
+ing)onKurmanjiandSwahili,twolanguageswhichwedidnotsee features, these CTC models do not require the generation of state
+intraining. Weusethe(MLing+SWBD)and(MLing+BAB300) alignments,whichfacilitatestheiruse.
+“donor” models. Figure 3 shows that for small amounts of adap- Inmulti-lingualsettings, itseemsbeneficialtotrainonrelated
+tation data, and a target language that is related to the pre-trained languagesonly,oronlargeamountsofcleandata;thereisnoben-
+languages(Kurmanji),“softmaxadaptation”iscompetitive,andan efitsimplyfromtrainingonmanylanguages. Itisthuspossibleto
+initializationwithmanylanguagesisbeneficial. combinee.g.SwitchboardandBabeldata.
+In very low resource cross-lingual scenarios, it is possible to
+adapt a model to a previously unseen language by re-training the
+softmaxlayeronly. CTCmodelscanlearnalanguageindependent
+representationattheinputtothesoftmaxlayer. Wefindthattrain-
+ing the models trained on related languages help, as does training
+onmanylanguages,ratherthanlargeamountsofdata. Asmoreand
+moredataisavailable,andthewholenetworkcanberetrained,and
+the effect of the choice of language for the multi-lingual training
+disappears.
+Asfuturework,weareinvestigatingondecodingtheCTCout-
+putusingaphonemebasedneurallanguagemodelstrainedonnon-
+paralleltext,therebyfacilitatingustodozero-resourcespeechrecog-
+nition.
+6. ACKNOWLEDGEMENTS
+This project was sponsored by the Defense Advanced Research
+Projects Agency (DARPA) Information Innovation Office (I2O),
+program:LowResourceLanguagesforEmergentIncidents
+Fig.4. PERondifferentamountsofcross-lingualdatausingafull (LORELEI), issued by DARPA/I2O under Contract No. HR0011-
+networkend-to-endadaptation(retraining). 15-C-0114.
+WegratefullyacknowledgethesupportofNVIDIACorporation
+Whentheentirenetworkcanberetrained(“fullnetworkadapta- withthedonationoftheTitanXPascalGPUusedforthisresearch.
+tion”,shownontherightsideofFigure3),thereisverylittlediffer- ThisworkusedtheExtremeScienceandEngineeringDiscoveryEn-
+encebetweenthe“donor”systems’performance. vironment(XSEDE),whichissupportedbyNationalScienceFoun-
+dationgrantnumberOCI-1053575.Specifically,itusedtheBridges
+5. CONCLUSION system,whichissupportedbyNSFawardnumberACI-1445606,at
+thePittsburghSupercomputingCenter(PSC).
+Inthispaper,wedemonstratethatitispossibletotrainmulti-lingual WearegratefultoAnantSubramanianandSoumyaWadhwafor
+and cross-lingual acoustic models directly on phone sequences, theirfeedbackonthepresentationofthispaper.
+4
+7. REFERENCES [14] G.Heigold,V.Vanhoucke,A.Senior,P.Nguyen,M.Ranzato,
+M.Devin, andJ.Dean, “Multilingualacousticmodelsusing
+[1] G. Saon, G. Kurata, T. Sercu, K. Audhkhasi, S. Thomas, distributed deep neural networks,” in Acoustics, Speech and
+D. Dimitriadis, X. Cui, B. Ramabhadran, M. Picheny, L.- SignalProcessing(ICASSP),2013IEEEInternationalConfer-
+L. Lim, et al., “English conversational telephone speech enceon.IEEE,2013,pp.8619–8623.
+recognition by humans and machines,” arXiv preprint
+[15] F.Gre´zl,M.Karafia´t,andK.Vesely, “Adaptationofmultilin-
+arXiv:1703.02136,2017.
+gualstackedbottle-neckneuralnetworkstructurefornewlan-
+[2] W. Xiong, J. Droppo, X. Huang, F. Seide, M. Seltzer, guage,”inAcoustics,SpeechandSignalProcessing(ICASSP),
+A. Stolcke, D. Yu, and G. Zweig, “Achieving human par- 2014 IEEE International Conference on. IEEE, 2014, pp.
+ity in conversational speech recognition,” arXiv preprint 7654–7658.
+arXiv:1610.05256,2016.
+[16] F. Gre´zl, M. Karafiat, and M. Janda, “Study of probabilistic
+[3] A. Stolcke, F. Grezl, M.-Y. Hwang, X. Lei, N. Morgan, and andbottle-neckfeaturesinmultilingualenvironment,” inAu-
+D.Vergyri, “Cross-domainandcross-languageportabilityof tomaticSpeechRecognitionandUnderstanding(ASRU),2011
+acoustic features estimated by multilayer perceptrons,” in IEEEWorkshopon.IEEE,2011,pp.359–364.
+Acoustics,SpeechandSignalProcessing,2006.ICASSP2006
+[17] S.Tong,P.N.Garner,andH.Bourlard, “AnInvestigationof
+Proceedings. 2006 IEEE International Conference on. IEEE,
+Deep Neural Networks for Multilingual Speech Recognition
+2006,vol.1,pp.I–I.
+TrainingandAdaptation,” inProc.ofInterspeech,2017,num-
+[4] F.Gre´zl,E.Egorova,andM.Karafia´t, “Studyoflargedatare- berEPFL-CONF-229214.
+sourcesformultilingualtrainingandsystemporting,”Procedia
+[18] N. T. Vu, D. Imseng, D. Povey, P. Motlicek, T. Schultz, and
+ComputerScience,vol.81,pp.15–22,2016.
+H.Bourlard, “Multilingualdeepneuralnetworkbasedacous-
+[5] K. Vesely`, M. Karafia´t, F. Gre´zl, M. Janda, and E. Egorova, tic modeling for rapid language adaptation,” in Acoustics,
+“The language-independent bottleneck features,” in Spoken SpeechandSignalProcessing(ICASSP),2014IEEEInterna-
+Language Technology Workshop (SLT), 2012 IEEE. IEEE, tionalConferenceon.IEEE,2014,pp.7639–7643.
+2012,pp.336–341.
+[19] A. Graves, S. Ferna´ndez, F. Gomez, and J. Schmidhuber,
+[6] K.Knill,M.J.Gales,S.P.Rath,P.C.Woodland,C.Zhang,and “Connectionisttemporalclassification: labellingunsegmented
+S.-X. Zhang, “Investigation of multilingual deep neural net- sequence data with recurrent neural networks,” in Proceed-
+worksforspokentermdetection,”inAutomaticSpeechRecog- ingsofthe23rdinternationalconferenceonMachinelearning.
+nition and Understanding (ASRU), 2013 IEEE Workshop on. ACM,2006,pp.369–376.
+IEEE,2013,pp.138–143.
+[20] Y.Miao,M.Gowayyed,andF.Metze, “EESEN:End-to-end
+[7] N.T.Vu,F.Metze,andT.Schultz, “Multilingualbottle-neck speechrecognitionusingdeepRNNmodelsandWFST-based
+features and its application for under-resourced languages,” decoding,” inAutomaticSpeechRecognitionandUnderstand-
+in Proc. 3rd Workshop on Spoken Language Technologies ing (ASRU), 2015 IEEE Workshop on. IEEE, 2015, pp. 167–
+forUnder-resourcedLanguages, CapeTown; S.Africa, May 174.
+2012,MICA.
+[21] Y.Miao,M.Gowayyed,X.Na,T.Ko,F.Metze,andA.Waibel,
+[8] S. Stuker, F. Metze, T. Schultz, and A. Waibel, “Integrating “AnempiricalexplorationofCTCacousticmodels,”inAcous-
+multilingualarticulatoryfeaturesintospeechrecognition,” in tics, SpeechandSignalProcessing(ICASSP),2016IEEEIn-
+Eighth European Conference on Speech Communication and ternationalConferenceon.IEEE,2016,pp.2623–2627.
+Technology,2003.
+[22] M. Mu¨ller, S. Stu¨ker, and A. Waibel, “Language Adaptive
+[9] L. Burget, P. Schwarz, M. Agarwal, P. Akyazi, K. Feng, Multilingual CTC Speech Recognition,” in Proc. SPECOM,
+A. Ghoshal, O. Glembek, N. Goel, M. Karafia´t, D. Povey, Hatfield,UK,2017.
+etal., “Multilingualacousticmodelingforspeechrecognition
+based on subspace Gaussian mixture models,” in Acoustics
+SpeechandSignalProcessing(ICASSP),2010IEEEInterna-
+tionalConferenceon.IEEE,2010,pp.4334–4337.
+[10] T. Schultz and A. Waibel, “Language-independent and
+language-adaptiveacousticmodelingforspeechrecognition,”
+SpeechCommunication,vol.35,no.1,pp.31–51,2001.
+[11] A. Ghoshal, P. Swietojanski, and S. Renals, “Multilingual
+training of deep neural networks,” in Acoustics, Speech and
+SignalProcessing(ICASSP),2013IEEEInternationalConfer-
+enceon.IEEE,2013,pp.7319–7323.
+[12] P. Swietojanski, A. Ghoshal, and S. Renals, “Unsupervised
+cross-lingualknowledgetransferindnn-basedlvcsr,” inSpo-
+kenLanguageTechnologyWorkshop(SLT),2012IEEE.IEEE,
+2012,pp.246–251.
+[13] S. Scanzio, P. Laface, L. Fissore, R. Gemello, and F. Mana,
+“Ontheuseofamultilingualneuralnetworkfront-end,”ISCA,
+2008.
+5

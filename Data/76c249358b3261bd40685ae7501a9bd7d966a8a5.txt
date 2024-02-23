@@ -1,0 +1,937 @@
+TaxoExpan: Self-supervised Taxonomy Expansion with
+Position-Enhanced Graph Neural Network
+JiamingShen1⋆,ZhihongShen2,ChenyanXiong2,ChiWang2,KuansanWang2,JiaweiHan1
+1UniversityofIllinoisatUrbana-Champaign,IL,USA 2MicrosoftResearch,WA,USA
+1{js2,hanj}@illinois.edu 2{Zhihosh,Chenyan.xiong,Wang.chi,kuansanw}@microsoft.com
+ABSTRACT Existing Computer Science Query Anchor Label
+Taxonomiesconsistofmachine-interpretablesemanticsandpro- Tax Ho an ro dm way re (cid:335) (cid:335)Machi (cid:335)ne Learning sd ue pri ev re vs i ss ioel nf GG PP UU LIn at be eg l r Pat re od p aC gi arc tiu oi nt T F (cid:335)N (cid:335)Ue Dw A (cid:335)Conce Lp eM ats re nt ia ng
+v oi nd le inv ea rl eu ta ab ill ee rk sn (eo .w g.,le Ad mg ae zofo nr am ndan ey Baw ye )b ua sp ep tali xc oa nti oo mns i. esFo for re px ra om dp ul ce t, VLS (cid:335)I D Ge Ps Uig(cid:335) n PI rn oLt C pe
+a
+aig br gcr
+e
+aa u
+l t
+it i ote nd (cid:335) s (cid:335)Lu epS aee rrm nvi ii s n- e gd (cid:335) S Lu (cid:335)ep ae rr nv (cid:335)ii nse gd SS ee mm LL ii -- ee ss aa uu rr pp nn ee ii nn rr gg vv ii ss ee dd Ma Vc Lh Sin Ie
+D
+L ee sa igrn ning FT CQ ou ma (cid:335)pn utu tim n (cid:335)g (cid:335) (cid:335)T(cid:335) PU(cid:335)
+recommendation,andwebsearchengines(e.g.,GoogleandBing) inputs used for learning inputs
+leveragetaxonomiestoenhancequeryunderstanding.Enormous Expanded Computer Science TaxoExpan Framework
+Taxonomy Ego Network of
+effortshavebeenmadeonconstructingtaxonomieseithermanually Anchor Concept
+Hardware
+orsemi-automatically.However,withthefast-growingvolumeof (cid:335) (cid:335) (cid:335) LM ea ac rh ni in nge (cid:335) CQ ou ma pn utu tim ng
+w t do ye ncb a apc mo t iun crt e ee xn e pt m, ane ex r sg ii os int ni gn sg ok fnta aox nwo eln e xo d ism g te ii n.e gTs h tw ae xi rl e ol f nb o oe r mec ,o yim n ae rm eo a iu n nt yd ga ra et pe apd tli da c en a mtd io af nna di sl , . VLSI D (cid:335)e(cid:335) s Gig Pn U(cid:335) I Tn Pt Ce Uig rcra ut ite (cid:335) Pd (cid:335) ro L pa ab ge al t s ioLu (cid:335) nepS aee rrm nv Ui ii s Dn- e g Ad S Lu ep ae rr nv ii ns(cid:335) e gd LeM are nt ia n g outputs Query Concept Matching Modef l
+Inthispaper,westudyhowtoexpandanexistingtaxonomyby Figure 1: An example of expanding one computer science
+addingasetofnewconcepts.Weproposeanovelself-supervised field-of-study taxonomy to include new concepts such as
+framework,namedTaxoExpan,whichautomaticallygeneratesaset “QuantumComputing”,“MetaLearning”,and“TPU”.
+of⟨queryconcept,anchorconcept⟩pairsfromtheexistingtaxon-
+omyastrainingdata.Usingsuchself-supervisiondata,TaxoExpan websearchengines(e.g.,GoogleandBing)leverageataxonomy
+learnsamodeltopredictwhetheraqueryconceptisthedirect tobetterunderstanduserqueriesandimprovethesearchquality.
+hyponymofananchorconcept.Wedeveloptwoinnovativetech- Existingtaxonomiesaremostlyconstructedbyhumanexperts
+niquesinTaxoExpan:(1)aposition-enhancedgraphneuralnet- orinacrowdsourcingmanner.Suchmanualcurationsaretime-
+workthatencodesthelocalstructureofananchorconceptinthe consuming,labor-intensive,andrarelycomplete.Toreducethehu-
+existingtaxonomy,and(2)anoise-robusttrainingobjectivethat manefforts,manyautomatictaxonomyconstructionmethods[31,
+enablesthelearnedmodeltobeinsensitivetothelabelnoiseinthe 41,60]areproposed.Theyfirstidentify“is-A”relations(e.g.,“iPad”
+self-supervisiondata.Extensiveexperimentsonthreelarge-scale isan“Electronics”)usingtextualpatterns[16,38]ordistributional
+datasetsfromdifferentdomainsdemonstrateboththeeffectiveness similarities[3,43],andthenorganizeextractedconceptpairsinto
+andtheefficiencyofTaxoExpanfortaxonomyexpansion. adirectedacyclicgraph(DAG)astheoutputtaxonomy[10,14,24].
+Asthewebcontentsandhumanknowledgeareconstantlygrowing,
+KEYWORDS peopleneedtoexpandanexistingtaxonomytoincludenewemerg-
+TaxonomyExpansion;Self-supervisedLearning ingconcepts.Mostofpreviousmethods,however,constructataxon-
+omyentirelyfromscratchandthuswhenweaddnewconcepts,we
+havetore-runtheentiretaxonomyconstructionprocess.Although
+1 INTRODUCTION
+beingintuitive,thisapproachhasseverallimitations.First,many
+Taxonomieshavebeenfundamentaltoorganizingknowledgefor
+taxonomieshaveatop-leveldesignprovidedbydomainexperts
+centuries[45].Intoday’sWeb,taxonomiesprovidevaluableknowl-
+andsuchdesignshallbepreserved.Second,anewlyconstructed
+edgetosupportmanyapplicationssuchasqueryunderstanding[17],
+taxonomymaynotbeconsistentwiththeoldone,whichcanlead
+contentbrowsing[54],personalizedrecommendation[18,63],and
+toinstabilitiesofitsdependentdownstreamapplications.Finally,
+websearch[29,53].Forexample,manyonlineretailers(e.g.,eBay
+astargetingthescenarioofbuildingtaxonomyfromscratch,most
+andAmazon)organizeproductsintocategoriesofdifferentgranular-
+previousmethodsareunsupervisedandcannotleveragesignals
+ities,sothatcustomerscaneasilysearchandnavigatethiscategory
+fromtheexistingtaxonomytoconstructanewone.
+taxonomy to find the items they want to purchase. In addition,
+Inthispaper,westudythetaxonomyexpansiontask:givenan
+existingtaxonomyandasetofnewemergingconcepts,weaim
+∗ThisworkisdonewhileinterningatMicrosoftResearch.
+toautomaticallyexpandthetaxonomytoincorporatethesenew
+concepts(withoutchangingtheexistingrelationsinthegiventaxon-
+Permissiontomakedigitalorhardcopiesofpartorallofthisworkforpersonalor
+classroomuseisgrantedwithoutfeeprovidedthatcopiesarenotmadeordistributed
+omy).1Figure1showsanexamplewhereataxonomyincomputer
+forprofitorcommercialadvantageandthatcopiesbearthisnoticeandthefullcitation sciencedomainisexpandedtoincludenewsubfields(e.g.,“Quantum
+onthefirstpage.Copyrightsforthird-partycomponentsofthisworkmustbehonored.
+Forallotheruses,contacttheowner/author(s).
+Computing”)andnewtechniques(e.g.,“MetaLearning”and“UDA”).
+WWW’20,April20–24,2020,Taipei,Taiwan
+©2020Copyrightheldbytheowner/author(s). 1Werecognizethatthemodificationofanexistingtaxonomyisnecessaryinsomecases.However,
+ACMISBN978-1-4503-7023-3/20/04. ithappensmuchlessfrequentlyandrequireshighcautiousnessfromhumancurator.Therefore,we
+https://doi.org/10.1145/3366423.3380132 leaveitoutofthescopeofautomation.
+0202
+naJ
+62
+]LC.sc[
+1v22590.1002:viXra
+Somepreviousstudies[21,22,39]attemptthistaskbyusingan andtheefficiencyofTaxoExpanframeworkonthreereal-world
+additionalsetoflabeledconceptswiththeirtrueinsertionpositions large-scaletaxonomiesfromdifferentdomains.
+intheexistingtaxonomy.However,suchlabeleddataareusually
+The rest of the paper is organized as follows. Section 2 dis-
+smallandthusforbidusfromlearningamorepowerfulmodelthat
+cussestherelatedwork.Section3formalizesourproblem.Then,
+capturesthesubsumptionsemanticsintheexistingtaxonomy.
+wepresentourTaxoExpanframeworkinSection4andconductex-
+WeproposeanovelframeworknamedTaxoExpantotacklethe
+perimentsinSection5.Finally,weconcludethispaperinSection6.
+lack-of-supervisionchallenge.TaxoExpanformulatesataxonomy
+asadirectedacyclicgraph(DAG),automaticallygeneratespseudo-
+2 RELATEDWORK
+trainingdatafromtheexistingtaxonomy,andusesthemtolearn
+Wereviewtwolinesofrelatedwork:taxonomyconstructionand
+amatchingmodelforexpandingagiventaxonomy.Specifically,
+graphneuralnetwork.
+wevieweachconceptintheexistingtaxonomyasaqueryandone
+ofitsparentconceptsasananchor.Thisgivesusasetofpositive TaxonomyConstructionandExpansion.Automatictaxonomy
+⟨queryconcept,anchorconcept⟩pairs.Then,wegeneratenegative constructionisalong-standingtaskintheliterature.Mostexisting
+pairsbysamplingthoseconceptsthatareneitherthedescendants approachesfocusonbuildingtheentiretaxonomybyfirstextract-
+northedirectparentsofthequeryconceptintheexistingtaxonomy. inghypernym-hyponympairsandthenorganizingallhypernymy
+In Figure 1, for example, the ⟨“GPU”, “Integrated Circuit”⟩ is a relationsintoatreeorDAGstructure.Forthefirsthypernymy
+positivepairand⟨“GPU”,“LabelPropagation”⟩isanegativepair. discoverystep,methodsfallintotwocategories:(1)pattern-based
+Werefertothesetrainingpairsasself-supervisiondata,because methodswhichleveragepre-definedpatterns[1,16,19,34]toex-
+theyareprocedurallygeneratedfromtheexistingtaxonomyand tract hypernymy relations from a corpus, and (2) distributional
+nohumancurationisinvolved. methodswhichcalculatepairwisetermsimilaritymetricsbasedon
+Tomakethebestuseofaboveself-supervisiondata,wedevelop termembeddings[27,30,37,52]andusethemtopredictwhether
+two novel techniques in TaxoExpan. The first one is a position- twotermsholdthehypernymyrelation.Forthesecondhypernymy
+enhancedgraphneuralnetwork(GNN)whichencodesthelocal organizationstep,mostmethodsformulateitasagraphoptimiza-
+structureofananchorconceptusingitsegonetwork(egonet)inthe tion problem. They first build a noisy hypernymy graph using
+existingtaxonomy.Ifweviewthisanchorconceptasthe“parent”of hypernymypairsextractedandthenderivetheoutputtaxonomy
+thequeryconcept,thisegonetworkincludesthepotential“siblings” asaparticulartreeorDAGstructure(e.g.,maximumspanningtree
+and“grandparents”ofthequeryconcept.Weapplygraphneural [5,35],optimalbranching[49],andminimum-costflow[14])from
+networks (GNNs) to model this ego network. However, regular thehypernymygraph.Finally,therearesomemethodsthatleverage
+GNNsfailtodistinguishnodeswithdifferentrelativepositionsto entitysetexpansiontechniques[40,62]toincrementallyconstruct
+thequery(i.e.,somenodesaregrandparentsofthequerywhile ataxonomyeitherfromscratchorfromatinyseedtaxonomy.
+theothersaresiblingsofthequery).Toaddressthislimitation,we Inmanyreal-worldapplications,someexistingtaxonomiesmay
+presentasimplebuteffectiveenhancementtoinjectsuchposition havealreadybeenlaboriouslycuratedbyexperts[12,28]orvia
+informationintoGNNsusingpositionembedding.Weshowthat crowdsourcing[32],andaredeployedinonlinesystems.Insteadof
+suchembeddingcanbeeasilyintegratedwithexistingGNNarchi- constructingtheentiretaxonomyfromscratch,theseapplications
+tectures(e.g.,GCN[23]andGAT[50])andsignificantlybooststhe demandthefeatureofexpandinganexistingtaxonomydynami-
+predictionperformance.Thesecondtechniqueisanewnoise-robust cally.ThereexistsomestudiesonexpandingWordNetwithnamed
+trainingschemebasedontheInfoNCEloss[47].Insteadofpredict- entitiesfromWikipedia[46]ordomain-specificconceptsfromdif-
+ingwhethereachindividual⟨queryconcept,anchorconcept⟩pair ferentcorpora[4,6,13,21].Task14ofSemEval2016challenge[22]
+ispositiveornot,wefirstgroupallpairssharingthesamequery isspecificallysetuptoenrichWordNetwithconceptsfromdomains
+conceptintoasingletraininginstanceandlearnamodeltoselect likehealth,sport,andfinance.Onelimitationoftheseapproaches
+thepositivepairamongothernegativeonesfromthegroup.We isthattheydependonthesynsetstructureuniquetoWordNetand
+showthatsuchtrainingschemeisrobusttothelabelnoiseand thuscannotbeeasilygeneralizedtoothertaxonomies.
+leadstoperformancegains. Toaddresstheabovelimitation,morerecentworkstrytode-
+WetesttheeffectivenessofTaxoExpanframeworkonthreereal- velopmethodologiesforexpandingagenerictaxonomy.Wanget
+worldtaxonomiesfromdifferentdomains.Ourresultsshowthat al.[51]designahierarchicalDirichletmodeltoextendthecategory
+TaxoExpancangeneratehigh-qualityconcepttaxonomiesinsci- taxonomy in search engines using query logs. Plachouras et al.
+entificdomainsandachievesstate-of-the-artperformanceonthe [36]learnparaphrasemodelsonexternalparaphrasedatasetsand
+WordNettaxonomyexpansionchallenge[22]. applylearnedmodelstodirectlyfindparaphrasesofconceptsin
+theexistingtaxonomy.Vedulaetal.[48]combinemultiplefeatures,
+someofwhichareretrievedfromanexternalBingSearchAPI,
+Contributions.Tosummarize,ourmajorcontributionsinclude: intoarankingmodeltoscorecandidatepositionsintermsoftheir
+(1)aself-supervisedframeworkthatautomaticallyexpandsexisting matchingscoreswiththequeryconcept.Alyetal.[2]firstlearn
+taxonomieswithoutmanuallylabeleddata;(2)aneffectivemethod termembeddingsinahyperbolicspaceandthenattacheachnew
+forenhancinggraphneuralnetworkbyincorporatinghierarchical concepttoitsmostsimilarnodeintheexistingtaxonomybasedon
+positionalinformation;(3)anewtrainingobjectivethatenablesthe thehyperbolicembeddings.Comparingwiththesemethods,our
+learnedmodeltoberobusttolabelnoisesinself-supervisiondata; TaxoExpanframeworkhastwoadvantages.First,itrequiresnoex-
+and(4)extensiveexperimentsthatverifyboththeeffectiveness ternaldataresourceandmakesfulluseoftheexistingtaxonomyas
+theselfsupervision,whichleadstoabroaderapplicationscope.Sec- definitionsentences[39]andassociatedwebpages[51].Wealso
+ond,TaxoExpanexplicitlymodelsthelocalstructurearoundeach notethatourproblemformulationassumesthoserelationsinthe
+candidateposition,whichbooststhequalityofexpandedtaxonomy. existingtaxonomyarenotmodified.Weacknowledgethatsuch
+GraphNeuralNetwork.OurworkisalsorelatedtoGraphNeural modificationisnecessaryinsomecases,butitismuchlessfrequent
+Network(GNN)whichisagenericmethodoflearningongraph- andrequireshighcautiousnessfromhumancurators.Therefore,
+structuredata.ManyGNNarchitectureshavebeenproposedto weleaveitoutofthescopeofautomationinthisstudy.
+eitherlearnindividualnodeembeddings[8,15,23,50]forthenode
+classificationandthelinkpredictiontasksorlearnanentiregraph 4 THETAXOEXPANFRAMEWORK
+representation[25,56,61]forthegraphclassificationtask.Inthis Inthissection,wefirstintroduceourtaxonomymodelandexpan-
+work,wetacklethetaxonomyexpansiontaskwithafundamentally siongoal.Then,weelaboratehowtorepresentaqueryconcept
+differentformulationfromprevioustasks.Weleveragesomeex- andaninsertionposition(i.e.,ananchorconcept),basedonwhich
+istingGNNarchitecturesandenrichthemwithadditionalrelative wepresentourquery-conceptmatchingmodel.Finally,wediscuss
+positioninformation.Recently,Youetal.[58]proposeamethod howtogenerateself-supervisiondatafromtheexistingtaxonomy
+toaddpositioninformationintoGNN.Ourmethodsaredifferent andusethemtotraintheTaxoExpanframework.
+fromYouetal..Theymodeltheabsolutepositionofanodeinafull
+graphwithoutanyparticularreferencepoints;whileourtechnique 4.1 TaxonomyModelandExpansionGoal
+capturestherelativepositionofanodewithrespecttothequery
+AtaxonomyT describesahierarchicalorganizationofconcepts.
+node.Finally,someworkongraphgeneration[20,26,57]involves
+These concepts form the node set N in T. Mathematically, we
+amoduletoaddanewnodeintoapartiallygeneratedgraph,which
+modeleachnoden∈N asacategoricalrandomvariableandthe
+sharesthesimilargoalasourmodel.However,suchgraphgener-
+entiretaxonomyTasaBayesiannetwork.Wedefinetheprobability
+ationmodeltypicallyrequiresfullylabeledtrainingdatatolearn
+ofataxonomyT asthejointprobabilityofnodesetNwhichcanbe
+from.Tothebestofourknowledge,thisisthefirststudyonhowto
+furtherfactorizedintoasetofconditionalprobabilitiesasfollows:
+expandanexistingdirectedacyclicgraph(aswemodelataxonomy
+asaDAG)usingself-supervisedlearning. |N|
+(cid:214)
+P(T|Θ)=P(N|T,Θ)= P(ni|parentT(ni),Θ),
+3 PROBLEMFORMULATION i=1
+In this section, we first define a taxonomy, then formulate our whereΘisthesetofmodelparametersandparentT(ni)istheset
+problem,andfinallydiscussthescopeofourstudy. ofni’sparentnode(s)intaxonomyT.
+Taxonomy.AtaxonomyT = (N,E)isadirectedacyclicgraph GivenlearnedmodelparametersΘ,anexistingtaxonomyT0 =
+whereeachnoden ∈ N representsa concept(i.e.,awordora
+(N0 ,E0),andasetofnewconceptsC,wecanideallyfindthebest
+phrase)andeachdirectededge⟨np,nc⟩ ∈ E indicatesarelation taxonomyT∗bysolvingthefollowingoptimizationproblem:
+expressingthatconceptnp isthemostspecificconceptthatismore
+|N0∪C|
+“g pe an re er na tl ”t oh fa nn cc ao nn dc ne cpt asnc th. eIn “co ht ih lde ”r ow fo nr pd .s, we refer tonp as the T∗=arg TmaxP(T|Θ)=arg Tmax (cid:213)
+i=1
+logP(ni|parentT(ni),Θ).
+ProblemDefinition.Theinputofthetaxonomyexpansiontask
+Thisnaïveapproachhastwolimitations.First,thesearchspace
+includestwoparts:(1)anexistingtaxonomyT0 =(N0 ,E0),and
+ofallpossibletaxonomiesovertheconceptset|N0∪C|isprohibi-
+(2)asetofnewconcepts C.Thisnewconceptsetcanbeeither
+tivelylarge.Second,wecannotguaranteethestructureofexisting
+manuallyspecifiedbyusersorautomaticallyextractedfromtext taxonomyT0remainsunchanged,whichcanbeundesirablefrom
+corpora.OurgoalistoexpandtheexistingtaxonomyT0 intoa
+theapplicationpointofview.
+largertaxonomyT =(N0∪C,E0∪R),whereRisasetofnewly
+Weaddresstheabovelimitationsbyrestrictingthesearchspace
+discoveredrelationseachincludingonenewconceptc ∈C.
+ofouroutputtaxonomytobetheexactexpansionoftheexisting
+Example1. Figure1showsanexampleofourproblem.Givena taxonomyT0.Specifically,wekeeptheparentsofeachexisting
+field-of-studytaxonomyT0 inthecomputersciencedomainanda taxonomynoden ∈ N0 unchangedandonlytrytofindasingle
+setofnewconceptsC={“UDA”,“MetaLearning”,...},wefindeach parentnodeofeachnewconceptinC.Asaresult,wedividethe
+newconcept’sbestpositioninT0 (e.g.,“UDA”under“Semi-supervised abovecomputationallyintractableproblemintothefollowingset
+Learning”aswellas“GPU”under“IntegratedCircuit”)andexpand of|C|tractableoptimizationproblems:
+T0
+toincludethosenewconcepts. a i∗=argmaxlogP(ni|ai,Θ), ∀i ∈ {1,2,...,|C|}, (1)
+SimplifiedProblem.Asimplifiedversionoftheaboveproblem
+ai∈N0
+isthatweassumetheinputsetofnewconceptscontainsonlyone whereai istheparentnodeofanewconceptni ∈Candwerefer
+element(i.e.,|C|=1),andweaimtofindonesingleparentnodeof toitasthe“anchorconcept”.
+thisnewconcept(i.e.,|R|=1).Wediscusstheconnectionbetween Discussion.Theaboveequationdefines|C|independentoptimiza-
+thesetwoproblemsettingsattheendofSection4.1. tionproblemsandeachproblemaimstofindonesingleparent
+Discussion.Inthiswork,wefollowpreviousstudies[2,22,48] ofanewconceptni.Therefore,weessentiallyreducethemore
+and assume each concept in N0 ∪ C has an initial embedding generictaxonomyexpansionprobleminto|C|independentsimpli-
+vectorlearnedfromthisconcept’ssurfacename,orifavailable,its fiedproblems(c.f.Section3)andtackleitbyinsertingnewconcepts
+showninFigure2.Werepresenttheanchorconceptbasedonits
+“hospital” grandparent “area”
+“room” parent egonetworkusingagraphneuralnetwork.
+sibling
+The ego nodes
+“room”
+GraphNeuralNetworkArchitectures.Givenananchorconcept
+“hospital room” “court” a tai tiw onith aii ,ts wc eo urr se es apo gn rad pin hg ne eg uo ran le nt ew twor ok rkG (a Gi Na Nnd )ti ots gi en nit ei ra al tr ee ip tsre fis ne an l-
+“intensive “operating room” “hospital room”
+representationai.ThisGNNcontainstwocomponents:(1)agraph
+care unit” “gallery” propagationmodulethattransformsandpropagatesnodefeatures
+“low dependency unit” “classroom” overthegraphstructuretocomputeindividualnodeembeddings
+Figure2:Twoegonetscorrespondtotwoanchorconcepts.
+inGai,and(2)agraphreadout modulethatcombinesnodeem-
+beddingsintoavectorrepresentingthefullegonetworkGai.The
+finalgraphembeddingencodesalllocalstructureinformationcen-
+one-by-oneintotheexistingtaxonomy.Asaresultoftheabovere-
+teredaroundtheanchorconceptandweuseitasthefinalanchor
+duction,possibleinteractionsamongnewconceptsareignoredand
+weleaveittothefuturework.Inthefollowingsections,wecontinue
+representationai.
+Agraphpropagationmoduleusesaneighborhoodaggregation
+toanswertwokeysquestions:(1)howtomodeltheconditional
+probabilityP(ni|ai,Θ),and(2)howtolearnmodelparametersΘ. s at gr ga rt ee gg ay tit no gi rt ee pr ra et siv ee nl ty atu iop nd sa ote fit th se ner ie gp hr be ose rsn Ntat (uio )n ano df ia tsn eo lfd .e Wu edb ey
+-
+4.2 ModelingQuery-AnchorMatching
+noteN(u)∪{u}asN(cid:157)(u).AfterKiterations,anode’srepresentation
+capturesthestructuralinformationwithinitsK-hopneighborhood.
+We model the matching score between a query conceptni and
+Formally,wedefineaGNNwithK-layersasfollows:
+ananchorconceptai byprojectingthemintoavectorspaceand
+calculatingmatchingscoresusingtheirvectorizedrepresentations. h u(k)=AGG(k)(cid:16) {h v(k−1)|v ∈N(cid:157)(u)}(cid:17) , k ∈ {1,...,K}, (2)
+WeshowtheentiremodelarchitectureofTaxoExpaninFigure3.
+whereh(k) isnodeu’sfeatureinthek-thlayer;h(0) isnodeu’s
+u u
+4.2.1 RepresentingQueryConcept. initialfeaturevector,andAGG(k)isanaggregationfunctioninthe
+Inthisstudy,weassumeeachqueryconcepthasaninitialfeature
+k-thlayer.WeinstantiateAGG(k)usingtwopopulararchitectures:
+vectorlearnedbasedonsometextassociatedwiththisconcept.Such
+GraphConvolutionalNetwork(GCN)[23]andGraphAttention
+textcanbeassimpleastheconceptsurfacename,orinsomeprior
+Network(GAT)[50].GCNdefinestheAGGfunctionasfollows:
+studies[22,51],thedefinitionsentencesandclickedwebpages
+a inb io tiu at lt fh eae tuco renc ve ep ctt o.W rde enre op tere ds ae snt ne i.a Wch eq wu ie lr ly dic so cn usc sep ht on wi tu osi on bg tai it ns AGG(k)(cid:16) {h v(k−1)|v ∈N(cid:157)(u)}(cid:17) =ρ(cid:169) (cid:173)
+(cid:173)
+(cid:213) α u(k v−1) W(k−1)h v(k−1)(cid:170) (cid:174) (cid:174), (3)
+suchinitialfeaturevectorsusingembeddinglearningmethodsin v∈(cid:158)N(u)
+(cid:171) (cid:172)
+theexperimentsection. (cid:113)
+whereα u(k v−1)=1/ |N(cid:157)(u)||N(cid:157)(v)|isanormalizationconstant(same
+4.2.2 RepresentingAnchorConcept. foralllayers);ρisanon-linearfunction(e.g.,ReLU),andW(k−1)is
+taxE oa nc oh ma ync Th 0or thc ao tn cc oe up lt dc bo err te hs ep “o pn ad rs ento t”o on fe an qo ud ee ryin coth ne cee px ti .s Otin ng
+e
+thelearnableweightmatrix.Ifweinterpretα u(k v−1)astheimportance
+ofnodev’sfeaturetonodeu,GCNcalculatesitusingonlythegraph
+naïvewaytorepresentananchorconceptistodirectlyuseitsinitial
+structurewithoutleveragingthenodefeatures.GATaddressesthis
+featurevector.Akeylimitationofthisapproachisthatitcaptures
+onlythe“parent”nodeinformationandlosesothersurrounding
+limitationbydefiningα u(k v−1)asfollows:
+nodes’signals,whichcouldbecrucialfordeterminingwhether exp(cid:16)
+γ
+(cid:16) z(k−1)(cid:219)[W(k−1)h(k−1)∥W(k−1)h(k−1)](cid:17)(cid:17)
+t lih me iq tau te iory nc bo en loc wep :tshouldbeputinthisposition.Weillustratethis α u(k v−1)= (cid:205) v′∈(cid:158)N(u)exp(cid:16) γ (cid:16) z(k−1)(cid:219)[W(ku −1)h u(k−1)∥W(kv −1)h v(k ′−1)](cid:17)(cid:17), (4)
+Example2. Supposewearegivenaqueryconcept“highdepen- where both z(k−1) and W(k−1) are learnable parameters;γ(·) is
+dencyunit”topredictwhetheritshouldbeunderthe“hospitalroom” anothernon-linearfunction(e.g.,LeakyReLU),and“∥”represents
+node(i.e.,ananchorconcept)inanexistingtaxonomy.Asthesetwo theconcatenationoperation.Pluggingtheaboveα(k−1)intoEq.(3)
+uv
+conceptshavedissimilarembeddingsbasedontheirsurfacenames, weobtaintheaggregationfunctioninasingle-headGAT.Finally,We
+wemaybelievethisqueryconceptshouldn’tbeplacedunderneath executeMindependenttransformationsofEq.(3)andconcatenate
+thisanchorconcept.However,ifweknowthatthisanchorconcepthas theiroutputfeaturestocomposethefinaloutputembeddingof
+twochildrennodes,i.e.,“intensivecareunit”and“lowdependency nodeu.Thisdefinestheaggregationfunctioninamulti-headGAT
+unit”,thatarecloselyrelatedtothequeryconcept,wearemorelikely (withMheads)asfollows:
+toputthequeryconceptunderthisanchorconcept,correctly.
+M
+∥
+locT alh se tra ub co tv ue reex ina fm op rmle ad tie om no in ns tt hra et aes ncth he orim cop no cr eta pn tc re epo rf ec sa ep nt tu atr ii on ng
+.
+AGG(k)(cid:16) {h v(k−1)|v ∈N(cid:157)(u)}(cid:17) = m=1ρ(cid:169) (cid:173)
+(cid:173)
+v∈(cid:213) (cid:158)N(u)α u(k v−1) W m(k−1) h v(k−1)(cid:170) (cid:174) (cid:174), (5)
+Wemodeltheanchorconceptusingitsegonetwork.Specifically, (cid:171) (cid:172)
+weconsidertheanchorconcepttobethe“parent”nodeofaquery whereW m(k−1)isthem-thweightmatrixinthem-thattentionhead.
+concept.Theegonetworkoftheanchorconceptconsistsofthe Afterobtainingeachnode’sfinalrepresentationh(K),wegen-
+u
+“sibling”nodesand“grandparent”nodesofthequeryconcept,as eratetheegonetwork’srepresentationhG usingagraphreadout
+“high dependency unit” gemb
+Query Conceptni q
+gemb gemb position embeddings hq ni
+“hospital” grandparent a “ro bom” h( a0) h( b0) p sa ibr le inn gt h( aK) h( bK) repreq su ee nr ty a tion
+matching degree
+E Cg oo nn ce et p o tf a A inchor c “h roo osp mit ”al gemb h( c0) …… h( cK)
+f(ni,ai)
+d gemb h( d0) hidden layers h( dK) hG ai
+“intensive ca “r le
+o
+wun dit e”
+p
+ee
+ndency unit”
+gemb
+h( e0) h( eK) refi pn ra el
+s
+a en nc tah to ior
+n
+Graph Propagation Module Graph Readout Module Matching Module
+Figure3:OverviewofTaxoExpanframework.д isanembeddingmodelthatprovidesqueryconcept’sinitialfeaturevector
+emb
+hq andtheinitialfeaturevectorofeachnodeintheegonet.Thegraphpropagationmoduletransformsinitialfeaturevectors
+intobetternoderepresentationsbasedonwhichthegraphreadoutmoduleoutputstheegonetembeddingasthefinalanchor
+representation.Finally,amatchingmoduleinputsbothqueryandanchorrepresentationsandoutputstheirmatchingscore.
+moduleasfollows: Existing Taxonomy 0 Self supervision dataX
+T
+hG =READOUT({h u(K)|u ∈G}), (6) “medical institution” “clinic” gQ au lle er ry y A rn oc oh mor La 1bel Training
+“court” gallery classroom 0 instance 1
+whereREADOUTisapermutationinvariantfunction[59]suchas “hospital” “room”
+gallery medical institution 0
+element-wisemeanorsum. “gallery”
+Position-enhancedGraphNeuralNetworks.Onekeylimita- “hospital room” “classroom” Query Anchor Label
+tionoftheaboveGNNmodelisthattheyfailtocaptureeachnode’s “ ci an rt ee n us niv ite ” “operating room” oo pp ee rr aa tt ii nn gg rr oo oo mm low h do es pp eit na dl ero no cm y unit 01 inT sr ta ain ni cn eg 2
+positioninformationrelativetothequeryconcept.TakeFigure2 “low dependency unit” operating room clinic 0
+asanexample,the“hospitalroom”nodeintheleftegonetworkis
+Figure4:Self-supervisiongeneration.
+theanchornodeitselfwhileintherightegonetworkitisthechild
+oftheanchornode.Suchpositioninformationwillinfluencehow
+nodefeaturepropagateswithintheegonetworkandhowthefinal
+graphembeddingisaggregated.
+whereαpu istheparameterindicatingtheimportanceofposition
+AnimportantinnovationinTaxoExpanisthedesignofposition- p cou m.T bh ine es se tc ho en ad vs ec rh ae gm ee emis bc ea dl dle id ngc son ofca nt oe dn ea sti won ithre ta hd eou sat m(C eR p) ow sih tii oc nh
+enhancedgraphneuralnetworks.Thekeyideaistolearnaset
+asfollows:
+of“positionembeddings”andenricheachnodefeaturewithits
+c
+a
+po
+s
+lar
+p
+cr eues ep
+a
+ao
+n
+cn
+d
+hd nii tn osg
+dp
+ep
+o
+fo
+s
+es
+i
+ai
+t
+tt
+i
+ui oo rnn
+ee
+he mm
+(kb
+−b
+e
+1e
+d
+)d
+d
+wd ii
+n
+in
+tg
+hg. iaW
+tt
+se
+k p-
+od
+t
+se
+h
+in tilo oat nye
+-e
+en
+r
+no
+a
+hd
+s
+ae npu cu(’ eks d)p
+.
+vo
+W
+es ri
+e
+sti io oren
+n-
+READOUT({h u(K)|u ∈G})= p∈∥ P(cid:205)I u′( ∈p Gu I= (pp u)h ′u( =K) p), (8)
+u
+h(k−1) ∥p(k−1)inEqs.(3-5)andadjustthedimensionalityofW(k−1) wherePisthesetofallpositionswearemodelingandI(·)isan
+u u indicatorfunctionwhichreturns1ifitsinternalstatementistrue
+accordingly.Suchpositionembeddingshelpustolearnbetternode
+andreturns0otherwise.
+representationsfromtwoaspects.First,wecancapturemoreneigh-
+borhoodinformation.TakeW(k−1)h v(k−1)intherighthandsideof
+4.2.3 MatchingQueryConceptandAnchorConcept.
+Eq.(3)asanexample,weenhanceittothefollowing: Basedonthelearnedqueryconceptrepresentationni ∈ RD1
+(cid:104) W(k−1)∥O(k−1)(cid:105) (cid:104) h(k−1) ∥p(k−1)(cid:105) =W(k−1) h(k−1)+O(k−1)p(k−1)
+,
+andanchorconceptrepresentationai ∈ RD2,wecalculatetheir
+v v v v matchscoreusingamatchingmodulef(·):RD2×RD1 →R.We
+studytwoarchitectures.Thefirstoneisamulti-layerperceptron
+whereO(k−1)isanotherweightmatrixusedtotransformposition
+withonehiddenlayer,definedasfollows:
+embeddings. The above equation shows that a node’s new rep-
+(r ie .es .e ,n ht (a kt −io 1)n )ais nj do rin elt aly tivd eet pe orm siti in oe nd sb iny ti hts en ee gi ogh nb eo twrh oo ro kd (s i.’ e.c ,o pn (kte −n 1t )s
+).
+fMLP (ai,ni)=σ(W2γ(W1(ai∥ni)+B1)+B2), (9)
+v v
+Second,forGATarchitecture,wecanbettermodelneighborim- where{W1,B1,W2,B2}areparameters;σ(·)isthesigmoidfunc-
+portanceasthetermα(k−1)inEq.(3)currentlydependsonboth tion,andγ(·)istheLeakyReLUactivationfunction.Thesecond
+uv
+p(k−1)andp(k−1). architectureisalog-bilinearmodeldefinedasfollows:
+u v
+maF tiu or nth iner tm heor ge r, aw phe rp er ao dp oo us te mtw odo us lc eh .Tem hees firto sti on nje ec ,t cap lo les diti won eigin hf to er d- fLBM (ai,ni)=exp(cid:16) aT
+i
+Wni(cid:17) , (10)
+meanreadout(WMR),isdefinedasfollows:
+whereWisalearnableinteractionmatrix.WechoosetheseMLPand
+READOUT({h u(K)|u ∈G})= u(cid:213)
+∈G
+(cid:205) u′l ∈o Gg( l1 og+ (1ex +p( eα xp pu (α)) pu′))h u(K), (7) L inB tM eraa cs tit oh ney ma or de er lse ,p rr ee ss pe en ct ta it vi ev le y.architecuresinlinearandbilinear
+Concatenation
+4.3 ModelLearningandInference Algorithm1:Self-supervisedlearningofTaxoExpan
+Theabovesectiondiscusseshowtomodelquery-anchormatching Input: AtaxonomyT0;negativesizeN,batchsizeB;modelf(·|Θ).
+usingaparameterizedfunctionf(·|Θ).Inthissection,wefirstintro- Output:LearnedmodelparametersΘ.
+ducehowwelearnthoseparametersΘusingself-supervisionfrom
+1
+RandomlyinitializeΘ;
+theexistingtaxonomy.Then,weestablishtheconnectionbetween 2 whileL(Θ)inEq.(11)notconvergedo
+thematchingscorewiththeconditionalprobabilityP(ni|ai),and 3 EnumerateedgesinT0andsampleBedgeswithoutreplacement;
+discusshowtoconductmodelinference. 4 X={}#currentbatchoftraininginstances;
+Self-supervisionGeneration.Figure4showsthegenerationpro- 5 foreachsamplededge⟨np,nc⟩do
+c ise ts ins gof tas xel of ns ou mpe yrv Tis 0ion =d (a Nta 0. ,G Ei 0v )e ,n wo en fie re sd tg ce on⟨n sp tr, un cc t⟩ ain pt oh se itie vx e- 76 XGe ←ner Xat ∪eN {⟨nne pg ,a nt civ ⟩e ,p ⟨nai r1r ,s n{ c⟨ ⟩n ,rl ., .n .c ,⟩ ⟨| nlN = rN1 ,}; nc⟩};
+p⟨a an rec nho tr n, oq du eer ny p⟩ ap sai tr heby “au ns ci hn og r”c .h Til hd en no ,d we en cc onas stt rh ue ct“ Nque nr ey g” ata in vd
+e
+8
+9
+RetuU rnpd Θa ;teΘbasedonX.
+pairsbyfixingthequerynodenc andrandomlyselectingN nodes
+{nl r| lN =1} ⊂ N0 that are neither parents nor descendants ofnc.
+TheseN +1pairs(onepositiveandN negatives)collectivelycon- conceptsunderneaththeirpredictedparentsoneatatime,and
+sistofonetraininginstanceX={⟨np,nc⟩,⟨n r1 ,nc⟩,...,⟨n rN,nc⟩}. outputtheexpandedtaxonomy.
+ByrepeatingtheaboveprocessforeachedgeinT0,weobtainthe
+ComputationalComplexityAnalysis.Atthetrainingstage,our
+fullself-supervisiondatasetX = {X1,...,X|E0|}.Noticethata modeluses|E(0)|traininginstanceseveryepochandthusscales
+nodewithCparentsinT0willderiveCtraininginstancesinX. linearlytothenumberofedgesintheexistingtaxonomy.Atthein-
+ModelTraining.WelearnourmodelonXusingtheInfoNCE ferencestage,foreachqueryconcept,wecalculate|N(0)|matching
+loss[47]asfollows: scores,oneforeveryexistingnodeinT0.AlthoughsuchO(|N(0)|)
+(cid:34) (cid:35) costperqueryisexpensive,wecansignificantlyreduceitusingtwo
+L(Θ)=− |X1 | X(cid:213)
+i∈X
+log (cid:205) ⟨nj,nf c( ⟩n ∈p X, in fc (n) j,nc) , (11) s trt ir xat meg ui le tis p. lF icir as tt io, nm so as nt dco thm up su wta eti uo sn eGeff Po Urt fs orof acT ca ex lo erE ax tp ioa nn .a Sr ee com na d-
+,
+where the subscript j ∈ [1,2,...,N +1]. If j = 1, ⟨nj,nc⟩ is a asthegraphpropagationandgraphreadoutmodulesarequery-
+positivepair,otherwise,⟨nj,nc⟩isanegativepair.Theabovelossis independent(c.f.Fig.4),wepre-computeallanchorrepresentations
+thecrossentropyofclassifyingthepositivepair⟨np,nc⟩correctly, andcachethem.Whenasetofqueriesaregiven,weonlyrunthe
+with f(np,nc) asthemodelprediction.Optimizingthis matchingmodule.Inpractice,ittakeslessthan30secondstocal-
+(cid:205) ⟨nj,nc⟩∈Xif(nj,nc) culateallmatchingscoresbetween2,450querieswithover24,000
+lossresultsinf(ai,ni)estimatingthefollowingprobabilitydensity anchorpositionsonasingleK80GPU.
+(uptoamultiplicativeconstant):
+f(ai,ni)∝ P( Pa (i a| in )i) . (12) 5 InthE isX seP cE tioR nI ,M weE sN tuT dyS
+theperformanceofTaxoExpanonthree
+WeprovetheaboveresultinAppendixandsummarizeourself- large-scalereal-worldtaxonomies.
+learningprocedureinAlgorithm1.Weestablishtheconnection
+betweenmatchingscoref(ai,ni)withtheprobabilityP(ni|ai)in
+5.1 ExpandingMAGField-of-StudyTaxonomy
+Eq.1asfollows:
+5.1.1 Datasets. We evaluate TaxoExpan on the public Field-of-
+P(ni|ai)= P( Pa (i a| in )i) ·P(ni)∝f(ai,ni)·P(ni). (13) TSt hu id sy Fo(F So tS a) xT oa nx oo mn yom coy n2 tain inM soic vr eo rso 6f 6t 0A thca od ue sm anic dG scr ia ep nh tifi(M cA coG n) c[ e4 p4 t] s.
+Weelaboratetheimplicationofthisequationbelow. andmorethan700thousandtaxonomicrelations.Althoughbeing
+ModelInference.Attheinferencestage,wearegivenanewquery constructedsemi-automatically,thistaxonomyisofhighquality,
+conceptni andapplythelearnedmodelf(·|Θ)topredictitsparent asshowninthepreviousstudy[42].Thuswetreateachconcept’s
+nodeintheexistingtaxonomyT0.Mathematically,weaimtofind originalparentnodesasitscorrectanchorpositions.Weremove
+theanchorpositionai thatmaximizesP(ni|ai),whichisequivalent allconceptsthathavenorelationintheoriginalFoStaxonomy
+tomaximizingf(ai,ni)becauseofEq.(13)andthefactthatP(ni) andthenrandomlymask20%ofleafconcepts(alongwiththeir
+isthesameacrossallpositions.Therefore,werankallcandidate relations)forvalidationandtesting3.TheremainingFoStaxonomy
+positionsai basedontheirmatchingscoreswithni andselectthe isthentreatedastheinputexistingtaxonomy.Werefertothis
+toprankedoneasthepredictedparentnodeofthisqueryconcept. datasetasMAG-Full.BasedonMAG-Full,weconstructanother
+Althoughwecurrentlyselectonlythetoponeasquery’ssingle datasetfocusingonthecomputersciencedomain.Specifically,we
+parent,wecanalsochoosetop-konesasquery’sparents,ifneeded. firstselectasubgraphconsistingofalldescendantsof“computer
+Summary.Givenanexistingtaxonomyandasetofnewconcepts, science”nodeandthenmask10%ofleafconceptsinthissubgraph
+ourTaxoExpanfirstgeneratesasetofself-supervisiondataand
+learnsitsinternalmodelparametersusingAlgorithm1.Foreach 2https://docs.microsoft.com/en-us/academic-services/graph/reference-data-schema
+new concept, we run the inference procedure and find its best 3Herewemaskonlyleavesbecauseifweremoveintermediatenodes,wehavetoremovetheir
+descendantsfromthecandidateparentpool,whichcausesdifferentmaskednodes(astestingquery
+parentnodeintheexistingtaxonomy.Finally,weplacethesenew concepts)havingdifferentcandidatepools.
+Table 1: Dataset Statistics. |N| and |E| are the number of model,topredictthematchingscorebetweenaqueryconcept
+nodesandedgesintheexistingtaxonomy.|D|indicatesthe andacandidateposition.
+taxonomydepthand|C|isthenumberofnewconcepts. (4) ParentMLP:Aself-supervisedmethodthatfirstconcatenates
+thequeryconceptembeddingwiththecandidatepositionem-
+Dataset |N| |E| |D| |C| beddingandthenfeedsthemintoaMulti-LayerPerceptron
+MAG-CS 24,754 42,329 6 2,450 (MLP)forprediction.
+MAG-Full 355,808 638,674 6 37,804 (5) DeepSetMLP:Anotherself-supervisedmethodthatextends
+SemEval 95,882 89,089 20 600 ParentMLPbyaddinginformationofcandidateposition’schil-
+drennodes.Specifically,wefirstuseDeepSetarchitecture[59]
+forvalidationandanother10%ofleafnodesfortesting.Wename togeneratetherepresentationofthechildrennodesetandthen
+thisdatasetasMAG-CS. concatenateitwithquery&candidatepositionrepresentations
+Toobtaintheinitialfeaturevector,wefirstconstructacorpus beforethefinalMLPmodule.
+thatconsistsofallpaperabstractsmentioningatleastonecon- (6) TaxoExpan:Ourproposedframeworkusingposition-enhanced
+ceptintheoriginalMAGdataset.Then,weuse“ ”toconcate- GAT(PGAT)asgraphpropagationmodule,weightedmeanread-
+natealltokensinoneconcept(e.g.,“machinelearning”→“ma- out(WMR)forgraphreadout,andlog-bilinearmodel(LBM)
+chine_learning”)andlearn250-dimensionwordembeddingsusing forquery-anchormatching.Welearnthismodelusingourpro-
+skipgrammodelinword2vec4[33].Finally,weusetheselearned posedInfoNCEloss.
+embeddingsastheinitialfeaturevector.Table1liststhestatistics 5.1.4 Implementation Details and Parameter Settings. For a fair
+ofthesetwodatasets.Alldatasetsandourmodelimplementations comparison,weusethesame250-dimensionembeddingsacross
+areavailableat:https://github.com/mickeystroller/TaxoExpan. allcomparedmethods.WeuseGoogle’soriginalword2vecimple-
+5.1.2 EvaluationMetrics. Asourmodelreturnsaranklistofall
+mentation5forlearningembeddingsandemploygensim6toload
+candidateparentsforeachinputqueryconcept,weevaluateits trainedembeddingsforcalculatingtermdistancesinClosest-Parent,
+performanceusingthefollowingthreeranking-basedmetrics. Closest-Neighbor,anddist-XGBoostmethods.Fortheotherthree
+methods,weimplementthemusingPyTorchandDGLframework7.
+• MeanRank(MR)measurestheaveragerankpositionofaquery
+Wetunehyper-parametersinallself-supervisedmethodsonthe
+concept’s true parent among all candidates. For queries with
+multiple parents, we first calculate the rank position of each
+maskedvalidationset.ForTaxoExpan,weuseatwo-layerposition-
+enhancedGATwherethefirstlayerhasfourattentionheads(ofsize
+individualparentandthentaketheaverageofallrankpositions.
+250)andthesecondlayerhasoneattentionhead(ofsize500).For
+SmallerMRvalueindicatesbettermodelperformance.
+bothlayers,weuse50-dimensionpositionembeddingsandapply
+• Hit@kisthenumberofqueryconceptswhoseparentisranked
+dropoutwithrate0.1ontheinputfeaturevectors.WeuseAdam
+inthetopkpositions,dividedbythetotalnumberofqueries.
+optimizerwithinitiallearningrate0.001andReduceLROnPlateau
+• MeanReciprocalRank(MRR)calculatesthereciprocalrank
+scheduler8withthreepatienceepochs.Wediscusstheinfluenceof
+ofaqueryconcept’strueparent.Wefollow[55]anduseascaled
+thesehyper-parametersinthenextsubsection.
+versionofMRRinthebelowequation:
+1 (cid:213) 1 (cid:213) 1 5.1.5 ExperimentalResults. Wepresenttheexperimentalresults
+MRR= , inthefollowingaspects.
+|C|
+c∈C
+|parent(c)|
+i∈parent(c)
+⌈Ri,c/10⌉
+1. OverallPerformance.Table2presentstheresultsofallcom-
+whereparent(c)representstheparentnodesetofthequerycon- paredmethods.First,wefindthatClosest-Neighbormethodclearly
+ceptc,andRi,c istherankpositionofqueryconceptc’strue outperformsClosest-ParentmethodandDeepSetMLPismuchbet-
+parenti.WescaletheoriginalMRRbyafactor10inorderto terthanParentMLP.Thisdemonstratestheeffectivenessofmodel-
+amplifytheperformancegapbetweendifferentmethods. inglocalstructureinformation.Second,wecomparedist-XGBoost
+methodwithClosest-Neighborandshowthatself-supervisionin-
+5.1.3 ComparedMethods. Wecomparethefollowingmethods:
+deedhelpsustolearnaneffectivewaytocombinevariousneighbor
+(1) Closest-Parent:Arule-basedmethodwhichfirstscoreseach
+distanceinformation.Allfourself-supervisedmethodsoutperform
+candidatepositionintheexistingtaxonomybasedonitscosine
+rule-basedmethods.Finally,ourproposedTaxoExpanhastheover-
+distancetothequeryconceptbetweentheirinitialembedding,
+allbestperformanceacrossallthemetricsanddefeatsthesecond
+andthenranksallpositionsusingthisscore.Thepositionwith
+bestmethodbyalargemargin.
+thesmallestdistanceischosentobequeryconcept’sparent.
+(2) Closest-Neighbor: Another rule-based method that scores 2. AblationAnalysisofModelArchitectures.TaxoExpancon-
+tainsthreekeycomponents:agraphpropagationmodule,agraph
+eachpositionbasedonitsdistancetothequeryconceptplus
+readoutmodule,andamatchingmodel.Here,westudyhowdiffer-
+theaveragedistancebetweenitschildrennodesandthequery.
+(3) dist-XGBoost:Aself-supervisedboostingmethodthatworks
+entchoicesofthesecomponentsaffecttheperformanceofTaxoExpan.
+Table3liststheresultsandthefirstcolumncontainstheindexof
+directlyon39manually-designedfeaturesgeneratedusingini-
+eachmodelinvariant.
+tialnodeembeddingswithoutanyembeddingtransformation.
+WeinputthesefeaturesintoXGBoost[9],atree-basedboosting
+5https://github.com/tmikolov/word2vec
+6https://github.com/RaRe-Technologies/gensim
+4WealsotestCBOWmodel,fastText[7]andBERTembedding[11](averagedacrossallconcept 7https://github.com/dmlc/dgl
+mentions),andempiricallywefindskipgrammodelinword2vecworksbestonthisdataset. 8https://pytorch.org/docs/stable/optim.html#torch.optim.lr_scheduler.ReduceLROnPlateau
+Table2:OverallresultsonMAG-CSandMAG-Fulldatasets.Werunallmethodsthreetimesandreporttheaveragedresult
+withstandarddeviation.NotethatsmallerMRindicatesbettermodelperformance.Forallothermetrics,largervaluesindicate
+betterperformance.Wehighlightthebesttwomodelsintermsoftheaverageperformanceundereachmetric.
+MAG-CS MAG-Full
+Method
+MR Hit@1 Hit@3 MRR MR Hit@1 Hit@3 MRR
+Closest-Parent 1327.16(±0.000) 0.0531(±0.000) 0.0986(±0.000) 0.2691(±0.000) 14355.5(±0.000) 0.0360(±0.000) 0.0728(±0.000) 0.1897(±0.000)
+Closest-Neighbor 382.07(±0.000) 0.1085(±0.000) 0.2000(±0.000) 0.3987(±0.000) 4160.8(±0.000) 0.0221(±0.000) 0.0419(±0.000) 0.1405(±0.000)
+dist-XGBoost 136.86(±1.832) 0.1903(±0.010) 0.3483(±0.014) 0.6618(±0.003) 426.70(±8.047) 0.1498(±0.076) 0.3046(±0.009) 0.5621(±0.002)
+ParentMLP 114.79(±12.25) 0.0729(±0.088) 0.2656(±0.037) 0.6454(±0.009) 457.14(±39.81) 0.098(±0.094) 0.1928(±0.086) 0.4950(±0.012)
+DeepSetMLP 115.26(±9.159) 0.1988(±0.005) 0.3581(±0.016) 0.6653(±0.015) 444.83(±27.59) 0.1461(±0.005) 0.2971(±0.064) 0.6392(±0.017)
+TaxoExpan 80.33(±5.470) 0.2121(±0.010) 0.3823(±0.012) 0.6929(±0.003) 341.31(±33.62) 0.1523(±0.009) 0.3087(±0.010) 0.6453(±0.035)
+Table3:AblationanalysisofmodelarchitecturesonMAG- 120 0.71
+C inS td ha eta fise rt s. tW coe la us msi ngn ).a An llin mde ox deto lse aa rc ehm ruo nde thl rv ea eri ta in mt e(s sh wow ithn 11 901 000 B 90C .8E 3_lo 9s 2s
+.62
+In 1f 0o 3N .7C 0E_ 9lo 5.s 8s
+4
+103.84 106.69
+84.40
+00 0.. .66 679
+5
+0B .C 67E 3_lo 0s .s
+662
+In 0fo .6N 4C 9E_ 0lo .6s 5s
+9
+0.6460.693 0.689
+theiraveragedscoresreported. 80 80.33 0.63
+70 0.61 0.613
+Graph Graph 60 0.59
+Ind Matching MR Hit@1 Hit@3 MRR
+Propagate Readout 50 0.57
+PGAT_WMR_MLP PGAT_CR_MLP PGAT_WMR_LBM PGAT_CR_LBM PGAT_WMR_MLP PGAT_CR_MLP PGAT_WMR_LBM PGAT_CR_LBM
+1 GCN Mean MLP 167.82 0.1581 0.2964 0.6002 0.22 BCE_loss InfoNCE_loss 0.212 0.209 0.40 BCE_loss InfoNCE_loss 0.382 0.381
+2 GAT Mean MLP 131.46 0.1584 0.3192 0.6409 0.20 0.1930.195 0.189 0.38
+3 PGCN Mean MLP 148.54 0.1809 0.3015 0.6255 0.18 0.36 0.3490.358 0.351
+4 PGAT Mean MLP 100.80 0.1896 0.3304 0.6525 0.16 0.155 0.156 0.34
+5 PGCN WMR MLP 144.81 0.1798 0.3014 0.6309 0 0. .1 14 2 0.137 00 .. 33 02 0.309 (cid:19)(cid:17)(cid:22)(cid:19)(cid:26)
+0.292
+6 PGCN CR MLP 135.89 0.1902 0.3118 0.6348 0.10 0.28
+7 PGAT WMR MLP 92.62 0.1945 0.3584 0.6619 0.08 0.26
+PGAT_WMR_MLP PGAT_CR_MLP PGAT_WMR_LBM PGAT_CR_LBM PGAT_WMR_MLP PGAT_CR_MLP PGAT_WMR_LBM PGAT_CR_LBM
+8 PGAT CR MLP 95.84 0.1897 0.3512 0.6596
+Figure5:AblationanalysisoftrainingschemesonMAG-CS
+9 PGCN WMR LBM 139.41 0.1829 0.3370 0.6642
+10 PGCN CR LBM 130.12 0.1934 0.3462 0.6776 dataset.WecomparemodelstrainedusingBinaryCrossEn-
+11 PGAT WMR LBM 80.33 0.2121 0.3823 0.6929 tropy(BCE)losswiththosetrainedusingInfoNCEloss.
+12 PGAT CR LBM 84.40 0.2089 0.3813 0.6894
+3. AblationAnalysisofTrainingSchemes.Inthissubsection,
+weevaluatetheeffectivenessofourproposedtrainingscheme.In
+First,weanalyzegraphpropagationmodulebyusingsimple
+thisstudy,wefirstgroupasetofpositiveandnegative⟨query,anchor⟩
+averageschemeforgraphreadoutandMLPformatching.Bycom-
+pairsintoonesingletraininginstance(c.f.Sect.4.3)andlearnthe
+paringmodel1tomodel3andmodel2tomodel4,wecanseethat
+modelusingInfoNCEloss(c.f.Eq.(11)).Analternativeistotreat
+graphattentionarchitecture(GAT)isbetterthangraphconvolution
+thesepairsasdifferentinstancesandtrainthemodelusingstandard
+architecture(GCN).Furthermore,theposition-enhancedvariants
+binarycrossentropy(BCE)loss.Underthistrainingscheme,we
+clearlyoutperformtheirnon-positioncounterparts(model3versus
+formulateourproblemasabinaryclassificationtask.Wecompare
+model1andmodel4versusmodel2).Thisillustratestheefficacy
+thesetwotrainingschemesforthetop4bestmodelsinTable3
+ofthepositionembeddingsinthegraphpropagationmodule.
+(i.e.,model7,8,11,and12).ResultsareshowninFigure5.Our
+Second, we study graph readout module by fixing the graph
+proposedtrainingschemewithInfoNCElossisoverallmuchbetter,
+propagationmoduletobethebesttwovariantsamongmodels1-4.
+itbeatstheBCElossschemeon14outoftotal16cases.Onereason
+Wecanseebothmodel5&6outperformmodel3andmodel7&8
+isthatBCElossisverysensitivetothenoisesinthegenerated
+outperformmodel4.Thissignifiesthatthepositioninformation
+self-supervisiondatawhileInfoNCElossismorerobusttosuch
+alsohelpsinthegraphreadoutmodule.However,thebeststrategy
+labelnoise.Furthermore,wefindthatLBMmatchingcanbenefit
+ofincorporatingpositioninformationdependsonthegraphprop-
+morefromourtrainingschemewithInfoNCEloss–withlarger
+agationmodule.Theconcatenationreadoutschemeworksbetter
+marginonall8cases,comparedwiththesimpleMLPmatching.
+forPGCNwhiletheweightedmeanreadoutisbetterforPGAT.
+Onepossibleexplanationisthattheconcatenationreadoutleadsto 4.Hyper-parameterSensitivityAnalysis.Weanalyzehowsome
+moreparametersinmatchingmodelandasPGATitselfhasmore hyper-parametersinTaxoExpanaffecttheperformanceinFigure6.
+parametersthanPGCN,furtherintroducingmoreparametersin First,wefindthatchoosinganapproximatepositionembedding
+PGATmaycausethemodeltobeoverfitted. dimensionisimportant.Themodelperformanceincreasesasthis
+Finally,weexaminetheeffectivenessofdifferentmatchingmod- dimensionalityincreasesuntilitreachesabout50.Whenwefurther
+els.WereplacetheMLPinmodels5-8withLBMtocreatemodel increasepositionembeddingdimension,themodelwilloverfitand
+variants9-12.WecanclearlyseethatLBMworksbetterthanMLP. theperformancedecreases.Second,westudytheeffectofnegative
+ItcouldbethatLBMbettercapturestheinteractionbetweenthe samplingratioN.AsshowninFigure6,themodelperformance
+queryrepresentationandthefinalanchorrepresentation. firstincreasesasN increasesuntilitreachesabout30andthen
+RM
+1@tiH
+RRM
+3@tiH
+00 .. 78 50 Hit@1 Hit@3 MRR 00 .. 78 50 Hit@1 Hit@3 MRR 11 34 00 00 PP GG AA TT __ WCR M_ RLB _LM BM 25 51 62 00 CPU Time 5080 GPU Time
+0.70 0.70 1200 PGCN_CR_LBM 1280
+00 .. 66 05 00 .. 66 05 11 01 00 00 PGCN_WMR_LBM 36 24 00 376
+900 160 100 107
+0.40 0.40 800 80 64
+00 .. 33 05 00 .. 33 05 67 00 00 24 00 21 27 25 28
+0.25 0.25 500 10
+00 .. 12 50 00 .. 12 50 400 %20 % of samp4 l0 e% d node6 s0 % (as self8 0 s% uperv1 is0 i0 o% n) PCaloresenttNCeilgohsbetorXGdBisotost PaMrLePn Ct- omDe pMe apLSP re et- d(PT Ga MxAoT eE_xW tp hManR o) dT(Pa sGxoAETx_pCaRn)(PTGaCxoNE_xWpManR)(TPaGxCoENx_pCaRn)
+0.10 0 10 30 50 70 90 110 0.10 10 20 30 40 50 60 70 Figure 7: (Left) Training time of 20 epochs on GPU with
+Position Embedding Dimension Negative Sampling Ratio
+0.80 0.80 respect to % of sampled nodes in the existing taxonomy.
+Hit@1 Hit@3 MRR Hit@1 Hit@3 MRR
+0.75 0.75 (Right)Inferencetimeofall2450queriesinMAG-CSdataset.
+0.70 0.70
+0.65 0.65 Noteherey-axisisinlogarithmscale.
+0.60 0.60
+0.40 0.40
+0.35 0.35 ofmistakesresultsfromtermgranularity.Forexample,TaxoExpan
+0.30 0.30
+0.25 0.25 outputsthetwomostlikelyparentnodesofconcept“captcha”are
+0.20 0.20 “artificialintelligence”and“computersecurity”.Althoughthesetwo
+0.15 0.15
+0.10 1 2 3 4 5 6 7 0.10 100 250 500 750 1000 1250 1500 conceptsarecertainlyrelevantto“captcha”,theyaretoogeneral
+Number of Attention Heads Graph Embedding Dimension comparedtoitstrueparentnode“internetprivacy”.
+Figure6:Hyper-parametersensitivityanalysisonMAG-CS Finally,weobservethatTaxoExpancanreturnverysensiblean-
+dataset. We use PGAT for graph propagation, WMR for chorpositionsofqueryconcepts,eventhoughtheyarenotexactly
+graphreadout,andLBMforquery-graphmatching.Model thecurrent“true”parents.Forexample,theconcept“medlineplus”
+istrainedusingInfoNCEloss. referstoalargeonlinemedicallibraryandthusisrelatedtoboth
+“worldwideweb”and“libraryscience”.Also,theconcept“email
+becomesstable.Finally,weexaminetwohyper-parameterscontrol- hacking”isclearlyrelevanttoboth“internetprivacy”and“hacker”.
+lingthemodelcomplexity:thenumberofheadsinPGATandthe 7. TaxoExpan for Taxonomy Self-Cleaning. From the above
+finalgraphembeddingdimension.Weobservethatthebestmodel casestudies,wefindanotherinterestingapplicationofTaxoExpan
+performanceisreachedwhenthenumberofattentionheadsfalls istouseitforcleaningtheexistingtaxonomy.Specifically,wepar-
+inrange3to5andthegraphembeddingdimensionissetto500. titionallleafnodesoftheexistingtaxonomyinto5groupsand
+Toomanyattentionheadsortoolargegraphembeddingdimension randomlymaskonegroupofnodes.Then,wetrainaTaxoExpan
+willleadtooverfitandperformancedegradation. modelontheremainingnodesandpredictonthemaskedleafnodes.
+5. EfficiencyandScalability.Wefurtheranalyzethescalabilityof Next,weselectthoseentitieswhosetrueparentsappearatthebot-
+TaxoExpananditsefficiencyduringmodelinferencestage.Figure7 tomoftheranklistsreturnedbyTaxoExpan(i.e.,thelong-tailpart
+(left)teststhemodelscalabilitybyrunningonMAG-CSdataset oftwohistogramsinFigure8).Theparentsofthoseselectedentities
+sampledusingdifferentratios.Thetrainingtime(of20epochs) arehighlyquestionableandcallsforfurthermanualinspections.
+aremeasuredononesingleK80GPU.TaxoExpandemonstrates OurpreliminaryexperimentsontheMAG-CStaxonomyshows
+alinearruntimetrend,whichvalidatesourcomplexityanalysis thatabout30%oftheseentitieshaveexistingparentnodeswhich
+inSect.4.3.Second,Figure7(right)showsthatTaxoExpanisvery arelessappropriatethantheparentsinferredbyTaxoExpan.
+efficientduringmodelinferencestage.UsingGPU,TaxoExpantakes
+lessthan30secondstopredicttheanchorpositionsforall2450 5.2 EvaluationonSemEvalTaskBenchmark
+newqueryconcepts. 5.2.1 Datasets. We further evaluate TaxoExpan using SemEval
+6. Case Study. Figure 8 shows some outputs of TaxoExpan on
+Task14Benchmarkdataset9[22]whichincludesWordNet3.0as
+bothMAG-CSandMAG-Fulldatasets.OnMAG-CSdataset,we theexistingtaxonomyandadditional1,000domain-specificcon-
+canseethatover20%ofquerieshavetheirtrueparentscorrectly ceptswithmanuallabels,splitinto400trainingconceptsand600
+rankedatthefirstpositionandlessthan1.5%querieshavetheir testingconcepts.Eachconceptiseitheraverboranounandhasa
+“true”parentsrankedoutsideoftop1000positions.Amongthese textualdefinitionofafewsentences.Theoriginaltaskgoalisto
+1.5%significantlywrongqueries,wefindsomeofthemactually enrichthetaxonomybyperformingtwoactionsforeachnewcon-
+haveincorrectexistingparents.Forexample,theconcept“boils cept:(1)attach,whereanewconceptistreatedasanewsynsetand
+andcarbuncles”,whichisadiseaseentity,ismistakenlyputun- isattachedasahyponymofoneexistingsynsetinWordNet,and
+derparentnode“dataset”.SimilarcasesalsohappenonMAG-Full (2)merge,whereanewconceptismergedintoanexistingsynset.
+dataset where we find the concept “blood staining” is currently However,previousstate-of-the-artmethods[22,39,48],including
+under“laryngealmaskairway”. thewinningsolution,areonlyperformingtheattachoperation.
+Besidestheabovelabelerrors,wealsoobservetwocommon Inthiswork,wealsofollowthisconventionandattacheachnew
+mistakepatterns.Thefirsttypeofmistakesiscausedbytermam- concepttothetop-rankedsynsetintheWordNet.Finally,weobtain
+biguity.Forinstance,theterm“java”inconcept“javaapple”refers theinitialfeaturevectors(forbothnewconceptsandexistingwords
+toanislandinIndonesiawherefruitappleisproduced,ratherthan
+aprogramminglanguageusedinApplecompany.Thesecondtype 9http://alt.qcri.org/semeval2016/task14/.
+scirteM
+noitaulavE
+scirteM
+noitaulavE
+scirteM
+noitaulavE
+scirteM
+noitaulavE
+)sdnoces(
+emit
+gniniarT
+)sdnoces(
+emit
+ecnerefnI
+intheWordNet)usingpre-trainedsubword-awarefasttextembed- Table4:ModelperformanceonSemEvaldataset.TaxoExpan
+dings10.Foreachconcept,wegenerateitsdefinitionembedding versusallpreviousstate-of-the-artmethods.Wereportthe
+andnameembeddingbyaveragingtheembeddingofeachtoken bestperformanceofallexistingmethodsintheliterature.
+initstextualdefinitionandnamestring,correspondingly.Then,
+wesumthedefinitionandnameembeddingsofaconceptanduse Method Wu&P Recall F1
+themastheinitialembeddingsfortheTaxoExpanmodel.
+MSejrKU[39] 0.523 0.973 0.680
+5.2.2 EvaluationMetrics. Weusethethreeofficialmetricsdefined FWFS[22] 0.514 1.000 0.679
+inoriginalSemEvalTask14forevaluation: ETF[48] 0.473 1.000 0.642
+(1) Accuracy(Wu&P)isthesemanticsimilaritybetweenapre- ETF-FWFS[48] 0.562 1.000 0.720
+dicted parent nodexp and the true parentxt, calculated as
+dist-XGBoost 0.528 1.000 0.691
+W ofu n& odP e(x xp i, sx tt h) e= Wd2 o· e rd p de t Np ht exh tpL + tC adA xe( opx np t, ohx x mt t) y,w anh de Lre Cd Ae (p xt ph ,x xti )s rt eh pe red se ep nt th s TaxT oa Ex xo pE ax np -Fa Wn FS 0 0. .5 54 63 6 1 1. .0 00 00 0 0 0. .7 70 24 3
+theLeastCommonAncestorofxp andxt.
+(2) Recall is the percentage of concepts for which an attached
+parentispredicted11.
+(3) F1istheharmonicmeanofWu&Paccuracyandrecall. 6 CONCLUSION
+Thispaperstudiestaxonomyexpansionwhennohumanlabeled
+5.2.3 BaselineMethods. Wecomparethefollowingmethods:
+supervisiondataaregiven.WeproposeanovelTaxoExpanframe-
+(1) FWFS[22]:TheoriginalbaselineinTask14.Givenaconcept
+workwhichgeneratesself-supervisiondatafromtheexistingtax-
+c withitsdefinitiondc,thismethodpicksthefirstwordw in onomyandlearnsaposition-enhancedGNNmodelforexpansion.
+dc thathasthesamepartofspeechascandtreatsthiswordas Tomakethebestuseofself-supervisiondata,wedesignanoise-
+theparentnodeofc.
+robustobjectiveforeffectivemodeltraining.Extensiveexperiments
+(2) MSejrKU[39]:ThewinningsolutionofTask14.Thismethod
+demonstratetheeffectivenessandefficiencyofTaxoExpanonthree
+leveragesdistributionalandsyntacticfeaturestotrainaSVM
+taxonomies from different domains. Interesting future work in-
+classifierwhichisthenusedtopredictthegoodnessoffitfora
+cludesmodelinginter-dependencyamongnewconcepts,leverag-
+newconceptwithanexistingsynsetinWordNet.
+ingcurrentmethodtocleaningtheinputexistingtaxonomy,and
+(3) ETF [48]: The current state-of-the-art method that learns a incorporatingfeedbacksfromdownstreamapplications(e.g.,search
+LambdaMARTmodelwith15manuallydesignedfeatures,in-
+&recommendation)togeneratemorediversesupervisionsignals
+cludingtopologicalfeaturesfromthetaxonomy’sgraphstruc-
+forexpandingthetaxonomy.
+tureandsemanticfeaturesfromcorpusandBingsearchresults.
+(4) ETF-FWFS[48]:TheensemblemodelofFWFSandETF,which
+7 ACKNOWLEDGEMENT
+adds the FWFS property as a binary feature into the Lamb-
+daMARTmodelinETF. Research was sponsored in part by DARPA under Agreements
+(5) dist-XGBoost:Thesametreeboostingmodeldescribedinthe No.W911NF-17-C-0099andFA8750-19-2-1004,NationalScience
+previoussubsection5.1.3. FoundationIIS16-18481,IIS17-04532,andIIS-17-41317,andDTRA
+(6) TaxoExpan:Ourproposedtaxonomyexpansionframework. HDTRA11810026.Anyopinions,findings,andconclusionsorrec-
+(7) TaxoExpan-FWFS:SimilartoETF-FWFS,thisistheensemble ommendationsexpressedinthisdocumentarethoseoftheauthor(s)
+modelofFWFSandTaxoExpan.WetreattheFWFSheuristicas andshouldnotbeinterpretedastheviewsofanyU.S.Government.
+abinaryfeatureandadditintothefinalmatchingmodule. WethankYuxiaoDong,ZiniuHu,LiMaforinsightfuldiscussions
+onthisprojectandanonymousreviewersforvaluablefeedbacks.
+Forallpreviousmethods,wedirectlyreporttheirbestperformance
+intheliterature.Fortheremainingmethods,wetunethemfollow-
+ingthesameproceduredescribedintheSection5.1.4. APPENDIX
+5.2.4 ExperimentalResults. Table4showstheexperimentalre- ProofofLossFunction
+sultsonSemEvaldataset.Wecanseethatbothdist-XGBoostand HereweprovethatoptimizingthelossfunctioninEq.(11)will
+TaxoExpanmethodscanoutperformthepreviouswinningsystem resultinf(·)estimatingtheprobabilitydensityinEq.(12).Bycon-
+ofthistask(i.e.,MSejrKU)andthebaselineETF.Inaddition,we struction,Xcontainsquerync’sonepositiveanchor(i.e.,itstrue
+canseetheFWFSheuristicisindeedverypowerfulforthisdataset parentnp)sampledfromthetruedistributionP(ai|nc)andN nega-
+a pn erd foin rmco ar np co er .a Htin og weit va es r,a ths it sro fen ag tufe ra et ru er qe uc ia ren ss hig un mifi ac na -n lat bly elb eo do ds et fith ne
+i-
+wtiv ee ma en rc gh eo tr hs e{ sn el r N| lN = +1} 1s aa nm chp ole rsd if nr to om aa smun ai llfo sr em tad ni dst cr oib nu st ii do en rP th(a ei t) a. sI kf
+tionsentencesandthuscannotbeeasilygeneralizedtotaxonomies ofselectingtrueanchornp’spositionj∗in[1,2,...,N+1],wecan
+otherthanWordNet.Finally,weshowthatTaxoExpan-FWFScan viewEq.(11)asthecrossentropyofpositiondistributionPˆ from
+achievethenewstate-of-the-artperformanceonthisdataset. modelpredictionrelativetothetruedistributionP∗.Specifically,
+1 1 o0 1 rdW T ehe ris tu omse ae vt th orie ic dw i msik aui ks- e in nde gw b pes lc- a3 a c0 u e0 s md e- et1 nhM te s- os wru i ib g thw ino la or l wd t. av cse okc n. az fili dlp o ewv ne csr es a .io mn oo dn elf ta ost dT ee cx lt ino effi tc oia pl law ce eb nsi et we. conceptsin t oh ne em ofod {ael kp
+|
+kNre =+d 11ic }te isd tp ho es tit ri uo en ad nis ct hr oib ru at nio dn aPˆ llj t= he(cid:205) okN t= hf + 1( e1a rfj s(, an akc r,) enc n) ew gah te ivr ee
+Query Predicted Parent Query Concept Predicted Parents (Top 2) “True” Parent Query Predicted Parent Query Concept Predicted Parents (Top 2) “True” Parent
+Concept = “True” Parent Concept = “True” Parent
+archival science library science email hacking internet privacy, hacker computer security hindi language linguistics syndactyla ecology, biology zoology
+445 284 000 (215 .1 29 % ) h d sa rs keil gtt yao la i pit ln n t a t ei kc l is m l se fel ai eeqb a r c u rr mw una e rer in n iy b tc g ye wh cy w oebp mboer tr i reo pdl sd la dc eg uu n m h ar tc wg ea n raou c rm iot d n ha i slom eotg ee en ge cwi nan yc ugl eg a rib ir n tl yo e c sv h oi as g ln io fie dl nc n e sei e a r tlr l e ae sg c t i egcr oa i nr dpp d a rhh il vie n er g wo cr ol td t i enc mrt c o lw a fow e oo ppno cm mi r es ud o mps p rtpe m aeq o u a u trw u mtts it nie dea i oe t u gr r ar i nb oe n s tn s, an r ic ecc yet ih t sc sai e tp wr te ti tn ip o eh ie o oci rh me vn rn aee kr at , g, se r l , er n , et s flo ac d sci a ha c ht l i a mp an nbhe enaet mesw r le oo rr yk 456 963 000 000 (155 .6 08 31 %) bphe laain en drd xr t a di aocy p c eens h xu r rss oi ye b c t eo sid eal c xi td r c t af caii o oa l ilc sio n ni id d oe n orgf co aro ni sb m cd ic uo r i y rs n ct gsa c o h etn ie e al roy yn m lgc y ise try 4 m aa ae nm ta x rim is in aey o o rt cm yq xb hiu hra d au i yt en lir ssi o fx t ain eli mng rie a il y1 pi eno ks mn ro ary is no ge nrm o sgn ad xn hm al ni ii c ean ini pce i tle in i y ,c t ta cer y s di r ch ,c o d ihs es s cm iy emu s o ios m or ra igt d ls rt oe i der est gmi rr ex t ryy yr r, , y s , d gia b eb i noe dacm t ene ha rxs e t i sm er m ti tx ui ye s dtll r ii eytu ss
+360 ringer box telecommunications medline plus w lio br rl ad r yw sid ce ie w nce eb, the internet 4200 m ae nt aa lg ya sm ise game theory sev se un m n mu am ryber mathematics, percentile statistics
+300 (112 .8 64 % ) captcha a crt oifi mc pia ul ti en rt e sl elig ce un ric tye, internet privacy 3500 3706 (9.8%) steerable filter compu dte er t ev cis tii oo nn, edge image processing
+Query Concept Predicted Parents (Top 2) “True” Parent 2283 Query Concept Predicted Parents (Top 2) “True” Parent
+240 2800 (6.04%)
+z order curve data structure, computer science skip list pc protocal computer security, network security ischemic preconditioning
+180 (5.1 43 33 %) h ba or id lsw (cid:68)a (cid:81)re (cid:71) (cid:3)o cb af ru bs uc na ct li eo sn riske am sb see sd sd med e ns ty , s mte em di, c h aa l r pd ow isa ore ning revers de ae tn ag sein teering 2100 1661 blo lon og d v sa tr aia inb inle g interl se ta av ine id n gm , e dm iao br ey t, e m s e mm eo llir ty u sbuffer laryngt era an l s mfe ar s kn a airway
+120 97 resnet poly glycerol sebacate, hemp fibre deep learning 1400 java apple computer science, operating system syzygium
+63 37 queries (≈1.5%) 783 183 queries (≈0.48%)
+6 00 … … … 29 …16 …8 … 6 … 2 … w …ith 1 ran …k ≥ 10 100 … 1 … 7 000 … … …208 …99 …46 …10 … 4 … 2 … 1 … …with 1 ra …nk 1≥ …10 1000 …
+1 2 3 5 10 30 50 100 300 500 1000 3000 5000 10000 1 2 3 5 10 30 50 100 300 500 1000 5000 104 3*104 5*104105
+Rank of Query Concept’s “True” Parent Rank of Query Concept’s “True” Parent
+(a) MAG-CS Dataset (totally 2450 query concepts) (b) MAG-Full Dataset (totally 37804 query concepts)
+Figure 8: Example output of TaxoExpan on MAG-CS and MAG-Full datasets. We draw a histogram of the ranks of query
+concepts’trueparentswithintheranklistreturnedbyTaxoExpan.Insubfigure(a),forexample,wehave519(outof2450)
+queriesthattheirparentsareexactlyrankedinthefirstposition.
+anchors.Meanwhile,inthetruepositiondistribution: [16] MartiA.Hearst.1992. AutomaticAcquisitionofHyponymsfromLargeText
+Corpora.InCOLING.
+P∗ j = (cid:205) kN =+ 1P 1(a (cid:0) Pj (|n a kc) |n(cid:206) c)l(cid:44) (cid:206)j lP (cid:44)( ka l P) (a l)(cid:1) = (cid:205) kN =P + 1( 1Pa (j Pa| (n j Pa)c (k a) | kn )c). [[ 11 87 ]] W 2 T J Du0 K one 1 D nn 7 H g. EH u .U ( 2a2u n n 00a d 1g1, e 9,7rZ Z .)s .h t h Tao a an on xd cg ohSy nuhu onoa mrn Rt yeT -W n Ae ,xa wWtn s ag a rb, y ey nH MH ea uXaix r li tu v n ie -n Z Hst hW oi an poa gn , Ra Gg en a, ad oK slA oa e nni H iaZ nel gh y ,Jze Niin -n R eg g to, wS na e g on m rd W ka sX en n fti oia ,c a ro K nf Sa dn en o qDg w ua eZ xle nih d a to n ig au ge l. .
+From above, we can see that the optimal value for f(aj,nc) is
+[19]
+R Me ec no gm Jm iae nn gd ,a Jt inio gn b. oIn ShW aS nD g,M T.
+aylorCassidy,XiangRen,LanceM.Kaplan,Timo-
+proportionalto P(aj|nc). thyP.Hanratty,andJiaweiHan.2017.MetaPAD:MetaPatternDiscoveryfrom
+P(aj) MassiveTextCorpora.InKDD.
+[20] WengongJin,ReginaBarzilay,andTommiS.Jaakkola.2018. JunctionTree
+REFERENCES VariationalAutoencoderforMolecularGraphGeneration.ICML.
+[21] DavidJurgensandMohammadTaherPilehvar.2015.Reseratingtheawesometas-
+[1] EugeneAgichteinandLuisGravano.2000.Snowball:extractingrelationsfrom tic:AnautomaticextensionoftheWordNettaxonomyfornovelterms.InNAACL-
+largeplain-textcollections.InACMDL. HLT.
+[2] RamiAly,ShantanuAcharya,AlexanderOssa,ArneKöhn,ChristianBiemann, [22] DavidJurgensandMohammadTaherPilehvar.2016. SemEval-2016Task14:
+andAlexanderPanchenko.2019.EveryChildShouldHaveParents:ATaxonomy SemanticTaxonomyEnrichment.InSemEval@NAACL-HLT.
+RefinementAlgorithmBasedonHyperbolicTermEmbeddings.InACL. [23] ThomasN.KipfandMaxWelling.2017. Semi-SupervisedClassificationwith
+[3] LuisEspinosaAnke,JoséCamacho-Collados,ClaudioDelliBovi,andHoracio GraphConvolutionalNetworks.InICLR.
+Saggion.2016. SupervisedDistributionalHypernymDiscoveryviaDomain [24] ZornitsaKozarevaandEduardH.Hovy.2010. ASemi-SupervisedMethodto
+Adaptation.InEMNLP. LearnandConstructTaxonomiesUsingtheWeb.InEMNLP.
+[4] LuisEspinosaAnke,JoséCamacho-Collados,SaraRodríguez-Fernández,Ho- [25] JohnBoazLee,RyanA.Rossi,andXiangnanKong.2018.GraphClassification
+racioSaggion,andLeoWanner.2016.ExtendingWordNetwithFine-Grained usingStructuralAttention.InKDD.
+CollocationalInformationviaSupervisedDistributionalLearning.InCOLING. [26] YujiaLi,OriolVinyals,ChrisDyer,RazvanPascanu,andPeterW.Battaglia.2018.
+[5] MohitBansal,DavidBurkett,GerarddeMelo,andDanKlein.2014.Structured LearningDeepGenerativeModelsofGraphs.InICLR.
+LearningforTaxonomyInductionwithBeliefPropagation.InACL. [27] DekangLin.1998.AnInformation-TheoreticDefinitionofSimilarity.InICML.
+[6] LuisaBentivogli,AndreaAlejandraBocco,andEmanuelePianta.2003.Archi- [28] CarolynE.Lipscomb.2000.MedicalSubjectHeadings(MeSH).Bulletinofthe
+WordNet:IntegratingWordNetwithDomain-SpecificKnowledge. MedicalLibraryAssociation(2000).
+[7] PiotrBojanowski,EdouardGrave,ArmandJoulin,andTomasMikolov.2016.En- [29] BangWuLiu,WeidongGuo,DiNiu,ChaoyueWang,Shang-ZhongXu,Jinghong
+richingWordVectorswithSubwordInformation.arXivpreprintarXiv:1607.04606 Lin,KunfengLai,andYuWeiXu.2019.AUser-CenteredConceptMiningSystem
+(2016). forQueryandDocumentUnderstandingatTencent.InKDD.
+[8] JianJhenChen,TengfeiMa,andCaoXiao.2018.FastGCN:FastLearningwith [30] AnhTuanLuu,YiTay,SiuCheungHui,andSee-KiongNg.2016.LearningTerm
+GraphConvolutionalNetworksviaImportanceSampling.InICLR. EmbeddingsforTaxonomicRelationIdentificationUsingDynamicWeighting
+[9] TianqiChenandCarlosGuestrin.2016. XGBoost:AScalableTreeBoosting NeuralNetwork.InEMNLP.
+System.InKDD. [31] YuningMao,XiangRen,JiamingShen,XiaotaoGu,andJiaweiHan.2018.End-
+[10] AnneCocos,MariannaApidianaki,andChrisCallison-Burch.2018.Comparing to-EndReinforcementLearningforAutomaticTaxonomyInduction.InACL.
+ConstraintsforTaxonomicOrganization.InNAACL. [32] RuiMeng,YongxinTong,LeiChen,andCalebChenCao.2015. CrowdTC:
+[11] JacobDevlin,Ming-WeiChang,KentonLee,andKristinaToutanova.2018.BERT: CrowdsourcedTaxonomyConstruction.InICDM.
+Pre-trainingofDeepBidirectionalTransformersforLanguageUnderstanding.In [33] TomasMikolov,IlyaSutskever,KaiChen,GregoryS.Corrado,andJeffreyDean.
+NAACL-HLT. 2013.DistributedRepresentationsofWordsandPhrasesandtheirComposition-
+[12] ChristianeFellbaum.1998.WordNet. ality.InNIPS.
+[13] ChristianeFellbaum,UdoHahn,andBarryD.Smith.2006.Towardsnewinfor- [34] NdapandulaNakashole,GerhardWeikum,andFabianM.Suchanek.2012.PATTY:
+mationresourcesforpublichealth-FromWordNettoMedicalWordNet.Journal ATaxonomyofRelationalPatternswithSemanticTypes.InEMNLP-CoNLL.
+ofbiomedicalinformatics(2006). [35] RobertoNavigli,PaolaVelardi,andStefanoFaralli.2011.AGraph-BasedAlgo-
+[14] AmitGupta,RémiLebret,HamzaHarkous,andKarlAberer.2017.Taxonomy rithmforInducingLexicalTaxonomiesfromScratch.InIJCAI.
+InductionUsingHypernymSubsequences.InCIKM. [36] VassilisPlachouras,FabioPetroni,TimothyNugent,andJochenL.Leidner.2018.
+[15] WilliamL.Hamilton,ZhitaoYing,andJureLeskovec.2017.InductiveRepresen- AComparisonofTwoParaphraseModelsforTaxonomyAugmentation.In
+tationLearningonLargeGraphs.InNIPS.
+stpecnoc
+yreuq
+fo rebmuN
+stpecnoc
+yreuq
+fo rebmuN
+NAACL-HLT. [50] PetarVelickovic,GuillemCucurull,ArantxaCasanova,AdrianaRomero,Pietro
+[37] StephenRoller,KatrinErk,andGemmaBoleda.2014. InclusiveyetSelective: Liò,andYoshuaBengio.2018.GraphAttentionNetworks.InICLR.
+SupervisedDistributionalHypernymyDetection.InCOLING. [51] JingjingWang,ChangsungKang,YiChang,andJiaweiHan.2014.Ahierarchical
+[38] StephenRoller,DouweKiela,andMaximilianNickel.2018. HearstPatterns Dirichletmodelfortaxonomyexpansionforsearchengines.InWWW.
+Revisited:AutomaticHypernymDetectionfromLargeTextCorpora.InACL. [52] JulieWeeds,DavidJ.Weir,andDianaMcCarthy.2004.CharacterisingMeasures
+[39] Michael Sejr Schlichtkrull and Héctor Martínez Alonso. 2016. MSejrKu ofLexicalDistributionalSimilarity.InCOLING.
+atSemEval-2016Task14:TaxonomyEnrichmentbyEvidenceRanking.In [53] WentaoWu,HongsongLi,HaixunWang,andKennyQ.Zhu.2012.Probase:a
+SemEval@NAACL-HLT. probabilistictaxonomyfortextunderstanding.InSIGMODConference.
+[40] JiamingShen,ZeqiuWu,DongmingLei,JingboShang,XiangRen,andJiawei [54] GraceHuiYang.2012.ConstructingTask-SpecificTaxonomiesforDocument
+Han.2017.SetExpan:Corpus-BasedSetExpansionviaContextFeatureSelection CollectionBrowsing.InEMNLP-CoNLL.
+andRankEnsemble.InECML/PKDD. [55] RexYing,RuiningHe,KaifengChen,PongEksombatchai,WilliamL.Hamilton,
+[41] JiamingShen,ZeqiuWu,DongmingLei,ChaoZhang,XiangRen,MichelleT. andJureLeskovec.2018.GraphConvolutionalNeuralNetworksforWeb-Scale
+Vanni,BrianM.Sadler,andJiaweiHan.2018.HiExpan:Task-GuidedTaxonomy RecommenderSystems.InKDD.
+ConstructionbyHierarchicalTreeExpansion.InKDD. [56] ZhitaoYing,JiaxuanYou,ChristopherMorris,XiangRen,WilliamL.Hamilton,
+[42] ZhihongShen,HaoMa,andKuansanWang.2018. AWeb-scalesystemfor andJureLeskovec.2018. HierarchicalGraphRepresentationLearningwith
+scientificknowledgeexploration.InACL. DifferentiablePooling.InNeurIPS.
+[43] VeredShwartz,YoavGoldberg,andIdoDagan.2016. Improvinghypernymy [57] JiaxuanYou,BowenLiu,ZhitaoYing,VijayS.Pande,andJureLeskovec.2018.
+detectionwithanintegratedpath-basedanddistributionalmethod.ACL(2016). GraphConvolutionalPolicyNetworkforGoal-DirectedMolecularGraphGener-
+[44] ArnabSinha,ZhihongShen,YangSong,HaoMa,DarrinEide,Bo-JunePaulHsu, ation.InNeurIPS.
+andKuansanWang.2015.AnOverviewofMicrosoftAcademicService(MAS) [58] JiaxuanYou,RexYing,andJureLeskovec.2019.Position-awareGraphNeural
+andApplications.InWWW. Networks.InICML.
+[45] DarinStewart.2008.BuildingEnterpriseTaxonomies. [59] ManzilZaheer,SatwikKottur,SiamakRavanbakhsh,BarnabásPóczos,Ruslan
+[46] AntonioToral,RafaelMuñoz,andMonicaMonachini.2008. NamedEntity Salakhutdinov,andAlexanderJ.Smola.2017.DeepSets.InNIPS.
+WordNet.InLREC. [60] ChaoZhang,FangboTao,XiusiChen,JiamingShen,MengJiang,BrianM.Sadler,
+[47] AaronvandenOord,YazheLi,andOriolVinyals.2018.RepresentationLearning MichelleT.Vanni,andJiaweiHan.2018.TaxoGen:ConstructingTopicalConcept
+withContrastivePredictiveCoding.ArXiv(2018). TaxonomybyAdaptiveTermEmbeddingandClustering.InKDD.
+[48] NikhitaVedula,PatrickK.Nicholson,DeepakAjwani,SouravDutta,Alessandra [61] MuhanZhang,ZhichengCui,MarionNeumann,andYixinChen.2018. An
+Sala,andSrinivasanParthasarathy.2018.EnrichingTaxonomiesWithFunctional End-to-EndDeepLearningArchitectureforGraphClassification.InAAAI.
+DomainKnowledge.InSIGIR. [62] XianglingZhang,YueguoChen,JunChen,XiaoyongDu,KeWang,andJi-Rong
+[49] PaolaVelardi,StefanoFaralli,andRobertoNavigli.2013.OntoLearnReloaded: Wen.2017.EntitySetExpansionviaKnowledgeGraphs.InSIGIR’17.
+AGraph-BasedAlgorithmforTaxonomyInduction.ComputationalLinguistics [63] YuchenZhang,AmrAhmed,VanjaJosifovski,andAlexanderJ.Smola.2014.
+(2013). Taxonomydiscoveryforpersonalizedrecommendation.InWSDM.

@@ -1,0 +1,672 @@
+A Deep Factorization of Style and Structure in Fonts
+NikitaSrivatsan1 JonathanT.Barron2 DanKlein3 TaylorBerg-Kirkpatrick4
+1LanguageTechnologiesInstitute,CarnegieMellonUniversity,nsrivats@cmu.edu
+2GoogleResearch,barron@google.com
+3ComputerScienceDivision,UniversityofCalifornia,Berkeley,klein@cs.berkeley.edu
+4ComputerScienceandEngineering,UniversityofCalifornia,SanDiego,tberg@eng.ucsd.edu
+Figure1: ExamplefontsfromtheCapitals64dataset. Thetaskoffontreconstructioninvolvesgeneratingmissing
+glyphsfrompartiallyobservednovelfonts.
+Abstract whichtypicallypresumealibraryofknownfonts.
+Inthecaseofhistoricaldocumentrecognition,for
+Weproposeadeepfactorizationmodelforty-
+pographic analysis that disentangles content example, this problem is more pronounced due
+from style. Specifically, a variational infer- to the wide range of lost, ancestral fonts present
+enceprocedurefactorseachtrainingglyphinto in such data (Berg-Kirkpatrick et al., 2013; Berg-
+the combination of a character-specific con- KirkpatrickandKlein,2014). Modelsthatcapture
+tentembeddingandalatentfont-specificstyle
+this wide stylistic variation of glyph images may
+variable. The underlying generative model
+eventuallybeusefulforimprovingopticalcharac-
+combines these factors through an asymmet-
+terrecognitiononunknownfonts.
+ric transpose convolutional process to gener-
+In this work we present a probabilistic latent
+atetheimageoftheglyphitself. Whentrained
+on corpora of fonts, our model learns a man- variable model capable of disentangling stylistic
+ifold over font styles that can be used to an- features of fonts from the underlying structure of
+alyze or reconstruct new, unseen fonts. On each character. Our model represents the style of
+thetaskofreconstructingmissingglyphsfrom
+each font as a vector-valued latent variable, and
+an unknown font given only a small num-
+parameterizes the structure of each character as a
+ber of observations, our model outperforms
+learned embedding. Critically, each style latent
+both a strong nearest neighbors baseline and
+variable is shared by all characters within a font,
+a state-of-the-art discriminative model from
+priorwork. while character embeddings are shared by char-
+acters of the same type across all fonts. Thus,
+1 Introduction
+our approach is related to a long literature on us-
+One of the most visible attributes of digital lan- ing tensor factorization as a method for disentan-
+guage data is its typography. A font makes use glingstyleandcontent(FreemanandTenenbaum,
+ofuniquestylisticfeaturesinavisuallyconsistent 1997; Tenenbaum and Freeman, 2000; Vasilescu
+manneracrossabroadsetofcharacterswhilepre- and Terzopoulos, 2002; Tang et al., 2013) and to
+serving the structure of each underlying form in recent deep tensor factorization techniques (Xue
+ordertobehumanreadable–asshowninFigure1. etal.,2017).
+Modeling these stylistic attributes and how they Inspiredbyneuralmethods’abilitytodisentan-
+composewithunderlyingcharacterstructurecould gle loosely coupledphenomena in other domains,
+aid typographic analysis and even allow for auto- including both language and vision (Hu et al.,
+matic generation of novel fonts. Further, the vari- 2017; Yang et al., 2017; Gatys et al., 2016; Zhu
+ability of these stylistic features presents a chal- etal.,2017),weparameterizethedistributionthat
+lenge for optical character recognition systems, combines style and structure in order to generate
+glyph images as a transpose convolutional neural plicit by Zhang et al. (2018, 2020) – as the goal
+decoder(DumoulinandVisin,2016). Further,the of our analysis is to learn a smooth manifold of
+decoder is fed character embeddings early on in fontstylesthatallowsforstylisticinferencegiven
+theprocess,whilethefontlatentvariablesdirectly a small sample of glyphs. However, many other
+parameterize the convolution filters. This archi- style transfer tasks in the language domain (Shen
+tecture biases the model to capture the asymmet- et al., 2017) suffer from ambiguity surrounding
+ric process by which structure and style combine the underlying division between style and seman-
+toproduceanobservedglyph. ticcontent. Bycontrast,inthissettingthedistinc-
+We evaluate our learned representations on the tion is clearly defined, with content (i.e. the char-
+task of font reconstruction. After being trained acter)observedasacategoricallabeldenotingthe
+onasetofobservedfonts,thesystemreconstructs coarse overall shape of a glyph, and style (i.e. the
+missingglyphsinasetofpreviouslyunseenfonts, font) explaining lower-level visual features such
+conditioned on a small observed subset of glyph as boldness, texture, and serifs. The modeling
+images. Under our generative model, font recon- approach taken here might inform work on more
+structioncanbeperformedviaposteriorinference. complexdomainswherethedivisionislessclear.
+Since the posterior is intractable, we demonstrate
+howavariationalinferenceprocedurecanbeused 3 FontReconstruction
+to perform both learning and accurate font recon-
+We can view a collection of fonts as a matrix,
+struction. In experiments, we find that our pro-
+X, where each column corresponds to a particu-
+posedlatentvariablemodelisabletosubstantially
+lar character type, and each row corresponds to a
+outperform both a strong nearest-neighbors base-
+specific font. Each entry in the matrix, x , is an
+lineaswellasastate-of-the-artdiscriminativesys- ij
+imageoftheglyphforcharacteriinthestyleofa
+tem on a standard dataset for font reconstruction.
+font j, which we observe as a 64 × 64 grayscale
+Further, in qualitative analysis, we demonstrate
+image as shown in Figure 1. In a real world set-
+how the learned latent space can be used to inter-
+ting, the equivalent matrix would naturally have
+polatebetweenfonts,hintingatthepracticalityof
+missing entries wherever the encoding for a char-
+morecreativeapplications.
+actertypeinafontisundefined. Ingeneral,notall
+fonts contain renderings of all possible character
+2 RelatedWork
+types; many will only support one particular lan-
+Discussion of computational style and content guage or alphabet and leave out uncommon sym-
+separationinfontsdatesatleastasfarbackasthe bols. Further, for many commercial applications,
+writings of Hofstadter (1983, 1995). Some prior onlythesmallsubsetofcharactersthatappearsin
+work has tackled this problem through the use of a specific advertisement or promotional message
+bilinearfactorizationmodels(FreemanandTenen- will have been designed by the artist – the major-
+baum, 1997; Tenenbaum and Freeman, 2000), ityofglyphsaremissing. Asaresult,wemaywish
+whileothershaveuseddiscriminativeneuralmod- tohavemodelsthatcaninferthesemissingglyphs,
+els (Zhang et al., 2018, 2020) and adversarial ataskreferredtoasfontreconstruction.
+training techniques (Azadi et al., 2018). In con- Following recent prior work (Azadi et al.,
+trast, we propose a deep probabilistic approach 2018), we define the task setup as follows: Dur-
+that combines aspects of both these lines of past ing training we have access to a large collection
+work. Further, while some prior approaches to of observed fonts for the complete character set.
+modeling fonts rely on stroke or topological rep- Attesttimewearerequiredtopredictthemissing
+resentations of observed glyphs (Campbell and glyph images in a collection of previously unseen
+Kautz, 2014; Phan et al., 2015; Suveeranont and fonts with the same character set. Each test font
+Igarashi, 2010), ours directly models pixel values will contain observable glyph images for a small
+in rasterized glyph representations and allows us randomized subset of the character set. Based on
+to more easily generalize to fonts with variable thestyleofthissubset,themodelmustreconstruct
+glyphtopologies. glyphsfortherestofthecharacterset.
+Finally, while we focus our evaluation on font Fontreconstructioncanbethoughtofasaform
+reconstruction, our approach has an important re- of matrix completion; given various observations
+lationshipwithstyletransfer–aframingmadeex- in both a particular row and column, we wish to
+Gaussian
+𝑧3 Prior
+𝑧1 𝑧4
+𝑒
+𝑧2 3
+Font Embedding
+Latent Variables 𝑧 𝑧 𝑧 𝑧
+1 2 3 4
+𝑧
+4
+𝑒
+1 Transpose
+Conv
+𝑒
+2
+𝑒
+3
+Character
+Embedding Observed Glyphs
+Decoder Architecture
+Parameters
+Figure2: Depictionofthegenerativeprocessofourmodel. Eachobservedglyphimageisgeneratedconditioned
+onthelatentvariableofthecorrespondingfontandtheembeddingparameterofthecorrespondingcharactertype.
+Foramoredetaileddescriptionofthedecoderarchitectureandhyperparameters,seeAppendixA.
+reconstructtheelementattheirintersection. Alter- avector-valuedlatentvariableratherthanadeter-
+nativelywecanviewitasafew-shotstyletransfer ministicembedding.
+task, in that we want to apply the characteristic More specifically, for each font in the collec-
+attributes of a new font (e.g. serifs, italicization, tion, a font embedding variable, z ∈ Rk, is
+j
+drop-shadow) to a letter using a small number of sampled from a fixed multivariate Gaussian prior,
+examples to infer those attributes. Past work on p(z ) = N(0,I ). Next, each glyph image, x ,
+j k ij
+font reconstruction has focused on discriminative is generated independently, conditioned on the
+techniques. For example Azadi et al. (2018) used corresponding font variable, z , and a character-
+j
+anadversarialnetworktodirectlypredictheldout specific parameter vector, e ∈ Rk, which we re-
+i
+glyphs conditioned on observed glyphs. By con- fer to as a character embedding. Thus, glyphs of
+trast, we propose a generative approach using a the same character type share a character embed-
+deep latent variable model. Under our approach ding, while glyphs of the same font share a font
+fonts are generated based on an unobserved style variable. A corpus of I ∗ J glyphs is modeled
+embedding, whichwecanperforminferenceover withonlyI characterembeddingsandJ fontvari-
+givenanynumberofobservations. ables, as seen in the left half of Figure 2. This
+modelingapproachcanbethoughtofasaformof
+4 Model
+deepmatrixfactorization,wherethecontentatany
+Figure 2 depicts our model’s generative process. givencellispurelyafunctionofthevectorrepre-
+Given a collection of images of glyphs consisting sentations of the corresponding row and column.
+ofI charactertypesacrossJ fonts,ourmodelhy- We denote the full corpus of glyphs as a matrix
+pothesizesaseparationofcharacter-specificstruc- X = ((x 11,...,x 1J),...,(x I1,...x IJ))and denote
+turalattributesandfont-specificstylisticattributes the corresponding character embeddings as E =
+into two different representations. Since all char- (e 1,...,e I)andfontvariablesasZ = (z 1,...,z J).
+actersareobservedinatleastonefont,eachchar- Under our model, the probability distribution
+acter type is represented as an embedding vector over each image, conditioned on z and e , is pa-
+j i
+which is part of the model’s parameterization. In rameterized by a neural network, described in the
+contrast, onlyasubsetoffontsisobservedduring next section and depicted in Figure 2. We denote
+training and our model will be expected to gen- this decoder distribution as p(x |z ;e ,φ), and
+ij j i
+eralize to reconstructing unseen fonts at test time. let φ represent parameters, shared by all glyphs,
+Thus, our representation of each font is treated as that govern how font variables and character em-
+beddings combine to produce glyph images. In thecharacterembeddingisprojectedtoalowres-
+contrast, the character embedding parameters, e , olution matrix with a large number of channels.
+i
+which feed into the decoder, are only shared by Followingthat,weapplyseveraltransposeconvo-
+glyphs of the same character type. The font vari- lutional layers which increase the resolution, and
+ables, z , are unobserved during training and will reducethenumberofchannels. Critically,thecon-
+j
+beinferredattesttime. Thejointprobabilityunder volutionalfilterateachstepisnotalearnedparam-
+ourmodelisgivenby: eter of the model, but rather the output of a small
+multilayer perceptron whose input is the font la-
+(cid:89)
+p(X,Z;E,φ) = p(x |z ;e ,φ)p(z ) tent variable z. Between these transpose convo-
+ij j i j
+i,j lutions, we insert vanilla convolutional layers to
+fine-tunefollowingtheincreaseinresolution.
+4.1 DecoderArchitecture
+Overall, the decoder consists of four blocks,
+One way to encourage the model to learn disen- where each block contains a transpose convolu-
+tangled representations of style and content is by tion, which upscales the previous layer and re-
+choosing an architecture that introduces helpful duces the number of channels by a factor of two,
+inductive bias. For this domain, we can think of followedbytwoconvolutionallayers. Each(trans-
+the character type as specifying the overall shape pose)convolutionisfollowedbyaninstancenorm
+of the image, and the font style as influencing the andaReLUactivation. Theconvolutionfiltersall
+finer details; we formulate our decoder with this have a kernel size of 5 × 5. The character em-
+difference in mind. We hypothesize that a glyph bedding is reshaped via a two-layer MLP into a
+canbemodeledintermsofalow-resolutionchar- 8 × 8 × 256 tensor before being fed into the de-
+acter representation to which a complex operator coder. Thefinal64×64dimensionaloutputlayer
+specifictothatfonthasbeenapplied. is treated as a grid of parameters which defines
+Thesuccessoftransposeconvolutionallayersat the output distribution on pixels. We describe the
+generatingrealisticimagessuggestsanaturalway specificsofthisdistributioninthenextsection.
+to apply this intuition. A transpose convolution1
+isaconvolutionperformedonanundecimatedin- 4.2 ProjectedLoss
+put (i.e. with zeros inserted in between pixels in
+The conventional approach for computing loss on
+alternatingrowsandcolumns),resultinginanup-
+image observations is to use an independent out-
+scaled output. Transpose convolutional architec-
+put distribution, typically a Gaussian, on each
+tures generally start with a low resolution input
+pixel’s intensity. However, deliberate analysis of
+which is passed through several such layers, it-
+thestatisticsofnaturalimageshasshownthatim-
+eratively increasing the resolution and decreasing
+agesarenotwell-describedintermsofstatistically
+the number of channels until the final output di-
+independentpixels,butareinsteadbettermodeled
+mensions are reached. We note that the asymme-
+in terms of edges (Field, 1987; Huang and Mum-
+trybetweenthecoarseinputandtheconvolutional
+ford,1999). Ithasalsobeendemonstratedthatim-
+filterscloselyalignswiththedesiredinductivebi-
+agesoftexthavesimilarstatisticaldistributionsas
+ases,andthereforeusethisframeworkasastarting
+natural images (Melmer et al., 2013). Following
+pointforourarchitecture.
+this insight, as our reconstruction loss we use a
+Broadly speaking, our architecture represents
+heavy-tailed (leptokurtotic) distribution placed on
+theunderlyingshapethatdefinesthespecificchar-
+atransformedrepresentationoftheimage,similar
+acter type (but not the font) as coarse-grained in-
+to the approach of Barron (2019). Modeling the
+formation that therefore enters the transpose con-
+statistics of font glyphs in this fashion results in
+volutionalprocessearlyon. Incontrast,thestylis-
+sharpersamples,whilemodelingindependentpix-
+tic content that specifies attributes of the specific
+els with a Gaussian distribution results in blurry,
+font (such as serifs, drop shadow, texture) is rep-
+oversmoothedresults.
+resented as finer-grained information that enters
+More specifically, we adopt one of the strate-
+into the decoder at a later stage, by parameteriz-
+gies employed in Barron (2019), and transform
+ing filters, as shown in the right half of Figure 2.
+image observations using the orthonormal variant
+Specifically we form our decoder as follows: first
+of the 2-Dimensional Discrete Cosine Transform
+1sometimeserroneouslyreferredtoasa“deconvolution” (2-DDCT-II)(Ahmedetal.,1974), whichwede-
+Convolutional TransposeConvolutional
+Encoder Decoder
+Latent Space
+𝑒
+1
+𝑒 𝒩(𝜇,Σ)
+1
+Observation Pointwise 𝕂𝕃 𝑒 2
+Subsampling Max
+𝑒
+𝒩(0,I) 3
+𝑒
+3
+Discrete Cosine
+Transform 𝔼 log𝑝
+𝑞
+Figure3: Depictionofthecomputationgraphoftheamortizedvariationallowerbound(forsimplicity, onlyone
+fontisshown). Theencoderapproximatesthegenerativemodel’strueposterioroverthefontstylelatentvariables
+giventheobservations. Itremainsinsensitivetothenumberofobservationsbypoolinghigh-levelfeaturesacross
+glyphs. Foramorespecificdescriptionoftheencoderarchitecturedetails,seeAppendixA.
+noteasf : R64×64 → R64×64 forour64×64di- ages. Intuitively, it models the fact that images
+mensionalimageobservations. Wetransformboth tendtobemostlysmooth,withasmallamountof
+the observed glyph image and the corresponding non-smooth variation in the form of edges. Com-
+grid or parameters produced by our decoder be- puting this heavy-tailed loss over the frequency
+forecomputingtheobservation’slikelihood. decomposition provided by the DCT-II instead of
+Thisprocedureprojectsobservedimagesontoa the raw pixel values encourages the decoder to
+gridoforthogonalbasescomprisedofshiftedand generate sharper images without needing either
+scaled 2-dimensional cosine functions. Because an adversarial discriminator or a vectorized rep-
+the DCT-II is orthonormal, this transformation is resentationofthecharactersduringtraining. Note
+volume-preserving, and so likelihoods computed thatwhileourtraininglossiscomputedinDCT-II
+in the projected space correspond to valid mea- space, attesttimewetreattherawgridofparam-
+surementsintheoriginalpixeldomain. eteroutputsxˆastheglyphreconstruction.
+Note that because the DCT-II is simply a rota-
+5 LearningandInference
+tion in our vector space, imposing a normal dis-
+tributioninthistransformedspaceshouldhavelit-
+Notethatinourtrainingsetting,thefontvariables
+tle effect (ignoring the scaling induced by the di- Z arecompletelyunobserved,andwemustinduce
+agonal of the covariance matrix of the Gaussian
+theirmanifoldwithlearning. Asourmodelisgen-
+distribution) as Euclidean distance is preserved
+erative, we wish to optimize the marginal proba-
+under rotations. For this reason we impose a bility of just the observed X with respect to the
+heavy-taileddistributioninthistransformedspace, modelparametersE andφ:
+specifically a Cauchy distribution. This gives the
+(cid:90)
+followingprobabilitydensityfunction p(X;E,φ) = p(X,Z;E,φ)dZ
+Z
+1 However, the integral over Z is computation-
+g(x;xˆ,γ) =
+(cid:18) (cid:16) (cid:17)2(cid:19) ally intractable, given that the complex relation-
+f(x)−f(xˆ)
+πγ 1+ γ ship between Z and X does not permit a closed
+form solution. Related latent variable models
+where x is an observed glyph, xˆ is the location suchasVariationalAutoencoders(VAE)(Kingma
+parameter grid output by our decoder, and γ is a and Welling, 2014) with intractable marginals
+hyperparameterwhichwesettoγ = 0.001. have successfully performed learning by opti-
+TheCauchydistributionaccuratelycapturesthe mizing a variational lower bound on the log
+heavy-tailed structure of the edges in natural im- marginal likelihood. This surrogate objective,
+called the evidence lower bound (ELBO), intro- combine the features obtained from each charac-
+duces a variational approximation, q(Z|X) = ter in a manner that is largely invariant to the
+(cid:81)
+q(z |x ,...,x ) to the model’s true poste- total number and types of characters observed.
+j i 1j Ij
+rior,p(Z|X). Ourmodel’sELBOisasfollows: Thisprovidesaninductivebiasthatencouragesthe
+modeltoextractsimilarfeaturesfromeachcharac-
+(cid:88)
+ELBO = E q[logp(x 1j,...,x Ij|z j)] tertype,whichshouldthereforerepresentstylistic
+j asopposedtostructuralproperties.
+−KL(q(z |x ,...,x )||p(z )) Overall,theencoderovereachglyphconsistsof
+j 1j Ij j
+three blocks, where each block consists of a con-
+where the approximation q is parameterized via volution followed by a max pool with a stride of
+a neural encoder network. This lower bound can two, aninstancenorm(Ulyanovetal.,2016), and
+be optimized by stochastic gradient ascent if q is aReLU.Theactivationsarethenpooledacrossthe
+a Gaussian, via the reparameterization trick de- characters via an elementwise max into a single
+scribed in (Kingma and Welling, 2014; Rezende vector, which is then passed through four fully-
+et al., 2014) to sample the expectation under q connectedlayers,beforepredictingtheparameters
+whilestillpermittingbackpropagation. oftheGaussianapproximateposterior.
+Practically speaking, a key property which we Reconstruction via Inference: At test time, we
+desireistheabilitytoperformconsistentinference pass an observed subset of a new font to our en-
+overzgivenavariablenumberofobservedglyphs coder in order to estimate the posterior over z ,
+j
+in a font. We address this in two ways: through and take the mean of that distribution as the in-
+thearchitectureofourencoder,andthroughaspe- ferred font representation. We then pass this en-
+cialmaskingprocessintraining;bothofwhichare coding to the decoder along with the full set of
+showninFigure3. character embeddings E in order to produce re-
+constructionsofeveryglyphinthefont.
+5.1 PosteriorApproximation
+Observation Subsampling: To get reconstruc- 6 Experiments
+tions from only partially observed fonts at test
+time,theencodernetworkmustbeabletoinferz We now provide an overview of the specifics of
+j
+from any subset of (x ,...,x ). One approach the dataset and training procedure, and describe
+1j Ij
+for achieving robustness to the number of obser- ourexperimentalsetupandbaselines.
+vationsisthroughthetrainingprocedure. Specifi-
+6.1 Data
+cally when computing the approximate posterior
+for a particular font in our training corpus, we We compare our model against baseline sys-
+mask out a randomly selected subset of the char- tems at font reconstruction on the Capitals64
+acters before passing them to the encoder. This dataset(Azadietal.,2018),whichcontainsthe26
+incentivizestheencodertoproducereasonablees- capitallettersoftheEnglishalphabetasgrayscale
+timates without becoming too reliant on the fea- 64×64 pixel images across 10,682 fonts. These
+tures extracted from any one particular character, are broken down into training, dev, and test splits
+whichmorecloselymatchesthesetupattesttime. of7649,1473,and1560fontsrespectively.
+Encoder Architecture: Another way to encour- Upon manual inspection of the dataset, it is
+agethisrobustnessisthroughinductivebiasinthe apparent that several fonts have an almost visu-
+encoderarchitecture. Specificallyweuseaconvo- ally indistinguishable nearest neighbor, making
+lutional neural network which takes in a batch of the reconstruction task trivial using a naive algo-
+characters from a single font, concatenated with rithm (or an overfit model with high capacity) for
+their respective character type embedding. Fol- those particular font archetypes. Because these
+lowing the final convolutional layer, we perform datapoints are less informative with respect to a
+an elementwise max operation across the batch, model’sability togeneralizeto previouslyunseen
+reducing to a single vector representation for the styles,weadditionallyevaluateonasecondtestset
+entire font which we pass through further fully- designed to avoid this redundancy. Specifically,
+connected layers to obtain the output parameters we choose the 10% of test fonts that have max-
+of q as shown in Figure 3. By including this ac- imal L distance from their closest equivalent in
+2
+cumulation across the elements of the batch, we thetrainingset,whichwecall“TestHard”.
+TestFull TestHard
+Observations 1 2 4 8 1 2 4 8
+NN 483.13 424.49 386.81 363.97 880.22 814.67 761.29 735.18
+GlyphNet 669.36 533.97 455.23 416.65 935.01 813.50 718.02 653.57
+Ours(FC) 353.63 316.47 293.67 281.89 596.57 556.21 527.50 513.25
+Ours(Conv) 352.07 300.46 271.03 254.92 615.87 556.03 511.05 489.58
+Table1: L reconstructionperglyphbynumberofobservedcharacters. “Full”includestheentiretestsetwhile
+2
+“Hard”ismeasuredonlyoverthe10%oftestfontswiththehighestL distancefromtheclosestfontintrain.
+2
+6.2 Baselines 7 Results
+As statedpreviously, many fonts fallinto visually We now present quantitative results from our ex-
+similararchetypes. Basedonthisproperty,weuse perimentsinbothautomatedandhumanannotated
+a nearest neighbors algorithm for our first base- metrics, and offer qualitative analysis of recon-
+line. Given a partially observed font at test time, structionsandthelearnedfontmanifold.
+this approach simply “reconstructs” by searching
+thetrainingsetforthefontwiththelowestL dis- 7.1 QuantitativeEvaluation
+2
+tance over the observed characters, and copy its AutomaticEvaluation: Weshowfontreconstruc-
+glyphsverbatimforthemissingcharacters. tion results for our system against nearest neigh-
+For our second comparison, we use the Glyph- borsandGlyphNetinTable1. Eachmodelisgiven
+Net model from Azadi et al. (2018). This ap- arandomsubsampleofglyphsfromeachtestfont
+proach is based on a generative adversarial net- (wemeasureat1,2,4,and8observedcharacters),
+work, which uses discriminators to encourage the with their character labels. We measure the av-
+model to generate outputs that are difficult to erage L distance between the image reconstruc-
+2
+distinguish from those in the training set. We tionsfortheunobservedcharactersandtheground
+test from the publicly available epoch 400 check- truth,afterscalingintensitiesto[0,1].
+point, with modifications to the evaluation script Our system achieves the best performance for
+tomatchthesetupdescribedabove. boththeoverallandhardsubsetoftestforallnum-
+We also perform an ablation using fully- bers of observed glyphs. Nearest neighbors pro-
+connected instead of convolutional layers. For vides a strong baseline on the full test set, even
+morearchitecturedetailsseeAppendixA. outperforming GlyphNet. However it performs
+muchworseonthehardsubset. Thismakessense
+6.3 TrainingDetails
+as we expect nearest neighbors to do extremely
+We train our model to maximize the expected well on any test fonts that have a close equiva-
+log likelihood using the Adam optimization al- lent in train, but suffer in fidelity on less tradi-
+gorithm (Kingma and Ba, 2015) with a step size tional styles. GlyphNet similarly performs worse
+of 10−5 (default settings otherwise), and perform ontesthard,whichcouldreflectthemissingmodes
+early stopping based on the approximate log like- problem of GANs failing to capture the full di-
+lihoodonahardsubsetofdevselectedbythepro- versity of the data distribution (Che et al., 2016;
+cessdescribedearlier. Toencouragerobustnessin Tolstikhin et al., 2017). The fully-connected ab-
+the encoder, we randomly drop out glyphs during lation is also competitive, although we see that
+training with a probability of 0.7 (rejecting sam- the convolutional architecture is better able to in-
+ples where all characters in a font are dropped). ferstylefromlargernumbersofobservations. On
+All experiments are run with a dimensionality of thehardtestset,thefully-connectednetworkeven
+32 for the character embeddings and font latent outperforms the convolutional system when only
+variables. Our implementation2 is built in Py- oneobservationispresent,perhapsindicatingthat
+Torch(Paszkeetal.,2017)version1.1.0. its lower-capacity architecture better generalizes
+fromverylimiteddata.
+2https://bitbucket.org/NikitaSrivatsan/
+DeepFactorizationFontsEMNLP19
+Figure 5: t-SNE projection of latent font variables in-
+ferredforthefulltrainingset,coloredbyk-meansclus-
+tering with k = 10. The glyph for the letter “A” for
+eachcentroidisshowninoverlay.
+Figure4:Reconstructionsofpartiallyobservedfontsin
+thehardsubsetfromourmodel,GlyphNet,andnearest
+neighbors. Given images of glyphs for ‘A’ and ‘B’ in
+while occasionally blurry at the edges, are gener-
+each font, we visualize reconstructions of the remain-
+ally faithful at reproducing the principal stylistic
+ing characters. Fonts are chosen such that the L loss
+2
+features of the font. For example, we see that for
+of our model on these examples closely matches the
+averagelossoverthefullevaluationset. font(1)inFigure4,wematchnotonlytheoverall
+shape of the letters, but also the drop shadow and
+to an extent the texture within the lettering, while
+Human Evaluation: To measure how consis-
+GlyphNet does not produce fully enclosed letters
+tent these perceptual differences are, we also per-
+ormatchthetexture. Theoutputofnearestneigh-
+form a human evaluation of our model’s recon-
+bors,whilewell-formed,doesnotrespectthestyle
+structions against GlyphNet using Amazon Me-
+of the font as closely as it fails to find a font in
+chanical Turk (AMT). In our setup, turkers were
+training that matches these stylistic properties. In
+asked to compare the output of our model against
+font (2) the systems all produce a form of gothic
+theoutputofGlyphNetforasinglefontgivenone
+lettering,buttheoutputofGlyphNetisagainlack-
+observed character, which they were also shown.
+ingincertaindetails,andnearestneighborsmakes
+Turkers selected a ranking based on which recon-
+subtle but noticeable changes to the shape of the
+structed font best matched the style of the ob-
+letters. In the final example (3) we even see that
+served character, and a separate ranking based on
+oursystemappearstoattempttoreplicatethepix-
+whichwasmorerealistic. Onthefulltestset(1560
+elatedoutline,whilenearestneighborsignoresthis
+fonts, with 5 turkers assigned to each font), hu-
+subtlety. GlyphNet is in this case somewhat in-
+mans preferred our system over GlyphNet 81.3%
+consistent,doingreasonablywellonsomeletters,
+and81.8%ofthetimeforstyleandrealismrespec-
+butmuchworseonothers. Overall,nearestneigh-
+tively. We found that on average 76% of turkers
+bors will necessarily output well-formed glyphs,
+shownagivenpairofreconstructionsselectedthe
+butwithlowerfidelitytothestyle,particularlyon
+same ranking as each other on both criteria, sug-
+more unique fonts. While GlyphNet does pick up
+gestinghighannotatoragreement.
+on some subtle features, our model tends to pro-
+ducethemostcoherentoutputonharderfonts.
+7.2 QualitativeAnalysis
+7.3 AnalysisofLearnedManifold
+In order to fully understand the comparative be-
+haviorofthesesystems,wealsoqualitativelycom- Since our model attempts to learn a smooth man-
+pare the reconstruction output of these systems to ifold over the latent style, we can also perform
+analyze their various failure modes, showing ex- interpolation between the inferred font represen-
+amples in Figure 4. We generally find that our tations, something which is not directly possible
+approach tends to produce reconstructions that, using either of the baselines. In this analysis, we
+Figure 6: Interpolation be-
+tween font variants from
+the same font family, show-
+ingsmoothnessofthelatent
+manifold. Linear combina-
+tions of the embedded fonts
+correspond to outputs that
+lie intuitively “in between”.
+���
+���
+��� �������
+��� �����������
+��� ���������
+��� ����������
+��� �����
+��� �������
+���
+�������
+Figure7: t-SNEprojectionoflatentfontvariablesinferredonGoogleFonts,coloredbyweightandcategory.
+take two fonts from the same font family, which the high-dimensional representations to visualize
+differ along one property, and pass them through these high-level groupings. Additionally, we dis-
+our encoder to obtain the latent font variable for playasampleglyphforthecentroidforeachclus-
+each. We then interpolate between these values, ter. We see that while the clusters are not com-
+passingtheresultatvariousstepsintoourdecoder pletely separated, the centroids generally corre-
+toproducenewfontsthatexistsinbetweentheob- spond to common font styles, and are largely ad-
+servations. InFigure6weseehowourmodelcan jacent to or overlapping with those with similar
+apply serifs, italicization, and boldness gradually stylistic properties; for example script, handwrit-
+whileleavingthefontunchangedinotherrespects. ten,andgothicstylesareveryclosetogether.
+Thisdemonstratesthatourmanifoldissmoothand Toanalyzehowwellourlatentembeddingscor-
+interpretable, not just at the points corresponding respond to human defined notions of font style,
+tothoseinourdataset. Thiscouldbeleveragedto we also run our system on the Google Fonts 3
+modify existing fonts with respect to a particular dataset which despite containing fewer fonts and
+attributetogeneratenovelfontsefficiently. lessdiversityinstyle,listsmetadataincludingnu-
+Beyond looking at the quality of reconstruc- merical weight and category (e.g. serif, hand-
+tions, we also wish to analyze properties of the writing, monospace). In Figure 7 we show t-
+latent space learned by our model. To do this, SNE projections of latent font variables from our
+we use our encoder to infer latent font variables model trained on Google Fonts, colored accord-
+z for each of the fonts in our training data, and ingly. We see that the embeddings do generally
+use a t-SNE projection (Van Der Maaten, 2013) cluster by weight as well as category suggesting
+to plot them in 2D, shown in Figure 5. Since that our model is learning latent information con-
+the broader, long-distance groupings may not be sistentwithhowhumansperceivefontstyle.
+preservedbythistransformation,weperformak-
+means clustering (Lloyd, 1982) with k = 10 on 3https://github.com/google/fonts
+8 Conclusion William T Freeman and Joshua B Tenenbaum. 1997.
+Learningbilinearmodelsfortwo-factorproblemsin
+We presented a latent variable model of glyphs vision. In Proceedings of IEEE Computer Society
+which learns disentangled representations of the ConferenceonComputerVisionandPatternRecog-
+nition,pages554–560.IEEE.
+structuralpropertiesofunderlyingcharactersfrom
+stylistic features of the font. We evaluated our
+Leon A Gatys, Alexander S Ecker, and Matthias
+model on the task of font reconstruction and Bethge. 2016. Image style transfer using convolu-
+showed that it outperformed both a strong nearest tionalneuralnetworks. CVPR.
+neighborsbaselineandpriorworkbasedonGANs
+Douglas R Hofstadter. 1983. Metamagical themas.
+especially for fonts highly dissimilar to any in-
+ScientificAmerican,248(5):16–E18.
+stanceinthetrainingset. Infuturework,itmaybe
+worthextendingthismodeltolearnalatentmani- Douglas R Hofstadter. 1995. Fluid concepts and cre-
+ativeanalogies: Computermodelsofthefundamen-
+foldoncontentaswellasstyle,whichcouldallow
+talmechanismsofthought. Basicbooks.
+for reconstruction of previously unseen character
+types, or generalization to other domains where Zhiting Hu, Zichao Yang, Xiaodan Liang, Ruslan
+thenotionofcontentishigherdimensional. Salakhutdinov,andEricPXing.2017. Controllable
+text generation. arXiv preprint arXiv:1703.00955,
+Acknowledgments 7.
+This project is funded in part by the NSF under JinggangHuangandDavidMumford.1999. Statistics
+ofnaturalimagesandmodels. CVPR.
+grant1618044andbytheNEHundergrantHAA-
+256044-17. SpecialthankstoSiWuforhelpcon-
+Diederik P Kingma and Jimmy Ba. 2015. Adam: A
+structingtheGoogleFontsfigures. methodforstochasticoptimization. ICLR.
+Diederik P Kingma and Max Welling. 2014. Auto-
+References encodingvariationalbayes. ICLR.
+Nasir Ahmed, T Natarajan, and Kamisetty R Rao. StuartLloyd.1982. Leastsquaresquantizationinpcm.
+1974. Discrete cosine transform. IEEE Transac- IEEETransactionsonInformationTheory.
+tionsonComputers.
+TamaraMelmer,SeyedAliAmirshahi,MichaelKoch,
+Samaneh Azadi, Matthew Fisher, Vladimir G Kim, Joachim Denzler, and Christoph Redies. 2013.
+ZhaowenWang,EliShechtman,andTrevorDarrell. From regular text to artistic writing and artworks:
+2018. Multi-content GAN for few-shot font style Fourier statistics of images with low and high aes-
+transfer. CVPR. theticappeal. FrontiersinHumanNeuroscience.
+Jonathan T. Barron. 2019. A general and adaptive ro- Adam Paszke, Sam Gross, Soumith Chintala, Gre-
+bustlossfunction. CVPR. goryChanan,EdwardYang,ZacharyDeVito,Zem-
+ingLin,AlbanDesmaison,LucaAntiga,andAdam
+TaylorBerg-Kirkpatrick,GregDurrett,andDanKlein.
+Lerer. 2017. Automatic differentiation in PyTorch.
+2013. Unsupervisedtranscriptionofhistoricaldoc-
+InNIPSAutodiffWorkshop.
+uments. ACL.
+HuyQuocPhan,HongboFu,andAntoniBChan.2015.
+Taylor Berg-Kirkpatrick and Dan Klein. 2014. Im-
+Flexyfont: Learning transferring rules for flexible
+provedtypesettingmodelsforhistoricalOCR. ACL.
+typeface synthesis. In Computer Graphics Forum,
+volume34,pages245–256.WileyOnlineLibrary.
+Neill DF Campbell and Jan Kautz. 2014. Learning a
+manifoldoffonts. ACMTOG.
+DaniloJimenezRezende,ShakirMohamed,andDaan
+Tong Che, Yanran Li, Athul Paul Jacob, Yoshua Wierstra. 2014. Stochastic backpropagation and
+Bengio, and Wenjie Li. 2016. Mode regularized approximate inference in deep generative models.
+generative adversarial networks. arXiv preprint ICML.
+arXiv:1612.02136.
+Tianxiao Shen, Tao Lei, Regina Barzilay, and Tommi
+VincentDumoulinandFrancescoVisin.2016. Aguide Jaakkola.2017. Styletransferfromnon-paralleltext
+to convolution arithmetic for deep learning. arXiv bycross-alignment. NIPS.
+preprintarXiv:1603.07285.
+Rapee Suveeranont and Takeo Igarashi. 2010.
+David J. Field. 1987. Relations between the statistics Example-based automatic font generation. In
+ofnaturalimagesandtheresponsepropertiesofcor- InternationalSymposiumonSmartGraphics,pages
+ticalcells. JOSAA. 127–138.Springer.
+Yichuan Tang, Ruslan Salakhutdinov, and Geoffrey • C i : convolutionfilterswithifiltersof5×5,
+Hinton. 2013. Tensor analyzers. In International 2pixelzero-padding,strideof1,dilationof1
+conferenceonmachinelearning,pages163–171.
+• I: instancenormalization
+• T : transposeconvolutionwithifiltersof
+Joshua B Tenenbaum and William T Freeman. 2000. i,j,k
+Separating style and content with bilinear models. 5×5,2pixelzero-padding,strideofj,kpixel
+Neuralcomputation,12(6):1247–1283. output padding, dilation of 1, where kernel
+andbiasaretheoutputofanMLP(described
+Ilya O Tolstikhin, Sylvain Gelly, Olivier Bous-
+quet, Carl-Johann Simon-Gabriel, and Bernhard below)
+Scho¨lkopf. 2017. Adagan: Boosting generative • H: reshapeto26×256×8×8
+models. In Advances in Neural Information Pro-
+cessingSystems,pages5424–5433. A.2 NetworkArchitecture
+Ourfully-connectedencoderis:
+Dmitry Ulyanov, Andrea Vedaldi, and Victor Lem-
+pitsky. 2016. Instance normalization: The miss- F 128-R-F 128-R-F 128-R-F 1024-R-M-F 128-R-F 128-
+ing ingredient for fast stylization. arXiv preprint R-F -R-F
+128 64
+arXiv:1607.08022.
+Ourconvolutionalencoderis:
+Laurens Van Der Maaten. 2013. Barnes-Hut-SNE.
+C -S-I-R-C -S-I-R-C -S-I-R-F -M-R-
+arXivpreprintarXiv:1301.3342. 64 128 256 1024
+F -R-F -R-F -R-F
+128 128 128 64
+M Alex O Vasilescu and Demetri Terzopoulos. 2002.
+Multilinear analysis of image ensembles: Tensor- Ourfully-connecteddecoderis:
+faces. InEuropeanConferenceonComputerVision, F -R-F -R-F -R-F -R-F -R-F
+128 128 128 128 128 4096
+pages447–460.Springer.
+Ourtransposeconvolutionaldecoderis:
+Hong-Jian Xue, Xinyu Dai, Jianbing Zhang, Shujian
+F -R-F -R-H-T -R-C -I-R-C -I-
+128 16384 256,2,1 256 256
+Huang,andJiajunChen.2017. Deepmatrixfactor-
+R-T -R-C -I-R-C -I-R-T -I-R-C -
+izationmodelsforrecommendersystems. IJCAI. 128,2,1 128 128 64,2,1 64
+I-R-C -I-R-T -I-R-C -I-R-C
+64 32,1,0 32 1
+Zichao Yang, Zhiting Hu, Ruslan Salakhutdinov, and
+Taylor Berg-Kirkpatrick. 2017. Improved varia- MLPtocomputeatransposeconvolutionalparam-
+tional autoencoders for text modeling using dilated eterofsizej is:
+convolutions. ICML.
+F -R-F
+128 j
+YexunZhang,YaZhang,andWenbinCai.2018. Sep-
+aratingstyleandcontentforgeneralizedstyletrans-
+fer. InProceedingsoftheIEEEconferenceoncom-
+puter vision and pattern recognition, pages 8447–
+8455.
+Yexun Zhang, Ya Zhang, and Wenbin Cai. 2020. A
+unified framework for generalizable style transfer:
+Styleandcontentseparation. IEEETransactionson
+ImageProcessing,29:4085–4098.
+Jun-YanZhu,TaesungPark,PhillipIsola,andAlexeiA
+Efros. 2017. Unpaired image-to-image translation
+usingcycle-consistentadversarialnetworks. ICCV.
+A Appendix
+A.1 ArchitectureNotation
+We now provide further details on the specific ar-
+chitecturesusedtoparameterizeourmodelandin-
+ference network. The following abbreviations are
+usedtorepresentvariouscomponents:
+• F : fully-connectedlayerwithihiddenunits
+i
+• R: ReLUactivation
+• M: batchmaxpool
+• S: 2×2spatialmaxpool

@@ -1,0 +1,695 @@
+TheThirty-FifthAAAIConferenceonArtificialIntelligence(AAAI-21)
+MLE-Guided Parameter Search for Task Loss Minimization in Neural Sequence
+Modeling
+SeanWelleck,(cid:3) KyunghyunCho
+NewYorkUniversity
+Abstract lossfunctions,andthediscrepancybetweenthesequencedis-
+tributionsusedfortrainingandthedistributionencountered
+Neuralautoregressivesequencemodelsareusedtogenerate
+atevaluationtimehaspromptedalternativesequence-level
+sequencesinavarietyofnaturallanguageprocessing(NLP)
+trainingalgorithms(e.g.(Daume´,Langford,andMarcu2009;
+tasks,wheretheyareevaluatedaccordingtosequence-level
+Ranzatoetal.2016;Shenetal.2016)).Nevertheless,max-
+task losses. These models are typically trained with maxi-
+mumlikelihoodestimation,whichignoresthetaskloss,yet imizingthelikelihoodhasempiricallyperformedwellasa
+empiricallyperformswellasasurrogateobjective.Typical surrogatetominimizingthetaskloss,achievingstrongperfor-
+approachestodirectlyoptimizingthetasklosssuchaspolicy manceontheaforementionedtasks.Inthispaper,wedevelop
+gradientandminimumrisktrainingarebasedaroundsampling asequence-leveltrainingprocedurethataddressesthedown-
+inthesequencespacetoobtaincandidateupdatedirections sidesofmaximumlikelihoodbyleveragingitsstrengthsasa
+thatarescoredbasedonthelossofasinglesequence.Inthis surrogateobjective.
+paper, we develop an alternative method based on random
+Itischallengingtooptimizeataskloss,asthelossistypi-
+searchintheparameterspacethatleveragesaccesstothemax-
+imumlikelihoodgradient.Weproposemaximumlikelihood callynon-differentiablewithrespecttothemodelparameters,
+guidedparametersearch(MGS),whichsamplesfromadis- andoptimizationisdoneoverahigh-dimensionalparameter
+tributionoverupdatedirectionsthatisamixtureofrandom space.Typicalapproachestothisprobleminnaturallanguage
+search around the current parameters and around the max- processing are based around the policy gradient estimator
+imumlikelihoodgradient,witheachdirectionweightedby (Williams1992),suchasShenetal.(2016);Ranzatoetal.
+itsimprovementinthetaskloss.MGSshiftssamplingtothe (2016);Bahdanauetal.(2017);Yuetal.(2017).Thisestima-
+parameterspace,andscorescandidatesusinglossesthatare
+torisusedtooptimizeanarbitrarytasklossbyintroducing
+pooledfrommultiplesequences.Ourexperimentsshowthat
+stochasticityviaautoregressivesamplingintheactionspace,
+MGS is capable of optimizing sequence-level losses, with
+whichisacriticaldownsideinNLP,wheretheactionspace
+substantial reductions in repetition and non-termination in
+(vocabulary)islargeandthesequence-levelrewardissparse.
+sequencecompletion,andsimilarimprovementstothoseof
+minimumrisktraininginmachinetranslation. Theestimator’svariancegrowswiththesequencelength,ne-
+cessitatingaparameterizedbaselineoraheuristicsampling
+scheduleinpractice,whilerequiringinitializationfromapre-
+1 Introduction
+trainedmodel.Recently,theeffectivenessofthesemethods
+Neuralautoregressivesequencemodelsareusedinavariety in NLP has been called into question (Caccia et al. 2020;
+ofnaturallanguageprocessing(NLP)tasks,suchasmachine Choshenetal.2020).
+translation(Bahdanau,Cho,andBengio2015),summariza-
+An alternative class of methods optimize a black-box
+tion(Rush,Chopra,andWeston2015),dialoguemodeling
+function without requiring gradient information. Of these,
+(Vinyals,Quoc,andLe2015),andtextcompletion(Sutskever,
+estimation-of-distribution algorithms, including the cross-
+Martens,andHinton2011;Radfordetal.2018;Holtzman
+entropymethod(Rubinstein1999),evolutionarystrategies
+etal.2019;Wellecketal.2020b).Inthesetasks,adecoding
+(Rechenberg 1978), and their variants (Hansen and Oster-
+algorithm is used to produce sequences that are evaluated
+meier2001;Salimansetal.2017),operatebymaintaininga
+accordingtoasequence(orcorpus)leveltasklosssuchas
+searchdistributionfromwhichasetofrandomperturbations
+BLEU(Papinenietal.2002),METEOR(BanerjeeandLavie
+aresampled.Thefunctionvalue(i.e.taskloss)ateachofthe
+2005),oralternativen-grambasedmetrics.
+perturbedpointsisusedtoupdatethesearchdistribution.Be-
+Theconventionaltrainingapproach,maximumlikelihood,
+causestochasticityisintroducedintheparameterspacerather
+optimizesatoken-levelsurrogatetothe0-1loss,andonly
+thantheactionspace,rewardsassociatedwitheachsearch
+leveragessequencesdrawnfromtheground-truthdistribution.
+candidatearepooledovermultipleexamples,‘densifying’the
+Theresultingmismatchbetweenthetrainingandevaluation
+sparsereward.Thisparameter-spaceexploration(Ru¨ckstieß
+(cid:3)Correspondenceto:wellecks@nyu.edu. et al. 2010) is attractive for NLP since the same decoding
+Copyright(cid:13)c 2021,AssociationfortheAdvancementofArtificial algorithm can beused for training and evaluation, and the
+Intelligence(www.aaai.org).Allrightsreserved. variance is independent of the action space size or the se-
+14032
+quencelength.However,akeychallengefortheseblack-box where,
+methodsishandlinghigh-dimensionalsearchspaces.This
+p ((cid:1)j(cid:18);(cid:11))/p~ ((cid:1)j(cid:18);(cid:11))=exp((cid:11)(C((cid:18))(cid:0)C((cid:18)+(cid:1))));
+typicallyrestrictstheirusetotrainingnetworksthataresmall (cid:3) (cid:3)
+comparedtothoseusedinneuralsequencemodeling(Ma- and(cid:11)2R isatemperatureparameter.When(cid:11)!0,the
+>0
+nia,Guy,andRecht2018)orrequiresmassiveparallelization distributionbecomesuniform,andwhen(cid:11)!1itconcen-
+(Salimansetal.2017),andtheirusewithlarge-scalenatural tratesonthedirection(s)ofmaximaltasklossimprovement.
+languageprocessingmodelshasbeenunder-explored. Since p is only known up to a normalizing constant and
+(cid:3)
+Inthispaper,weleveragethefactthatinmanysequence is defined over a high-dimensional parameter space, it is
+modelingtasksencounteredinnaturallanguageprocessing,a impracticaltoapproximatetheupdatedirection(cid:1) (cid:3)withsam-
+surrogateupdatedirectionisavailableintheformofthemax- ples from p (cid:3). Instead, we use self-normalized importance
+imumlikelihoodgradient.Wehypothesizethatincorporating samplingwithaproposaldistributionq((cid:1)j(cid:18)):
+thissurrogateinformationintoarandom-searchmethodcan (cid:20) (cid:21)
+p ((cid:1)j(cid:18);(cid:11))
+substantiallyalleviateissuesstemmingfromthelargesearch (cid:1) = E (cid:3) (cid:1) (3)
+(cid:3) q((cid:1)j(cid:18))
+space. We frame learning as sampling from a distribution (cid:1)(cid:24)q((cid:1)j(cid:18))
+overparameterupdatedirectionsthatisproportionaltothe K
+improvementintaskloss.Sincethisdistributionisonlyacces-
+(cid:25)X w((cid:1) k)
+(cid:1) =(cid:1) ; (4)
+sibleforevaluationuptoanormalizingconstant,wepropose
+k=1PK
+k=1w((cid:1) k)
+k MGS
+to use self-normalized importance sampling for obtaining
+where(cid:1) (cid:24)q((cid:1)j(cid:18)),eachw((cid:1) )is exp((cid:11)(C((cid:18))(cid:0)C((cid:18)+(cid:1)k))),
+updatedirections. k k q~((cid:1)kj(cid:18))
+The key idea behind our method is to form a proposal and q / q~. This update direction equals (cid:1) (cid:3) in the limit:
+distributionthatisamixtureofrandomsearcharoundthecur- P(lim K!1(cid:1) MGS =(cid:1) (cid:3))=1.1
+rentparametersandaroundthemaximum-likelihoodupdate Thesamplecomplexityofsucharandom-searchmethodis
+direction.Ourexperimentsshowthattheresultingprocedure, knowntodependonthedimensionalityofthesamplespace
+calledmaximum-likelihoodguidedparametersearch(MGS), (SenerandKoltun2020),thusitiscrucialtochooseagood
+iseffectiveforminimizingsequence-levellossesinnatural proposaldistribution.Ourcontributionisaproposaldistribu-
+language generation and machine translation, offering an tionforuseinsequencegeneration,wherewehaveaccess
+alternativetopolicygradientandminimumriskmethods. tothemaximumlikelihoodgradientr (cid:18)L MLE.Specifically,
+weproposeamixtureoftwoGaussians,whosecomponents
+2 Maximum-LikelihoodGuidedParameter are centered at the origin and at the maximum-likelihood
+gradient,respectively:
+Search
+q ((cid:1)j(cid:18))=N((cid:1)j0;I(cid:27)2)(cid:1)(cid:25)+ (5)
+Sequencegeneration. Sequencegenerationistheproblem MGS
+of mapping an input X to an output Y = (y ;:::;y ). N((cid:1)jr L ;I(cid:27)2)(cid:1)(1(cid:0)(cid:25));
+1 jYj (cid:18) MLE
+Inoursettingofneuralsequencegeneration,thismapping
+where(cid:25) 2[0;1]isamixtureparameterthatwesetto0.5in
+isadeterministicdecodingalgorithmF((cid:18);X),whichuses
+practice.Givenabatchofexamples,wecomputethegradient
+anautoregressivemodelp (cid:18)(YjX)=Qj tY =j 1p (cid:18)(y tjy <t;X)to ofthemaximumlikelihoodloss,samplecandidatedirections
+produceanoutputY^ givenaninputX.Thisincludesgreedy from the proposal distribution (5), then evaluate the task
+and beam search decoding, and stochastic decoding algo- loss of each candidate and form the update direction (3).
+rithmswithanoiseinput,F((cid:18);X;(cid:15)).Thegoalofsequence Algorithm 1 summarizes the procedure, called maximum-
+generationistofindamodelwhosegenerationshaveminimal likelihoodguidedparametersearch(MGS).
+tasklossonasetD =f(X;Y)gofinput-outputpairs,
+3 OtherTaskLossMinimizationMethods
+X
+C((cid:18);D)= c(F((cid:18);X);Y); (1)
+Comparisonwithpolicygradient. Policygradient(PG)
+X;Y2D methodssuchasREINFORCE(Williams1992)consistof
+theobjectiveandgradientestimator:
+whereweassumec(Y^;Y)2Risanarbitrarysequence-level
+h i
+loss(e.g.sentence-BLEU).Themostwidelyusedapproach C ((cid:18))= E E c(Y^;Y) ; (6)
+to training such a model is minimizing the negative log-
+PG
+(X;Y)(cid:24)D
+Y^(cid:24)p(cid:18)((cid:1)jX)
+likelihoodgivenatrainingset,whichignoresthetaskloss: rPG =E h c(Y^;Y)r logp (Y^jX)i : (7)
+L ((cid:18);D)=(cid:0)P PjYj logp (y jy ;X). (cid:18) Y^(cid:24)p(cid:18)((cid:1)jX) (cid:18) (cid:18)
+MLE X;Y2D t=1 (cid:18) t <t
+Thepolicygradientobjectivecontainsanexpectationoverthe
+outputdistributionp ((cid:1)jX),unliketheobjectiveoptimizedby
+Method. Todirectlyoptimize(1),weiterativelyupdatethe (cid:18)
+MGS(Equation1).Inparticular,computingthePGobjective
+parameters(cid:18)inthedirectionofmaximalimprovementinthe
+involvesdecodingwithancestralsampling,whiletheobjec-
+taskloss.Eachupdatecorrespondstotheexpectedupdate
+tive(1)usesanarbitrarydecodingalgorithm.Naturally,ap-
+underadistributionthatweightseachdirectionaccordingto
+proximatingthepolicygradientalsousesancestralsampling
+itsimprovement,
+1SeetheAppendixforareviewofself-normalizedimportance
+(cid:1) =E [(cid:1)]; (2)
+(cid:3) (cid:1)(cid:24)p(cid:3)((cid:1)j(cid:18);(cid:11)) sampling.
+14033
+Algorithm1:MLE-guidedparametersearch(MGS). where S = fY^ 1;:::;Y^ kg is a set of candidate output se-
+quences,andZ (X;S) = P p (YjX)(cid:11).Thereareno
+Given:BatchfX ;Y gB ,modelp ,decoding (cid:18) Y2S (cid:18)
+algorithmi F,i tai s= k1 -lossc(Y^;(cid:18)
+Y).
+i qmpo .rt Ta hn ece grw adei ig enh tts i, s,a 2nd q (cid:18) is not a valid proposal, unlike
+MGS
+Hyperparams:NumberofcandidatesK,
+h h i
+temperature(cid:11),noiselevel(cid:27)2. r C =(cid:11) E c(Y^;Y)r logp (Y^jX) (cid:0) (10)
+(cid:18) MRT q(cid:18) (cid:18) (cid:18)
+Output:Updatedirection(cid:1) .
+MGS h i h ii
+fY^ ig=F((cid:18);fX ig) // decode E q(cid:18) c(Y^;Y) E q(cid:18) r (cid:18)logp (cid:18)(Y^jX) ;
+C r( (cid:18)(cid:18) L) M= LEB1 =P baB i= c1 kc p(Y r^ i o; pY (i L)
+MLE((cid:18);fX
+i;Y/ ig/ ))eqn. 1 w ofh te hr eeE
+poq(cid:18)
+licd yen go rt ae ds ieE
+nY^ t,(cid:24) mq(cid:18) i( n(cid:1)j uX s;S a)
+t. eT rmhe tM haR tT ing clr uad di ee sn tt hc eon scsi os rt es
+fork 21;:::;K do
+functionandtheexpectedloss.Minimumrisktrainingcan
+(cid:1) (cid:24)q ((cid:1)j(cid:18);r L ;(cid:27)2) // eqn. 5
+k MGS (cid:18) MLE incorporatethemaximumlikelihoodgradientbyincluding
+fY^ ig=F((cid:18)+(cid:1) k;fX ig) // decode thegroundtruthsequenceY(cid:3)asacandidate,
+C((cid:18)+(cid:1) )= 1 PB c(Y^;Y ) // eqn. 1
+k B i=1 i i r C =(cid:11)[(w(Y(cid:3))(cid:0)w(cid:22)(Y(cid:3)))r logp (Y(cid:3)jX)+
+w((cid:1) k)= exp((cid:11)(C qM( G(cid:18) S) ((cid:0) (cid:1)C k( j(cid:18)(cid:18) )+(cid:1)k))) (cid:18) MRT
+X (cid:16)
+w(Y^)(cid:0)w(cid:22)(Y(cid:18)
+^)(cid:17)
+r(cid:18)
+logp (Y^jX)]
+(cid:1) =PK w((cid:1)k) (cid:1) // eqn. 3 (cid:18) (cid:18)
+MGS i=1 P k0w((cid:1) k0) k Y^2SnY(cid:3)
+where w(Y0) = c(Y0;Y)q (Y0jX;S), and w(cid:22)(Y0) =
+(cid:18)
+E [c(Y00;Y)]q (Y0jX;S).UnlikeMGS,theothercan-
+insteadofthealgorithmusedatinferencetime(e.g.greedy
+diY da00 t(cid:24) eq(cid:18)
+directions in
+M(cid:18)
+RT are not related to the maximum-
+orbeamsearch).Tocontrastthiswithmaximum-likelihood likelihoodgradient.Instead,thecandidatesaredetermined
+guided parameter search, we formalize the sampling and byaction-spacesampling,similartopolicygradient.
+examinetheper-sequencegradient.
+Ancestralsamplingdecodesasequencebysamplingauto-
+Pooledtasklosses. PGandMRTbothsampleintheaction
+regressivelyfromthemodel’sper-stepcategoricaldistribu-
+space (i.e. vocabulary), while the proposed MGS samples
+tions. Given noise (cid:15) (cid:24) U(0;1), ancestral sampling, which
+intheparameterspace.Thisdifferenceaffectstheamount
+consistsofrepeatedcategoricalsamplingy^ (cid:24)p ((cid:1)jy^ ;X),
+t (cid:18) <t ofsupervisionthatisusedtoweighteachcandidateupdate
+canbewrittenasadeterministicfunctionY^ =F anc((cid:18);X;(cid:15)). direction. To see this, consider a minibatch fX ;Y gN .
+n n n=1
+Thepolicygradientestimatorisanexpectationoverthenoise
+The policy gradient estimator with K samples per batch
+usedtoproducethecategoricalsamples,
+elementis,
+rP (cid:18)G =E (cid:15)[c(F anc((cid:18);X;(cid:15));Y)r (cid:18)logp (cid:18)(F anc((cid:18);X;(cid:15)))]: rPG = 1 X c(Y^(k);Y )r logp (Y^(k)jX ); (11)
+(cid:18) NK n n (cid:18) (cid:18) n n
+Maximum-likelihoodguidedparametersearchusesanyar- n;k
+bitrarydecodingalgorithm,e.g.Y^ = F ((cid:18);X),which
+greedy whereY^(k)isasampledsequence.Policygradientusesasin-
+canbechosentobethesamealgorithmusedatevaluation n
+glesequencelosstoweighteachcandidateupdatedirection.
+time.TheMGSestimatorisanexpectationovernoiseinthe
+AsimilarinspectionrevealsthatMRTsharesthisproperty.
+parameterspace,rMGS =
+(cid:18) Ontheotherhand,MLE-guidedparametersearch,
+E (cid:15)(cid:24)q[w^((cid:15))exp((cid:11)(c(F((cid:18);X);Y)(cid:0)c(F((cid:18)+(cid:15);X);Y))(cid:15)];
+rMGS
+=X
+[w^((cid:1) )exp((cid:11)(C((cid:18))(cid:0)C((cid:18)+(cid:1) )))(cid:1) ];
+(cid:18) k k k
+where we consider a single example andrewrite theMGS
+k
+update (3) in order to illustrate how the use of noise and
+weightseachcandidatedirectionusingalossC((cid:1))computed
+thedecodingalgorithmdifferfrompolicygradient.Seethe
+overtheentireminibatch(seeEquation1).Thishastheeffect
+Appendixforthederivation.Inshort,policygradientuses
+of ‘densifying’ the sparse loss by pooling the losses from
+eachparameter(cid:18)tosamplemultiplesequencesforeachinput,
+multipleexamples.
+whileMGSsamplesmultipleparameters,anduseseachto
+decodeasinglesequenceperinput.
+4 RelatedWork
+Sequence-leveltrainingforNLP. Sequence-leveltraining
+Comparison with minimum risk training. Minimum
+methodsbasedonpolicygradienthavebeenappliedtosev-
+risk training (MRT) (Shen et al. 2016) approximates the
+eralNLPtasks(Liuetal.2017;Ziegleretal.2019).Related
+policygradientobjective(6)as,
+methodsusepolicygradientwithgenerativeadversarialnet-
+h i works(GAN)(Yuetal.2017).Policygradientmethodsoften
+C ((cid:18))= E E c(Y^;Y) ; (8)
+MRT
+(X;Y)(cid:24)D
+Y^(cid:24)q(cid:18)((cid:1)jX;S) facetraininginstabilityandsensitivitytohyper-parameters
+(Hendersonetal.2018),andGANmethodsunder-perform
+( p(cid:18)(YjX)(cid:11)
+; ifY 2S; maximumlikelihood(Cacciaetal.2020).
+q (cid:18)(YjX;S)= Z(cid:18)(X;S) (9)
+0; otherwise;
+2SeetheAppendixforthederivation.
+14034
+LM# Edit# Nonterm# Repetition# Avg.len. Perplexity#
+MLE 157.6(13.5) .945(.008) .344(.063) .530(.062) 228.1(33.3) 21.3(0.2)
+MGS-LM 64.9(2.09) .937(.002) .012(.003) .046(.009) 22.8(2.2) 22.0(0.1)
+MRT-LM(+MLE0.1) 57.4(.967) .948(.002) .013(.004) .023(.005) 16.9(2.3) 25.8(1.7)
+PG-LM(+MLE0.1) 48.4(.523) .967(.004) .000(.000) .002(.002) 3.8(1.0) 30.7(7.3)
+MGS-edit 78.2(1.38) .925(.003) .037(.008) .098(.007) 44.0(2.2) 21.6(0.1)
+MRT-edit(+MLE0.3) 138.7(11.1) .929(.011) .227(.094) .472(.066) 178.4(43.1) 23.2(1.0)
+PG-edit(+MLE0.1) 103.0(4.05) .904(.001) .051(.016) .246(.027) 68.5(8.2) 24.5(0.8)
+Human – – .000 .011 107.9 –
+Table1: Textcompletionresults(GPT-2,Wikitext-103testset),reportedasmean (stdev)using5randomseeds.Policy
+gradient(PG)andminimumrisktraining(MRT)arestochasticallymixedwithMLEandreportedas(+MLE(cid:11)),withthe(cid:11)
+valuesselectedbasedonthetaskloss.Resultsherearewithgreedydecoding;seetheAppendixforancestralsampling.
+Reward augmented maximum-likelihood (RAML) ourmethodarelearnedmanifoldrandomsearch(Senerand
+(Norouzietal.2016)maximizesthelikelihoodofsequences Koltun2020)whichrequiresaninneroptimizationtolearn
+that are sampled proportional to their rewards, which in parameters of a search manifold, and guided evolutionary
+practicereliesonasamplingmethoddesignedforaspecific strategies(Maheswaranathanetal.2019)whichusessurro-
+task loss. Our method weights parameter, rather than gatedirectionstomodifythesearchdistribution’scovariance;
+sequence,samplesproportionaltotheirrewards.Minimum theirmethodrequiresQRdecompositionandwasevaluated
+risk training originated in statistical machine translation on synthetic and unrolled optimization tasks with smaller
+(Och2003)andwasappliedtoend-to-endneuralmachine networksthanthoseweconsider.
+translation (Shen et al. 2016; Edunov et al. 2018). Other
+approaches train a greedy decoder given a learned model 5 Experiments
+(Gu, Cho, and Li 2017), which is a different setting than
+5.1 TextCompletionwithGPT-2
+ours.
+First,weevaluateMGSonatextcompletiontask,whichhas
+Aseparatefamilyofmethods,includinggloballynormal-
+previouslybeenusedtoevaluatetheeffectivenessofsequence
+izedmodels,(SountsovandSarawagi2016),energy-based
+models(e.g.Sutskever,Martens,andHinton(2011);Radford
+models (Deng et al. 2020), unlikelihood training (Welleck
+etal.(2018);Holtzmanetal.(2019);Wellecketal.(2020b)).
+etal.2020b;Lietal.2020),andbeamsearchoptimization
+ThetaskconsistsofdecodingacontinuationY^ = F((cid:18);X)
+(WisemanandRush2016),incorporatesequence-levelscores
+givenaprefixX =(x ;:::;x ).
+withoutreferencetoanexternalrewardfunction. 1 k
+Inthistask,neurallanguagemodelssuchasGPT-2(Rad-
+fordetal.2018)exhibitdegeneraterepetition(Holtzmanetal.
+Drawbacks ofMLE inNLP. Severalstudies investigate
+2019)andnon-terminationwithgreedydecoding;(Welleck
+drawbacks of maximum likelihood training, including la-
+etal.2020a)conjecturedthatthelackofadecodingalgorithm
+belbias(Lafferty,McCallum,andPereira2001),exposure
+inmaximum-likelihoodtrainingisthecauseofthelatter.We
+bias(Daume´,Langford,andMarcu2009;Ross,Gordon,and
+evaluate whether MGS, which uses a decoding algorithm
+Bagnell2011;Bengioetal.2015),andlossmismatch(Lee duringtraining,canalleviatetheseissues.3
+etal.2020).Neuralmachinetranslationmodelstrainedwith
+maximumlikelihoodhavebeenshowntoexhibitdecreased
+Experimental setup. We use the Wikitext-103 dataset
+performancewithincreasedbeamsize(KoehnandKnowles
+(Merity et al. 2016), a large-scale collection of Wikipedia
+2017; Ott et al. 2018) and a bias towards short sequences
+articles containing over 100 million words that has been
+(SountsovandSarawagi2016;StahlbergandByrne2019),
+used for language modeling (Baevski and Auli 2019) and
+whichhavebeenattributedtolabelbiasduetolocalnormal-
+textcompletion(Wellecketal.2020b).Wemodelindividual
+ization(MurrayandChiang2018).
+sequences by splitting the corpus according to its newline
+In open-ended text generation, MLE-trained models
+boundaries,thensplittingeachsequenceintoacontextXand
+havebeenobservedtoproducenon-terminatingsequences
+continuationY,resultinginadatasetof(X;Y)pairs.Each
+(Wellecketal.2020a),degeneraterepetition(Holtzmanetal.
+continuationendsinaspecialheositoken.Weuseacontext
+2019;Wellecketal.2020b),andamismatchedunigramdis-
+sizeofk =10tokens,discardingsequencesthatarelengthk
+tribution(Lietal.2020).Thesemotivateourinvestigationof
+orshorter.Theresultingdatasetconsistsof874,556training,
+analternativetrainingprocedure.
+1,896validation,and2,162testpairs.
+WeuseGPT-2117M(Radfordetal.2018),atransformer
+Black-box optimization. Our approach is motivated by
+(Vaswanietal.2017)languagemodelwithabyte-levelBPE
+black-boxoptimizationmethods,specificallythosebasedon
+vocabularyof50ktokens,pre-trainedwithmaximumlike-
+random search (Matyas 1965; Rechenberg 1978). Several
+lihood on WebText, a dataset of scraped web pages (see
+methodsaugmentrandomsearchwithauxiliaryinformation
+(Lehmanetal.2018;PourchotandSigaud2019).Relatedto 3Codeavailableathttps://github.com/wellecks/mgs.
+14035
+Prefix TheBritishorganizedanexpeditioninearly1776for
+MLE thedefenseoftheFrenchcoloniesintheCaribbean.TheexpeditionwasledbyCaptainWilliamHenrySt.Clair,whohadbeen
+appointedtocommandtheexpedition.TheexpeditionwasledbyCaptainWilliamHenrySt.Clair,whohadbeenappointedtocommand
+theexpeditionin1776.Theexpedition!1
+PG-LM theContinentalArmy.heosi
+PG-edit thedefenceoftheFrenchcolonyofNewFrance.TheexpeditionwastobeledbyCaptainSamuelFrederickGray,whowastobecome
+thefirstcommanderoftheexpedition.heosi
+MGS-LM thedefenseoftheOhioRiver.TheexpeditionwasledbyColonelJohnC.St.Clair,whohadbeenappointedtocommandtheexpedition.
+heosi
+MGS-edit thedefenseoftheFrenchcolonies.TheexpeditionwasledbyLieutenantColonelJohnHenry,whowaspromotedtolieutenantcolonel
+in1776.heosi
+Prefix OnTheJoshuaTreeTour,”WheretheStreets
+MLE HaveNoName”wasperformedbythebandinamedleywith“TheWayYouMakeMeFeel”,“TheWayYouMakeMeFeel”,“The
+WayYouMakeMeFeel”,and“TheWayYouMakeMeFeel”.ThemedleywasincludedontheDVDreleaseofthetour.heosi
+PG-LM HaveNoName”heosi
+PG-edit HaveNoName”wasperformedbytheband.TheperformancewasrecordedinthestudioinLosAngeles,California,andwasrecorded
+inthesameroomastheband’sprevioustwosingles,“TheWay”and“TheWay”.heosi
+MGS-LM HaveNoName”wasperformedbytheband.heosi
+MGS-edit HaveNoName”wasperformedbythebandinamedleywith“TheDaytheWorldGets’Round”.heosi
+Table2:Examplegreedycontinuations(GPT-2,Wikitext-103validationset).
+Radfordetal.(2018)fordetails).Wefine-tunethepretrained tionofnon-terminatingcontinuations(Wellecketal.2020a):
+GPT-2modelusingMLEandselectthemodelstatewiththe
+lowest validation perplexity. We then continue with MGS
+repetition(Y^)=1(cid:0)juniquen-gramsj(cid:14)
+jn-gramsj;
+beginningattheselectedmodelstate.Weuse4candidates, h i
+nonterm(Y^)=I heosi62Y^ :
+andcomputetrainingtasklosswithamaxdecodinglength
+of1.3timestheground-truthlength.Modelsareevaluated
+Wealsoreportthetaskloss,averagelengthofthegenerated
+withamaxdecodinglengthof500tokens.SeetheAppendix
+continuations,andtheperplexity.
+formoredetails.
+FortheMRTandPGbaselineswefinetuneusing4samples.
+Forpolicygradientweusedanexponentialmovingaverage Effectonsequence-leveltaskloss. Table1showsthetask
+baseline. Each method is stochastically mixed with MLE lossesandmetricsforthebaselinefine-tunedmodel(MLE)
+accordingtoahyper-parameter(cid:11) 2 [0;1]:givenatraining and each model trained with MGS to optimize the indi-
+batch,wedrawz (cid:24) Bernoulli((cid:11))anduseMLEwhenz is cated task loss (MGS-loss). The baseline has the highest
+zero.Weperformedagridsearchusing(cid:11)2f0:1;0:3;0:5g, tasklosses,andahighdegreeofnon-termination(.387)and
+selecting(cid:11)basedonthevalidationtasklossthatthemodelis repetition(.538).MGS-LMsubstantiallyreducestheLMtask
+optimizing.IntheAppendixwealsoreportresultsforMRT loss(59.1),alongwithnon-termination(.012)andrepetition
+andPGwithoutstochasticallymixingMLEandanablation (.035).
+ofthechoiceofMRTcandidates. MGS-editachieveslowereditdistance(.928)thanMGS-
+Ourmainresultsarereportedwithgreedydecoding;refer LM, while also substantially reducing LM task loss, non-
+totheAppendixforresultswithancestralsampling. termination,andrepetition.BothMGSvariantsresultinshort
+sequences,especiallyMGS-LM,whichisexpectedduetothe
+biastowardsshortsequencesinMLE-trainedLMs(Stahlberg
+Tasklosses. Weexperimentwithtwosequence-leveltask andByrne2019).
+losses. We define a language modeling (LM) loss which Table 2 shows representative continuations (see the Ap-
+scoreseachsequencewithafixedlanguagemodel: pendixformore).ThefirstexampleshowshowMGScanfix
+non-termination,andthesecondshowshowMGSreduces
+c LM(Y^)=(cid:0)logp score(Y^): (12) repetitioninaterminatingsequence.
+Intuitively,minimizingthislossadjuststheMLEmodelto
+workwellwithgreedydecoding.Weusethefine-tunedGPT- PG & MRT comparison. The MRT-LM and PG-LM
+2modelasp ,whichisthestartingpointofMGStraining. methods result in a lower LM loss than MLE and MGS-
+score
+Asatasklossthatincorporatestheground-truthsequence, LM.However,theperplexityishigherthanthatofMGS-LM
+weuseeditdistancec (Y^;Y),normalizedbyjYj. (25.8and30.7vs.22.0),withalargerstandarddeviation(1.7
+edit
+and7.3vs.0.1).Policygradientfindsasolutionwithvery
+shortsequences(averagelength3.8).Foreditdistance,MRT-
+Metrics. MotivatedbypriorworkwhichshowedthatMLE- editunderperformsMGS-editonaverage(.929vs.925),with
+trained LMs produce repetitive, non-terminating text with higher nontermination, repetition, and perplexity. PG-edit
+greedy decoding, we measure the portion of duplicate n- achievesthebesteditdistance,thoughwithhigherrepetition
+grams(weusen=4)(Wellecketal.2020b)andthepropor- (.246vs..098)andperplexity(24.5vs.21.6)thanMGS.
+14036
+Prefix ThemangawaslicensedforEnglishlanguagereleasebyDel Task-Loss
+N ReyintheUnitedStates,andwasreleasedintheUnitedKingdomintheUnitedStatesinthefirst 137.8
+MLE
+volumeoftheseries,andintheUnitedStatesinthesecond,andthird,volumesoftheseries,inthe
+UnitedStatesinthefirstandsecondvolumesofthefirstandsecondvolumesofthesecond...
+N ReyMangaintheUnitedStates.heosi 51.2
+0
+Table3:Examplesequencesdecodedfromsampledcandidates,showingthecomponentthatthecandidatewassampledfrom.
+trolstheentropyofthecandidateweights.As(cid:11)decreases,
+thecandidateweightsaresmoothedtowardsuniform,which
+allocatesmoreweighttotheMLEcandidates,asseeninFig-
+ure2.Performancedecreaseswhentheweightsareeithertoo
+uniformortoopeaked,asseeninFigure3.
+5.2 MachineTranslation
+Experimental setup. We experiment on the IWSLT ‘14
+German to English task (Cettolo et al. 2014) using a stan-
+Figure1:Taskloss(solid)andperplexity(dashed)as(cid:11)varies. dard experimental setup from the fairseq (Ott et al. 2019)
+repository which we detail in the Appendix. We train the
+MLE baseline and a MGS models with the same hyper-
+WealsoreportresultswithancestralsamplingintheAp- parameters.Weuse4candidatesandagridsearchovernoise
+pendix. We observe similar trends - MGS performs com- (f0:01;0:1;1:0g) and (cid:11) (f1:0;10:0;100:0g). The noise is
+parablytoMRTbutwithbetterperplexity,andPGfindsa scaledby j(cid:18)1 jkr (cid:18)L MLEk 1.
+degenerateshort-sequencesolutionundertheLMloss. For fine-tuning, we use a batch size of 16k tokens, and
+Insummary,allthreemethodsimprovethetaskloss,and accumulategradientsfor4iterations.Weselect(cid:11) = 100:0
+MGS does so while having a favorable balance across the andnoise1:0forallMGSfine-tuningbasedonagridsearch
+other metrics (e.g. perplexity, repetition). We find that (cid:11) withMGS-SBLEU.Fortrainingfromscratch,weselect(cid:11)1.0
+tradesperplexityfortasklossminimizationinPGandMRT, andnoise1.0.AllmodelsareselectedbyvalidationBLEU
+while MGS finds solutions that are much more stable in usingbeamsearchwithwidth5.
+terms of perplexity, as shown in Figure 3. Our conclusion
+isthatMGSisanattractivealternativetomixingminimum
+Results. Resultsforthebaseline,MGSfine-tunedmodels,
+risktrainingandpolicygradientwithmaximumlikelihood
+andmodelstrainedfromscratchwithMGSareinTable4,
+trainingfortheproblemoftextgeneration.
+along with prior work that fine-tuned with minimum risk
+traininginTable5.
+MGS candidate analysis. First, we perform an ablation Thefine-tunedMGS-SBLEUmodelimprovesBLEUover
+oftheproposaldistributionq ,whichisamixtureoftwo thebaselineMLEmodel(+0.32test)atacomparablelevel
+MGS
+components.Wecompareagainstonlyusingthezero-mean totheimprovementfromfine-tuningwithMRT(+0.24and
+(q zero)orMLE-mean(q MLE)componentsasproposals,and +0.50test),withMGS-METEORshowingasimilargain.All
+findthatthetraininglossonlydecreaseswhenbothcompo- ofthefine-tunedMGSmodelsimprovethesequence-level
+nentsintheq MGSmixtureareincluded.Thetasklossonthe tasklossesthatarecomputedwithgreedydecoding(SBLEU,
+validationset(seeAppendix)isanalogous. METEOR,EDIT),witheachmodelachievingthebestscore
+Next,weinspecthowthepooledtasklossvariesbetween on its associated task loss. MGS-EDIT shows the largest
+thesampledcandidates.Thestandarddeviationincandidate difference,underperformingonBLEUyetoutperformingthe
+weightsw((cid:1) k)duringtrainingfallwithin0.35-0.45,imply- baselinebyafullpointonEDIT.
+ingthateachproposalsamplescandidateswithvariedtask The MGS model trained from scratch outperforms the
+losses.Asaqualitativeexample,wesampletwocandidates baselineMLEmodelonBLEU,thoughbyasmallermargin
+fromq MGSattheendoftraining,decodeabatchofsequences thanthefine-tunedmodels.WeobservedthevalidationBLEU
+with each candidate, and in Table 3 show an example se- over time for MGS and the baseline, indicating that they
+quenceandthepooledloss.TheMLEcandidate’ssequence arriveattheirperformancelevelsviadifferentpaths.Figure4
+isnon-terminating,whilethezerocandidatedecodesashorter showstheproportionofMLEcandidatesthathadthehighest
+sequenceandhasalowerpooledloss. weightoutofthefourcandidatessampledfromthemixture
+Weinvestigatewhichcandidatescontributetotheupdate (q ), and Table 3 shows an example sequence decoded
+MGS
+direction over the course of training by showing the total fromacandidatesampledfromeachcomponent.
+weightofMLE-componentcandidatesinFigure2((cid:11)=1:0). Candidatessampledfromthezero-componenttendtolo-
+TheMLEcandidatesarehighlyweightedatthebeginning callyimprovethetasklossmorethanthosefromtheMLE
+oftraining,onlycontributingoccasionallythereafter.Finally, component. However, we find that at the end of training,
+weanalyzetheeffectofthe(cid:11)hyper-parameter,whichcon- roughly46%oftheweightcomesfromtheMLEcandidates.
+14037
+Figure2:WeightofcandidatesfromtheMLEcomponent. Figure3:Validationsequencelossas(cid:11)varies(MGS-LM).
+Valid Test
+BLEU" SBLEU" MET." EDIT# BLEU" SBLEU" MET." EDIT#
+MLE 36.00 36.22 63.82 47.88 34.71 35.67 62.19 50.74
+MGS-SBLEU 36.22 36.58 64.08 47.25 35.03 35.89 62.2 50.23
+MGS-METEOR 36.26 36.51 64.13 47.35 34.98 35.97 62.49 50.29
+MGS-EDIT 35.73 36.42 63.73 46.83 34.73 35.95 62.04 49.45
+MGS-SBLEU(train) 36.19 36.13 63.65 48.40 34.80 35.32 61.95 51.38
+Table4: Machinetranslationresults(IWSLT‘14De!En).BLEUiscomputedwithbeamsearch(width5).SBLEU,METEOR,
+andEDITarecomputedwithgreedydecodingtomatchthetrainingconditions.
+Valid Test
+W&S(2020)(MLE) - 34.70
+W&S(2020)(MRT) - 35.20
+Ed.(2018)(MLE) 33.11 32.21
+Ed.(2018)(MRT) 33.55 32.45
+Table5: IWSLT‘14De!Enwithminimumrisk(BLEU).
+Weattributethistothevariationsinweightbetweenthecan-
+didates,whicharesmallerthanthoseinthetextcompletion
+task,withastandarddeviationrangingfrom.005to.025over
+thecourseoftraining.
+The task losses used in MT are highly concentrated on
+matching areference translationand are similarto the 0-1
+losstowhichthelogloss(MLE)isaproxy.Wesuspectthatit Figure4:Proportionofhighest-weightMLEcandidates.
+ismoredifficulttofindcandidatesthatimprovesubstantially
+over MLE, resulting in smaller improvements than in text
+completion. likelihoodgradientintoitsobjective,whichledtosolutions
+thatweremorestablewithrespecttoperplexitythanthose
+foundbypolicyandminimumrisktraining,whichrequired
+6 Conclusion
+MLEasanauxiliarylossinpractice.Theresultssuggestthat
+Weproposemaximum-likelihoodguidedparametersearch MGSisapromisingalternativetominimumriskandpolicy
+(MGS), a training method for optimizing an arbitrary gradient,andimprovinguponitssimple,yeteffective,form
+sequence-level task loss. MGS samples update directions ofexplorationisafruitfuldirectionforfutureresearch.
+and weights them according to their improvement in task
+loss.Keytoourmethodisaproposaldistributionwhichei- References
+therperformsrandomsearcharoundthecurrentparameteror
+Baevski, A.; and Auli, M. 2019. Adaptive Input Rep-
+aroundthemaximum-likelihoodgradient.
+resentations for Neural Language Modeling. In Interna-
+MGS substantially reduced non-termination and repe-
+tionalConferenceonLearningRepresentations. URLhttps:
+tition in a text completion task, and outperformed maxi-
+//openreview.net/forum?id=ByxZX20qFQ.
+mumlikelihoodonmachinetranslation,withfine-tuningand
+whentrainedfromscratch.MGSincorporatesthemaximum- Bahdanau,D.;Brakel,P.;Xu,K.;Goyal,A.;Courville,A.;
+14038
+Pineau,R.L.J.;andBengio,Y.2017. Anactor-criticalgo- matters. In32ndAAAIConferenceonArtificialIntelligence,
+rithmforsequenceprediction. In5thInternationalConfer- AAAI2018. ISBN9781577358008.
+enceonLearningRepresentations,ICLR2017-Conference
+Holtzman,A.;Buys,J.;Forbes,M.;andChoi,Y.2019. The
+TrackProceedings.
+curious case of neural text degeneration. arXiv preprint
+Bahdanau,D.;Cho,K.;andBengio,Y.2015.NeuralMachine arXiv:1904.09751.
+TranslationbyJointlyLearningtoAlignandTranslate. In
+Koehn,P.;andKnowles,R.2017. SixChallengesforNeural
+3rdInternationalConferenceonLearningRepresentations,
+MachineTranslation. doi:10.18653/v1/w17-3204.
+ICLR2015,SanDiego,CA,USA,May7-9,2015,Conference
+TrackProceedings. URLhttp://arxiv.org/abs/1409.0473. Lafferty,J.;McCallum,A.;andPereira,F.C.N.2001. Con-
+Banerjee,S.;andLavie,A.2005. METEOR:Anautomatic ditionalrandomfields:Probabilisticmodelsforsegmenting
+metric for MT evaluation with improved correlation with andlabelingsequencedata. ICML’01Proceedingsofthe
+humanjudgments. InProceedingsoftheaclworkshopon EighteenthInternationalConferenceonMachineLearning
+intrinsicandextrinsicevaluationmeasuresformachinetrans- ISSN1750-2799. doi:10.1038/nprot.2006.61.
+lationand/orsummarization.
+Lee,J.;Tran,D.;Firat,O.;andCho,K.2020.OntheDiscrep-
+Bengio, S.; Vinyals, O.; Jaitly, N.; and Shazeer, N. 2015. ancybetweenDensityEstimationandSequenceGeneration.
+Scheduledsamplingforsequencepredictionwithrecurrent arXivpreprintarXiv:2002.07233.
+neuralnetworks. InAdvancesinNeuralInformationProcess-
+Lehman, J.; Chen, J.; Clune, J.; and Stanley, K. O. 2018.
+ingSystems. ISSN10495258.
+Safe Mutations for Deep and Recurrent Neural Networks
+Caccia,M.;Caccia,L.;Fedus,W.;LarochelleGoogleBrain, through Output Gradients. In Proceedings of the Genetic
+H.; Mila, M.; Research, F. A.; and Canada CIFAR Chair, and Evolutionary Computation Conference, GECCO ’18,
+M.A.2020. LanguageGANsFallingShort. InInternational 117–124.NewYork,NY,USA:AssociationforComputing
+ConferenceonLearningRepresentations(ICLR). Machinery. ISBN9781450356183. doi:10.1145/3205455.
+Cettolo,M.;Niehues,J.;Stu¨ker,S.;Bentivogli,L.;andFed- 3205473. URLhttps://doi.org/10.1145/3205455.3205473.
+erico,M.2014. Reportonthe11thIWSLTevaluationcam-
+Li,M.;Roller,S.;Kulikov,I.;Welleck,S.;Boureau,Y.-L.;
+paign,IWSLT2014. InProceedingsofthe11thInternational
+Cho, K.; and Weston, J. 2020. Don’t Say That! Making
+WorkshoponSpokenLanguageTranslation.
+InconsistentDialogueUnlikelywithUnlikelihoodTraining.
+Choshen,L.;Fox,L.;Aizenbud,Z.;andAbend,O.2020. On
+Liu, S.; Zhu, Z.; Ye, N.; Guadarrama, S.; and Murphy,
+theWeaknessesofReinforcementLearningforNeuralMa-
+K. 2017. Improved Image Captioning via Policy Gra-
+chineTranslation. InInternationalConferenceonLearning
+dient optimization of SPIDEr. In Proceedings of the
+Representations(ICLR).
+IEEEInternationalConferenceonComputerVision. ISBN
+Daume´,H.;Langford,J.;andMarcu,D.2009. Search-based 9781538610329. ISSN15505499. doi:10.1109/ICCV.2017.
+structured prediction. Machine Learning ISSN 08856125. 100.
+doi:10.1007/s10994-009-5106-x.
+Maheswaranathan,N.;Metz,L.;Tucker,G.;Choi,D.;and
+Deng,Y.;Bakhtin,A.;Ott,M.;Szlam,A.;andRanzato,M.
+Sohl-Dickstein,J.2019. Guidedevolutionarystrategies:aug-
+2020. ResidualEnergy-BasedModelsforTextGeneration.
+mentingrandomsearchwithsurrogategradients. InChaud-
+In International Conference on Learning Representations.
+huri, K.; and Salakhutdinov, R., eds., Proceedings of the
+URLhttps://openreview.net/forum?id=B1l4SgHKDH.
+36th International Conference on Machine Learning, vol-
+Edunov,S.;Ott,M.;Auli,M.;Grangier,D.;andRanzato,M. ume97ofProceedingsofMachineLearningResearch,4264–
+2018. ClassicalStructuredPredictionLossesforSequenceto 4273. Long Beach, California, USA: PMLR. URL http:
+SequenceLearning. InProceedingsofthe2018Conference //proceedings.mlr.press/v97/maheswaranathan19a.html.
+oftheNorthAmericanChapteroftheAssociationforCompu-
+Mania, H.; Guy, A.; and Recht, B. 2018. Simple ran-
+tationalLinguistics:HumanLanguageTechnologies,Volume
+dom search provides a competitive approach to reinforce-
+1(LongPapers),355–364.NewOrleans,Louisiana:Associ-
+ment learning. Technical report. URL https://github.com/
+ationforComputationalLinguistics. doi:10.18653/v1/N18-
+modestyachts/ARS.
+1033. URLhttps://www.aclweb.org/anthology/N18-1033.
+Matyas,J.1965. RandomOptimization. Automat.iTelemekh
+Gu, J.; Cho, K.; and Li, V. O. 2017. Trainable greedy de-
+.
+coding for neural machine translation. In EMNLP 2017
+- Conference on Empirical Methods in Natural Language Merity, S.; Xiong, C.; Bradbury, J.; and Socher, R. 2016.
+Processing, Proceedings. ISBN 9781945626838. doi: PointerSentinelMixtureModels. ArXivabs/1609.07843.
+10.18653/v1/d17-1210.
+Murray,K.;andChiang,D.2018. CorrectingLengthBias
+Hansen, N.; and Ostermeier, A. 2001. Completely de-
+in Neural Machine Translation. In Proceedings of the
+randomized self-adaptation in evolution strategies. doi:
+Third Conference on Machine Translation: Research Pa-
+10.1162/106365601750190398.
+pers, 212–223. Brussels, Belgium: Association for Com-
+Henderson, P.; Islam, R.; Bachman, P.; Pineau, J.; Precup, putational Linguistics. doi:10.18653/v1/W18-6322. URL
+D.;andMeger,D.2018. Deepreinforcementlearningthat https://www.aclweb.org/anthology/W18-6322.
+14039
+Norouzi,M.;Bengio,S.;Chen,Z.;Jaitly,N.;Schuster,M.; Shen,S.;Cheng,Y.;He,Z.;He,W.;Wu,H.;Sun,M.;and
+Wu,Y.;andSchuurmans,D.2016. Rewardaugmentedmaxi- Liu, Y. 2016. Minimum risk training for neural machine
+mumlikelihoodforneuralstructuredprediction. InAdvances translation. In54thAnnualMeetingoftheAssociationfor
+inNeuralInformationProcessingSystems. ISSN10495258. ComputationalLinguistics,ACL2016-LongPapers. ISBN
+9781510827585. doi:10.18653/v1/p16-1159.
+Och,F.J.2003. Minimumerrorratetraininginstatistical
+machinetranslation. doi:10.3115/1075096.1075117. Sountsov, P.; and Sarawagi, S. 2016. Length bias in en-
+coderdecodermodelsandacaseforglobalconditioning. In
+Ott,M.;Auli,M.;Grangier,D.;andRanzato,M.2018. An-
+EMNLP2016-ConferenceonEmpiricalMethodsinNatural
+alyzinguncertaintyinneuralmachinetranslation. In35th
+LanguageProcessing,Proceedings. ISBN9781945626258.
+InternationalConferenceonMachineLearning,ICML2018.
+doi:10.18653/v1/d16-1158.
+ISBN9781510867963.
+Stahlberg,F.;andByrne,B.2019. OnNMTSearchErrors
+Ott,M.;Edunov,S.;Baevski,A.;Fan,A.;Gross,S.;Ng,N.;
+and Model Errors: Cat Got Your Tongue? In Proceedings
+Grangier,D.;andAuli,M.2019. fairseq:AFast,Extensible
+of the 2019 Conference on Empirical Methods in Natural
+ToolkitforSequenceModeling. InProceedingsofNAACL-
+LanguageProcessingandthe9thInternationalJointCon-
+HLT2019:Demonstrations.
+ferenceonNaturalLanguageProcessing(EMNLP-IJCNLP),
+Papineni, K.; Roukos, S.; Ward, T.; and Zhu, W.-j. 2002. 3354–3360. Hong Kong, China: Association for Compu-
+BLEU : a Method for Automatic Evaluation of Machine tational Linguistics. doi:10.18653/v1/D19-1331. URL
+Translation. ComputationalLinguistics. https://www.aclweb.org/anthology/D19-1331.
+Pourchot;andSigaud.2019. CEM-RL:Combiningevolu- Sutskever,I.;Martens,J.;andHinton,G.2011. Generating
+tionary and gradient-based methods for policy search. In textwithrecurrentneuralnetworks. InProceedingsofthe
+InternationalConferenceonLearningRepresentations. URL 28thInternationalConferenceonMachineLearning,ICML
+https://openreview.net/forum?id=BkeU5j0ctQ. 2011. ISBN9781450306195.
+Radford, A.; Wu, J.; Child, R.; Luan, D.; Amodei, D.; Vaswani,A.;Shazeer,N.;Parmar,N.;Uszkoreit,J.;Jones,
+and Sutskever, I. 2018. Language Models are Unsu- L.;Gomez,A.N.;Kaiser,Ł.;andPolosukhin,I.2017. At-
+pervised Multitask Learners. In OpenAI. URL https: tentionisallyouneed. InAdvancesinNeuralInformation
+//d4mucfpksywv.cloudfront.net/better-language-models/ ProcessingSystems. ISSN10495258.
+language models are unsupervised multitask learners.pdf.
+Vinyals,O.;Quoc,G.;andLe,V.2015. ANeuralConversa-
+Ranzato,M.;Chopra,S.;Auli,M.;andZaremba,W.2016. tionalModel. InICMLDeepLearningWorkshop.
+Sequenceleveltrainingwithrecurrentneuralnetworks. In
+Wang,C.;andSennrich,R.2020. OnExposureBias,Hal-
+4thInternationalConferenceonLearningRepresentations,
+lucinationandDomainShiftinNeuralMachineTranslation
+ICLR2016-ConferenceTrackProceedings.
+URLhttp://arxiv.org/abs/2005.03642.
+Rechenberg,I.1978. Evolutionsstrategien. doi:10.1007/978-
+Welleck, S.; Kulikov, I.; Kim, J.; Pang, R. Y.; and Cho,
+3-642-81283-5 8.
+K. 2020a. Consistency of a Recurrent Language Model
+Ross,S.;Gordon,G.J.;andBagnell,J.A.2011. Areduction With Respect to Incomplete Decoding. arXiv preprint
+ofimitationlearningandstructuredpredictiontono-regret arXiv:2002.02492.
+onlinelearning. InJournalofMachineLearningResearch.
+Welleck,S.;Kulikov,I.;Roller,S.;Dinan,E.;Cho,K.;and
+ISSN15324435.
+Weston,J.2020b. NeuralTextGenerationWithUnlikelihood
+Rubinstein,R.1999. TheCross-EntropyMethodforCom- Training. InInternationalConferenceonLearningRepresen-
+binatorialandContinuousOptimization. MethodologyAnd tations. URLhttps://openreview.net/forum?id=SJeYe0NtvH.
+Computing In Applied Probability ISSN 1387-5841. doi:
+Williams,R.J.1992. Simplestatisticalgradient-following
+10.1023/A:1010091220143.
+algorithmsforconnectionistreinforcementlearning.Machine
+Ru¨ckstieß,T.;Sehnke,F.;Schaul,T.;Wierstra,D.;Sun,Y.; LearningISSN0885-6125. doi:10.1007/bf00992696.
+and Schmidhuber, J. 2010. Exploring Parameter Space in
+Wiseman,S.;andRush,A.M.2016. Sequence-to-sequence
+Reinforcement Learning. Paladyn, Journal of Behavioral
+learning as beam-search optimization. In EMNLP 2016
+RoboticsISSN2081-4836. doi:10.2478/s13230-010-0002-4.
+- Conference on Empirical Methods in Natural Language
+Rush, A. M.; Chopra, S.; and Weston, J. 2015. A neural Processing, Proceedings. ISBN 9781945626258. doi:
+attentionmodelforsentencesummarization. InConference 10.18653/v1/d16-1137.
+Proceedings-EMNLP2015:ConferenceonEmpiricalMeth-
+Yu, L.; Zhang, W.; Wang, J.; and Yu, Y. 2017. SeqGAN:
+odsinNaturalLanguageProcessing. ISBN9781941643327.
+Sequencegenerativeadversarialnetswithpolicygradient. In
+Salimans, T.; Ho, J.; Chen, X.; Sidor, S.; and Sutskever, I. 31stAAAIConferenceonArtificialIntelligence,AAAI2017.
+2017. EvolutionStrategiesasaScalableAlternativetoRein-
+Ziegler,D.M.;Stiennon,N.;Wu,J.;Brown,T.B.;Radford,
+forcementLearning. InarXivpreprint.
+A.;Amodei,D.;Christiano,P.;andIrving,G.2019. Fine-
+Sener,O.;andKoltun,V.2020. LearningtoGuideRandom Tuning Language Models from Human Preferences URL
+Search. InInternationalConferenceonLearningRepresenta- http://arxiv.org/abs/1909.08593.
+tions. URLhttps://openreview.net/forum?id=B1gHokBKwS.
+14040

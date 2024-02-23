@@ -1,0 +1,602 @@
+Alpha Matte Generation from Single Input for Portrait Matting
+DogucanYaman1 HazımKemalEkenel2 AlexanderWaibel1,3
+1KarlsruheInstituteofTechnology,2IstanbulTechnicalUniversity,3CarnegieMellonUniversity
+{dogucan.yaman, alexander.waibel}@kit.edu, ekenel@itu.edu.tr
+Abstract Therearevariouschallengesintheportraitmattingprob-
+lem due to the complex visual details of a person’s body,
+In the portrait matting, the goal is to predict an alpha e.g.,thebordersaroundthebody,thehair,andtheclothes,
+matte that identifies the effect of each pixel on the fore- particularly if the hair flutters and the clothes have some
+groundsubject. Traditionalapproachesandmostoftheex- opacity.Themattingproblemcanbeformulatedasfollows:
+istingworksutilizedanadditionalinput,e.g.,trimap,back-
+groundimage,topredictalphamatte. However,(1)provid- I =α F +(1−α )B (1)
+i i i i i
+ingadditionalinputisnotalwayspractical,and(2)models
+whereirepresentseachpixelinanimageI,alpharepresents
+aretoosensitivetotheseadditionalinputs.Toaddressthese
+alpha value for the corresponding pixel in the alpha matte
+points, inthispaper, weintroduceanadditionalinput-free
+α, and F and B are foreground and the new background
+approach to perform portrait matting. We divide the task
+images,respectively.
+intotwosubtasks,segmentationandalphamatteprediction.
+Inthetraditionalapproach,thealphamatteisgenerated
+Wefirstgenerateacoarsesegmentationmapfromtheinput
+using an image and a trimap which represents the fore-
+imageandthenpredictthealphamattebyutilizingtheim-
+ground,background,andunknownareasontheimage. The
+ageandsegmentationmap. Besides,wepresentasegmen-
+basic idea is to enhance the unknown areas in the trimap,
+tationencodingblocktodownsamplethecoarsesegmenta-
+which are generally problematic parts of the subject, e.g.,
+tion map and provide useful feature representation to the
+the area around the subject’s body, to get a more accurate
+residualblock,sinceusingasingleencodercausesthevan-
+alpha matte. The predefined foreground and background
+ishingofthesegmentationinformation.Wetestedourmodel
+areasarenotchanged. Onthecontrary,severallatestworks
+onfourdifferentbenchmarkdatasets.Theproposedmethod
+[24,32,38]proposenottouseatrimap,sincecreatingtrimap
+outperformed the MODNet and MGMatting methods that
+isatime-consumingprocedureandneedsexpertannotators.
+alsotakeasingleinput. Besides, weobtainedcomparable
+Instead,someworksemployoriginalimageandcoarsean-
+results with BGM-V2 and FBA methods that require addi-
+notatedsegmentationmasktogenerateafine-grainedalpha
+tionalinput.
+matte [38,48]. Moreover, recent work focuses on using
+an input image and its background to produce alpha matte
+withoutusinganyotherinformation[29],whileotherworks
+1.Introduction
+utilize only the input image to achieve fine-grained alpha
+Image matting has become a popular research topic in matte[24,32,51,52]andpredicttrimaptouseinthealpha
+the computer vision research area. The main purpose is matteprediction[43].
+to distinguish background and foreground to obtain fore- One of the crucial challenges is posed by the distribu-
+ground objects as accurately as possible. Therefore, the tion of the background and foreground of an image. It is
+task is to generate an alpha matte that contains alpha val- anextremelyseverecasewhenthebackgrounddistribution
+ues,namelyopacityvalues,between[0,1]foreachpixelto is considerably similar to the foreground distribution. Be-
+representtheeffectoftheforegroundoverthefinalimage. sides, if the background distribution has a large variance,
+In addition to this, portrait matting, which is a subtopic of it is another compelling case to handle the discrimination
+imagematting,focusesongeneratingalphamattetoobtain of background and foreground subject. Yet another chal-
+the subject itself, instead of the generic objects, from an lenge arises from the illumination conditions of the input
+inputimageoravideoframe. Therearenumerousapplica- imagesincethebackgroundmattingmodelsaresensitiveto
+tionareasofportraitmatting, suchasimage/videoediting, theilluminationdistribution. Inparticular, thealphamatte
+changingbackgroundwhichisquitecommoninvideocon- predictionmodelsarepronetogeneratecoarse,evenworse,
+ferenceapplications,andvideo/moviepost-production. outputsunderthecasesofunderexposureandoverexposure.
+In this work, we aim to enhance the quality of the gen- trimap-free approaches become more and more important
+eratedalphamattetoextracttheperson, sincefine-grained duetothedifficultyofobtainingtrimap[13,48,53].
+detailsofthesubjectsarethemainchallengesintheportrait
+mattingtask. Toalleviatetheproblem,wehandleditusing
+PortraitMattingIn[39],aCNN-basedend-to-endsys-
+twoconsecutivestages,whicharepersonsegmentationand
+tem is presented to produce an alpha matte for the por-
+alphamattegeneration. WeemployedDeepLabv3+[4]for
+trait matting task. In [5], the key point of Semantic Hu-
+personsegmentationandagenerativeadversarialnetwork-
+man Matting (SHM) algorithm is to learn implicit seman-
+based(GAN)alphamattepredictionmodel. Whilethefirst
+tic constraints from the data to use. Moreover, the authors
+network takes an input image and produces the segmenta-
+provide a new dataset and a novel fusion strategy for the
+tionmap,thealphagenerationnetworkemploystheoutput
+alpha matte. In [47], end-to-end Joint Matting Network
+ofthesegmentationnetworkandforegroundsubject,which
+(JMNet)benefitsfromtheposeofthehumanbodytopro-
+is obtained by multiplication of the input image and pre-
+duce alpha matte and uses trimap refiner network to im-
+dictedsegmentationmap. Intheend, therefinementblock
+provethesharpness. In[32],theproposedsystemcontains
+receivesthepredictedalphamattetorefinethedetails. Our
+threesubmodulesthatarepredictingcoarsesemanticmask,
+contributionscanbesummarizedasfollows:
+improving the quality of the mask, and generating the fi-
+• We propose a two-stage portrait matting network, nal alpha matte. In [38], a trimap-free system takes an
+thatconsistsofaSOTApersonsegmentationnetwork input image and the background of the same image with-
+DeepLabv3+ and subsequently a conditional GAN- outsubjecttogeneratealphamatte. Toprovidegeneraliza-
+basedalphamattepredictionmodule,withoutusingan tion, another matting network is trained in relation to the
+additionalinputastrimap,backgroundimage,etc. first network. In [9], a light-weight method with two de-
+codersandasingleencoderisproposed. Thetask-specific
+• Wepresentsegmentationencodingblocktoencodethe
+decoders predict segmentation map and alpha matte using
+predicted segmentation map and the foreground sub-
+encoded semantic information. In [24], a matting objec-
+ject. Theideaistoobtainthefeaturerepresentationof
+tive decomposition network (MODNet) is proposed and a
+thesegmentationmapandforegroundsubjectindepen-
+self-supervision-basedstrategyisappliedtoadjustittothe
+dentlyoftheinput,andinjectitintotheresidualblock
+real-worldscenario. In[29], theproposedmethodhastwo
+aswellasdecoderlayersalongwiththedepth. Weob-
+subnetworks and works in real-time with a high accuracy
+served that using an independent encoder, instead of
+using HR images. While the first network takes an im-
+encodingconcatenationofallinputswithasingleen-
+age and its background as input and generates four differ-
+coder,providesbetterfeaturerepresentation.
+ent outputs —alpha matte, foreground residual, error map,
+• We propose border loss to penalize the errors around andhidden—,thesecondnetworkperformsrefinement.Be-
+thesubjectmore,sinceitismorelikelytohaveerrors sides,twolarge-scaledatasetsforvideoandimagematting
+in the prediction due to difficulties, such as hair. We arepresented. In[48], theproposedsystemworkswithout
+alsopresentalphacoefficientlosstoevaluateonlythe additionalinputandthetaskisaddressedasself-supervised
+pixelsthathaveneither0nor1valueinthealphamatte. multi-modality problem. The system utilizes depth-map,
+segmentationmap,andinteractionheat-mapusingthreedif-
+2.RelatedWork
+ferent encoders. A new dataset is also proposed in this
+Although person segmentation can be employed to ex- work.In[44],theauthorsproposeConsistency-Regularized
+tractthesubjectfromanimageaswellasreplacetheback- GraphNeuralNetworktoimprovethetemporalcoherence
+ground,itisnotadequatelyaccuratetoeliminatetheback- during the video matting and they also collected a real-
+groundanditseffectsonthesubject.Therefore,alphamatte worlddatasettoevaluatetheperformance. In[52],Cascade
+generationisamoreaccurateapproachforbackgroundre- Image Matting Network with Deformable Graph Refine-
+placementorportraitmatting. mentispresentedtopredictalphamatteautomaticallywith-
+Image matting We can divide image matting literature out using additional inputs. They predict the alpha matte
+into three main groups which are sampling-based meth- from low resolution to high resolution. In [51], the pro-
+ods[8,12,14,17,20–23],propagation-basedmethods[1–3, posedsystemtakesacoarsemasktoalleviatethealphagen-
+6,16,26,27,41],anddeeplearning-basedmethods[5,7,10, eration task. The system does not require a precise trimap
+13,18,24,28,31–36,38,39,42,46,47,49,50,53–55].Indeep butusesageneralroughmasktoguidethealphamattepre-
+learning-based methods, Convolutional Neural Networks diction. In[43],theauthorsproposeadeeplearning-based
+(CNNs)andGenerativeAdversarialNetworks(GANs)are video matting system and present a novel spatio-temporal
+proposedtoperformalphamattepredictionforimagemat- feature aggregation module. They also utilized frame-by-
+ting[7,18,31,34,35,49,50,54].Besides,theattentionmech- frame trimap annotations and contributed to the literature
+anismincreasesthemattingperformance[28,36].Recently, withalarge-scalevideomattingdataset.
+Figure1. Proposedmodel. Firstofall,DeepLabv3+[4]modelworksandproducesasegmentationmap. Afterthat,thevisualizedsystem
+startstoworkusingtheinputimageandthepredictedcoarsesegmentationmap.Whilethecontentencodingblockencodestheinputimage
+toprovidefeaturemapsforthedecodernetwork,thesegmentationencodingblockemploysthecombinationofthepredictedsegmentation
+mapandforegroundsubjectthatisobtainedbymultiplicationoftheinputimageandthepredictedsegmentationmap. Besides,residual
+connectionsbetweenencoders’layersanddecoder’slayersareeffectivetopreservetheinformation.Aftereachencoders’layer,wepassed
+the extracted feature maps through 1×1 convolutional layers to decrease the depth of the feature maps before concatenating with the
+decoder’soutputs.Intheend,therefinementblockisresponsibleforcapturingpatchesfromthepredictedalphamattetorefinethem.
+3.Methodology catenationofthreedifferentfeaturemapsmakesthefeature
+representationtoodeep,wepassencoders’outputsthrough
+We propose a two-stage approach to perform portrait 1×1convolutionstoreducethedimensionbeforeconcate-
+mattingtask. Ourmodelconsistsoftwosub-modelswhich natingwiththedecoder’slayers’outputs.Intheend,thereis
+are DeepLabv3+ [4] for person segmentation and alpha a small encoder-decoder network to enhance the predicted
+mattegenerationnetworkforalphamatteprediction. While alphamattebytakingsmallpatchesfromthebordersofthe
+thesegmentationmodeltakesasingleRGBimagetopredict subjectsincetheseregionsaremorelikelytobeinaccurate.
+thesegmentationmap, thealphamattegenerationnetwork TheproposedsystemisshowninFigure1.
+produces alpha matte using the input image as well as the GeneratorsWhilethecontentencodingblockisrespon-
+predicted segmentation map. In the alpha generation net- sibleforencodingtheinputimagetoobtainafeaturemap,
+work, there are two parallel similar encoder blocks, which the segmentation encoding block provides a feature repre-
+are the content encoding block and the segmentation en- sentationofthepredictedsegmentationmapandforeground
+codingblock. Whilethecontentencodingblockprovidesa subject.Theideabehindusingseparateencodersistoavoid
+featurerepresentationfortheinputimage,thesegmentation vanishingthefeaturesofthesegmentationmapandthefore-
+encodingblockencodesthedepth-wiseconcatenationofthe ground subject. We also found that the segmentation map
+predictedsegmentationmapandforegroundsubjectthatis and extracted foreground subject provide complementary
+obtainedbymultiplyingtheinputimageandpredictedseg- feature representations to the network. According to the
+mentation map. Afterward, the outputs of both encoders experiments,wenoticedthatusingasingleencodercauses
+are concatenated along with the depth. The concatenated thevanishingofthefeaturerepresentationoftheadditional
+feature representation passes through consecutive residual inputs. Besides,weempiricallyrealizethatalesscomplex
+blocks and the decoder network to obtain the predicted al- encoder is suitable to encode these additional inputs. Our
+phamatte. Besides,thereareskipconnectionsbetweenthe generator is based on the U-Net generator [37] and it con-
+decoder’s layers and the encoders’ layers. Since the con- tains consecutive convolutional blocks to downsample the
+input image. After the encoding blocks, the features are [0,1]pixelsandthepixelsbetween0and1separately,since
+concatenatedandthefinalrepresentationpassesthroughthe theyrepresentdifferentcasesandrestraineachotherwhen
+residual block. Later, the generator has a decoder module weconsiderthemtogether. Pleasenotethatwealsocalcu-
+toproduceanoutputalphamapbyupsamplingtheresidual latedbothlossesusingalphamatteandforegroundsubjects
+output. Finally, 64×64sizeofconsecutivepatchesinthe asintheperceptualloss. Moreover,weproposedtheborder
+border of a person’s body are extracted from the predicted loss to penalize the area around the subject. For this, we
+alpha matte to enhance the details by the refinement net- generated border maps by applying morphological erosion
+work,sincethepredictionstendtohavemoreerrorsaround anddilationoperationsseparately. Then,wesubtractedthe
+the body. The generated image is expected to be the fine- eroded segmentation map from the dilated one. The final
+grainedalphamatteoftheinputimagefortheportraitmat- map represents the border area of the subject. During the
+tingproblem. Besides, theskipconnectionsencouragethe training, we utilized this border map to calculate L1 loss
+networktokeepinformationfrombothencoders. for only the corresponding border pixels. The overall loss
+Multi-scalediscriminatornetworkForthemulti-scale functionisshowninEquation2
+discriminator[45],weprovideanimagepyramidusingthe
+originalimageanddownsampledversionsbyafactoroftwo min max (cid:80) (L (G,D )+λL (G)+
+k=1,2,3 cGAN k per
+and a factor of four to obtain the same image on different G D1,D2,D3
+scales. Therefore,thisapproachprovidesustolearnfroma βL alpha(G))+γL border(G)+θL ac(G))
+(2)
+generalperspectivetofinerdetails,sinceeachdiscriminator
+whereL representsconditionaladversarialloss,L
+hasadifferentreceptivefield. Pleasenotethatallthreedis- cGAN per
+shows the perceptual loss, L indicates the alpha loss,
+criminators are identical, though each discriminator works alpha
+L statestheborderloss,andL expressesthealpha
+on a different scale. Since alpha matte does not contain a border ac
+coefficientloss. Besides,λ,β,γ,θ arecoefficientsthatde-
+sufficient amount of useful representation, we decided to
+terminetheeffectofeachlossesoverthetotalloss.Accord-
+useacombinationofthealphamatteandtheextractedfore-
+ingtoourexperimentsonvalidationset,weempiricallyde-
+groundsubject,whichisobtainedbymultiplyingthealpha
+finedthesevaluesas10,25,50,25.
+matte and the image, as an input to the discriminator net-
+work. For the real image, we extracted subjects using the
+3.1.Trainingprocedure
+imagesandthegroundtruthalphamatte,whileweusedthe
+imagesandthepredictedalphamattetoobtainfakeimages During the training, we did not train the segmentation
+forthediscriminator.Depth-wiseconcatenationofthethree network. Instead,weonlytrainedthealphagenerationnet-
+channelsRGBimageandonechannelalphamatteisthein- workandtherefinementnetworkend-to-end.Duringthein-
+putdataofthediscriminator. ference,theframeworkworksend-to-endwhichmeanswe
+provideaninputimagetothewholesystemandgetanalpha
+Loss functions For the training of the alpha generation
+matteforthecorrespondinginputimage. Theinputimages
+network,weusedadversarialloss[15],perceptualloss[19],
+areresizedto1280×768resolutionbeforefeedingthenet-
+alpha loss, border loss, and alpha coefficient loss. In the
+work. We used 10−4 learning rate for the generator and a
+perceptualloss[19],weutilizedtheVGGmodel[40]toex-
+tentimessmallerlearningrate(10−5)forthediscriminator
+tract features. For this, we employed five different layers
+toslowdowntheconvergenceofthediscriminatorsincewe
+oftheVGGmodeltoobtainfeaturesforthegeneratedim-
+empirically realized that discriminator converged too fast.
+age and the real image. We followed a similar pipeline as
+Wetrainedthealphagenerationnetworkwithbatchsizeof
+in [19] to decide the layers to extract features. After that,
+oneasusingoneimageineachbatchcausesbetterconver-
+wecalculatedaweightedsumoftheL1distancesbetween
+gence [13]. Besides, we utilized Adam optimizer [25] for
+featuresofthepredictedalphamatteandthegroundtruthal-
+the training of both models. We trained the discriminator
+phamatteforallextractedfeatures. Besides,weappliedthe
+onestepforeveryfivestepsforthegeneratortraining.
+samelossforgeneratedforegroundsubjectandgroundtruth
+foregroundsubjectthatweobtainedbymultiplyingthein-
+4.ExperimentalResults
+putimagewithpredictedalphamatteandgroundtruthalpha
+matte,respectively. Then,wefollowedthesamestrategyto DatasetsInordertotrainourmodel, weusedthecom-
+extractfeaturesandcalculatetheperceptualloss. binationofAdobeImageMatting(AIM)[49]andDistinc-
+For the alpha loss, we followed a different strategy and tions (D646) [36] datasets to employ more data as well as
+calculatedtheL1distancebetweenthepixelsthathaveonly increasethediversity.Sincewefocusedontheportraitmat-
+oneorzerovaluesinthepixeldomaininsteadofcalculating ting problem, we selected all images that contain persons
+L1 distance between all pixels. The remaining pixels that for the training and test by following the same strategy in
+haveneitheronenorzerovaluesareconsideredbydefining the portrait matting literature. In the end, there are 201
+anotherlossbasedonL1distance. Thus,wepenalizedthe subjects in the AIM dataset and 363 subjects in the D646
+Method Input Dataset MSE MAE SAD Grad Conn
+BGM-V2[29] Image,background AIM 2.12 8.62 9.04 8.32 9.21
+FBA[13] Image,trimap AIM 0.40 3.79 3.98 1.19 3.11
+MODNet[24] Image AIM 21.65 32.36 33.93 44.24 35.45
+MGM[51] Image AIM 1.48 5.96 6.21 4.74 6.55
+Ours Image AIM 1.06 4.93 5.04 4.22 5.39
+BMG-V2[29] Image,background PM85 0.37 1.38 1.45 1.28 2.38
+FBA[13] Image,trimap PM85 1.01 2.43 2.55 3.50 2.75
+MODNet[24] Image PM85 2.32 6.90 7.23 12.17 9.48
+MGM[51] Image PM85 0.38 2.77 2.91 1.32 2.04
+Ours Image PM85 0.19 1.11 1.19 0.65 1.16
+BMG-V2[29] Image,background D646 0.98 4.60 4.83 3.78 5.30
+FBA[13] Image,trimap D646 0.44 3.10 3.25 1.70 2.38
+MODNet[24] Image D646 3.51 9.80 10.27 13.54 18.98
+MGM[51] Image D646 0.88 5.17 5.42 3.40 4.76
+Ours Image D646 0.71 3.84 3.99 2.74 3.84
+FBA[13] Image,trimap PPM-100 0.96 2.24 2.41 4.20 2.70
+MODNet[24] Image PPM-100 4.60 9.70 11.59 12.48 22.16
+MGM[51] Image PPM-100 1.15 5.07 5.31 5.04 5.29
+Ours Image PPM-100 0.84 4.02 4.70 3.67 4.46
+Table1.Quantitiveevaluationondifferentdatasets.SincePPM-100datasetcontainsreal-worldimages,wecouldnottestBGM-V2dueto
+lackofbackgroundimages.ThecorrespondingMSEandMAEmetricsarescaledby103toimprovethereadability.
+dataset,makingintotal564subjectsforthetrainingset.We Pleasenotethatwecalculatedthesemetricsoverthewhole
+createdthetrainingsetbyfollowingthestandardstrategyin image,andMSEandMAEscoresarescaledby103 toim-
+theimagemattingliteratureforthesedatasets. Forthis,we prove the readability. Besides, we performed a user study
+combinedeachpersoninthetrainingsetwith100different to compare our results with the other studies. To perform
+imagesoftheMSCOCOdataset[30]. Intheend, wehave thisstudy,wecombinedtheextractedsubjectswithagreen
+56400trainingimages. Forthetest,wehavefourdifferent backgroundandshowedtheseimagestotheparticipants.
+test sets, namely, AIM [49], PhotoMatte85 (PM85) [29],
+4.1.Results
+D646[36],andPPM-100[24]. Wefollowedthesamestrat-
+egyandcombinedeachpersoninthetestsetwith20differ- In this section, we present the experimental results and
+entbackgroundimagesofthePASCALVOCdataset[11]. compare them with the recent SOTA works in the back-
+In the end, AIM contains 220 images (11 different sub- groundmattingliterature,MODNet[24],FBA[13],BGM-
+jects), PM85 includes 1700 images (85 different subjects), V2[29],andMGM[51].Pleasenotethat,whileourmethod
+and D646 has 220 images (11 different subjects). The im- and MODNet take an input image to generate alpha matte
+ages in PPM-100 dataset have real backgrounds and there for portrait matting, BGM-V2 requires the original back-
+are 100 images in total. We evaluated our model on these ground image without subject as an additional input and
+fourbenchmarkdatasetsandcomparedourresultswiththe FBA expects trimap to identify background, foreground,
+previous works. Please note that the training and test sets andunknownareasinadditiontotheoriginalinputimage.
+donotcontainanycommonsubjects, i.e. subjectindepen- Besides, MGM [51] requires a segmentation mask as our
+dentsetup. Thetrainingandtestsubjectshavealreadybeen alphamattegenerationnetwork.
+listedforthecorrespondingdatasets. Quantitative evaluation Experimental results are
+Evaluation We used mean squared error (MSE), mean showninTable1. Weevaluatedallmodelsunderthesame
+absolute error (MAE), sum of absolute difference (SAM), conditions, e.g., using background image and resolution.
+gradient (Grad), and connectivity (Conn) metrics to evalu- According to the experimental results presented in Table
+ateourmodelasintheliterature.Forcomparison,wechose 1, our model surpassed the performance of MODNet and
+publicly available SOTA methods, namely MODNet [24], MGM,whichdonotuseanyadditionalinputs,onfourdif-
+BGM-V2[29],FBA[13],MGM[51]andwetestedthemon ferentbenchmarks. Othermethodsinthetable—BGM-V2
+thetestsetsinordertoperformafaircomparisonsincedif- andFBA—benefitfromadditionalinputsuchastheback-
+ferentbackgroundsmaychangethemodels’performances. ground of the input image and a trimap. These additional
+Input GT Ours BGM-V2 FBA MODNet MGM
+Figure2.Qualitativecomparison.RowsrepresentAIM,D646,PM85datasets,respectively.
+inputs make the task easier and more accurate results are imagesarereal-worldimages,therearenobackgroundim-
+likely to be obtained, since the background image is the ages without the subject. Therefore, we could not test the
+same one as the original input image, and trimap identi- BGM-V2modelonthisdataset.
+fiesmostoftheareaontheimageasforegroundandback-
+Qualitative evaluation In Figure 2, we present our re-
+ground. On the AIM dataset, our model is found superior
+sults, input image, ground truth, and the outputs of the
+to the BGM-V2 in all metrics. However, the FBA method
+other models for three benchmark datasets; AIM, D646,
+achievesthebestperformanceonthistestset. OnthePM85
+and PM85. We generated outputs with our model, MGM,
+dataset, our proposed model outperforms all methods and
+and MODNet without additional inputs. However, BGM-
+gets the SOTA result. In the D646 benchmark, we again
+V2methodneedsthesamebackgroundoftheinputimage
+outperformtheMODNet, MGM,andBGM-V2. TheFBA
+and FBA requires trimap for the corresponding input data.
+reachesthebestperformance. However,itisslightlybetter
+For BGM-V2, we provided the background image that we
+thanourmethodandourresultsarequiteacceptablewhen
+used during the preparation of the test data. Since D646,
+compare with the FBA. Please note that since each study
+PM85, and PPM-100 datasets do not include trimaps, we
+createsthetestsetupwithadifferentsetofbackgroundim-
+created different trimaps by using erosion and dilation op-
+ages,thepresentedscoresmayshowdifferences.
+erations to evaluate FBA and present the best scores. Ac-
+cordingtothefigure,ourresultsarealmostthesameasthe
+As previously stated, while our approach does not take
+groundtruthdata, especiallyforthechallengingpart, such
+anyinputinadditiontotheoriginalimage,theFBAmethod
+as hair. Besides, although all models perform quite well,
+takestrimapandtheBGM-V2methodtakesthebackground
+thedifferencesbetweenthemareinthedetails,particularly
+of the original input image that does not contain the sub-
+aroundthebordersofthesubjects. Moreover,werandomly
+ject itself. However, they are too sensitive to these addi-
+collectedimagesfromthewebandwerunourmodelover
+tionalinputs. Forinstance,ifthereareanydissimilaritiesin
+themtopresenttheperformanceofthesystemonthereal-
+thebackgroundimagesuchastranslation,BGM-V2cannot
+worldimages. Thecorrespondingoutputsarepresentedin
+produce a proper output and generates a completely cor-
+Figure 3. The Alpha column contains the predicted alpha
+ruptedpredictioninstead. Similarly,FBAissensitivetothe
+matte and the combined column includes the combination
+trimap input. In addition to all these cases, our model and
+ofanarbitrarybackgroundimageandtheextractedsubject
+allothermodelsaresensitivetothebackgroundoftheinput
+byusingthepredictedalphamatte.
+imageaccordingtothefindingsofourdetailedexperiments.
+It indicates that the alpha matte prediction performance of We also performed a user study and asked 30 different
+themodelsforthesamesubjectcanconsiderablychangeac- participants to compare all results according to the quality
+cordingtothebackgroundoftheinputimage.Theillumina- oftheimagestomeasurethemattingperformance.Weused
+tionconditions, thecolordistribution, andtheexistenceof randomlyselectedsampleimagesfromallfourbenchmark
+multiple subjects on the image affect the alpha matte pre- test sets. We present the results in Table 2. We have five
+diction performance. For the PPM-100 dataset, since the differentlevelsofscorewhicharemuchbetter,better,same,
+Score MODNet BGM-V2 FBA MGM Loss MSE
+Muchbetter 41.55% 10.45% 4.23% 8.25% L +L 7.24
+cGAN alpha
+Better 29.22% 32.67% 16.61% 30.27% L +L +L 3.78
+cGAN per alpha
+Same 19.15% 39.86% 52.44% 41.02% L +L +L +L 1.76
+cGAN per alpha border
+Worse 8.11% 16.33% 22.47% 18.20% L +L +L +L +L 1.06
+cGAN per alpha border ac
+Muchworse 1.94% 0.69% 3.58% 2.26% α 3.14
+α,F 1.06
+Table 2. User study using all three benchmarks. We compared
+our model with MODNet [24], BGM-V2 [29], FBA [13], and Table 3. Ablation study for the loss functions. We repeated the
+MGM[51].Thescoresdemonstratehowmuchourresultisbetter trainingofthealphamattegenerationnetworkusingacombina-
+orworsethantheotherresults. tionofdifferentlossfunctionsandwepresentMSEresultsonAIM
+testsetinthetoppartofthetable. Weadditionallyshowthere-
+sultswithalllossfunctionsbyusingonlyalphamatteandusing
+worse, and much worse to compare our results with four foregroundsubjectandalphamattetogetherinthelossfunctions.
+different methods. The scores indicate how much the out-
+putimageofourmethodisbetterorworsethantheoutput
+Cases MSE
+of other methods. For the comparison, we extracted sub-
+Basemodel 2.20
+jectsfromtheimageusingpredictedalphamatteandcom-
+Basemodel+SEblock 1.57
+bined with a green background to make the details of the
+Basemodel+SEblock+refinementnetwork 1.06
+subject more visible for the users. During the survey, we
+showed the original input image and the combination of a
+green background and outputs of the models. We utilized Table4. Ablationstudyforthearchitecture. Weindividuallyin-
+8 subjects for each test benchmark, except PPM100 since vestigatedtheeffectofthesegmentationencodingblockandthe
+wecouldnottesttheBGM-V2modelonthem,fortheuser refinementmodule. TheexperimentsareperformedontheAIM
+studyandwemadepairswithourresultsandotherresultsto dataset.
+showthemtotheparticipants. Intotal,wehave24images
+for each model to create questions. According to the ta-
+ble,ourmodeloverperformstheMODNetanditisslightly alphamatte. Accordingtotheresults,MSEscoresindicate
+better than BGM-V2 and MGM. On the other hand, par- that using the foreground subject in addition to the alpha
+ticipants could not easily distinguish our results and FBA matteenablesthenetworktoproduceamoreaccuratemap.
+resultsandmajority,52.44%,saidtheyarethesame. ModulesWefurtherexaminedtheeffectofthesegmen-
+tation encoder block and the refinement network. Accord-
+4.2.Ablationstudy
+ingtotheresultsinTable4,boththesegmentationencoding
+LossfunctionsWeperformedanablationstudytoeval- blockandtherefinementnetworkaresignificantlyusefulto
+improvetheperformanceoftheproposedmethod.Because,
+uatetheeffectsofdifferentparametersontheperformance.
+the segmentation encoding block improves the representa-
+Wefirstinvestigatedthelossfunctionsandthenutilizeddata
+tionofthesegmentationareabyprovidingtheencodedfea-
+type for the losses. In the first part of Table 3, we show
+ture representation to the residual block, while the refine-
+used loss functions for the training as well as correspond-
+ment network enhances the alpha matte prediction perfor-
+ing MSE values on the AIM test set. It is observed that
+mancebyfocusingonthechallengingparts.
+each employed additional loss contributes significantly to
+thepredictionperformanceofthemodel. Inthebottompart InputtypeWeanalyzedhowusingforegroundsubjectin
+of Table 3, we present the effect of using the alpha matte the generator and discriminator as input affects the perfor-
+and the foreground subject in the loss functions. α means mance.TheresultsinTable5indicatethatprovidingafore-
+thatweonlyutilizedpredictedalphamatteandgroundtruth groundsubjectinadditiontothesegmentationmap,which
+alpha matte. α and F represent that we extracted the sub- weobtainedbymultiplyingtheinputandthepredictedseg-
+ject from the input image with predicted alpha matte and mentationmap,increasestheperformancesinceitprovides
+ground truth alpha matte to obtain predicted and real fore- amoreeffectivefeaturerepresentation. Similarly,concate-
+groundsubjects.Then,weemployedtheseoutputstocalcu- nation of the alpha matte and extracted foreground subject
+latelossfunctionsforthecorrespondingcase. Whileusing provides a more useful representation to the discriminator
+alpha matte helps to penalize the difference between pre- that yields improvement in the performance. Please note
+dictedandgroundtruthalphamatte,usingforegroundsub- thatweevaluatedtheproposedsystemonthetestsetofthe
+jectprovidesmoreinformationtothenetwork,sinceitcon- AIMdataset.
+tainsmuchmoredetailsandsemanticinformationthanthe Limitations Our work is sensitive to the performance
+Input Alpha Combined Input Alpha Combined
+Figure3.Wetestedourmodelsontherealimagesthatwerecollectedfromtheweb.Intheend,wechangedthebackgroundswitharbitrary
+backgroundsusingthepredictedalphamattetoshowtheapplicationofthesystem.
+Cases MSE thepredictionqualitybycapturingseveralpatchesfromthe
+Segmentationmap 1.86 predictedalphamatteintheborderareaofthesubject. Be-
+Segmentation+Foreground 1.41 sides,weproposedborderlosstopenalizechallengingparts
+Alphamatte+Foreground 1.06 around the subject and we also presented alpha coefficient
+loss to measure only the pixels in the alpha matte that the
+alpha coefficients are neither zero nor one. To handle the
+Table 5. Ablation study for the input type of the generator and domain shift problem, we combined two important train-
+discriminator. Whilethefirstpartshowstheinputofthesegmen- ing datasets to increase the amount of data as well as the
+tationencodingblockinthegenerator,thesecondpartofthetable
+diversity. Experimental results indicate that using border
+indicatestheinputtypeofthediscriminatornetwork.
+lossandalphacoefficientlossimprovedtheaccuracyofthe
+modelandcombiningtwodatasetsincreasedthegeneraliza-
+tion capacity. It is also observed that encoding the combi-
+ofthesegmentationnetwork. Apoorqualitysegmentation
+nationofthesegmentationmapandtheforegroundsubject
+outputcausesalessaccurateoutcomeattheendofthealpha
+by the segmentation encoding block provided more useful
+mattenetworkduetoalackofvisualrepresentationofthe
+featuresthanencodingonlythesegmentationmap. Wealso
+subject. Besides, due to consecutive residual blocks, the
+foundoutthatthesameoutcomeisalsocorrectforthedis-
+modelisnotabletoruninreal-time.
+criminator.Whenweprovidedthepredictionoutputandthe
+5.Conclusion foregroundsubject,thediscriminatorworkedbetterandwas
+morestable. Infuturework,itisnecessarytofocusonthe
+Inthiswork,weproposedaconditionalGAN-basedad- performancetomakeourmodelbeabletoruninreal-time
+ditional input-free approach to perform the portrait mat- with sequential data in order to increase the possibility of
+ting task. We addressed the problem as two different sub- usageintherealworld. Apossiblescenarioistoutilizethe
+problems.Inthefirststep,weproposedtouseDeepLabV3+ systembyeliminatingthebackgroundtoprovideprivacyin
+personsegmentationmodeltogenerateacoarsesegmenta- thehuman-robotinteraction.
+tionmapfromanarbitraryinputimage. Inthesecondstep,
+thisoutputandtheoriginalimagearesenttothealphagen-
+erationnetworktogeneratethealphamatte. Wepresented Acknowledgement. The project on which this report
+thesegmentationencodingblockthatencodesthecombina- is based was funded by the Federal Ministry of Educa-
+tionofthepredictedsegmentationmapandtheforeground tion and Research (BMBF) of Germany under the num-
+object.Intheend,wehavearefinementnetworktoenhance ber01IS18040A.
+References Yoshua Bengio. Generative adversarial networks. arXiv
+preprintarXiv:1406.2661,2014. 4
+[1] Yag˘izAksoy,Tae-HyunOh,SylvainParis,MarcPollefeys,
+[16] LeoGrady,ThomasSchiwietz,ShmuelAharon,andRu¨diger
+andWojciechMatusik. Semanticsoftsegmentation. ACM
+Westermann. Random walks for interactive alpha-matting.
+TransactionsonGraphics(TOG),37(4):1–13,2018. 2
+InProceedingsofVIIP,volume2005,pages423–429,2005.
+[2] Yagiz Aksoy, Tunc Ozan Aydin, and Marc Pollefeys. De-
+2
+signingeffectiveinter-pixelinformationflowfornaturalim-
+[17] Kaiming He, Christoph Rhemann, Carsten Rother, Xiaoou
+age matting. In Proceedings of the IEEE(CVF Conference
+Tang, and Jian Sun. A global sampling method for alpha
+onComputerVisionandPatternRecognition,pages29–37,
+matting. In International Conference on Computer Vision
+2017. 2
+andPatternRecognition,pages2049–2056.IEEE,2011. 2
+[3] XueBaiandGuillermoSapiro. Ageodesicframeworkfor
+[18] Hossein Javidnia and Franc¸ois Pitie´. Background matting.
+fastinteractiveimageandvideosegmentationandmatting.
+arXivpreprintarXiv:2002.04433,2020. 2
+In 2007 IEEE 11th International Conference on Computer
+[19] JustinJohnson,AlexandreAlahi,andLiFei-Fei. Perceptual
+Vision,pages1–8.IEEE,2007. 2
+losses for real-time style transfer and super-resolution. In
+[4] Liang-ChiehChen,YukunZhu,GeorgePapandreou,Florian
+EuropeanConferenceonComputerVision,pages694–711.
+Schroff, and Hartwig Adam. Encoder-decoder with atrous
+Springer,2016. 4
+separableconvolutionforsemanticimagesegmentation. In
+[20] Jubin Johnson, Ehsan Shahrian Varnousfaderani, Hisham
+Proceedings of the European Conference on Computer Vi-
+Cholakkal,andDeepuRajan. Sparsecodingforalphamat-
+sion(ECCV),pages801–818,2018. 2,3
+ting. IEEETransactionsonImageProcessing,25(7):3032–
+[5] Quan Chen, Tiezheng Ge, Yanyu Xu, Zhiqiang Zhang,
+3043,2016. 2
+Xinxin Yang, and Kun Gai. Semantic human matting. In
+[21] Levent Karacan, Aykut Erdem, and Erkut Erdem. Image
+Proceedings of the 26th ACM International Conference on
+mattingwithkl-divergencebasedsparsesampling. InPro-
+Multimedia,pages618–626,2018. 2
+ceedingsoftheIEEEInternationalConferenceonComputer
+[6] QifengChen,DingzeyuLi,andChi-KeungTang. Knnmat-
+Vision,pages424–432,2015. 2
+ting. IEEE Transactions on Pattern Analysis and Machine
+Intelligence,35(9):2175–2188,2013. 2 [22] LeventKaracan,AykutErdem,andErkutErdem.Alphamat-
+tingwithkl-divergence-basedsparsesampling. IEEETrans-
+[7] Donghyeon Cho, Yu-Wing Tai, and Inso Kweon. Natural
+actionsonImageProcessing,26(9):4523–4536,2017. 2
+imagemattingusingdeepconvolutionalneuralnetworks. In
+EuropeanConferenceonComputerVision,pages626–643. [23] Zhanghan Ke, Kaican Li Di Qiu, Qiong Yan, and Ryn-
+Springer,2016. 2 son WH Lau. Guided collaborative training for pixel-wise
+[8] Yung-Yu Chuang, Brian Curless, David H Salesin, and semi-supervisedlearning. InEuropeanConferenceonCom-
+RichardSzeliski. Abayesianapproachtodigitalmatting. In puterVision,volume2,page6.Springer,2020. 2
+Proceedingsofthe2001IEEEComputerSocietyConference [24] ZhanghanKe,KaicanLi,YurouZhou,QiuhuaWu,Xiangyu
+on Computer Vision and Pattern Recognition. CVPR 2001, Mao, Qiong Yan, and Rynson WH Lau. Is a green screen
+volume2,pagesII–II.IEEE,2001. 2 reallynecessaryforreal-timehumanmatting? arXivpreprint
+[9] Yutong Dai, Hao Lu, and Chunhua Shen. Towards light- arXiv:2011.11961,2020. 1,2,5,7
+weightportraitmattingviaparametersharing. InComputer [25] Diederik P Kingma and Jimmy Ba. Adam: A method for
+GraphicsForum.WileyOnlineLibrary,2020. 2 stochastic optimization. arXiv preprint arXiv:1412.6980,
+[10] YutongDai,HaoLu,andChunhuaShen. Learningaffinity- 2014. 4
+awareupsamplingfordeepimagematting.InProceedingsof [26] AnatLevin,DaniLischinski,andYairWeiss.Aclosed-form
+theIEEE/CVFConferenceonComputerVisionandPattern solution to natural image matting. IEEE Transactions on
+Recognition,pages6841–6850,2021. 2 PatternAnalysisandMachineIntelligence, 30(2):228–242,
+[11] MarkEveringham,SMAliEslami,LucVanGool,Christo- 2007. 2
+pherKIWilliams,JohnWinn,andAndrewZisserman. The [27] AnatLevin,AlexRav-Acha,andDaniLischinski. Spectral
+pascalvisualobjectclasseschallenge:Aretrospective.Inter- matting. IEEE Transactions on Pattern Analysis and Ma-
+nationalJournalofComputerVision,111(1):98–136,2015. chineIntelligence,30(10):1699–1712,2008. 2
+5 [28] YaoyiLiandHongtaoLu.Naturalimagemattingviaguided
+[12] Xiaoxue Feng, Xiaohui Liang, and Zili Zhang. A cluster contextualattention.InProceedingsoftheAAAIConference
+sampling method for image matting via sparse coding. In on Artificial Intelligence, volume 34, pages 11450–11457,
+EuropeanConferenceonComputerVision,pages204–219. 2020. 2
+Springer,2016. 2 [29] Shanchuan Lin, Andrey Ryabtsev, Soumyadip Sengupta,
+[13] MarcoForteandFranc¸oisPitie´. f,b,alphamatting. arXiv Brian L Curless, Steven M Seitz, and Ira Kemelmacher-
+preprintarXiv:2003.07711,2020. 2,4,5,7 Shlizerman. Real-timehigh-resolutionbackgroundmatting.
+[14] EduardoSLGastalandManuelMOliveira.Sharedsampling In Proceedings of the IEEE/CVF Conference on Computer
+forreal-timealphamatting. InComputerGraphicsForum, VisionandPatternRecognition,pages8762–8771,2021. 1,
+volume29,pages575–584.WileyOnlineLibrary,2010. 2 2,5,7
+[15] IanJGoodfellow, JeanPouget-Abadie, MehdiMirza, Bing [30] Tsung-YiLin,MichaelMaire,SergeBelongie,JamesHays,
+Xu,DavidWarde-Farley,SherjilOzair,AaronCourville,and PietroPerona,DevaRamanan,PiotrDolla´r,andCLawrence
+Zitnick. Microsoft coco: Common objects in context. In ferenceonComputerVisionandPatternRecognition,pages
+EuropeanConferenceonComputerVision,pages740–755. 6975–6984,2021. 1,2
+Springer,2014. 5 [44] Tiantian Wang, Sifei Liu, Yapeng Tian, Kai Li, and Ming-
+[31] ChangLiu,HenghuiDing,andXudongJiang. Towardsen- Hsuan Yang. Video matting via consistency-regularized
+hancingfine-graineddetailsforimagematting. InProceed- graph neural networks. In Proceedings of the IEEE/CVF
+ingsoftheIEEE/CVFWinterConferenceonApplicationsof InternationalConferenceonComputerVision,pages4902–
+ComputerVision,pages385–393,2021. 2 4911,2021. 2
+[32] JinlinLiu,YuanYao,WendiHou,MiaomiaoCui,Xuansong [45] Ting-ChunWang,Ming-YuLiu,Jun-YanZhu,AndrewTao,
+Xie,ChangshuiZhang,andXian-ShengHua. Boostingse- JanKautz,andBryanCatanzaro.High-resolutionimagesyn-
+mantichumanmattingwithcoarseannotations. InProceed- thesisandsemanticmanipulationwithconditionalgans. In
+ingsoftheIEEE/CVFConferenceonComputerVisionand ProceedingsoftheIEEE/CVFConferenceonComputerVi-
+PatternRecognition,pages8563–8572,2020. 1,2 sionandPatternRecognition,pages8798–8807,2018. 4
+[33] YuhaoLiu,JiakeXie,XiaoShi,YuQiao,YujieHuang,Yong [46] TianyiWei,DongdongChen,WenboZhou,JingLiao,Han-
+Tang,andXinYang. Tripartiteinformationminingandinte- qingZhao,WeimingZhang,andNenghaiYu. Improvedim-
+grationforimagematting. InProceedingsoftheIEEE/CVF agemattingviareal-timeuserclicksanduncertaintyestima-
+InternationalConferenceonComputerVision,pages7555– tion. InProceedingsoftheIEEE/CVFConferenceonCom-
+7564,2021. 2 puterVisionandPatternRecognition, pages15374–15383,
+[34] HaoLu,YutongDai,ChunhuaShen,andSongcenXu. In- 2021. 2
+dicesmatter: Learningtoindexfordeepimagematting. In [47] XianWu,Xiao-NanFang,TaoChen,andFang-LueZhang.
+ProceedingsoftheIEEE/CVFInternationalConferenceon Jmnet: A joint matting network for automatic human mat-
+ComputerVision,pages3266–3275,2019. 2 ting. ComputationalVisualMedia,6(2):215–224,2020. 2
+[35] Sebastian Lutz, Konstantinos Amplianitis, and Aljosa [48] Bo Xu, Han Huang, Cheng Lu, Ziwen Li, and Yandong
+Smolic. Alphagan: Generativeadversarialnetworksfornat- Guo.Virtualmulti-modalityself-supervisedforegroundmat-
+uralimagematting. arXivpreprintarXiv:1807.10088,2018. ting for human-object interaction. In Proceedings of the
+2 IEEE/CVF International Conference on Computer Vision,
+[36] YuQiao,YuhaoLiu,XinYang,DongshengZhou,Mingliang pages438–447,2021. 1,2
+Xu,QiangZhang,andXiaopengWei. Attention-guidedhi- [49] Ning Xu, Brian Price, Scott Cohen, and Thomas Huang.
+erarchicalstructureaggregationforimagematting. InPro- Deepimagematting. InProceedingsoftheIEEE/CVFCon-
+ceedingsoftheIEEE/CVFConferenceonComputerVision ferenceonComputerVisionandPatternRecognition,pages
+andPatternRecognition,June2020. 2,4,5 2970–2979,2017. 2,4,5
+[37] Olaf Ronneberger, Philipp Fischer, and Thomas Brox. U- [50] Haichao Yu, Ning Xu, Zilong Huang, Yuqian Zhou, and
+net: Convolutionalnetworksforbiomedicalimagesegmen- HumphreyShi. High-resolutiondeepimagematting. arXiv
+tation. InInternationalConferenceonMedicalImageCom- preprintarXiv:2009.06613,2020. 2
+putingandComputer-assistedIntervention,pages234–241. [51] Qihang Yu, Jianming Zhang, He Zhang, Yilin Wang, Zhe
+Springer,2015. 3 Lin, Ning Xu, Yutong Bai, and Alan Yuille. Mask guided
+[38] Soumyadip Sengupta, Vivek Jayaram, Brian Curless, mattingviaprogressiverefinementnetwork. InProceedings
+Steven M Seitz, and Ira Kemelmacher-Shlizerman. Back- oftheIEEE/CVFConferenceonComputerVisionandPat-
+ground matting: The world is your green screen. In Pro- ternRecognition,pages1154–1163,2021. 1,2,5,7
+ceedingsoftheIEEE/CVFConferenceonComputerVision [52] Zijian Yu, Xuhui Li, Huijuan Huang, Wen Zheng, and Li
+andPatternRecognition,pages2291–2300,2020. 1,2 Chen.Cascadeimagemattingwithdeformablegraphrefine-
+[39] XiaoyongShen,XinTao,HongyunGao,ChaoZhou,andJi- ment. arXivpreprintarXiv:2105.02646,2021. 1,2
+ayaJia. Deepautomaticportraitmatting. InEuropeancon- [53] YunkeZhang, LixueGong, LubinFan, PeiranRen, Qixing
+ferenceoncomputervision, pages92–107.Springer, 2016. Huang, HujunBao, andWeiweiXu. Alatefusioncnnfor
+2 digitalmatting.InProceedingsoftheIEEE/CVFConference
+[40] KarenSimonyanandAndrewZisserman. Verydeepconvo- on Computer Vision and Pattern Recognition, pages 7469–
+lutional networks for large-scale image recognition. arXiv 7478,2019. 2
+preprintarXiv:1409.1556,2014. 4 [54] Yijie Zhong, Bo Li, Lv Tang, Hao Tang, and Shouhong
+[41] Jian Sun, Jiaya Jia, Chi-Keung Tang, and Heung-Yeung Ding.Highlyefficientnaturalimagematting.arXivpreprint
+Shum. Poissonmatting. InACMSIGGRAPH2004, pages arXiv:2110.12748,2021. 2
+315–321.2004. 2 [55] Bingke Zhu, Yingying Chen, Jinqiao Wang, Si Liu, Bo
+[42] Yanan Sun, Chi-Keung Tang, and Yu-Wing Tai. Semantic Zhang,andMingTang.Fastdeepmattingforportraitanima-
+imagematting.InProceedingsoftheIEEE/CVFConference tiononmobilephone.InProceedingsofthe25thACMInter-
+onComputerVisionandPatternRecognition,pages11120– nationalConferenceonMultimedia,pages297–305,2017.2
+11129,2021. 2
+[43] YananSun,GuanzhiWang,QiaoGu,Chi-KeungTang,and
+Yu-WingTai. Deepvideomattingviaspatio-temporalalign-
+mentandaggregation.InProceedingsoftheIEEE/CVFCon-

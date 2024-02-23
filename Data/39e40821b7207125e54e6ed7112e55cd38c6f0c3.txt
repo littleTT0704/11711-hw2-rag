@@ -1,0 +1,1246 @@
+Language Models of Code are Few-Shot Commonsense Learners
+♠ ♠ ♠
+AmanMadaan ,ShuyanZhou ,UriAlon ,
+♠ ♠ †
+YimingYang ,GrahamNeubig
+♠
+LanguageTechnologiesInstitute,CarnegieMellonUniversity,USA
+†
+InspiredCognition,USA
+{amadaan,shuyanzh,ualon,yiming,gneubig}@cs.cmu.edu
+Abstract tionalcommonsensereasoningtaskssuchasread-
+ing comprehension or question answering, struc-
+Weaddressthegeneraltaskofstructuredcom-
+tured commonsense aims to generate structured
+monsensereasoning: givenanaturallanguage
+input, the goal is to generate a graph such outputgivenanaturallanguageinput. Thisfamily
+as an event or a reasoning-graph. To employ oftasksreliesonthenaturallanguageknowledge
+largelanguagemodels(LMs)forthistask,ex- learnedbytheLLM,butitalsorequirescomplex
+istingapproaches“serialize”theoutputgraph structuredpredictionandgeneration.
+as a flat list of nodes and edges. Although
+ToleverageLLMs,existingstructuredcommon-
+feasible, these serialized graphs strongly de-
+sensegenerationmodelsmodifytheoutputformat
+viate from the natural language corpora that
+ofaproblem. Specifically,thestructuretobegen-
+LMswerepre-trainedon,hinderingLMsfrom
+generating them correctly. In this paper, we erated (e.g., a graph or a table) is converted, or
+show that when we instead frame structured “serialized”, into text. Such conversions include
+commonsense reasoning tasks as code gener- “flattening”thegraphintoalistofnodepairs(Fig-
+ation tasks, pre-trained LMs of code are bet- ure 1d), or into a specification language such as
+ter structured commonsense reasoners than
+DOT(Figure1c; Gansneretal.,2006).
+LMsofnaturallanguage,evenwhenthedown-
+Whileconvertingthestructuredoutputintotext
+streamtaskdoesnotinvolvesourcecodeatall.
+has shown promising results (Rajagopal et al.,
+We demonstrate our approach across three di-
+versestructuredcommonsensereasoningtasks. 2021; Madaan and Yang, 2021), LLMs struggle
+In all these natural language tasks, we show to generate these “unnatural” outputs: LMs are
+that using our approach, a code generation primarilypre-trainedonfree-formtext,andthese
+LM (CODEX) outperforms natural-LMs that serializedstructuredoutputsstronglydivergefrom
+arefine-tunedonthetargettask(e.g., T5)and
+the majority of the pre-training data. Further, for
+other strong LMs such as GPT-3 in the few-
+naturallanguage,semanticallyrelevantwordsare
+shot setting. Our code and data are avail-
+able at https://github.com/madaan/ typicallyfoundwithinasmallspan,whereasneigh-
+CoCoGen. boring nodes in a graph might be pushed farther
+apartwhenrepresentingagraphasaflatstring.
+1 Introduction
+Thus, a language model which was trained on
+The growing capabilities of large pre-trained lan- natural language text is likely to fail to capture
+guagemodels(LLMs)forgeneratingtexthaveen- the topology of the graph. Consequently, using
+abled their successful application in a variety of LLMs for graph generation typically requires a
+tasks, including summarization, translation, and large amount of task-specific training data, and
+question-answering(Wangetal.,2019;Raffeletal., theirgeneratedoutputsshowstructuralerrorsand
+2019;Brownetal.,2020;Chowdheryetal.,2022). semantic inconsistencies, which need to be fur-
+Nevertheless,whileemployingLLMsfornatu- therfixedeithermanuallyorbyusingasecondary
+ral language (NL) tasks is straightforward, a ma- downstreammodel(Madaanetal.,2021b).
+jorremainingchallengeishowtoleverageLLMs Despite these struggles, the recent success of
+forstructuredcommonsensereasoning,including large-languagemodelsofcode(Code-LLMs; Chen
+taskssuchasgeneratingeventgraphs(Tandonetal., et al., 2021b; Xu et al., 2022) for tasks such as
+2019), reasoning graphs (Madaan et al., 2021a), code generation from natural language (Austin
+scripts(Sakaguchietal.,2021),andargumentex- et al., 2021; Nijkamp et al., 2022), code comple-
+planationgraphs(Sahaetal.,2021). Unliketradi- tion(Friedetal.,2022),andcodetranslation(Wang
+2202
+ceD
+6
+]LC.sc[
+3v82170.0122:viXra
+Takethepiesouttocool Opencabinetdrawer class Tree:
+goal = "serve the potpies on a plate"
+def __init__(self):
+Takeoutseveralplates
+# nodes
+take_pies_out_to_cool = Node()
+open_cabinet_drawer = Node()
+Begin putting Fill pies onto take_out_several_plates = Node()
+...
+pies on plate plates evenly
+# edges
+take_pies_out_to_cool.children =
+[take_out_several_plates]
+Servethepotpiesonaplate open_cabinet_drawer.children =
+[take_out_several_plates]
+...
+(a)ThescriptG (b)GconvertedtoPythoncodeG usingourapproach
+c
+digraph G { [
+begin -> take_pies_out_to_cool; (take_pies_out_to_cool,
+begin -> open_cabinet_drawer; take_out_several_plates),
+take_pies_out_to_cool -> (open_cabinet_drawer,
+take_out_several_plates; take_out_several_plates),
+open_cabinet_drawer -> (take_out_several_plates,
+take_out_several_plates; begin_putting_pies_on_plates),
+take_out_several_plates -> (take_out_several_plates,
+begin_putting_pies_on_plates; fill_pies_onto_plates_evenly),
+begin_putting_pies_on_plates -> (begin_putting_pies_on_plates,
+serve_potpies_on_plate; serve_potpies_on_plate),
+fill_pies_onto_plates_evenly -> (fill_pies_onto_plates_evenly,
+serve_potpies_on_plate; serve_potpies_on_plate),
+serve_potpies_on_plate -> end; (serve_potpies_on_plate, end)
+} ]
+(c)Straightforwardencodingsofthegraphusingthe“DOT” (d)Textformat,orasalistofedges(nodepairs)
+Figure 1: An illustration of COCOGEN for the task of script generation. An input graph (1a) is typically rep-
+resented using the DOT format (1c) or as a list of edges (1d), which allows modeling the graph using standard
+languagemodels. Thesepopularchoicesaresufficientinprinciple;however,theseformatsarelooselystructured,
+verbose, andnotcommonintextcorpora, precludinglanguagemodelsfromeffectivelygeneratingthem. Incon-
+trast, COCOGEN converts structures into Python code (1b), allowing to model them using large-scale language
+modelsofcode.
+etal.,2021),showthatCode-LLMsareabletoper- data. We call our method COCOGEN: models
+form complex reasoning on structured data such of Code for Commonsense Generation, and it is
+as programs. Thus, instead of forcing LLMs of demonstratedinFigure1.
+natural language (NL-LLMs) to be fine-tuned on Ourcontributionsareasfollows:
+structured commonsense data, an easier way to
+1. We highlight the insight that Code-LLMs
+closethediscrepancybetweenthepre-trainingdata
+arebetterstructuredcommonsensereasoners
+(free-form text) and the task-specific data (com-
+thanNL-LLMs,whenrepresentingthedesired
+monsensereasoninggraphs)istoadaptLLMsthat
+graphpredictionascode.
+were pre-trained on code to structured common-
+2. We propose COCOGEN: a method for
+sensereasoninginnaturallanguage.
+leveraging LLMs of code for structured
+Thus, our main insight is that large language commonsensegeneration.
+modelsofcodearegoodstructuredcommonsense 3. We perform an extensive evaluation across
+reasoners. Further,weshowthatCode-LLMscan three structured commonsense generation
+beevenbetterstructuredreasonersthanNL-LLMs, tasksanddemonstratethat COCOGEN vastly
+whenconvertingthedesiredoutputgraphintoafor- outperforms NL-LLMs, either fine-tuned or
+matsimilartothatobservedinthecodepre-training few-shottested,whilecontrollingforthenum-
+berofdownstreamtaskexamples. take_pies_out_to_cool.
+4. Weperformathoroughablationstudy,which While there are multiple ways of representing
+showstheroleofdataformatting,modelsize, a training example as a Python class, we found
+andthenumberoffew-shotexamples. empiricallythatthisrelativelysimpleformatisthe
+mosteffective,especiallywithlargermodels. We
+2 COCOGEN: Representing analyze the choice of format and its connection
+Commonsensestructureswithcode withthemodelsizeinSection4.
+Wefocusontasksofstructuredcommonsensegen- 2.2 Few-shotpromptingforgeneratingG
+eration. Each training example for such tasks is
+We focus on large-language models of the scale
+intheform(T,G),whereT isatextinput,andG
+of CODEX (Chenetal.,2021a). Duetotheirpro-
+isthestructuretobegenerated(typicallyagraph).
+hibitively expensive cost to fine-tune, these large
+ThekeyideaofCOCOGENistransforminganout-
+modelsaretypicallyusedinafew-shotprompting
+putgraphG intoasemanticallyequivalentprogram
+mode. Few-shotpromptingusesk input-outputex-
+G c writteninageneral-purposeprogramminglan- amples{(x i,y i)}k i=1tocreateanin-contextprompt:
+guage. In this work, we chose Python due to its p = x ⊕y ⋅ x ⊕y ⋅ ...⋅ x ⊕y ,where⊕
+1 1 2 2 k k
+popularity in the training data of modern Code-
+isasymbolthatseparatesaninputfromitsoutput,
+LLMs (Xu et al., 2022), but our approach is ag- ⋅
+and separatesdifferentexamples.
+nostic to the programming language. The code-
+Anew(test)inputxisappendedtotheprompt
+transformed graphs are similar in their format to p(thatis: p ⋅ x),andp ⋅ x ⊕ isfedtothemodel
+thepre-trainingdataofCode-LLMs,andthusserve
+forcompletion. AsfoundbyBrownetal.(2020),
+aseasiertogeneralizetrainingorfew-shotexam-
+largelanguagemodelsshowimpressivefew-shot
+plesthantheoriginalrawgraph. COCOGENuses
+capabilitiesingeneratingacompletionyˆgiventhe
+Code-LLMs to generate G c given T, which we input p ⋅ x ⊕ . The main question is how to
+eventuallyconvertbackintothegraphG.
+constructtheprompt?
+Weusethetaskofscriptgeneration(PROSCRIPT,
+In all experiments in this work, the prompt p
+Figure 1) as a running example to motivate our
+consists of k Python classes, each representing a
+method: scriptgenerationaimstocreateascript(G)
+(T,G ) pair. For example, for script generation,
+c
+toachieveagivenhigh-levelgoal(T).
+eachPythonclassrepresentsagoalT andascript
+G from the training set. Given a new goal T for
+2.1 Converting(T,G)intoPythoncode c
+inference,apartialPythonclass(i.e.,onlyspecify-
+We convert a (T,G) pair into a Python class or ingthegoal)iscreatedandappendedtotheprompt.
+function. The general procedure involves adding Figure2showssuchapartialclass. Here,thecode
+the input text T in the beginning of the code as generationmodelisexpectedtocompletetheclass
+a class attribute or descriptive comment, and en- bygeneratingthedefinitionforNodeobjectsand
+coding the structure G using standard constructs theirdependenciesforthegoalmakehotgreentea.
+forrepresentingstructureincode(e.g.,hashmaps,
+objectattributes)orfunctioncalls. Thegoalhereis class Tree:
+tocomposePythoncodethatrepresentsa(T,G) goal = "make hot green tea."
+pair,butretainsthesyntaxandcodeconventionsof
+typicalPythoncode. def __init__(self):
+Forexample,forthescriptgenerationtask,we # generate
+convert the (T,G) pair into a Tree class (Fig-
+ure 1b). The goal T is added as class attribute
+Figure2: COCOGENusesapromptconsistingofk(5-
+(goal), and the script G is added by listing
+10) Python classes. During inference, the test input is
+the nodes and edges separately. We first in-
+convertedtoapartialclass,asshownabove,appended
+stantiate the list of nodes as objects of class to the prompt, and completed by a code generation
+Node. Then, the edges are added as an attribute modelsuchasCODEX.
+children for each node (Figure 1b). For ex-
+ample, we instantiate the node “Take out sev- Inourexperiments,weusedCODEX(Chenetal.,
+eral plates” as take_out_several_plates 2021a) and found that it nearly always generates
+= Node(), and add it as a child of the node syntactically valid Python. Thus, the generated
+code can be easily converted back into a graph wherethemodelonlyhasaccesstoafewex-
+andevaluatedusingthedataset’sstandard,original, amples,fine-tunedmodelsobservetheentire
+metrics. AppendixFlistssamplepromptsforeach trainingdataofthedownstreamtask.
+ofthetasksweexperimentedwith.
+Choice of prompt We created the prompt p by
+3 Evaluation randomlysamplingk examplesfromthetraining
+set. Asallmodelshaveaboundedinputsize(e.g.,
+Weexperimentwiththreediversestructuredcom- 4096 tokens for CODEX code-davinci-002
+monsense generation tasks: (i) script genera- and4000forGPT-3text-davinci-002),the
+tion (PROSCRIPT, Section 3.2), (ii) entity state
+exactvalueofk istaskdependent: moreexamples
+tracking(PROPARA,Section3.3),and(iii)explana-
+canfitinapromptintaskswhere(T,G)isshort.
+tiongraphgeneration(EXPLAGRAPHS,Section3.4)
+Inourexperiments,kvariesbetween5and30,and
+DatasetdetailsareincludedinAppendixD.Despite
+theGPT-3baselineisalwaysfairlygiventhesame
+sharing the general goal of structured common-
+prompts as CODEX. To control for the variance
+sensegeneration,thethreetasksarequitediverse
+caused by the specific examples selected into p,
+in terms of the generated output and the kind of
+werepeateachexperimentwithatleast3different
+requiredreasoning.
+prompts, and report the average. We report the
+meanandstandarddeviationsinAppendixI.
+3.1 Experimentalsetup
+COCOGEN: Weuse COCOGEN torefertose-
+Model AsourmainCode-LLMforCOCOGEN, tupswhereaCODEXisusedwithaPythonprompt.
+we experiment with the latest version of CODEX
+In Section4,wealsoexperimentwithdynamically
+code-davinci-002fromOpenAI1
+infew-shot
+creating a prompt for each input example, using
+promptingmode.
+a NL-LLMs with code prompts, and using Code-
+LLMswithtextualprompts.
+Baselines We experimented with the following
+typesofbaselines:
+3.2 Scriptgeneration: PROSCRIPT
+1. Text few-shot: Our hypothesis is that code- Given a high-level goal (e.g., bake a cake), the
+generationmodelscanberepurposedtogen- goal of script generation is to generate a graph
+erate structured output better. Thus, natural where each node is an action, and edges cap-
+baselines for our approach are NL-LLMs – turedependencybetweentheactions(Figure1a).
+languagemodelstrainedonnaturallanguage We use the PROSCRIPT (Sakaguchi et al., 2021)
+corpus. We experiment with the latest ver- dataset, where the scripts are directed acyclic
+sions of CURIE (text-curie-001) and graphs,whichwerecollectedfromadiverserange
+DAVINCI (text-davinci-002), the two of sources including ROCStories (Mostafazadeh
+GPT-3 based models by OpenAI (Brown etal.,2016),Descript(Wanzareetal.,2016),and
+et al., 2020). For both these models, the Virtualhome(Puigetal.,2018).
+prompt consists of (T,G) examples, where Let G(V,E) be a script for a high-level goal
+G is simply flattened into a string (as in Fig- T with node and edge sets V and E, respectively.
+ure 1c). DAVINCI is estimated to be much FollowingSakaguchietal.(2021),weexperiment
+largerinsizethan CURIE,asourexperiments with two sub-tasks: (i) script generation: gen-
+also reveal (Appendix A). DAVINCI, popu- erating the entire script G(V,E) given a goal T,
+larly known as GPT-3, is the strongest text- and(ii)edgeprediction: predictingtheedgesetE
+generationmodelavailablethroughOpenAI giventhenodesV andthegoalT.
+APIs.2 Figure 1 shows an input-output example from
+PROSCRIPT,andourconversionofthegraphinto
+2. Fine-tuning: wefine-tunea T5-largemodel Pythoncode: weconverteachnodev ∈ V intoan
+for EXPLAGRAPHS,andusetheresultsfrom instance of a Node class; we create the edges by
+Sakaguchi et al. (2021) on T5-xxl for PRO- addingchildrenattributeforeachofthenodes.
+SCRIPTtasks. Incontrasttothefew-shotsetup AdditionalexamplesarepresentinFigure6
+To represent a sample for edge prediction, we
+1AsofJune2022
+2https://beta.openai.com/docs/models/ listthenodesinarandomorder(specifiedafterthe
+gpt-3 comment# nodesinFigure1b). Themodelthen
+BLEU ROUGE-L BLEURT ISO GED Avg(d) Avg(∣V∣) Avg(∣E∣)
+G (referencegraph) - - 1.00 0.00 1.84 7.41 6.80
+T5 (fine-tuned) 23.80 35.50 -0.31 0.51 1.89 1.79 7.46 6.70
+CURIE(15) 11.40 27.00 -0.41 0.15 3.92 1.47 8.09 6.16
+DAVINCI(15) 23.11 36.51 -0.27 0.64 1.44 1.74 7.58 6.59
+COCOGEN(15) 25.24 38.28 -0.26 0.53 2.10 1.79 7.44 6.70
+Table1:SemanticandstructuralmetricsforthescriptgenerationtaskonPROSCRIPT. T5isfine-tunedontheentire
+dataset,whilethefew-shotmodels(CURIE,DAVINCI,CODEX)use15examplesintheprompt.
+Method prec rec F 1 recall, and F 1 comparing the true and predicted
+T5(100) 52.26 52.91 51.89 edges. Specifically, p =
+∣E∩Eˆ∣
+, r =
+∣E∪Eˆ∣
+, and
+fine-tuned T T5 5( (1 4k k) ) 6 70 5. .5 75 1 76 51 .. 92 34 6 70 5. .1 75 2 F 1 = p2 +pr r.
+∣Eˆ∣ ∣E∣
+CURIE(15) 10.19 11.61 10.62
+Results Table1showstheresultsforscriptgener-
+few-shot DAVINCI(15) 50.62 49.30 48.92
+COCOGEN(15) 57.34 55.44 56.24 ation. ThemainresultsarethatCOCOGEN(based
+onCODEX),withjust15promptexamples,outper-
+Table2: Precision,recall,andF 1 forPROSCRIPTedge- formsthefine-tunedmodelT5whichhasbeenfine-
+prediction task. COCOGEN with 15 samples outper-
+tuned on all 3500 samples. Further, COCOGEN
+forms strong few-shot models, and T5 trained on 100
+outperforms the few-shot NL-LM CURIE across
+samples.
+allsemanticmetricsandstructuralmetrics. COCO-
+GENoutperformsDAVINCIacrossallsemanticmet-
+completestheclassbygeneratingthecodebelow rics,whileDAVINCIperformsslightlybetterintwo
+thecomment# edges. structuralmetrics.
+Table 2 shows the results for edge predic-
+ScriptGenerationmetrics Wedenotethescript tion: COCOGENsignificantlyoutperformstheNL-
+thatwasgeneratedbythemodelasGˆ
+,andevaluate LLMsCURIEandDAVINCI. Whencomparingwith
+Gˆ vs. G for both semantic and structural similar- T5,whichwasfine-tuned,COCOGENwithonly15
+ity. Toevaluatesemanticsimilarity,weuseBLEU, examplesoutperformsthefine-tunedT5whichwas
+ROUGE-L, and the learned metric BLEURT to de- fine-tuned on 100 examples. The impressive per-
+terminethecontentoverlap. FollowingSakaguchi formanceintheedge-generationtaskallowsusto
+etal.(2021),weusethefollowingmetricsforstruc- highlightthebetterabilityof COCOGENincaptur-
+turalevaluationofgeneratedscripts: ingstructure,whilefactoringoutallmodels’ability
+• Graph edit distance (GED): the number of togeneratetheNLcontent.
+requirededits(node/edgeremoval/additions)
+totransformGˆ toG (Abu-Aishehetal.,2015); 3.3 Entitystatetracking: PROPARA
+• Graph isomorphism (ISO; Cordella et al., The text inputs T of entity state tracking are a
+2001): determines whether Gˆ and G are iso- sequenceofactionsinnaturallanguageaboutapar-
+morphicbasedontheirstructure,disregarding ticulartopic(e.g.,photosynthesis)andacollection
+thetextualcontentofnodes; ofentities(e.g.,water). Thegoalistopredictthe
+• Graph size: average number of nodes and stateofeachentityaftertheexecutionsofanaction.
+edges, (∣G(V)∣,∣G(E)∣,∣Gˆ (V)∣,∣Gˆ (V)) WeusethePROPARAdataset(Dalvietal.,2018)as
+and the average degree (d(G(V))), where thetest-bedforthistask.
+the high-level goal is for Gˆ to have as close WeconstructthePythoncodeG c asfollows,and
+measurestoG aspossible. an example is shown in Figure 3. First, we de-
+fine the main function and list all n actions as
+Edge Prediction metrics For the edge predic- commentsinsidethemainfunction. Second,we
+tion task, the set of nodes is given, and the goal createk variablesnamedasstate_kwherek is
+is to predict the edges between them. Follow- thenumberofparticipantsofthetopic. Theseman-
+ingSakaguchietal.(2021),wemeasureprecision, ticsofeachvariableisdescribedinthecomments
+def main():
+# init
+# roots absorb water from soil
+# the water flows to the leaf
+Action Entity # state_0 tracks the location/state water
+# state_1 tracks the location/state light
+water light CO2 # state_2 tracks the location/state CO2
+def init():
+Initialstates soil sun - state_0 = "soil"
+state_1 = "sun"
+Rootsabsorb state_2 = None
+waterfromsoil roots sun ? def roots_absorb_water_from_soil():
+state_0 = "roots"
+Thewaterflows state_1 = "sun"
+state_2 = "UNK"
+totheleaf leaf sun ?
+def water_flows_to_leaf():
+state_0 = "leaf"
+state_1 = "sun"
+state_2 = "UNK"
+Figure 3: A PROPARA example (left) and its corresponding Python code (right). We use a string to represent a
+concretelocation(e.g.,soil),UNKtorepresentanunknownlocation,andNonetorepresentnon-existence.
+3
+Model prec rec F 74%higherthanCURIE(36.1).
+1
+th
+InPROPARA,COCOGENwillberanked6 on
+CURIE 95.1 22.3 36.1 4
+theleaderboard. However,allthemethodsabove
+DAVINCI 75.5 47.1 58.0
+COCOGENrequirefine-tuningontheentiretrain-
+COCOGEN 80.0 53.6 63.0
+ing corpus. In contrast, COCOGEN uses only 3
+examplesinthepromptandhasagapoflessthan
+Table3: 3-shotsresultsonPROPARA. Allnumbersare
+10 F points vs. the current state-of-the-art (Ma
+averagedamongfiverunswithdifferentrandomlysam- 1
+pled prompts. COCOGEN significantly outperforms etal.,2022). Inthefew-shotsettings,COCOGEN
+CURIEandDAVINCI. isstate-of-the-artinPROPARA.
+3.4 Argumentgraphgeneration:
+as well. Finally, to represent the state change af- EXPLAGRAPHS
+ter each step, we define n functions where each Givenabelief(e.g.,factoryfarmingshouldnotbe
+functioncorrespondstoanaction. Weadditionally banned) and an argument (e.g., factory farming
+define an init function to represent the initial- feedsmillions),thegoalofthistaskistogenerate
+ization of entity states. Inside each function, the a graph that uses the argument to either support
+value of each variable tells the state of the corre- orcounter thebelief(Sahaetal.,2021). Thetext
+sponding entity after the execution of that action. inputtothetaskisthusatupleof(belief,argument,
+Givenanewtestexamplewhereonlytheactions “supports”/“counters”),andthestructuredoutputis
+and the entities are give, we construct the input anexplanationgraph(Figure4).
+stringuntiltheinitfunction,andweappenditto We use the EXPLAGRAPHS dataset for this
+thefew-shotpromptsforpredictions. task(Sahaetal.,2021). Sincewefocusongenerat-
+ingtheargumentgraph,wetakethestanceasgiven
+Metrics WefollowDalvietal.(2018)andmea- andusethestancethatwaspredictedbyastance
+sureprecision,recallandF 1 scoreofthepredicted predictionmodelreleasedbySahaetal..
+entitystates. Werandomlysampledthreeexamples To convert an EXPLAGRAPHS to Python, the
+fromthetrainingsetasthefew-shotprompt. belief, argument, and stance are instantiated as
+string variables. Next, we define the graph struc-
+Results As shown in Table 3, COCOGEN turebyspecifyingtheedges. Unlike PROSCRIPT,
+achieves a significantly better F score than
+1 the edges in EXPLAGRAPHS are typed. Thus,
+DAVINCI. Across the five prompts, COCOGEN
+achieves 5.0 higher F 1 than DAVINCI on aver- 3 CURIE often failed to produce output with the desired
+format,andthusitshighprecisionandlowrecall.
+age. Inaddition,COCOGENyieldsstrongerperfor- 4As of 10/11/2022, https://leaderboard.
+mancethanCURIE,achievingF
+1
+of63.0,whichis allenai.org/propara/submissions/public
+class ExplanationDAG:
+Factory
+Millions def __init__(self):
+Farming
+causes belief = "factory farming should not be
+banned."
+hascontext desires argument = "Factory farming feeds millions."
+stance = "support"
+Necessary Food # Edges
+hascontext begin = ["factory farming", "millions"]
+add_edge("factory farming", "causes", "food")
+add_edge("factory farming", "has context",
+notdesires
+"necessary")
+add_edge("food", "has context", "necessary")
+add_edge("necessary", "not desires", "banned")
+Banned
+add_edge("millions", "desires", "food")
+Figure4: Anexplanationgraph(left)andthecorrespondingPythoncode(right)
+StCA(↑) SeCA(↑) G-BS(↑) GED(↓) EA(↑)
+T5 (150) 12.56 6.03 9.54 91.06 7.77
+fine-tuned
+T5 (1500) 38.19 21.86 29.37 73.09 23.41
+T5 (2500) 43.22 29.65 33.71 69.14 26.38
+CURIE(30) 5.03 1.26 3.95 96.74 2.60
+few-shot DAVINCI(30) 23.62 10.80 18.46 83.83 11.84
+COCOGEN(30) 45.20 23.74 34.68 68.76 23.58
+Table 4: Results for EXPLAGRAPHS (eval split). COCOGEN with only 30 examples outperforms the T5 model
+whichwasfine-tunedon1500examples,acrossallmetrics.
+each edge is added as an add_edge(source, stance. A high EA implies that each edge in
+edge_type, destination) function call. thegeneratedoutputcontainsuniquesemantic
+Wealsolistthestartingnodesinalistinstantiated information,andremovinganyedgewillhurt.
+with a begin variable (Figure 4). Given a test
+example,weconstructtheinputuntilthelineof# Results Table4showsthatCOCOGENwithonly
+Edgesandletamodelcompletetheremaining. 30 examples outperforms the T5 model that was
+fine-tunedusing1500examples,acrossallmetrics.
+Metrics WeusethemetricsdefinedbySahaetal. Further, COCOGEN outperforms the NL-LLMs
+(2021) (see Section 6 of Saha et al. (2021) for DAVINCIandCURIEwithatext-promptacrossall
+a detailed description of the mechanisms used to metricsbyabout50%-100%.
+calculatethesemetrics):
+4 Analysis
+•
+Structuralaccuracy(StCA):fractionofgraphs
+that are connected DAGs with two concepts In this section, we analyze the effect of three im-
+eachfrombeliefandtheargument. portant components of COCOGEN: (i) the con-
+• Semanticcorrectness(SeCA):alearnedmetric tributions of Code-LLMs and structured prompt
+that evaluates if the correct stance is inferred G c;(ii)theselectionofexamplesinthein-context
+froma(belief,graph)pair. prompt;and(iii)thedesignofthePythonclass.
+•
+G-BERTScore(G-BS):measuresBERTscore-
+Structured Prompts vs. Code-LLMs Which
+(Zhangetal.,2020)basedoverlapbetweengen-
+componentismoreimportant,usingaCode-LLMs
+eratedandreferenceedges.
+orthestructuredformattingoftheinputascode?
+•
+GED(GED): avg. editsrequiredtotransform Toanswerthis,weexperimentedwithatextprompt
+thegeneratedgraphtothereferencegraph. withaCode-LLMCODEX,andacodepromptwith
+•
+Edgeimportanceaccuracy(EA):measuresthe an NL-LLM, DAVINCI. Table 5 shows that both
+importanceofeachedgeinpredictingthetarget contributions are indeed important: performance
+EXPLAGRAPHS PROSCRIPT(edge-prediction)
+StCA(↑) SeCA(↑) G-BS(↑) GED(↓) EA(↑) p r F
+1
+DAVINCI+text 33.16 7.14 25.91 77.45 15.9 43.06 41.52 43.06
+DAVINCI+code 33.00 15.37 26.15 76.91 16.68 50.62 48.27 49.3
+CODEX+text 38.02 18.23 29.46 73.68 19.54 45.31 43.95 44.47
+COCOGEN(CODEX+code) 45.20 23.74 34.68 68.76 23.58 57.34 55.44 56.52
+Table 5: Teasing apart the contributions of a code generation model and a structured prompt. The experiments
+showthatbotharehelpful. DAVINCI,atextgenerationmodel,showsmarginalimprovementswithacodeprompt
+(toptworows). Similarly, CODEX, acodegenerationmodel, significantlybenefitsfromacodeprompt. Overall,
+CODEXwithcodepromptperformsbetterthanthealternatives,acrossallmetrics.
+improvesfortheNL-LLM DAVINCIbothwhenwe In EXPLAGRAPHS, we observed that the train-
+useacodeprompt,and whenweuseaCode-LLM. ingdatahadmultipleexampleswhichwerenearly
+HoweverwhenusingbothaCode-LLMandacode identical, and thus dynamically created prompts
+prompt–theimprovementisgreaterthanthesum oftenincludedsuchduplicateexamples,effectively
+ofeachofthesesolely. reducingdiversityandpromptsize(Table9).
+Dynamicpromptselection Thepromptsforall PythonFormatting Weperformedanextensive
+experimentsinSection3werecreatedbyrandom
+study of the effect of the Python format on the
+samplingofexamplesfromthetrainingset. Specif-
+downstreamtaskperformanceinAppendixG.We
+ically,asetofk (T,G)pairsaresampledandcon-
+findthat: (i)therearenocleartask-agnosticPython
+catenatedintoapromptp,whichweusedforinfer-
+class designs that work uniformly well; and that
+enceoverallexamplesx inthetestset. Asan
+test (ii) larger models are less sensitive to prompt
+alternativetocreatingprompts,thereisnowagrow-
+(Python class) design. In general, our approach
+inginterestincustomizingthein-contextexamples
+benefitsthemostfromcodeformatsthatassimilar
+eachexamplex . Populartechniquestypically
+test aspossibletotheconventionsoftypicalcode.
+trainaretriever,whichisusedtofetchtheclosest
+examples(Liuetal.,2021;Rubinetal.,2021;Poe-
+Human evaluation We conduct human evalua-
+siaetal.,2021). Wealsoexperimentedwithsuch
+tion of the graphs generated by COCOGEN and
+dynamic creation of the prompt, that depends on
+DAVINCItosupplementautomatedmetrics. There-
+theparticulartestexample. Specifically,following
+sults(AppendixC)indicatethathumanevaluation
+Poesiaetal.(2021),weperformedknowledgesim-
+is closely correlated with the automated metrics:
+ilaritytuning(KST): wetrainedaretrievermodel
+for EXPLAGRAPHS, graphs generated by COCO-
+toretrievethek closestexamplesforagiveninput.
+GENarefoundtobemorerelevantandcorrect. For
+PROSCRIPTgeneration,bothDAVINCIandCOCO-
+Setup p r F 1 GEN have complementary strengths, but COCO-
+COCOGEN 57.34 55.44 56.52 GENisgenerallybetterintermsofrelevance.
+COCOGEN+KST 67.11 64.57 65.71
+Table6:Ourretrievalmechanismishighlyeffectivefor 5 Relatedwork
+edgeprediction: theclosestexamplesarefromsimilar
+domainsandthemodelisabletoleveragetheinforma- Structured commonsense reasoning using
+tionforbetterperformance. LLMs Existingmethodsforstructuredcommon-
+sensegenerationtypicallyflattentheoutputgraphs
+Theresultsindicatethattheefficacyofdynamic asstrings(MadaanandYang,2021;Madaanetal.,
+promptsdependsonboththetrainingdataandtask. 2021a; Sakaguchi et al., 2021). Consequently,
+In the edge-prediction sub-task of PROSCRIPT, these methods struggle with generation of well-
+edges between events in similar scripts are help- formed outputs (Sakaguchi et al., 2021; Madaan
+ful,andTable6showsthatthemodelwasableto etal.,2021b). Incontrast,weaddresstheproblem
+effectivelyleveragethisinformation. Inthescript ofstructuredgenerationby(1)translatingthetask
+generationsub-taskofPROSCRIPT,Table8shows into Python code, and (2) generating code using
+thatKSTprovidesgainsaswell(AppendixB). large-codegenerationmodels.
+Code representationfor procedural knowledge erating output effectively. Thus, the tasks in our
+reasoning Programsinherentlyencoderichstruc- work push a model to use both its reasoning and
+tures,andtheycanefficientlyrepresenttaskproce- symbolicmanipulationcapabilities.
+dures. Existingworksleveragethecontrol-flows,
+6 Conclusion
+nestedfunctionsandAPIcallsofaprogramming
+language such as Python to control the situated
+Wepresentthefirstworktoemploylargelanguage
+agents in the embodied environment (Sun et al.,
+modelsofcodeforstructuredcommonsensegen-
+2019; Zhou et al., 2022; Singh et al., 2022). In
+eration. By converting the output commonsense
+this work, we go beyond these procedural tasks
+structures to Python code, COCOGEN provides
+and show the effectiveness of using Code-LLMs
+a simple and effective method for leveraging the
+onbroaderstructuredcommonsensetasks.
+code-generationabilitiesofCode-LLMsforstruc-
+turedgeneration. Theseresultsopenapromising
+Adapting Code-LLMs for reasoning As code-
+direction for structural commonsense reasoning.
+generation models (Code-LLMs) are getting in-
+Webelievethattheprinciplesandthemethodspre-
+creasingly popular, there is a growing interest in
+sented in this paper are applicable to additional
+adapting them for a wide range reasoning tasks.
+NLP tasks that require “language understanding”
+Wuetal.(2022)use CODEXandPaLM(Chowdh-
+and structuredprediction.
+eryetal.,2022)forconvertingmathematicalstate-
+ments written in natural language into a formal Acknowledgments
+structurethatcanbeusedfortheoremprovers,with
+WethankKaixinMa,KeisukeSakaguchiandNiket
+moderate success. The task is challenging, as it
+Tandonforthoughtfuldiscussionandhelpingwith
+involves understanding the concepts used in the
+PROSCRIPT datasets and the anonymous review-
+theorem(e.g.,setofrealnumbers)andthecomplex
+ers for valuable feedback. This material is partly
+relationshipbetweenthem. Ourworkissimilarin
+based on research sponsored in part by the Air
+spirit to Wu et al. (2022), and seeks to leverage
+ForceResearchLaboratoryunderagreementnum-
+thedualabilitiesofCode-LLMsfortextandsym-
+berFA8750-19-2-0200. TheU.S.Governmentis
+bolic reasoning. However, differently from their
+authorizedtoreproduceanddistributereprintsfor
+work, we close the gap between the pre-training
+Governmentalpurposesnotwithstandinganycopy-
+data and our tasks by translating our output into
+rightnotationthereon. Theviewsandconclusions
+Pythoncode. Asourexperimentsshow,thisstepis
+containedhereinarethoseoftheauthorsandshould
+crucialinoutperformingtext-onlyandfine-tuned
+not be interpreted as necessarily representing the
+models. Tothebestofourknowledge,ourworkis
+officialpoliciesorendorsements,eitherexpressed
+thefirsttotransformanatural-languagereasoning
+orimplied,oftheAirForceResearchLaboratory
+problem into code to successfully leverage code
+or the U.S. Government. This project was also
+generationmethods.
+partiallysupportedbyagiftfromAWSAI.
+Symbolic reasoning using LLMs The use of
+Limitations
+programming languages like LISP (Tanimoto,
+1987)andProlog(ColmerauerandRoussel,1996) Someexperimentsinthisworkareperformedwith
+to process natural language has a long history in languagemodelsthatarenotopen-sourced,namely
+AI.However,therecentprogressinlargelanguage DAVINCI, CURIE,and CODEX. Existingdocumen-
+modelshasobviatedtheneedforspecializedmeth- tation(Brownetal.,2020;Chenetal.,2021b)does
+odsforsymbolicprocessing. Cobbeetal.(2021) notfullydescribethedetailsofthesemodels,such
+andChowdheryetal.(2022)addressmiddle-school as the pretraining corpus, model size, and model
+levelalgebraproblemsolvingusinglarge-language biases. Therefore,wecanonlyprovideeducational
+modelsinafew-shotsetup. Theseproblemsrequire guessesonthesedetails(analysisinAppendixA).
+amodeltounderstandtheorderinwhichasetof Inaddition,eventhoughCODEXisfreetousefor
+operationsshouldbeperformedoversymbols(typ- researchasofJune2022,weareunsurewhetherthe
+icallysmallintegers). Incontrast,structuredcom- researchcommunitywillcontinuetohavefreeac-
+monsensereasoningrequiresbroaderinformation cessinthefuture. Nonetheless,wereleaseourcode
+than supplied in the prompt, while utilizing the andmodeloutputstoensurethereproducibilityof
+models’structuralgenerationcapabilitiesforgen- ourwork. Furthermore,incaseswherethemodels
+weexperimentwithrevealanyissue,thepublicly Burda, Nicholas Joseph, Greg Brockman, et al.
+availablecodewillallowfutureinvestigations. 2021b. Evaluatinglargelanguagemodelstrainedon
+code. arXivpreprintarXiv:2107.03374.
+Anotherlimitationofourworkisthatweexclu-
+sivelyexperimentwithdatasetsinEnglish. Explor-
+Aakanksha Chowdhery, Sharan Narang, Jacob Devlin,
+ingtheefficacyofstructuredgenerationmethods Maarten Bosma, Gaurav Mishra, Adam Roberts,
+in cross-lingual settings is an interesting and im- Paul Barham, Hyung Won Chung, Charles Sutton,
+Sebastian Gehrmann, et al. 2022. Palm: Scaling
+portantfuturework.
+language modeling with pathways. arXiv preprint
+arXiv:2204.02311.
+References
+Karl Cobbe, Vineet Kosaraju, Mohammad Bavar-
+Zeina Abu-Aisheh, Romain Raveaux, Jean-Yves ian, Jacob Hilton, Reiichiro Nakano, Christopher
+Ramel, and Patrick Martineau. 2015. An exact Hesse, and John Schulman. 2021. Training veri-
+graph edit distance algorithm for solving pattern fiers to solve math word problems. arXiv preprint
+recognition problems. In An exact graph edit dis- arXiv:2110.14168.
+tancealgorithmforsolvingpatternrecognitionprob-
+lems. Alain Colmerauer and Philippe Roussel. 1996. The
+birth of prolog. In History of programming
+JacobAustin,AugustusOdena,MaxwellNye,Maarten languages—II,pages331–367.
+Bosma, Henryk Michalewski, David Dohan, Ellen
+Jiang, Carrie Cai, Michael Terry, Quoc Le, et al. LuigiPietroCordella,PasqualeFoggia,CarloSansone,
+2021. Program synthesis with large language mod- andMarioVento.2001. Animprovedalgorithmfor
+els. arXivpreprintarXiv:2108.07732. matchinglargegraphs. In3rdIAPR-TC15workshop
+on graph-based representations in pattern recogni-
+TomB.Brown,BenjaminMann,NickRyder,Melanie
+tion,pages149–159.
+Subbiah, Jared Kaplan, Prafulla Dhariwal, Arvind
+Neelakantan,PranavShyam,GirishSastry,Amanda
+Bhavana Dalvi, Lifu Huang, Niket Tandon, Wen-tau
+Askell, Sandhini Agarwal, Ariel Herbert-Voss,
+Yih, andPeterClark.2018. Trackingstatechanges
+Gretchen Krueger, Tom Henighan, Rewon Child,
+in procedural text: a challenge dataset and models
+Aditya Ramesh, Daniel M. Ziegler, Jeffrey Wu,
+for process paragraph comprehension. In Proceed-
+Clemens Winter, Christopher Hesse, Mark Chen,
+ingsofthe2018ConferenceoftheNorthAmerican
+Eric Sigler, Mateusz Litwin, Scott Gray, Benjamin
+Chapter of the Association for Computational Lin-
+Chess, Jack Clark, Christopher Berner, Sam Mc-
+guistics: Human Language Technologies, Volume
+Candlish, Alec Radford, Ilya Sutskever, and Dario
+1 (Long Papers), pages 1595–1604, New Orleans,
+Amodei.2020. Languagemodelsarefew-shotlearn-
+Louisiana. Association for Computational Linguis-
+ers. InAdvancesinNeuralInformationProcessing
+tics.
+Systems33: AnnualConferenceonNeuralInforma-
+tion Processing Systems 2020, NeurIPS 2020, De-
+Daniel Fried, Armen Aghajanyan, Jessy Lin, Sida
+cember6-12,2020,virtual.
+Wang, Eric Wallace, Freda Shi, Ruiqi Zhong, Wen-
+tau Yih, Luke Zettlemoyer, and Mike Lewis. 2022.
+Mark Chen, Jerry Tworek, Heewoo Jun, Qiming
+Incoder: A generative model for code infilling and
+Yuan, Henrique Ponde de Oliveira Pinto, Jared Ka-
+synthesis. arXivpreprintarXiv:2204.05999.
+plan, Harri Edwards, Yuri Burda, Nicholas Joseph,
+Greg Brockman, Alex Ray, Raul Puri, Gretchen
+Emden Gansner, Eleftherios Koutsofios, and Stephen
+Krueger, MichaelPetrov, HeidyKhlaaf, GirishSas-
+North.2006. Drawinggraphswithdot.
+try, Pamela Mishkin, Brooke Chan, Scott Gray,
+NickRyder,MikhailPavlov,AletheaPower,Lukasz
+JiachangLiu,DinghanShen,YizheZhang,BillDolan,
+Kaiser, Mohammad Bavarian, Clemens Winter,
+Lawrence Carin, and Weizhu Chen. 2021. What
+Philippe Tillet, Felipe Petroski Such, Dave Cum-
+Makes Good In-Context Examples for GPT-$3$?
+mings, Matthias Plappert, Fotios Chantzis, Eliza-
+arXiv:2101.06804[cs]. ArXiv: 2101.06804.
+beth Barnes, Ariel Herbert-Voss, William Hebgen
+Guss, Alex Nichol, Alex Paino, Nikolas Tezak, Jie
+Kaixin Ma, Filip Ilievski, Jonathan Francis, Eric Ny-
+Tang,IgorBabuschkin,SuchirBalaji,ShantanuJain,
+berg, and Alessandro Oltramari. 2022. Coalescing
+William Saunders, Christopher Hesse, Andrew N.
+globaland localinformation forproceduraltext un-
+Carr, Jan Leike, Josh Achiam, Vedant Misra, Evan
+derstanding. arXivpreprintarXiv:2208.12848.
+Morikawa, Alec Radford, Matthew Knight, Miles
+Brundage, Mira Murati, Katie Mayer, Peter Welin-
+AmanMadaan,DheerajRajagopal,NiketTandon,Yim-
+der,BobMcGrew,DarioAmodei,SamMcCandlish,
+ing Yang, and Eduard Hovy. 2021a. Could you
+IlyaSutskever,andWojciechZaremba.2021a. Eval-
+givemeahint? generatinginferencegraphsforde-
+uating Large Language Models Trained on Code.
+feasible reasoning. In Findings of the Association
+arXiv:2107.03374[cs]. ArXiv: 2107.03374.
+for Computational Linguistics: ACL-IJCNLP 2021,
+MarkChen,JerryTworek,HeewooJun,QimingYuan, pages5138–5147,Online.AssociationforComputa-
+HenriquePonde,JaredKaplan,HarriEdwards,Yura tionalLinguistics.
+Aman Madaan, Niket Tandon, Dheeraj Rajagopal, Pe- Swarnadeep Saha, Prateek Yadav, Lisa Bauer, and
+ter Clark, Yiming Yang, and Eduard Hovy. 2021b. Mohit Bansal. 2021. ExplaGraphs: An Explana-
+Think about it! improving defeasible reasoning by tionGraphGenerationTaskforStructuredCommon-
+first modeling the question scenario. In Proceed- sense Reasoning. arXiv:2104.07644 [cs]. ArXiv:
+ings of the 2021 Conference on Empirical Methods 2104.07644.
+inNaturalLanguageProcessing,pages6291–6310.
+Keisuke Sakaguchi, Chandra Bhagavatula, Ronan
+Aman Madaan and Yiming Yang. 2021. Neural lan-
+LeBras,NiketTandon,PeterClark,andYejinChoi.
+guage modeling for contextualized temporal graph
+2021. proScript: Partially Ordered Scripts Genera-
+generation. InProceedingsofthe2021Conference
+tion. In Findings of the Association for Computa-
+of the North American Chapter of the Association
+tionalLinguistics: EMNLP2021,pages2138–2149,
+for Computational Linguistics: Human Language
+Punta Cana, Dominican Republic. Association for
+Technologies, pages 864–881, Online. Association
+ComputationalLinguistics.
+forComputationalLinguistics.
+Ishika Singh, Valts Blukis, Arsalan Mousavian, Ankit
+NasrinMostafazadeh,NathanaelChambers,Xiaodong
+Goyal, Danfei Xu, Jonathan Tremblay, Dieter
+He, Devi Parikh, Dhruv Batra, Lucy Vanderwende,
+Fox, Jesse Thomason, and Animesh Garg. 2022.
+Pushmeet Kohli, and James Allen. 2016. A cor-
+Progprompt: Generating situated robot task plans
+pus and evaluation framework for deeper under-
+using large language models. arXiv preprint
+standing of commonsense stories. arXiv preprint
+arXiv:2209.11302.
+arXiv:1604.01696.
+Erik Nijkamp, Bo Pang, Hiroaki Hayashi, Lifu Tu, Shao-Hua Sun, Te-Lin Wu, and Joseph J Lim. 2019.
+Huan Wang, Yingbo Zhou, Silvio Savarese, and Programguidedagent. InInternationalConference
+Caiming Xiong. 2022. A conversational paradigm onLearningRepresentations.
+forprogramsynthesis. arXivpreprint.
+NiketTandon,BhavanaDalvi,KeisukeSakaguchi,Pe-
+Gabriel Poesia, Alex Polozov, Vu Le, Ashish Tiwari,
+ter Clark, and Antoine Bosselut. 2019. WIQA: A
+Gustavo Soares, Christopher Meek, and Sumit Gul-
+dataset for “what if...” reasoning over procedural
+wani.2021. Synchromesh:Reliablecodegeneration
+text. In Proceedings of the 2019 Conference on
+frompre-trainedlanguagemodels. InInternational
+EmpiricalMethodsinNaturalLanguageProcessing
+ConferenceonLearningRepresentations.
+andthe9thInternationalJointConferenceonNatu-
+ralLanguageProcessing(EMNLP-IJCNLP),pages
+Xavier Puig, Kevin Ra, Marko Boben, Jiaman Li,
+6076–6085, Hong Kong, China. Association for
+Tingwu Wang, Sanja Fidler, and Antonio Torralba.
+ComputationalLinguistics.
+2018. Virtualhome: Simulatinghouseholdactivities
+via programs. In 2018 IEEE Conference on Com-
+puter Vision and Pattern Recognition, CVPR 2018, Steven L Tanimoto. 1987. The elements of artificial
+Salt Lake City, UT, USA, June 18-22, 2018, pages intelligence: anintroductionusingLISP. Computer
+8494–8502.IEEEComputerSociety. SciencePress,Inc.
+ColinRaffel,NoamShazeer,AdamRoberts,Katherine Alex Wang, Yada Pruksachatkun, Nikita Nangia,
+Lee, Sharan Narang, Michael Matena, Yanqi Zhou, AmanpreetSingh, JulianMichael, FelixHill, Omer
+WeiLi, andPeterJLiu.2019. Exploringthelimits Levy,andSamuelR.Bowman.2019. Superglue: A
+of transfer learning with a unified text-to-text trans- stickierbenchmarkforgeneral-purposelanguageun-
+former. arXivpreprintarXiv:1910.10683. derstanding systems. In Advances in Neural Infor-
+mation Processing Systems 32: Annual Conference
+Dheeraj Rajagopal, Aman Madaan, Niket Tandon,
+on Neural Information Processing Systems 2019,
+Yiming Yang, Shrimai Prabhumoye, Abhilasha
+NeurIPS 2019, December 8-14, 2019, Vancouver,
+Ravichander, Peter Clark, and Eduard Hovy. 2021.
+BC,Canada,pages3261–3275.
+Curie: Aniterativequeryingapproachforreasoning
+aboutsituations.
+Yue Wang, Weishi Wang, Shafiq Joty, and Steven CH
+Hoi. 2021. Codet5: Identifier-aware unified
+Nils Reimers and Iryna Gurevych. 2019. Sentence-
+pre-trained encoder-decoder models for code un-
+BERT:SentenceembeddingsusingSiameseBERT-
+derstanding and generation. arXiv preprint
+networks. InProceedingsofthe2019Conferenceon
+arXiv:2109.00859.
+EmpiricalMethodsinNaturalLanguageProcessing
+andthe9thInternationalJointConferenceonNatu-
+ralLanguageProcessing(EMNLP-IJCNLP),pages Lilian D. A. Wanzare, Alessandra Zarcone, Stefan
+3982–3992, Hong Kong, China. Association for Thater,andManfredPinkal.2016. Acrowdsourced
+ComputationalLinguistics. database of event sequence descriptions for the ac-
+quisition of high-quality script knowledge. In Pro-
+Ohad Rubin, Jonathan Herzig, and Jonathan Be- ceedings of the Tenth International Conference on
+rant. 2021. Learning To Retrieve Prompts for In- Language Resources and Evaluation (LREC’16),
+Context Learning. arXiv:2112.08633 [cs]. ArXiv: pages 3494–3501, Portorož, Slovenia. European
+2112.08633. LanguageResourcesAssociation(ELRA).
+Yuhuai Wu, Albert Q Jiang, Wenda Li, Markus N
+Rabe, CharlesStaats, MatejaJamnik, andChristian
+Szegedy. 2022. Autoformalization with large lan-
+guagemodels. arXivpreprintarXiv:2205.12615.
+Frank F Xu, Uri Alon, Graham Neubig, and Vin-
+cent J Hellendoorn. 2022. A systematic evaluation
+of large language models of code. arXiv preprint
+arXiv:2202.13169.
+Tianyi Zhang, Varsha Kishore, Felix Wu, Kilian Q.
+Weinberger,andYoavArtzi.2020. Bertscore: Eval-
+uating text generation with BERT. In 8th Inter-
+national Conference on Learning Representations,
+ICLR 2020, Addis Ababa, Ethiopia, April 26-30,
+2020.OpenReview.net.
+Shuyan Zhou, Pengcheng Yin, and Graham Neu-
+big. 2022. Hierarchical control of situated agents
+through natural language. In Workshop on Struc-
+tured and Unstructured Knowledge Integration
+(SUKI),Seattle,USA.
+7
+A Few-shotmodelssizeestimates base with SentenceTransformers (Reimers and
+Gurevych,2019)tofine-tunearetrievalfunctionf
+AsOpenAIhasnotreleasedanydetailsofthesize
+byminimizingthefollowingloss:
+oftheirfew-shotmodels,weestimatetherelative
+strengths and weaknesses on code and text gen- L = (cos(f (T ),f (T ))−sim(G ,G ))2
+θ θ i θ j i j
+eration by calculating the average loss per token. (1)
+To calculate the avg. loss of each of these mod-
+elsoncode,weusetheimplementationprovided wheref θ isparameterizedusingatransformer.
+by Xu et al. (2022).5 The perplexity on text cor- ResultsonusingKSTwithPROSCRIPT(Table8)
+puswasevaluatedon30randomwikipediapages andEXPLAGRAPHS(Table9). WhileKSTishighly
+fromWikiplots6 followingasimilarprocedureThe effective for edge-prediction 6, the results are
+structure and text generation capabilities of the mixed for EXPLAGRAPHS and PROSCRIPT. For
+models are apparent from the results in Table 7; PROSCRIPT,KSTyieldsmarginalgains. However,
+DAVINCI outperforms CODEX ontextgeneration for EXPLAGRAPHS,anumberoftrainingexamples
+but is worse on code-generation and vice-versa. have overlapping theme (Table 10), and thus cre-
+CURIEunderperformsbothDAVINCIandCODEX ating a prompt dynamically reduces the effective
+significantly. Importantly,theseresultsshowthat informationintheprompt.
+CODEXandDAVINCIareofcomparablecapacities,
+C HumanEvaluation
+makingtheircomparisonfair.
+Outofthefourtasksusedinthiswork,PROSCRIPT
+Model CODE TEXT edgepredictionand PROPARAhaveonlyonepossi-
+blecorrectvalue. Thus,followingpriorwork,we
+CODEX 0.46 2.71
+report the automated, standard metrics for these
+DAVINCI 0.63 2.25
+tasks. For EXPLAGRAPHS, we use model-based
+CURIE 1.17 3.32
+metricsproposedbySahaetal.(2021),whichwere
+foundtohaveahighcorrelationwithhumanjudg-
+Table 7: Average loss per token of the three few-shot
+models used in this work. TEXT refers to the average ments. ForPROSCRIPTgraphgeneration,wecon-
+lossover30Wikipediapages,andCODEisthelossover ductedanexhaustiveautomatedevaluationthatsep-
+PythonscriptsintheevaluationsplitofPolycoder. aratelyscoresthecorrectnessofthenodesandthe
+correctnessoftheedges.
+However,automatedmetricsarelimitedintheir
+B DynamicpromptCreation
+abilitytoevaluatemodel-generatedoutput. Thus,
+to further investigate the quality of outputs, we
+Asanalternativetocreatingprompts,thereisnow
+conduct a human evaluation to compare the out-
+a growing interest in customizing the in-context
+exampleseachexampleT . Populartechniques puts generated by COCOGEN and DAVINCI. We
+test
+sampled20examples,andthreeoftheauthorsper-
+typically train a retriever, which is used to fetch
+formedtheevaluation. Annotatorswereshowntwo
+theexamplesinthetrainingsetthatareclosestto
+T (Liu et al., 2021; Rubin et al., 2021; Poesia graphs (generated by COCOGEN and DAVINCI)
+test
+andwereaskedtoselectonetheythoughtwasbet-
+etal.,2021).
+ter regarding relevance and correctness. The se-
+SpecificallyPoesiaetal.(2021)trainaretriever
+lectionforeachcriterionwasmadeindependently:
+withatarget-similaritytuning(TST)objectiveover
+a corpus of D of (x,y) examples. TST learns an thesamegraphcouldTheannotationsweredone
+embeddingfunctionf suchthatforapairofexam- separately: thesamegraphcouldhavemorerele-
+ples(x ,y )and(x ,y ),ify ∼ y ⟹ f(x ) ∼ vantnodes(higherrelevance)butmaynotbecor-
+i i j j i j i
+f(x ). For a new x, f(x) is used to retrieve the rect. Theidentityofthemodelthatgeneratedeach
+j
+closestexamplesfromD. graph(COCOGENorDAVINCI)wasshuffledand
+unknowntotheevaluators.
+We follow Poesia et al. (2021), and train a
+TheresultsinTable11indicatethathumaneval-
+knowledge-similaritytuner(KST). Weusempnet-
+uation is closely correlated with the automated
+5https://github.com/VHellendoorn/
+metrics: for EXPLAGRAPHS,annotatorsfoundthe
+Code-LMs#evaluation
+6https://github.com/markriedl/ 7https://huggingface.co/microsoft/
+WikiPlots mpnet-base
+ISO GED Avg(d) Avg(∣V∣) Avg(∣E∣) BLEU ROUGE-L BLEURT
+G 1.0 0.0 1.84 7.41 6.8 - - - -
+COCOGEN+002(15) 0.53 2.1 1.79 7.44 6.7 25.24 38.28 -0.26
+COCOGEN+002(15)+KST 0.52 1.99 1.8 7.45 6.7 25.4 38.4 -0.25
+Table8: KSTonPROSCRIPTgeneration: Dynamicallycreatingapromptleadstomarginalimprovements.
+StCA(↑) SeCA(↑) G-BS(↑) GED(↓) EA(↑)
+COCOGEN+002 45.2 23.74 34.68 68.76 23.58
+COCOGEN+002+KST 37.47 18.46 29.41 73.76 19.15
+Table9: KSTonEXPLAGRAPHS: WefindthatEXPLAGRAPHScontainsmultipleexamplesthataresimilartoeach
+otherinthetrainingset. Thus, dynamicallycreatingapromptbyselectingexamplesthatareclosesttotheinput
+actuallyhurtsperformance.
+belief:allreligionsneedtoberespected,andabletopractice.argument:religionisbehindmany
+wars.
+belief:everyreligionneedstoberespectedandallowedtobepracticed.argument:religionis
+behindmostwars.
+belief: schoolprayershouldnotbeallowed. argument: manypeoplewouldprefertokeep
+religionoutoftheirlives.
+belief:peopleshouldfollowwhicheverreligiontheychoose.argument:thiscountryhasfreedom
+ofreligion.
+belief:peoplearefreetopracticethereligiontheychooseargument:society’srighttobefreeto
+practicereligionshouldnotbelimited.
+belief:thechurchofscientologyshouldbeallowed,becauseeveryonehasarighttofollowtheir
+religion.argument:thechurchofscientologydoesn’thaveareligiousdoctrine.
+belief:weshouldavoiddiscussingreligioninschools.argument:someschoolsarereligiousin
+nature,andhaveregulardiscussionsonthetopic.
+belief:freedomofreligionisparamount.argument:notallreligionsareworthit.
+belief:peopledon’tfollowthesamereligion.argument:theworldhasmanydifferentreligions.
+belief:peopleshouldfollowwhateverreligiontheydesire.argument:peoplehavetherightto
+adheretothereligionoftheirchoice.
+belief:peopleshouldfollowwhicheverreligiontheychoose.argument:somereligionsarebetter
+thanothers.
+belief:peopleshouldbeabletopracticewhateverreligiontheychoose.argument:somereligions
+arenotokaytopursue.
+belief:studentshavearighttoexpressthemselvesanywaypossible,includingfaith.argument:
+religionisapersonalchoice.
+belief: peopleshouldbeabletodomissionaryworkiftheydesire. argument: peopleshould
+haverighttomissionarywork.
+belief: studentsarefreetoexpressfaith. argument: oneshouldgotochurchtoexpresstheir
+religiousbeliefs.
+Table 10: The closest examples in the training set corresponding to the test input: belief: religion causes many
+fights. andargument: Therewouldbelessfightswithoutreligiousconflicts.. Asthetableshows,theexamplesare
+overlappingwhichreducesthediversityintheprompt, effectivelyreducingthenumberofexamplesinaprompt
+creatingusingnearestneighbors(Section4.
+Dataset COCOGEN DAVINCI Nopreference
+EXPLAGRAPHS 28.3% 16.7% 46.7%
+Relevance
+PROSCRIPT(scriptgeneration) 26.7% 18.3% 55%
+EXPLAGRAPHS 38.3% 18.3% 31.7%
+Correctness
+PROSCRIPT(scriptgeneration) 26.7% 23.3% 50%
+Table11: HumanevaluationofgraphsgeneratedbyCOCOGENandDAVINCI. Theevaluatorswereshowngraphs
+generatedbyCOCOGENandDAVINCI,andwereaskedtoselectonethatismorerelevanttotheinputandcorrect.
+Incaseofnopreference,theevaluatorscouldpicktheNopreference. Thetableshowsthe%oftimesgraphsfrom
+eachmodelwerepreferred.
+graphs generated by COCOGEN to be more rele- 1. PROSCRIPT script-generation: https:
+vantandcorrect. Wefindthat DAVINCIoftenfails //github.com/madaan/CoCoGen/
+torecoversemanticrelationsbetweennodesinthe tree/main/data/proscript_
+argument graphs. For example, consider a belief script_generation/prompt.txt
+(B)urbanizationharmsnaturalhabitatsforthean-
+imals in the world. We want to generate a graph 2. PROSCRIPT edge-prediction: https:
+thatcancounterthisbeliefwiththeargument(A) //github.com/madaan/CoCoGen/
+urbanizationcausesincreaseinjobs. tree/main/data/proscript_edge_
+prediction/prompt.txt
+Forthesameprompt,COCOGENgenerated(ur-
+banization; causes; increase in jobs); (increase
+in jobs; has context; good); (good; not capa- 3. PROPARA: https://github.com/
+madaan/CoCoGen/tree/main/data/
+bleof;harms)whereas DAVINCI generated(jobs;
+notharms;naturalhabitats)→(naturalhabitats; explagraphs/prompt.txt
+not part of; animals). Note that DAVINCI suc-
+cessfullyrecoveredrelevantevents(“naturalhabi-
+4. EXPLAGRAPHS: https://github.com/
+madaan/CoCoGen/tree/main/data/
+tat”“animals”)butarrangedtheminincorrectrela-
+explagraphs/prompt.txt
+tions. ForPROSCRIPT,thehumanevaluationshows
+thatCOCOGENandDAVINCIhavecomplementary
+These prompts are also present in the attached
+strengths, while COCOGEN generally produces
+supplementary material, and can be found in the
+morerelevantandcorrectoutputs.
+datafolderunderrespectivetasksub-directories.
+D Datasetstatistics
+G DesigningPythonclassfora
+DatasetstatisticsareshowninTable12. Thetest structuredtask
+split for EXPLAGRAPHS is not available, so we
+evaluate on the validation split. For PROSCRIPT, Figure 7 shows three different designs for Ex-
+weobtainedthetestsplitsfromtheauthors. plagraphs. For PROSCRIPT, the various formats
+8
+include representing proscript as a Networkx
+class(8),DOT-likeclass9,andasaTree(10).
+Corpus #Train #Val #Test
+PROSCRIPT 3252 1085 2077 H ImpactofModelsize
+PROPARA 387 43 54
+EXPLAGRAPHS 2368 398 - The CODEX model released by OpenAI is avail-
+able in two versions9 : code-davinci-001
+Table 12: Corpus Statistics for the tasks used in this and code-davinci-002. While the exact
+work. sizes of the models are unknown because
+of their proprietary nature, OpenAI API
+states that code-davinci-002 is the Most
+E Sampleoutputs
+capable Codex model Tables 16 and ?? com-
+Sample outputs from COCOGEN for all the pares COCOGEN +code-davinci-001
+tasks are located at https://github.com/ with COCOGEN +code-davinci-002.
+madaan/CoCoGen/tree/main/outputs. Note that both code-davinci-001 and
+Representative examples from each task are code-davinci-002 can fit 4000 tokens,
+presented in Figure 5. Surprisingly, COCO- so the number of in-context examples was
+GEN (CODEX with a Python prompt) generates identical for the two settings. The results
+syntacticallyvalidPythongraphsthataresimilar show that for identical prompts, COCOGEN
+to the task graphs/tables in nearly 100% of the +code-davinci-002 vastly outperforms
+cases. COCOGEN +code-davinci-001, showing
+theimportanceofhavingabetterunderlyingcode
+F Prompts generationmodel.
+Thepromptsforeachtasksarepresentatthisanony- 8https://networkx.org/
+mousURL: 9asofJune2022
+2 RelatedWork
+Datasets: Large-scale reading comprehension
+datasets, e.g., SQuAD (Rajpurkar et al., 2016),
+TriviaQA (Joshi et al., 2017), have successfully
+drivenprogressinquestionanswering,butlargely
+targetingexplicitlystatedfacts. Often,theresult-
+ing systems can be fooled (Jia and Liang, 2017),
+promptinge↵ortstocreateharderdatasetswhere
+adeeperunderstandingofthetextappearsneces-
+Figure 2: A (simplified) annotated paragraph from
+Figure5: Examplegraphsforeachofthetasksusedfor COCOGEN: PROSCRIPT (top-lesfatr)y, E(XWPeLlAbGleRtAaPlH.,S2(0to1p7-;Arakietal.,2016).
+ProPara. Each filled row shows the existence and lo-
+right),andPROPARA(bottom).
+cation of participants between each step (“?” denotes
+Procedural text is a genre that is particularly
+“unknown”,“-”denotes“doesnotexist”).Forexample challenging,becausetheworldstheydescribeare
+Model Fi on rmsta at te0,w Sat te Cr Aisl (o↑c )ated Sa et Cth Ae (s↑oi )l. G-BS(↑) GED(↓la )rge Ely Ai (m ↑p )licit and changing. While there are
+fewlargedatasetsinthisgenre,twoexceptionsare
+CODEX-002 Literal 45.2 23.74 34.68 68.76 bAbI2(3W.5e8stonetal.,2015)andSCoNE(Longetal.,
+CODEX-002 Tarseseumesth3a9t.2a4comple1te5.a9n5dcorrec3t0m.4o9deloft7h3e.85 2016 1), 8d .2e 4scribedearlier2. bAbIhashelpedadvance
+initial state is given for each task. However, ap- methodsforreasoningovertext,suchasmemory
+CODEX-002 Relation 42.82 23.68 33.38 70.23 21.16
+proachesdevelopedusingsyntheticdataoftenfail networkarchitectures(Westonetal.,2014),buthas
+tohandletheinherentcomplexityinlanguagewhen also been criticized for using machine-generated
+Table13: Performanceof aC pO plD ieE dX to on ot rh ge anth icre ,e red aif lf -e wre on rlt dfo dr am taat (s Hp er re mse an nt nin eF ti ag lu .,re7tfeoxrtEoXvPeLrAaGsRimAPuHlaSt.eddomain. SCoNEiscloserto
+2015;Winograd,1972). our goal, but has a di↵erent task (given a perfect
+world model of the initial state, predict the end
+Inthiswork,wecreatea Mn oe dw elda st ia zs eet v, sP .ro sP ea nr sa itivitsytatteo)tahnedpdri↵omerepntt mIn otivation (handling ellipsis
+(Process Paragraphs), containing 488 human-
+Table 14 shows the perforamnadnccoereofferCeOncDeEiXn-0co0n1text). It also used a deter-
+authoredparagraphsofproceduraltext,alongwith
+(smaller) and CODEX-002m(ilnairsgtiecr,,saimlsuolasteeedwAopr-ldtogeneratedata.
+81k annotations about the changing states (exis-
+tenceandlocation)ofentitpieesndinixthAo)seopnairdaegnratipchasl,promMpotds.elOs:uFroerxapnesrwimeerinntgsquestionsaboutprocedural
+text,earlysystemsattemptedtoextractaprocess
+with an end-task of predicsthinogwltohcaattiaosnmaonddeelxsiisz-e increases, the sensitivity
+Model Format F 1 structure (events, arguments, relations) from the
+tence changes that occur. oTfhtihseismtohdeefilrosnttdhaetapsreotmptreduces. Thisindicates
+paragraph,e.g.,ProRead(Berantetal.,2014)and
+CODEX-001 Literal containing an1n5o.9tated, natu thra al tft oex rt vefo ryr lr ae ra gl e-w mo or dld els,promptdesignmightget
+for newswire (Caselli et al., 2017). This allowed
+processes, along with a simple representation of
+CODEX-001 Tree 29.7 progressivelyeasier. questionsabouteventorderingtobeanswered,but
+entitystatesduringthoseprocesses. Asimplified
+CODEX-002 Literal(Figure9) 52.0 notaboutstatechanges, unmodelledbytheseap-
+exampleisshowninFigure2.
+CODEX-002 Tree(Figure10) 56.5 proaches.
+WhenapplyingexistingIstateV-oafr-itaheti-oarntsiynstpermosm, pts Morerecently,severalneuralsystemshavebeen
+suchasRecurrentEntityNetworks(Hena↵etal.,
+developedtoanswerquestionsabouttheworldstate
+Table 14: Performance of CODEX-001 and CODEX-
+2016) and Query-reduction Networks (Seo et al.,
+afteraprocess,inspiredinpartbythebAbIdataset.
+002 on the the different formats present in Figure 10 We run each experiment with 3 different random
+2017b),wefindthattheydonotperformwellon
+Building on the general Memory Network archi-
+and9forPROSCRIPTedgepre Pdi rc oti Po an r. aW ae ndfin thd eth rea st uth lte saresoeneldyss,liwghhtelryebtehteterrathnadnom seeds decides the order
+tecture (Weston et al., 2014) and gated recurrent
+literalformatthatcombinesstructurewithliterallyFig-
+themajoritybaselines. Asoafsetxepamfoprlwesaridn,twheepprroom- pt.mWodeefilsnsdumchinaismGaRlUvar(Ci-hoetal.,2014),Recurrent
+ureoutputperformsthebestfo pr oC sOeDtwEXo-0 n0 e2 w.
+neural modaenlscethbaettwuseeenarltuenrsnautsiivnegdifEfenrteintytfiNxeetdwoprrkosm(pEtnstbNee-t)(Hena↵etal.,2016)isa
+mechanismsforstatepredictionandpropagation,
+tween3runs. Further,asshoswtatne-inoft-htheeT-aabrtlemse1t8h,o1d9,forbAbI.EntNetusesady-
+inparticularusingLSTMinputencodingandspan
+namicmemoryofhiddenstates(memoryblocks)to
+prediction.
+Thenewmode2 ls0 i, man pd ro2 v1 e, aa cl cl ui rm acp yro bv yementsof COCOGEN over
+maintainarepresentationoftheworldstate,with
+upto19%. DAVINCI are statistically significant (p-value <
+a gated update at each step. Memory keys can
+0.001).
+Ourcontributionsinthisworkaretwofold: (1) bepreset("tied")toparticularentitiesinthetext,
+wecreateProPara,anewdatasetforprocesspara- toencouragethememoriestorecordinformation
+graphcomprehension,containingannotated,natu- about those entities. Similarly, Query Reduction
+rallanguageparagraphsaboutreal-worldprocesses, Networks(QRN)(Seoetal.,2017b)tracksstatein
+and(2)weproposetwonewmodelsthatlearnto
+2TheProcessBank(Berantetal.,2014)datasetissmaller
+inferandpropagateentitystatesinnovelways,and
+and does not address state change, instead containing 585
+outperformexistingmethodsonthisdataset. questionsabouteventorderingandeventarguments.
+Takethepiesouttocool Opencabinetdrawer
+Takeoutseveralplates
+Begin putting Fill pies onto
+pies on plate plates evenly
+Servethepotpiesonaplate
+class Tree:
+goal = "serve the potpies on a plate"
+def __init__(self):
+# nodes
+begin = Node()
+take_pies_out_to_cool = Node()
+take_out_several_plates = Node()
+open_cabinet_drawer = Node()
+fill_pies_onto_plates_evenly = Node()
+begin_putting_pies_on_plates = Node()
+serve_potpies_on_plate = Node()
+# edges
+begin.children = [take_pies_out_to_cool, open_cabinet_drawer]
+take_pies_out_to_cool.children = [take_out_several_plates]
+open_cabinet_drawer.children = [take_out_several_plates]
+take_out_several_plates.children = [begin_putting_pies_on_plates,
+fill_pies_onto_plates_evenly]
+begin_putting_pies_on_plates.children = [serve_potpies_on_plate]
+fill_pies_onto_plates_evenly.children = [serve_potpies_on_plate]
+serve_potpies_on_plate.children = [end]
+Figure6: APROSCRIPTplan(top)andthecorrespondingPythoncode(bottom).
+BLEU ROUGE-L BLEURT F1
+± ± ± ±
+DAVINCI 23.1 2.7 36.5 2.7 -0.27 0.06 DAVINCI 56.9 2.4
+± ± ± ±
+COCOGEN 25.3 0.1 38.3 0.1 -0.25 0.01 COCOGEN 62.8 2.4
+Table18: PROSCRIPTscriptgeneration:meanandstan- Table 21: PROPARA: mean and standard deviation
+darddeviationacrossthreedifferentrandomseeds. acrossthreedifferentrandomseeds.
+F1
+±
+DAVINCI 48.9 2.8
+±
+COCOGEN 56.2 2.1
+Table19: PROSCRIPT edgeprediction: meanandstan-
+darddeviationacrossthreedifferentrandomseeds.
+Model Format ISO GED Avg(d) Avg(∣V∣) Avg(∣E∣) BLEU ROUGE-L BLEURT
+G - 1.0 0.0 1.84 7.41 6.8 - - -
+CODEX-001 Literal(Figure9) 0.55 1.8 1.74 7.45 6.5 22.9 36.2 -0.36
+CODEX-001 Tree(Figure10) 0.35 3 1.79 7.45 6.65 17.8 30.7 -0.45
+CODEX-001 NetworkX(Figure8) 0.51 1.81 1.69 7.49 6.32 23.7 35.9 -0.37
+CODEX-002 Literal(Figure9) 0.53 2.1 1.79 7.44 6.7 25.24 38.28 -0.26
+CODEX-002 Tree(Figure10) 0.35 2.46 1.61 7.46 5.74 18.96 32.92 -0.38
+CODEX-002 NetworkX(Figure8) 0.5 2.46 1.79 7.38 6.61 23.88 36.89 -0.33
+Table15: CODEXresultsonPROSCRIPTgenerationforvariousPythonsourceformats.
+class Relation:
+def __init__(self):
+belief = "Cannabis should be legal."
+argument = "It's not a bad thing to make marijuana more available."
+stance = "support"
+# create a DAG to support belief using argument
+begin = ["cannabis"]
+add_edge("cannabis", "synonym of", "marijuana")
+add_edge("legal", "causes", "more available")
+add_edge("marijuana", "capable of", "good thing")
+add_edge("good thing", "desires", "legal")
+class Tree:
+def __init__(self):
+self.belief = "Cannabis should be legal."
+self.argument = "It's not a bad thing to make marijuana more available."
+self.stance = "support"
+# tree for support in support of belief
+root_nodes = cannabis
+cannabis = Node()
+cannabis.add_edge("synonym of", "marijuana")
+legal = Node()
+legal.add_edge("causes", "more available")
+marijuana = Node()
+marijuana.add_edge("capable of", "good thing")
+good_thing = Node()
+good_thing.add_edge("desires", "legal")
+class Literal:
+def __init__(self):
+self.belief = "Cannabis should be legal."
+self.argument = "It's not a bad thing to make marijuana more available."
+self.stance = "support"
+self.graph = """\
+(cannabis; synonym of; marijuana)(legal; causes; more available)
+(marijuana; capable of; good thing)
+(good thing; desires; legal)"""
+Figure7: Templatestriedforexplagraph.
+ISO GED Avg(d) Avg(∣V∣) Avg(∣E∣) BLEU ROUGE-L BLEURT
+G 1.0 0.0 0.0 1.84 7.41 6.8 - - -
+COCOGEN+001(15) 0.55 1.8 1.74 7.45 6.5 22.9 36.2 -0.36
+COCOGEN+002(15) 0.53 2.1 1.79 7.44 6.7 25.24 38.28 -0.26
+Table16: CODEX-001vs002onPROSCRIPTscriptgeneration
+class Plan:
+goal = "create a video game"
+num_steps = 7
+def __init__(self):
+graph = nx.DiGraph()
+# add nodes
+step0 = "decided to create a video game"
+step1 = "Learn the basics of programming"
+step2 = "Learn to use a language that is used in games"
+step3 = "Learn to use an existing game engine"
+step4 = "Program the game"
+step5 = "Test the game"
+step6 = "create a video game"
+graph.add_nodes_from([step0, step1, step2, step3, step4, step5, step6])
+# add edges
+graph.add_edge(step0, step1)
+graph.add_edge(step1, step2)
+graph.add_edge(step1, step3)
+graph.add_edge(step2, step4)
+graph.add_edge(step3, step4)
+graph.add_edge(step4, step5)
+graph.add_edge(step5, step6)
+Figure8: ProscriptasaNetworkxclass.
+class CreateAVideoGame:
+title = "create a video game"
+steps = 7
+def step0(self):
+return "decided to create a video game"
+def step1(self):
+return "Learn the basics of programming"
+def step2(self):
+return "Learn to use a language that is used in games"
+def step3(self):
+return "Learn to use an existing game engine"
+def step4(self):
+return "Program the game"
+def step5(self):
+return "Test the game"
+def step6(self):
+return "create a video game"
+def get_relations(self):
+return [
+"step0 -> step1",
+"step1 -> step2",
+"step1 -> step3",
+"step2 -> step4",
+"step3 -> step4",
+"step4 -> step5",
+"step5 -> step6",
+]
+Figure9: RepresentingPROSCRIPTgraphliterally.
+StCA(↑) SeCA(↑) G-BS(↑) GED(↓) EA(↑)
+DAVINCI
+25.4±2.7 13.7±2.8 20±2.3 82.5±1.9 13.6±1.8
+COCOGEN 44.0±1.2 25.1±2.5 34.1±0.7 69.5±0.7 22.0±1.3
+Table20: EXPLAGRAPHS: meanandstandarddeviationacrossthreedifferentrandomseeds.
+class Tree:
+goal = "serve the potpies on a plate"
+def __init__(self):
+# nodes
+begin = Node()
+take_pies_out_to_cool = Node()
+take_out_several_plates = Node()
+open_cabinet_drawer = Node()
+fill_pies_onto_plates_evenly = Node()
+begin_putting_pies_on_plates = Node()
+serve_potpies_on_plate = Node()
+# edges
+begin.children = [take_pies_out_to_cool, open_cabinet_drawer]
+take_pies_out_to_cool.children = [take_out_several_plates]
+open_cabinet_drawer.children = [take_out_several_plates]
+take_out_several_plates.children = [begin_putting_pies_on_plates,
+fill_pies_onto_plates_evenly]
+begin_putting_pies_on_plates.children = [serve_potpies_on_plate]
+fill_pies_onto_plates_evenly.children = [serve_potpies_on_plate]
+serve_potpies_on_plate.children = [end]
+Figure10: Proscriptwithatree-encoding.

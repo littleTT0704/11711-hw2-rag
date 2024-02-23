@@ -1,0 +1,1156 @@
+Towards Open-Domain Twitter User Profile Inference
+HaoyangWen , ZhenxinXiao , EduardH.Hovy , AlexanderG.Hauptmann
+∗† ∗† †‡ †
+LanguageTechnologiesInstitute,CarnegieMellonUniversity
+†
+SchoolofComputingandInformationSystems,TheUniversityofMelbourne
+‡
+{hwen3, zhenxinx, hovy, alex}@cs.cmu.edu
+Abstract Guy,2015),andcomputationalsocialmediaanaly-
+sis(ArunachalamandSarkar,2013;Bammanetal.,
+Twitteruserprofileinferenceutilizesinforma- 2014;Tangetal.,2015;Amplayo,2019). However,
+tionfromTwittertopredictuserattributes(e.g.,
+thereareincreasingprivacyconcernsthatconduct-
+occupation, location), which is controversial
+ingprofilingwithoutappropriateregulationsmay
+because of its usefulness for downstream ap-
+revealpeople’sprivateinformation. Therefore, it
+plicationsanditspotentialtorevealusers’pri-
+isessentialtoinvestigatetheextentofprofilingto
+vacy. Therefore,itisimportantforresearchers
+to determine the extent of profiling in a safe promote proper use and make the potential risks
+environmenttofacilitateproperuseandmake cleartopublicandpolicymakers.
+thepublicawareofthepotentialrisks.Contrary
+Previousworkonuserprofileinferencehasfo-
+toexistingapproachesonlimitedattributes,we
+cusedonaverylimitedsetofattributes,andmodels
+explore open-domain Twitter user profile in-
+fordifferentattributesemploydifferentstrategies.
+ference. We conduct a case study where we
+Onelineofresearchhasformulateditasaclassifi-
+collectpubliclyavailableWikiDatapublicfig-
+ure profiles and use diverse WikiData predi- cationproblemforattributessuchasgender(Rao
+catesforprofileinference. Afterremovingsen- etal.,2011;Liuetal.,2012;LiuandRuths,2013;
+sitiveattributes, ourdatacontains over150K Sakakietal.,2014),age(RosenthalandMcKeown,
+publicfigureprofilesfromWikiData,over50 2011;Sapetal.,2014;Chenetal.,2015;Fangetal.,
+different attribute predicates, and over 700K
+2015;Kimetal.,2017),andpoliticalpolarity(Rao
+attributevalues. Wefurtherproposeaprompt-
+etal.,2010;AlZamaletal.,2012;Demszkyetal.,
+basedgenerationmethod,whichcaninferval-
+2019). Insuchclassificationsettings,eachattribute
+uesthatareimplicitlymentionedintheTwit-
+hasitownontologyorlabelset,whichisdifficult
+ter information. Experimental results show
+that the generation-based approach can infer togeneralizetootherattributes, especiallyforat-
+morecomprehensiveuserprofilesthanbaseline tributesthathavemanypossiblecandidatevalues
+extraction-basedmethods,butlimitationsstill (e.g. geo-location,occupation). Inaddition,some
+remain to be applied for real-world use. We
+workinvolveshumanannotation,whichisexpen-
+alsoencloseadetailedethicalstatementforour
+sivetobeacquiredandmayraisefairnessquestions
+data,potentialbenefitsandrisksfromthiswork,
+forlabeledindividuals(Larson,2017).
+andoureffortstomitigatetherisks. 1
+Anotherlineofresearchusesanextraction-based
+method, such as graph-based (Qian et al., 2017)
+1 Introduction and unsupervised inference (Huang et al., 2016)
+forgeolocation,distantsupervision-basedextrac-
+Users’profileinformationprovidesinvaluableuser
+tion(Lietal.,2014;Qianetal.,2019). However,
+features. Accurateautomaticuserprofileinference
+theystillonlycoverlimitedattributesthatcannot
+ishelpfulfordownstreamapplicationssuchasper-
+produce comprehensive profiles. Besides, many
+sonalizedsearch(Shenetal.,2005;Teevanetal.,
+attribute values are only implicitly mentioned in
+2009; Zhu et al., 2008; Yao et al., 2020) and rec-
+Twittercontext,whichcannotbedirectlyextracted.
+ommendations(Luetal.,2015;Balogetal.,2019;
+In this paper, instead of limited attributes, we
+∗Equalcontribution. explore whether open-domain profiles can be ef-
+1To prevent potential misuse of our resources, we will fectively inferred. Taking WikiData (Vrandecˇic´
+only release our resources for research purposes based on
+and Krötzsch, 2014) as the source of profile in-
+individualrequests. Pleaseseeourethicsstatementsection
+fordetailsandcontactusdirectlyforresourceaccess. formation, which provides a much more diverse
+3172
+FindingsoftheAssociationforComputationalLinguistics:ACL2023,pages3172–3188
+July9-14,2023©2023AssociationforComputationalLinguistics
+Predicate Value BarackObama
+EntityID Q76 Dad,husband,President,citizen.Washington,DC
+Name BarackObama
+Countryofciti- United States of Acrossthecountry, Americansarestandingupforabortionrights—andI’m
+zenship America proudofeveryonemakingtheirvoicesheard.Joinamarchnearyou:
+Occupation Politician ...
+HappyMother’sDay! Ihopeyouallletthemomsandmother-figuresinyour
+Positionheld President of the
+lifeknowhowmuchtheymeantoyou.@MichelleObama,thankyouforbeinga
+UnitedStates
+wonderfulmotherandrolemodeltoourdaughtersandtosomanyothersaround
+Worklocation Washington,D.C.
+theworld.
+Spouse MichelleObama
+...
+... ...
+(a)WikiDatainformation. (b)Twitterinformation.
+Figure1: AnexampleofpairedWikiDataandTwitterinformation. Relevanttextspanswithcorrespondingattribute
+valuesarehighlightedwiththesamecolor.
+predicateset,wefindWikiDataprofilesthathave tioned. However, we still find several challenges
+Twitter accounts. We further collect Twitter in- andlimitationsforthemodeltobeappliedforreal-
+formationforeachaccount,includingtheirrecent worlduse,includingperformancesoflow-resource
+tweetsandTwittermetadata,andbuildmodelsto attributes,distributionalvariancesbetweencelebri-
+infer profiles from collected Twitter information, tiesandnormalpeople,andspuriousgeneration.
+which is solely based on publicly available infor- Ourcontributionsaresummarizedasfollows:
+mationanddoesnotinvolveanyadditionalhuman
+• Tothebestofourknowledge,thisisthefirstwork
+annotationefforts.
+toexploreopen-domainTwitteruserprofiles.
+WefirstfollowLietal.(2014)touseprofilein- • Wecreateanewdatasetforuserprofileinference
+formationtogeneratedistantsupervisedinstances fromWikiData,providingwithrichandaccurate
+andbuildasequencelabeling-basedprofileextrac- off-the-shelf profile information that can facili-
+tionmodel,similartoQianetal.(2019). Inorder tatefuturesocialanalysisresearch.
+toallowopen-domaininference,weproposetouse • We propose a prompt-based generation-based
+attribute names as prompts (Lester et al., 2021) methodforuserprofileinferencethatprovidesa
+for input sequences to capture the semantics for unifiedviewtoinferdifferentattributes.
+attribute predicates instead of involving attribute
+names into the tag set. However, the extraction 2 ProblemDefinitionandDataset
+approachrequiresthatanswersmustappearinthe
+In this section, we first define the open-domain
+Twittercontext,whichignoressomeimplicittext
+userprofileinferenceandthendescribethedataset
+clues. Therefore, we further propose a prompt-
+collectionindetail.
+based generation method (Raffel et al., 2020) to
+inferuserprofiles,whichcanadditionallyproduce 2.1 ProblemFormulation
+valuesthatarenotstraightforwardlymentionedin The ultimate goal of user profile inference is to
+theTwitterinformation. infer certain attribute value given the Twitter in-
+Our statistics show that only a limited number formation of a user. In Twitter, as shown in Fig-
+of WikiData attribute values can be directly ex- ure1b,wemainlyusethecollectionofrecentTwit-
+tractedfromTwitterinformation. Ourexperiments tertweetsfromauserutorepresentTwitterinfor-
+demonstrate a significant improvement when us- mation,whichwedenoteas
+ing the generation-based approach compared to
+X = x ,...,x ,
+theextraction-basedapproach,indicatingthatper-
+tweet,u tweet,u,1 tweet,u,ntweet,u
+forminginferenceinsteadofpureextractionwillbe where each x (cid:2) represents a sequence(cid:3)from
+tweet,u,i
+abletoobtainmoreinformationfromtweets. Fur- a single tweet. In addition, we also concatenate
+ther analysis shows that the improvement comes theuser’spubliclyavailableTwittermetadata(user-
+mainly from the power of combining extraction name, display name, bio and location) into a sin-
+and inference on information not explicitly men- glesequenceascomplementaryuserinformation
+3173
+Category # ingclaims,whichcanbeconsideredasthepredi-
+catevaluepairsasshowninFigure1a4.
+#predicates 58
+First,weuseWikiDatatofilterentitiesthatare
+#averageexamples/predicate 12,238
+personswithTwitteraccounts. Thiscanbedoneby
+#averagecandidates/predicate 1,179
+checkingwhethereachentitycontainstheproperty-
+#averagetokens/answer 1.99
+claimpair“instanceof”(P31)“human”(Q5)and
+#tweets 13,570,664
+thencheckingwhethertheentityincludestheprop-
+#averagewordspertweet 15.3
+erty“Twitterusername”(P2002). Thenweextract
+#users(train) 106,699
+theaccountofthosefilteredpersonsusingtheclaim
+#users(dev) 15,243
+(value)ofproperty“Twitterusername”(P2002). If
+#users(test) 30,486
+therearemultipleclaims,weusethefirstonly.
+Next,foreachentitywecheckallitsproperties
+Table1: StatisticsofourcollecteddatafromWikiData
+to build the person’s profile. In Figure 1a, as an
+andTwitter.
+example,wecanseethattheproperty“occupation”
+is “politician”. For each property and claim, we
+x user,u. ThefinalinputfromTwitteristhecombi- only consider their text information, and we use
+nationofusermetadataandrecenttweets English information only. If there are multiple
+claimsforaproperty,weusethefirstone. Wedrop
+X = [X ;[x ]].
+u tweet,u user,u allpropertiesthatdonothaveanEnglishnamefor
+eitherpredicateorvalue,orpropertiesthatdonot
+Wethenassumethatuserprofilesfollowthekey-
+containanyclaims.
+valuerepresentation
+Since WikiData profiles usually contain many
+noisy properties that are not suitable (e.g., blood
+R = (p ,v ),...,(p ,v ) ,
+u u,1 u,1 u,nr,u u,nr,u
+type) for Twitter user profile inference, we clean
+(cid:8) (cid:9) the data by 1) filtering extremely low-frequency
+whereeachpair(p ,v )representsthepredicate
+u,i u,i
+properties; 2) manually selecting some meaning-
+and value of an attribute. Figure 1a shows an ex-
+fulanddiscriminativepropertiesand3)removing
+amplekey-valueprofileobtainedfromWikiData.
+sensitivepersonalinformationlistedintheTwitter
+The model for open-domain user profile infer-
+DeveloperAgreementandPolicy,suchaspolitical
+ence is to infer the value v of an attribute p from
+affiliation, ethnic group, religion, andsex orgen-
+an user u given their Twitter information and a
+der5. PleaserefertoAppendixBforthecomplete
+specificattributepredicatewithparameterθ
+listofpropertiesthatweuse.
+f(X ,p;θ) = v.
+u Twitter processing. We collect publicly avail-
+able Twitter information for users that we gather
+fromWikiData,asshowninFigure1b. TheTwit-
+2.2 DatasetCreation
+terinformationconsistsoftheuser’satmost100
+OurdatasetconsistsofWikiDatapublicfigurepro-
+recent publicly available tweets, as well as their
+files and corresponding Twitter information. An
+metadata that includes username, display name,
+exampleofpairedWikiDataprofileandTwitterin-
+bio(ashortdescriptionthatausercaneditintheir
+formationisshowninFigure1. Wefirstdiscussthe
+profile)andlocation. Weremoveallweblinksand
+collection of WikiData profiles and then discuss
+hashtagsfromthosetweets.
+thecollectionofTwitterinformation.
+Statistics. Wecollectmorethan168kpublicfig-
+WikiDataprocessing. WikiDataisastructural
+uresfromWikidataandfilteroutuserswhoseTwit-
+knowledgebase,whichcanbeeasilyqueriedwith
+ter accounts are no longer accessible. We obtain
+database such as MongoDB2 using its dump3. It
+about 152K users with 13 million tweets in total.
+containsrichencyclopediainformation,including
+Werandomlysplittheusersintotrain,development
+informationforpublicfigures. EachWikiDataen-
+tityconsistsofmultiplepropertiesandcorrespond- 4Pleaserefertohttps://www.mediawiki.org/
+wiki/Wikibase/DataModelforfurtherdetailsofWik-
+2https://www.mongodb.com/ ibaseDataModel.
+3https://dumps.wikimedia.org/wikidata 5https://developer.twitter.com/en/dev
+wiki/entities/ eloper-terms/agreement-and-policy
+3174
+Our Lietal. Fangetal. ... On behalf of the United
+Category O O O O O B
+Data (2014) (2015)
+Nations , Secretary - General ...
+#predicates 58 3 6 I O O O O O
+#users 152K 10.6K 2.5K
+#values 709K 10.6K 15K Figure 3: An example tweet and tag sequence for at-
+tributeemployerandvalueUnited Nations.
+#tweets 13M 39M 846K
+Table2: Comparisonbetweendatasets. Ourdatacon-
+3 Methods
+tains a diverse set of attributes, with more users and
+valuesobtainedfromWikiData. In this section, we discuss our methods for open-
+domain Twitter user profile inference. First, we
+introduceanextraction-basedmethodthatlargely
+employer follows the principle from Li et al. (2014) and
+work location
+Qianetal.(2019). Thenwediscussourproposed
+professorship prompt-basedgenerationapproachthatprovidesa
+unifiedviewtoinferdifferentattributevalues,and
+can further infer values that do not appear in the
+Twittercontext.
+educated at
+occupation
+3.1 Extraction-basedMethod
+WefollowLietal.(2014)andQianetal.(2019)to
+place of birth generatedistantlysupervisedtraininginstancesfor
+userprofileextraction. Sinceourproblemisopen
+country of citizenship
+domain, we propose using attribute predicates as
+promptsininputsequencesandperformsequence
+Figure2: Thelongtaildistributionofdifferentpredi-
+labeling over them. This method can be divided
+cates.Afewpredicateshavemanyexampleswhilemost
+otherpredicatesonlyhavelimitedexamples. into three steps: label generation, modeling, and
+resultaggregation.
+Label generation. Distant supervised labeling
+and test sets by 7:1:2. The detailed statistics are assumesthatifauseru’sprofilecontainsattribute
+shown in Table 1. We compare it with previous valuev,wecanfindmentionsintheirTwitterinfor-
+worksuchasLietal.(2014)andFangetal.(2015), mationexpressingthevalue.
+demonstratedinTable2. Wefindthatourdataset Specifically, we consider each sequence x in
+i
+containsmuchmorediversepredicatescompared X independently. For each attribute predicate-
+u
+toLietal.(2014)andFangetal.(2015). Wealso valuepair(p ,v )inu’sprofile,weconstructatag
+j j
+haveamuchlargernumberofusersandattribute sequence t for x and the predicate p . For a
+i,pj i j
+valuescomparedtothepreviouswork. AlthoughLi span[x ,...,x ]thatmatchesv ,wemake
+b e j
+etal.(2014)containsmoretweetsthanours,they
+only consider the extraction setting, and most of t = B,
+i,pj,b
+thetweetsintheirdatasetsarenegativesamples.
+t = ... = t = I.
+i,pj,b+1 i,pj,e
+If a position k does not match the value, then
+Longtaildistributionofpredicates. Asshown
+t = O. For simplicity, we use exact string
+inFigure2,thenumberofexamplesperpredicate
+i,pj,k
+matching between v and spans in the sequence.
+j
+follows a long tail distribution. Only a few pred-
+AnexampletagsequenceisshowninFigure3.
+icates have many training examples, while most
+appearonlypartiallyintheuser’sentitylist. This Modeling. Sequence labeling tasks usually in-
+raises a huge challenge for us to develop a good cludethelabelnameinthetagset(e.g. B-PERfor
+modeltoutilizeandtransfertheknowledgefrom thebeginningofamentionrepresentingaperson;
+rich-resourcepredicatestolow-resourcepredicates. Lample et al.,2016). In the open-domain profile
+Wediscussthedetailsinthefollowingsection. inferencesetting,wehavenumerousattributesand
+3175
+Insteadwithuserprofileinference,itisverylikely
+Prompt Predicate: Occupation T5 Model
+thatwecannotdirectlyfindthosevaluesinthecon-
+Twitter Name: Obama Bidirectional textandthereforeneedtoinferthemusingimplicit
+Bio: Dad, husband, ....
+Metadata Encoder
+Location: Washington, DC evidence. To address this issue, we propose to
+usetheconditionalgenerationmethod,whichhas
+... ... Sliding Window [n]
+Sliding Window [2] beenshowntobeeffectiveinbothextractinginput
+Tweets Sliding Window [1]
+information (Raffel et al., 2020; Li et al., 2021)
+Recent Tweets: On World Refugee ...
+andperforminginferenceandsummarization(See
+Autoregressive
+Output [n] Decoder etal.,2017;Alshomaryetal.,2020). Theoverall
+Vote ... ...
+Output Politician Output [2] frameworkisillustratedinFigure4.
+Filter
+Output [1]
+Modeling. WeuseT5(Raffeletal.,2020),agen-
+erative transformer based model, to directly gen-
+Figure4:Theworkflowofthegeneration-basedmethod, erate the answer given the predicate. Similar to
+whichtakesthecombinationofpredicate,Twittermeta- theextraction-basedmethod, toaddressthelong-
+data and a window of tweets as input for a T5-based
+taildistributionproblemweusetheattributepred-
+model,andaggregatethewindow-levelresultsintouser
+icate as prompt at the beginning of the input se-
+levelusingmajorityvote.
+quence,whichcancapturerichsemanticsofthose
+open-domainattributepredicates,especiallywhen
+manyofthemhaveonlyafewinstancesasshown theattributepredicatelacksexamplesinthedata.
+inFigure2,whicharenotsufficienttobeconsid- Specifically,theinputistheconcatenationofpre-
+eredasseparatetaglabels. fix predicate (e.g. predicate:occupation),
+Therefore,weproposetouseprompt-guidedse- user’sTwittermetadata,andthesequenceoftweets
+quence labeling, where we append the attribute thattheuserhasrecentlypublished. Wetrainthe
+predicate p to the front of the sequence as the modeltogeneratetheattributevalue(y ,...,y )
+1 n
+promptasfollows: byminimizingthecross-entropyloss:
+[CLS]p[SEP]x
+i
+n
+1
+Thenweperformsequencelabelingonthesecond = logp(y y ,x),
+LCE −n i| <i
+partoftheinputx i usingthegeneratedlabels. We Xi=1
+use RoBERTa (Liu et al., 2019) as the backbone
+wherexistheinputtothemodelandnrepresents
+encoder, and we denote the last hidden states of
+thelengthoftheoutputsequence.
+x by H = [h ,...,h ] where n represents the
+i 1 n
+Sincewehaveatmost100recenttweetsofeach
+lengthofx . Theprobabilityofpredictedlabelsis
+i
+userwhosetotallengthnormallyexceedsthelimit
+P(t
+i,p,k
+x i,p) = softmax(W hh
+k
++b h) R3, of the model, we use sliding window and divide
+| ∈ recenttweetsorganizedinchronologicalorderinto
+wherek representthepositioninx . differentwindowswhereeachwindowcanrepre-
+i
+Duringtraining,werandomlydropnegativein- sentinformationwithinatimerange. Thenwetrain
+stancesthatdonotcontainanyBlabelstokeepthe the model on these divided examples separately.
+positive-negativesampleratiosteady. Each example contains the same prefix predicate
+andTwittermetadatabutusesdifferentpartsofthe
+Resultaggregation. Duringinference,foreach tweetstoinfertheattributevalue.
+user,wefirstperformsequencelabelingonevery
+sequencepredicatepairexhaustively. Thenweag- Result aggregation. During inference, we use
+gregate sequence-level labeling results into user- thesameslidingwindowstrategyanddividethein-
+levelresults. Foreachattributepredicate,weselect putintodifferentexamplestomakepredictionsin-
+thespanthathasthelargestaveragedlogitasthe dependently. Then,similartotheextraction-based
+finalanswer. method,weaggregatethosewindow-levelpredic-
+tions into a user-level prediction. We count the
+3.2 Generation-basedMethod
+occurrencesofeachpredictedtextforapredicate
+Extraction-basedmethodssufferfromthefactthat andthenusemajorityvotetofindtheaggregated
+attributevaluesmustappearintheTwittercontext. resultofthatpredicate.
+3176
+DevelopmentSet TestSet
+Model Precision Recall F 1 Precision Recall F 1
+Random 0.22 0.22 0.22 0.23 0.23 0.23
+Majority 14.56 14.56 14.56 14.19 14.19 14.19
+Extraction 18.36 9.69 12.69 18.39 9.80 12.79
+Generation 59.05 43.71 50.23 58.73 43.40 49.92
+Table3: Systemperformance(%)onourconstructedopen-domainTwitteruserprofileinferencedataset.
+Result filtering. The generation-based method Model Precision Recall F 1
+aggressively generates output without estimating
+Random 0.26 0.26 0.26
+whether the generated output is spurious. There-
+Majority 4.77 4.77 4.77
+fore,itisimportanttofilterthoseincorrectpredic-
+Extraction 72.14 71.47 71.80
+tionsduringinference.
+Generation 77.64 68.60 72.84
+Afterresultaggregation,wefirsttaketheprod-
+uctofprobabilityforeachgeneratedtokenasthe
+Table4: Systemperformance(%)onthesubsetofthe
+scoreforeachaggregatedprediction,andthenuse
+testsetthatwecanfindoccurrencesofattributevalues
+theaveragedscoreoverallaggregatedpredictions
+inTwittercontext.
+as the confidence score for the aggregated result.
+A low confidence score indicates that the model
+cannotdeterminewhetherthepredictionisvalid. a user profile consists n different attributes. We
+Foreachpredicate,wesearchthebestthreshold use C( ) to represent the count of different types
+·
+and set predictions with confidence scores lower ofoutput. C(noprediction)referstothecountof
+than threshold as “no prediction”. We consider “no predictions” and C(correctprediction) refers
+allpredictedconfidencescoresfromthedevelop- tothecountofpredictionsthatmatchtheWikiData
+ment set as candidate thresholds and choose the profile. Thenweobtaintheuser-levelF 1 asfollow:
+threshold that yields the best performance on the
+C(correctprediction)
+development set. The best searched threshold is
+precision =
+thendirectlyappliedtofilterresultsonthetestset. n C(noprediction)
+−
+C(correctprediction)
+recall =
+4 Experiments n
+precision recall
+In this section, we conduct experiments on our F = 2 ·
+1
+precision+recall
+constructed dataset and user profile extraction
+dataset(Lietal.,2014). Thenweprovideaqualita-
+We consider the prediction go be valid when
+tiveanalysisanddiscusstheremainingchallenges.
+it identically matches the ground truth. We do
+not use entity-level or tag-level F as Qian et al.
+4.1 ExperimentalSetup 1
+(2019) because it is not applicable to the genera-
+We use roberta-base6 as the base model for
+tionmodel. Wedonotusegeneration-basedmet-
+theextraction-basedmodel,asitdemonstratesits
+rics (e.g., BLEU) because we observe that most
+effectivenessonmultiplesequencelabelingtasks.
+predictionsareveryshort. Inaddition,compared
+We use t5-small7 for the generation-based
+tonoprediction,wewanttopenalizewrongpredic-
+model, which has much fewer parameters than
+tionsmore. InF ,thebasisofprecisiondoesnot
+1
+roberta-base. Please refer to Appendix A
+include“noprediction”resultsfrommodelswhile
+foradetailedhyperparametersetupandestimated
+itstillhasapenaltyforwrongpredictions.
+trainingandinferencetime.
+4.2 Results
+Evaluationmetric. Wechooseuser-levelF 1 as
+our evaluation metric. Specifically, we suppose 4.2.1 ResultsonUserProfileInference
+6https://huggingface.co/roberta-base The main results are shown in Table 3. The ran-
+7https://huggingface.co/t5-small dom result means that predictions are uniformly
+3177
+Category EDUCATION JOB
+Precision Recall F Precision Recall F
+1 1
+GraphIE 92.87 79.74 85.77 76.03 61.01 67.66
+Generation 94.28 91.40 92.82 78.97 65.78 71.76
+Table5: ResultsonLietal.(2014)followingthepreprocessingasQianetal.(2019). Were-evaluatetheresults
+basedonuser-levelF . p<0.01forbothF comparisons.
+1 1
+randomlyselectedandthemajoritymeansthatpre- Model Precision Recall F 1
+dictionsareselectedwiththevaluesthatoccurmost
+Ourmodel 59.05 43.71 50.23
+frequentlyinthetrainingset. Wefindthatbothsim-
+-threshold 45.95 45.95 45.95
+plemethodsperformpoorly. Overall,wefindthat
+-aggregation 57.39 43.35 49.39
+ourgeneration-basedmethodsignificantlyoutper-
+-metadata 53.59 40.45 46.10
+forms other methods by a large margin. We also
+findthattheextraction-basedmethodcannoteven
+Table6: Effects(%)ofresultfiltering(-threshold),re-
+outperform the majority baseline. The reason is
+sultaggregation(-aggregation)andTwittermetadataon
+thatthemajorityvotecanachieverelatively high
+developmentset. p<0.01forF comparisons.
+1
+accuracyonattributesthathavearelativelysmall
+number of candidates, or one specific candidate
+takesalargeportionofthedata,whilewecannot on EDUCATION and JOB. Wemaketwochanges
+find corresponding occurrences of some of those toourgeneration-basedmodelforthisdataset. 1)
+attributesintheTwittercontext. Thisdatasetdoesnotcontainatimestampforeach
+tweet,soweuseeachtweetasanindependentsam-
+Toverifytheaboveclaim,weperformanother
+pleinsteadoftheslidingwindowstrategy. 2)This
+testonasubsetofthetestsetdata,forwhichwecan
+dataset is designed for extraction, so for tweets
+findcorrespondingoccurrencesofattributevalues
+from which the answers cannot be extracted we
+in the Twitter context. We find that only 13.56%
+train the generation model to output “no predic-
+of the test data can find those value occurrences,
+tion”.
+which indicates that the majority of the data can-
+TheexperimentresultsareshowninTable5. We
+notbedirectlyextractedfromTwittercontext. The
+comparewithGraphIE(Qianetal.,2019),oneof
+results are shown in Table 4. By comparing the
+thestate-of-the-artmodelonthisdataset. Werepro-
+results with overall results, we can find that both
+ducetheresultsfromtheirscript8 andre-evaluate
+extraction and generation systems can get better
+onuser-levelwithmajorityvote. Weusetheaver-
+performance on the subset that we can find oc-
+aged results over 5-fold cross validation as Qian
+currences of attribute values. We find that the
+etal.(2019). Theresultsshowthatourmodelcan
+extraction method performs quite closely to the
+generation-based method in this setting, though
+significantlyoutperformGraphIEonboth EDUCA-
+the generation-based method performs better on TION and JOBattributes,whichindicatesthateven
+if the attributes are limited, the generation-based
+precisionandF andtheextraction-basedmethod
+1
+methodcanstillachievepromisingperformance.
+better on recall. This result indicates that when
+attribute values occur in Twitter context, the ex-
+4.3 Ablationstudy
+tractionmodelcaneffectivelyextractthem,while
+thegeneration-basedmethodcanadditionallyinfer Weconductanablationstudyontwoofourcom-
+valuesthatarenotincludedintheTwittercontent. ponents,resultfilteringandresultaggregation,on
+ourprofileinferencedata,asshowninTable6. We
+4.2.2 ResultsonUserProfileExtraction findthatresultfilteringcansuccessfullyfilterspu-
+riousresultsbyimprovingover13%onprecision,
+Weconductadditionalexperimentsontheprofile
+whileonlydroppingabout2%onrecall. Wealso
+extraction dataset from Li et al. (2014), where
+find that result aggregation improves both preci-
+we can provide a direct comparison between our
+sionandrecall,indicatingthatwecanobtainbetter
+generation-based model and previous work. We
+followthesamepreprocessingasQianetal.(2019) 8https://github.com/thomas0809/GraphIE
+3178
+... Oneoftheproudestmomentsofmycareerbeingthe users with WikiData profiles may not align with
+flagbearerattheOlympicsformyhomecountryofDen-
+theneedfordownstreamtasks. Forexample,most
+mark!...
+Attribute Value peoplewithWikiDataprofilesarecelebrities,such
+✔
+countryofcitizenship Denmark aspoliticiansandathletes,whichlacksinformation
+... It is going to be February 9, 2022 in Royal Arena
+forgeneraloccupationssuchasfarmworker.
+againstmygreatfriend!...Beachbod/MombodMommy
+daughter pool time 2 months with our little angel she Thegranularityofpredictionresultsisalsoan-
+clearlyenjoyedherfirsttennislesson...
+other important directions to investigate. We ob-
+Attribute Value
+✔
+occupation tennisplayer servesomecasesthatthepredictionandthegroun-
+... bio: Member of the European Parliament ... Still truthareindifferentlevelsofgranularity. Forex-
+unclearaboutstrategicautonomy. Wecan’tflipacoin
+ample,thegroundtruthcanbe"Tokyo”whilethe
+whendecidingabout2%GDPforNeedaclearmechanism
+forEUintervention.Myviewinonneedstogetachance prediction may be "Japan”. Therefore, it is also
+towin5Grace... important to address this issue with both better
+Attribute Value
+✔ modelingaswellasevaluation.
+occupation politician
+...Can’twaitthismatchvsBrock!Wow...Amazingmatch Weconsider that the model canpredict all col-
+Undertakerdef21-0... Thanksforagreatshow. AndI lectedattributevaluesbecausewehavemanually
+CANWRESTLE...
+Attribute Value ✘ selectedmeaningfulanddiscriminativeproperties
+occupation professionalwrestler actor fromWikiDataduringdatasetconstruction. How-
+ever,itisstillpossiblethataspecificpropertyvalue
+Figure 5: Example window-level predictions from
+cannotbedetectedwellbasedonTwittercontent,
+generation-basedmodelwiththeircontext.
+leading to spurious generation output. For exam-
+ple,ifauserisamedicaldoctorbutdidnotdiscuss
+inferencebyusingalargerTwittercontext. Twitter anymedicalinformationonTwitter,theoccupation
+metadataalsoprovidesrichinformationaboutthe is very hard to predict. It is still important to fur-
+user’sbackground. Wetrainandevaluateanother therinvestigatethis“cannotpredict”casesinboth
+modelwithoutTwittermetadata,andfindthatwe datasetconstructionandmodeldesign.
+see a significant performance drop. But we still
+findthatmanyattributesinferredbythemodelare 5 RelatedWork
+notdependentonthosemetadata.
+User Profile Inference. One line of user mod-
+4.4 QualitativeAnalysis eling research focuses on profile inference or ex-
+Figure 5 demonstrates four window-level predic- traction. Previous work on user profile inference
+tions from generation-based model with relevant focuses on some specific attributes such as gen-
+inputcontext. Thefirstcaseshowsthatthemodel der (Rao et al., 2011; Liu et al., 2012; Liu and
+candirectlycopyrelevantinformationfromcontext. Ruths,2013;Sakakietal.,2014),age(Rosenthal
+Thesecondandthirdcasesshowthatthemodelcan andMcKeown,2011;Sapetal.,2014;Chenetal.,
+infertheinformationbasedonthecontext. Thelast 2015;Fangetal.,2015;Kimetal.,2017),andpo-
+caseshowsanerrorthatthemodeldoesnotfully litical polarity (Rao et al., 2010; Al Zamal et al.,
+utilizetheinformationprovidedby“wrestle”and 2012;Demszkyetal.,2019). Theyoftenconsider
+generatesincorrectinformation,possiblyaffected themasmulti-classclassificationproblems. Most
+bytheotherword“show”. Thiscaseindicatesthe ofthesemethodsusethecontextofthosesocialme-
+importantceofbackgroundinformationforaspe- diaposts. Alternatively, user nameandprofile in
+cificattributevalue. socialmedia(Liuetal.,2012;LiuandRuths,2013),
+part-of-speechanddependencyfeatures(Rosenthal
+4.5 RemainingChallenges andMcKeown,2011),users’socialcircles(Chen
+Althoughachievingimprovementonopen-domain et al., 2015) and photos (Fang et al., 2015) have
+attribute inference, we still find that the model’s beenexploredasadditionalimportantfeaturesfor
+performance on attributes with low training sam- different attribute inference. But those classifica-
+plesisgenerallymuchlowerthanonattributeswith tionsettingshaveapre-definedontologyorlabel
+richsamples. Itisstillunderinvestigationforbetter set,whichisdifficulttoextendtootherattributes.
+generalizationontheselow-resourceattributes. Inadditiontoclassification-basedmethods,there
+WikiDataprovidesrichprofilesformanyTwitter are also graph-based (Qian et al., 2017), dis-
+users. However, the distribution of these Twitter tant supervision-based and unsupervised extrac-
+3179
+tion (Huang et al., 2016). Compared to the clas- may have imbalance distributions. For example,
+sification method, extraction-based methods are we may find significantly more profiles with the
+capableofidentifyingattributeswithalargeontol- country of citizenship as United States than any
+ogy. Buttheyrelyonentitiesfromthecontextas othercountries,whichmayhaveanegativeimpact
+candidates,whichlimitsthescopeoftheattributes ongeneralization,especiallywhenthedistributions
+thatoccurfrequentlyinthesocialmediacontext. of training and inference diverge. Similarly, the
+Ouropen-domainTwitteruserprofileinference distributional variances discussed in Section 4.5
+usesalargerpredicatesetanddatathanprevious indicatethatthepredictionresultsfornon-celebrity
+work. We further propose the generation-based distributionsshouldbecarefullyadjudicated. The
+approach,whichaddressesthelimitedscope. degradedperformancesonlow-resourceattributes
+Anotherlineofusermodelingresearchfocuses alsoindicatethatthepredictionresultsmaybeun-
+onleveragingbehaviorsignals(Kobsa,2001;Abel reliable when performing inference on attributes
+et al., 2013) or building implicit user representa- withoutenoughtrainingdata.
+tions(IslamandGoldwasser,2021,2022),which In this paper, we assume that the attributes are
+ismoredistantlyrelatedtoourproblem. alreadygiven. However,manyWikiDataattributes
+are not applicable to everyone. For example, at-
+Sociolinguisticvariation. Theintuitionofinfer- tributessuchas“positionplayedonteam”maybe
+ringuserattributesfromtheirpostsalignswithso-
+specifictoathletes. Therefore,itisalsoimportant
+ciolinguisticvariationinwhichpeopleinvestigate
+toinvestigatehowtoautomaticallydetectapplica-
+whetheralinguisticvariationcanbeattributedto
+bleattributesforcertainusers.
+differentsocialvariables(Labov,1963). Computa-
+Inthiswork, weuseatmost100recenttweets
+tionaleffortstodiscovertheserelationshipsinclude
+andaggressivelycreatetrainingandinferenceex-
+demographic dialectal variation (Blodgett et al.,
+amples between each attribute and those tweets.
+2016), geographical variation (Eisenstein et al.,
+Since we use sliding window on the collected
+2010;NguyenandEisenstein,2017),syntacticor
+tweets,involvingmoretweetsintrainingorinfer-
+stylisticvariationoverageandgender(Johannsen
+encemaysignificantlyincreasethetimecost.
+etal.,2015),socio-economicstatus(Flekovaetal.,
+2016;Basileetal.,2019). EthicsStatement
+ThegoalofthispaperistoextendTwitteruserpro-
+6 Conclusion
+fileinferencefromlimitedattributestotheopendo-
+Inthispaper,wefirstexploreopen-domainTwitter main. Wehopethatthisworkwillhelptoillustrate
+userprofileinference. Weusethecombinationof howpeopleexpresstheirattributesbothexplicitly
+WikiDataandTwitterinformationtocreatealarge- butespeciallyalsoimplicitlythroughtheirsocial
+scaledataset. Weproposetouseageneration-based mediaposts. WealsobelievethattheNLPcommu-
+methodwithattributesaspromptsandcompareit nityhastoproducedetailedinformationaboutthe
+withtheextraction-basedmethod. Theresultshows potential, pitfalls, andbasiclimitationsofprofile
+thatthegeneration-basedmethodcansignificantly inference methods so that we can establish stan-
+outperformtheextraction-basedmethodonopen- dardstofacilitateproperuseofthesetechnologies,
+domain profile inference, with the ability to per- as well as be vigilant and effective at combating
+formbothdirectextractionandindirectinference. nefariousapplications.
+Our further analysis still finds some of the errors
+Data and model biases. To mitigate potential
+andremainingchallengesofthegeneration-based
+distributionalbiases,weexhaustivelycollectenti-
+method, such as degraded performances for low-
+tiesfromWikiDatawithoutselectingcertaingroups
+resourceattributesandspuriousgeneration,which
+of users. However, we acknowledge that the col-
+revealsthelimitsofourcurrentgeneration-based
+lectiveinformationmaystillcontainunintentional
+userprofileinferencemodel.
+socialbiases. Asanexample,oneofthepotential
+issues is that people who have WikiData profiles
+Limitations
+arepublicfigures,whichmaynotreflecttheactual
+BesidesthetechnicalchallengesdiscussedinSec- distribution over general populations (e.g., occu-
+tion4.4-4.5,limitationsofthisworkalsoinclude pation). Besides, as in Abid et al. (2021), large
+the issue of data imbalances that some attributes language models themselves may contain biases.
+3180
+WikiDataisconstantlyeditedbyalargenumberof Weareopentoallfurtherexplorationsthatcan
+WikiDatacontributorsandmaintainers. Although preventunintendedimpacts.
+wetrytomakeourstudyasrepresentativeaspossi- • Ourconstructeddatasetforprofileinferencere-
+ble,itispossiblethatastatementfromWikiData search is drawn solely from publicly available
+maynotreflectthepreceptionfromcertaingroups WikiDataandTwitter,wheretheethicalconsider-
+orindividual(Shenoyetal.,2022). Wewouldlike ationshouldbesimilartootherworkusingency-
+stakeholders to be aware of these issues and we clopediaresourcessuchas(SunandPeng,2021).
+urge stakeholders to first investigate the effect of Furthermore,accordingtoWikiData: Oversight,
+potentialissuesbeforedrawinganyconclusionsfor non-publicpersonalinformationaremonitored
+anyindividualorsocialgroupusingthiswork. and removed by Wikidata. According to Wiki-
+DataTermofUse,wecanfreelyreuseandbuild
+Proper use v.s. improper use. The major dif-
+upon on WikiData. According to the Twitter
+ference between proper use and improper use is
+DeveloperAgreementandPolicy, wewillonly
+whether the use case follows necessary legal and
+release IDs instead of actual content for non-
+ethical regulations or framework. For example,
+commercial research purposes from academic
+Williamsetal.(2017)proposeanethicalframework
+institutions.
+basedonusers’consenttoconductTwittersocial
+• Toensuretheproperuseofthiswork,wewillnot
+research. If the information is not publicly avail-
+release the data via a publicly available access
+able,onemustobtainconsent. Opt-outconsentcan
+point. Instead,wewillreleasethedatabasedon
+beusedwhentheinformationisnotsensitive,oth-
+individual request and we will ask for consent
+erwiseopt-inconsentisrequired. Withproperregu-
+that1)requestersarefromresearchinstitutions
+lations,thisworkcanbeusedtoenhancepersonal-
+2)theywillfollowalltheregulationswhenusing
+izeduserexperience,investigatewhatstakeholders
+ourwork3)theywillnotusethemodeltoinfer
+toknowtoeffectivelyprotectpersonalinformation.
+non-publicusersunlessobtainedproperconsent
+Sensitivity of personal information. In this fromthoseusers.
+work we follow Twitter Developer Agreement
+and Policy and remove sensitive personal infor-
+mation. But it is still possible to infer sensitive References
+information indirectly. For example, “candidacy FabianAbel,QiGao,Geert-JanHouben,andKeTao.
+in election” may be possibly used to infer politi- 2013. Twitter-based user modeling for news rec-
+cal affiliation although the affiliations are gener- ommendations. InTwenty-ThirdInternationalJoint
+ConferenceonArtificialIntelligence.Citeseer.
+ally public for those people. Similarly, personal
+pronouns, widely present in tweets, may also be AbubakarAbid,MaheenFarooqi,andJamesZou.2021.
+used to infer gender. Furthermore, combinations Largelanguagemodelsassociatemuslimswithvio-
+lence. NatureMachineIntelligence,3(6):461–463.
+of various sources might allow personal identifi-
+cation (Sweeney, 2000a,b). Even though we do FaiyazAlZamal,WendyLiu,andDerekRuths.2012.
+notuseprivateinformationinourwork,basedon Homophilyandlatentattributeinference: Inferring
+latentattributesoftwitterusersfromneighbors. In
+ourresults,wespeculatethatthereareunobserved
+ProceedingsoftheInternationalAAAIConference
+risksofprivacylossforusingTwitter. Therefore,
+onWebandSocialMedia,volume6,pages387–390.
+Weaskthatfutureworkshouldfullycomplywith
+MiladAlshomary,ShahbazSyed,MartinPotthast,and
+regulations and any non-public or private results
+HenningWachsmuth.2020. Targetinferenceinargu-
+shouldbeproperlyprotected(Kreuteretal.,2022).
+mentconclusiongeneration. InProceedingsofthe
+Wehavesetupthefollowingprotocoltoensure 58thAnnualMeetingoftheAssociationforCompu-
+theproperuseandtopreventadverseimpact: tationalLinguistics,pages4334–4345,Online.Asso-
+ciationforComputationalLinguistics.
+• Webelievethatincreasingthetransparencyofthe
+ReinaldKimAmplayo.2019. Rethinkingattributerep-
+pipelinecanhelppreventpotentialsocialharm. resentationandinjectionforsentimentclassification.
+We plan to release all necessary resources for InProceedingsofthe2019ConferenceonEmpirical
+researchreproductionpurposessothatotherscan Methods in Natural Language Processing and the
+9thInternationalJointConferenceonNaturalLan-
+auditandverifyitandpreventoverestimationof
+guageProcessing(EMNLP-IJCNLP),pages5602–
+the model. We also provide a complete list of
+5613,HongKong,China.AssociationforComputa-
+attributesinTable7toincreasethetransparency. tionalLinguistics.
+3181
+Ravi Arunachalam and Sandipan Sarkar. 2013. The LucieFlekova,DanielPreo¸tiuc-Pietro,andLyleUngar.
+neweyeofgovernment: Citizensentimentanalysis 2016. Exploringstylisticvariationwithageandin-
+insocialmedia. InProceedingsoftheIJCNLP2013 comeonTwitter. InProceedingsofthe54thAnnual
+WorkshoponNaturalLanguageProcessingforSocial Meeting of the Association for Computational Lin-
+Media (SocialNLP), pages 23–28, Nagoya, Japan. guistics(Volume2: ShortPapers), pages313–319,
+AsianFederationofNaturalLanguageProcessing. Berlin,Germany.AssociationforComputationalLin-
+guistics.
+Krisztian Balog, Filip Radlinski, and Shushan
+Arakelyan.2019. Transparent,scrutableandexplain- IdoGuy.2015. Theroleofuserlocationinpersonalized
+ableusermodelsforpersonalizedrecommendation. searchandrecommendation. InProceedingsofthe
+InProceedingsofthe42ndInternationalACMSIGIR 9thACMConferenceonRecommenderSystems,Rec-
+ConferenceonResearchandDevelopmentinInfor- Sys’15,page236,NewYork,NY,USA.Association
+mation Retrieval, SIGIR’19, page 265–274, New forComputingMachinery.
+York,NY,USA.AssociationforComputingMachin-
+ery. Chao Huang, Dong Wang, Shenglong Zhu, and
+Daniel Yue Zhang. 2016. Towards unsupervised
+DavidBamman,JacobEisenstein,andTylerSchnoebe- home location inference from online social media.
+len.2014. Genderidentityandlexicalvariationin In2016IEEEInternationalConferenceonBigData
+socialmedia. JournalofSociolinguistics,18(2):135– (BigData),pages676–685.
+160.
+TunazzinaIslamandDanGoldwasser.2021. Analysis
+AngeloBasile,AlbertGatt,andMalvinaNissim.2019.
+oftwitterusers’lifestylechoicesusingjointembed-
+You write like you eat: Stylistic variation as a pre-
+dingmodel. InProceedingsoftheFifteenthInterna-
+dictorofsocialstratification. InProceedingsofthe
+tionalAAAIConferenceonWebandSocialMedia,
+57thAnnualMeetingoftheAssociationforComputa-
+ICWSM2021,heldvirtually,June7-10,2021,pages
+tionalLinguistics,pages2583–2593,Florence,Italy.
+242–253.AAAIPress.
+AssociationforComputationalLinguistics.
+Tunazzina Islam and Dan Goldwasser. 2022. Twitter
+SuLinBlodgett,LisaGreen,andBrendanO’Connor.
+userrepresentationusingweaklysupervisedgraph
+2016. Demographic dialectal variation in social
+embedding. InProceedingsoftheSixteenthInterna-
+media: AcasestudyofAfrican-AmericanEnglish.
+tionalAAAIConferenceonWebandSocialMedia,
+In Proceedings of the 2016 Conference on Empiri-
+ICWSM2022,Atlanta,Georgia,USA,June6-9,2022,
+calMethodsinNaturalLanguageProcessing,pages
+pages358–369.AAAIPress.
+1119–1130,Austin,Texas.AssociationforComputa-
+tionalLinguistics.
+Anders Johannsen, Dirk Hovy, and Anders Søgaard.
+2015. Cross-lingualsyntacticvariationoverageand
+XinChen,YuWang,EugeneAgichtein,andFusheng
+gender. In Proceedings of the Nineteenth Confer-
+Wang.2015. Acomparativestudyofdemographic
+enceonComputationalNaturalLanguageLearning,
+attributeinferenceintwitter. InProceedingsofthe
+pages103–112,Beijing,China.AssociationforCom-
+InternationalAAAIConferenceonWebandSocial
+putationalLinguistics.
+Media,volume9,pages590–593.
+SunghwanMacKim,QiongkaiXu,LizhenQu,Stephen
+DorottyaDemszky,NikhilGarg,RobVoigt,JamesZou,
+Wan, and Cécile Paris. 2017. Demographic infer-
+Jesse Shapiro, Matthew Gentzkow, and Dan Juraf-
+enceonTwitterusingrecursiveneuralnetworks. In
+sky.2019. Analyzingpolarizationinsocialmedia:
+Proceedings of the55th Annual Meeting of the As-
+Methodandapplicationtotweetson21massshoot-
+sociationforComputationalLinguistics(Volume2:
+ings. InProceedingsofthe2019Conferenceofthe
+ShortPapers),pages471–477,Vancouver,Canada.
+NorthAmericanChapteroftheAssociationforCom-
+AssociationforComputationalLinguistics.
+putationalLinguistics: HumanLanguageTechnolo-
+gies,Volume1(LongandShortPapers),pages2970–
+3005,Minneapolis,Minnesota.AssociationforCom- Alfred Kobsa. 2001. Generic user modeling sys-
+putationalLinguistics. tems. Usermodelinganduser-adaptedinteraction,
+11(1):49–63.
+JacobEisenstein,BrendanO’Connor,NoahA.Smith,
+andEricP.Xing.2010. Alatentvariablemodelfor Anne Kreuter, Kai Sassenberg, and Roman Klinger.
+geographiclexicalvariation. InProceedingsofthe 2022. Itemsfrompsychometrictestsastrainingdata
+2010ConferenceonEmpiricalMethodsinNatural forpersonalityprofilingmodelsofTwitterusers. In
+LanguageProcessing,pages1277–1287,Cambridge, Proceedingsofthe12thWorkshoponComputational
+MA.AssociationforComputationalLinguistics. ApproachestoSubjectivity,Sentiment&SocialMe-
+diaAnalysis,pages315–323,Dublin,Ireland.Asso-
+Quan Fang, Jitao Sang, Changsheng Xu, and ciationforComputationalLinguistics.
+M.ShamimHossain.2015. Relationaluserattribute
+inference in social media. IEEE Transactions on WilliamLabov.1963. Thesocialmotivationofasound
+Multimedia,17(7):1031–1044. change. Word,19(3):273–309.
+3182
+GuillaumeLample,MiguelBallesteros,SandeepSub- YujieQian,EnricoSantus,ZhijingJin,JiangGuo,and
+ramanian,KazuyaKawakami,andChrisDyer.2016. Regina Barzilay. 2019. GraphIE: A graph-based
+Neural architectures for named entity recognition. frameworkforinformationextraction. InProceed-
+InProceedingsofthe2016ConferenceoftheNorth ingsofthe2019ConferenceoftheNorthAmerican
+AmericanChapteroftheAssociationforComputa- Chapter of the Association for Computational Lin-
+tionalLinguistics: HumanLanguageTechnologies, guistics: Human Language Technologies, Volume
+pages260–270,SanDiego,California.Association 1 (Long and Short Papers), pages 751–761, Min-
+forComputationalLinguistics. neapolis,Minnesota.AssociationforComputational
+Linguistics.
+Brian Larson. 2017. Gender as a variable in natural-
+languageprocessing: Ethicalconsiderations. InPro- YujieQian,JieTang,ZhilinYang,BinxuanHuang,Wei
+ceedings of the First ACL Workshop on Ethics in Wei,andKathleenMCarley.2017. Aprobabilistic
+NaturalLanguageProcessing,pages1–11,Valencia, frameworkforlocationinferencefromsocialmedia.
+Spain.AssociationforComputationalLinguistics. arXivpreprintarXiv:1702.07281.
+BrianLester,RamiAl-Rfou,andNoahConstant.2021. Colin Raffel, Noam Shazeer, Adam Roberts, Kather-
+The power of scale for parameter-efficient prompt ine Lee, Sharan Narang, Michael Matena, Yanqi
+tuning. InProceedingsofthe2021Conferenceon Zhou,WeiLi,andPeterJ.Liu.2020. Exploringthe
+EmpiricalMethodsinNaturalLanguageProcessing, limitsoftransferlearningwithaunifiedtext-to-text
+pages3045–3059,OnlineandPuntaCana,Domini- transformer. JournalofMachineLearningResearch,
+can Republic. Association for Computational Lin- 21(140):1–67.
+guistics.
+DelipRao,MichaelPaul,ClayFink,DavidYarowsky,
+JiweiLi,AlanRitter,andEduardHovy.2014. Weakly TimothyOates,andGlenCoppersmith.2011. Hier-
+superviseduserprofileextractionfromTwitter. In archical bayesian models for latent attribute detec-
+Proceedingsofthe52ndAnnualMeetingoftheAs- tioninsocialmedia. InProceedingsoftheInterna-
+sociationforComputationalLinguistics(Volume1: tionalAAAIConferenceonWebandSocialMedia,
+LongPapers),pages165–174,Baltimore,Maryland. volume5,pages598–601.
+AssociationforComputationalLinguistics.
+DelipRao,DavidYarowsky,AbhishekShreevats,and
+ShaLi,HengJi,andJiaweiHan.2021. Document-level Manaswi Gupta. 2010. Classifying latent user at-
+eventargumentextractionbyconditionalgeneration. tributes in twitter. In Proceedings of the 2nd In-
+InProceedingsofthe2021ConferenceoftheNorth ternational Workshop on Search and Mining User-
+AmericanChapteroftheAssociationforComputa- GeneratedContents,SMUC’10,page37–44,New
+tionalLinguistics: HumanLanguageTechnologies, York,NY,USA.AssociationforComputingMachin-
+pages 894–908, Online. Association for Computa- ery.
+tionalLinguistics.
+SaraRosenthalandKathleenMcKeown.2011. Agepre-
+WendyLiuandDerekRuths.2013. What’sinaname? dictioninblogs: Astudyofstyle,content,andonline
+usingfirstnamesasfeaturesforgenderinferencein behaviorinpre-andpost-socialmediagenerations.
+twitter. In2013AAAISpringSymposiumSeries. In Proceedings of the 49th Annual Meeting of the
+AssociationforComputationalLinguistics: Human
+WendyLiu,FaiyazZamal,andDerekRuths.2012. Us- Language Technologies, pages 763–772, Portland,
+ingsocialmediatoinfergendercompositionofcom- Oregon, USA. Association for Computational Lin-
+muter populations. In Proceedings of the Interna- guistics.
+tionalAAAIConferenceonWebandSocialMedia,
+volume6,pages26–29. ShigeyukiSakaki,YasuhideMiura,XiaojunMa,Keigo
+Hattori, and Tomoko Ohkuma. 2014. Twitter user
+YinhanLiu,MyleOtt,NamanGoyal,JingfeiDu,Man- genderinferenceusingcombinedanalysisoftextand
+dar Joshi, Danqi Chen, Omer Levy, Mike Lewis, imageprocessing. InProceedingsoftheThirdWork-
+Luke Zettlemoyer, and Veselin Stoyanov. 2019. shoponVisionandLanguage,pages54–61,Dublin,
+Roberta: A robustly optimized bert pretraining ap- Ireland.DublinCityUniversityandtheAssociation
+proach. arXivpreprintarXiv:1907.11692. forComputationalLinguistics.
+Kai Lu, Yi Zhang, Lanbo Zhang, and Shuxin Wang. MaartenSap,GregoryPark,JohannesEichstaedt,Mar-
+2015. Exploitinguserandbusinessattributesforper- garetKern, DavidStillwell, MichalKosinski, Lyle
+sonalizedbusinessrecommendation. InProceedings Ungar,andHansenAndrewSchwartz.2014. Devel-
+ofthe38thInternationalACMSIGIRConferenceon oping age and gender predictive lexica over social
+ResearchandDevelopmentinInformationRetrieval, media. In Proceedings of the 2014 Conference on
+SIGIR’15,page891–894,NewYork,NY,USA.As- EmpiricalMethodsinNaturalLanguageProcessing
+sociationforComputingMachinery. (EMNLP),pages1146–1151,Doha,Qatar.Associa-
+tionforComputationalLinguistics.
+DongNguyenandJacobEisenstein.2017. Akernelin-
+dependencetestforgeographicallanguagevariation. AbigailSee,PeterJ.Liu,andChristopherD.Manning.
+ComputationalLinguistics,43(3):567–592. 2017. Gettothepoint: Summarizationwithpointer-
+3183
+generatornetworks. InProceedingsofthe55thAn- YangboZhu,JamieCallan,andJaimeCarbonell.2008.
+nualMeetingoftheAssociationforComputational Theimpactofhistorylengthonpersonalizedsearch.
+Linguistics (Volume 1: Long Papers), pages 1073– InProceedingsofthe31stAnnualInternationalACM
+1083,Vancouver,Canada.AssociationforComputa- SIGIRConferenceonResearchandDevelopmentin
+tionalLinguistics. Information Retrieval, SIGIR ’08, page 715–716,
+New York, NY, USA. Association for Computing
+Xuehua Shen, Bin Tan, and ChengXiang Zhai. 2005. Machinery.
+Implicitusermodelingforpersonalizedsearch. In
+Proceedingsofthe14thACMInternationalConfer- A DetailedExperimentSetup
+enceon InformationandKnowledge Management,
+CIKM’05,page824–831,NewYork,NY,USA.As- We use two Nvidia GeForce RTX 3090 GPUs as
+sociationforComputingMachinery. ourcomputinginfrastructure.
+Kartik Shenoy, Filip Ilievski, Daniel Garijo, Daniel Extraction-based method setup. We finetune
+Schwabe, and Pedro Szekely. 2022. A study of themodelwith10epochsusingAdamW.Thelearn-
+thequalityofwikidata. JournalofWebSemantics,
+ingrateis5e-5usingthelinearschedulerwithout
+72:100679.
+warmup. The batch size is 128. The hidden size
+Jiao Sun and Nanyun Peng. 2021. Men are elected, forclassificationis768. Thepositive-negativesam-
+womenaremarried:EventsgenderbiasonWikipedia. pleratiois1:5. Weusetag-levelF asQianetal.
+1
+InProceedingsofthe59thAnnualMeetingoftheAs-
+(2019)toselectthebestresultsonthedevelopment
+sociationforComputationalLinguisticsandthe11th
+setefficientlyforasinglerun. Thetrainingtimeis
+InternationalJointConferenceonNaturalLanguage
+Processing(Volume2:ShortPapers),pages350–360, about16hoursandinferenceontestsetisabout5
+Online.AssociationforComputationalLinguistics. hours.
+LatanyaSweeney.2000a. Simpledemographicsoften Generation-basedmethodsetup. Wefine-tune
+identifypeopleuniquely. LIDAP-WP4,2000. the model on all sliding window examples for 5
+epochs using AdamW. The learning rate is 1e-4
+LatanyaSweeney.2000b. Uniquenessofsimpledemo-
+usinglinearschedulerwithnowarmup. Thebatch
+graphicsintheu.s.population. LIDAP-WP4,2000.
+size is 96. We use gradient clipping with max
+DuyuTang,BingQin,andTingLiu.2015. Learningse- norm3toincreasestabilityduringtraining. Weuse
+manticrepresentationsofusersandproductsfordoc- slidingwindowswithsize512andstride128. We
+umentlevelsentimentclassification. InProceedings
+usegreedysearchduringinference. Weuseexact
+of the 53rd Annual Meeting of the Association for
+matchtoselectthebestresultsondevelopmentset
+ComputationalLinguisticsandthe7thInternational
+JointConferenceonNaturalLanguageProcessing efficiently for a single run. The training time is
+(Volume1: LongPapers),pages1014–1023,Beijing, about40hoursandinferenceontestsetisabout3
+China.AssociationforComputationalLinguistics.
+hours.
+JaimeTeevan,MeredithRingelMorris,andSteveBush.
+B AttributeDescriptions
+2009. Discoveringandusinggroupstoimproveper-
+sonalizedsearch. InProceedingsoftheSecondACM Weprovidethedescriptionsofeachattributefrom
+InternationalConferenceonWebSearchandData
+WikidatainTable7tofacilitatetheunderstanding
+Mining, WSDM ’09, page 15–24, New York, NY,
+USA.AssociationforComputingMachinery. ofattributesandmitigatethepotentialimpactfrom
+datasetbiases.
+DennyVrandecˇic´ andMarkusKrötzsch.2014. Wiki-
+data: Afreecollaborativeknowledgebase. Commun.
+ACM,57(10):78–85.
+Matthew L Williams, Pete Burnap, and Luke Sloan.
+2017. Towards an ethical framework for publish-
+ing twitter data in social research: Taking into ac-
+countusers’views, onlinecontextandalgorithmic
+estimation. Sociology, 51(6):1149–1168. PMID:
+29276313.
+JingYao,ZhichengDou,andJi-RongWen.2020. Em-
+ployingPersonalWordEmbeddingsforPersonalized
+Search,page1359–1368.AssociationforComputing
+Machinery,NewYork,NY,USA.
+3184
+ID Attribute Description
+P106 occupation occupationofaperson;seealso"fieldofwork"(Property:P101),"positionheld"(Prop-
+erty:P39)
+P27 country of citizen- theobjectisacountrythatrecognizesthesubjectasitscitizen
+ship
+P19 placeofbirth mostspecificknown(e.g.cityinsteadofcountry,orhospitalinsteadofcity)birthlocation
+ofaperson,animalorfictionalcharacter
+P69 educatedat educationalinstitutionattendedbysubject
+P1412 languages spoken, language(s)thatapersonorapeoplespeaks,writesorsigns,includingthenativelan-
+writtenorsigned guage(s)
+P641 sport sportthatthesubjectparticipatesorparticipatedinorisassociatedwith
+P108 employer personororganizationforwhichthesubjectworksorworked
+P39 positionheld subjectcurrentlyorformerlyholdstheobjectpositionorpublicoffice
+P1303 instrument musicalinstrumentthatapersonplaysorteachesorusedinamusicoccupation
+P54 member of sports sportsteamsorclubsthatthesubjectrepresentsorrepresented
+team
+P166 awardreceived awardorrecognitionreceivedbyaperson,organisationorcreativework
+P413 positionplayedon positionorspecialismofaplayeronateam
+team/speciality
+P551 residence theplacewherethepersonisorhasbeen,resident
+P1344 participantin eventinwhichapersonororganizationwas/isaparticipant;inverseofP710orP1923
+P103 nativelanguage languageorlanguagesapersonhaslearnedfromearlychildhood
+P937 worklocation locationwherepersonsororganisationswereactivelyparticipatinginemployment,busi-
+nessorotherwork
+P3602 candidacy in elec- electionwherethesubjectisacandidate
+tion
+P463 memberof organization,clubormusicalgrouptowhichthesubjectbelongs.Donotuseformember-
+shipinethnicorsocialgroups,norforholdingapoliticalposition,suchasamemberof
+parliament(useP39forthat).
+P101 fieldofwork specializationofaperson,organization,oroftheworkcreatedbysuchaspecialist;see
+P106fortheoccupation
+P118 league leagueinwhichteamorplayerplaysorhasplayedin
+P2094 competitionclass officialclassificationbyaregulatingbodyunderwhichthesubject(events,teams,partici-
+pants,orequipment)qualifiesforinclusion
+P512 academicdegree academicdegreethatthepersonholds
+P2416 sports discipline disciplineanathletecompetedinwithinasport
+competedin
+P1411 nominatedfor awardnominationreceivedbyaperson, organisationorcreativework(inspiredfrom
+"awardreceived"(Property:P166))
+P361 partof objectofwhichthesubjectisapart(ifthissubjectisalreadypartofobjectAwhichisa
+partofobjectB,thenpleaseonlymakethesubjectpartofobjectA).Inversepropertyof
+"haspart"(P527,seealso"haspartsoftheclass"(P2670)).
+P6886 writinglanguage languageinwhichthewriterhaswrittentheirwork
+P6553 personalpronoun personalpronoun(s)thispersongoesby
+P241 militarybranch branchtowhichthismilitaryunit,award,office,orpersonbelongs,e.g.RoyalNavy
+P410 militaryrank militaryrankachievedbyaperson(shouldusuallyhavea"starttime"qualifier),ormilitary
+rankassociatedwithaposition
+Continueonthenextpage
+Table7: AttributeDescription
+3185
+ID Attribute Description
+P2348 timeperiod timeperiod(historicperiodorera,sportsseason,theatreseason,legislativeperiodetc.)in
+whichthesubjectoccurred
+P710 participant person,groupofpeopleororganization(object)thatactivelytakes/tookpartinanevent
+orprocess(subject). Preferablyqualifywith"objecthasrole"(P3831). UseP1923for
+participantsthatareteams.
+P1576 lifestyle typicalwayoflifeofanindividual,group,orculture
+P2650 interestedin itemofspecialorvestedinteresttothispersonororganisation
+P740 location of forma- locationwhereagroupororganizationwasformed
+tion
+P859 sponsor organizationorindividualthatsponsorsthisitem
+P812 academicmajor majorsomeonestudiedatcollege/university
+P8413 academic appoint- thispersonhasbeenappointedtoarolewithinthegivenhighereducationinstitutionor
+ment department;distinctfromemploymentoraffiliation
+P5096 member of the personwhohasbeenamemberofacrewassociatedwiththevesselorspacecraft. For
+crewof spacecraft,inverseofcrewmember(P1029),backuporreserveteamorcrew(P3015)
+P803 professorship professorshippositionheldbythisacademicperson
+P66 ancestralhome placeoforiginforancestorsofsubject
+P112 foundedby founderorco-founderofthisorganization,religionorplace
+P3828 wears clothingoraccessorywornonsubject’sbody
+P1321 place of origin lieud’origine/Heimatort/luogod’origineofaSwissnational.Notbeconfusedwithplace
+(Switzerland) ofbirthorplaceofresidence
+P495 countryoforigin countryoforiginofthisitem(creativework,food,phrase,product,etc.)
+P276 location location of the object, structure or event. In the case of an administrative entity as
+containingitemuseP131.ForstatisticalentitiesuseP8138.Inthecaseofageographic
+entityuseP706.UseP7153forlocationsassociatedwiththeobject.
+P5389 permanentresident countryorregionwhereapersonhasthelegalstatusofpermanentresident
+of
+P1429 haspet petthatapersonowns
+P263 officialresidence theresidenceatwhichheadsofgovernmentandotherseniorfiguresofficiallyreside
+P1268 represents organization,individual,orconceptthatanentityrepresents
+P3716 social classifica- socialclassasrecognizedintraditionalorstatelaw
+tion
+P17 country sovereignstateofthisitem(nottobeusedforhumanbeings)
+P488 chairperson presidingmemberofanorganization,grouporbody
+P7779 militaryunit smallestmilitaryunitthatapersonis/wasin
+P1716 brand commercialbrandassociatedwiththeitem
+P6 head of govern- head of the executive power of this town, city, municipality, state, country, or other
+ment governmentalbody
+P159 headquarters loca- city,whereanorganization’sheadquartersisorhasbeensituated.UseP276qualifierfor
+tion specificbuilding
+P8047 countryofregistry countrywhereashipisorhasbeenregistered
+Table7: AttributeDescription
+3186
+ACL2023ResponsibleNLPChecklist
+A Foreverysubmission:
+3
+(cid:3) A1. Didyoudescribethelimitationsofyourwork?
+4.5LimitationsandChallengesEthicsStatement
+3
+(cid:3) A2. Didyoudiscussanypotentialrisksofyourwork?
+EthicsStatement
+3
+(cid:3) A3. Dotheabstractandintroductionsummarizethepaper’smainclaims?
+Abstract1Introduction
+(cid:3)7 A4. HaveyouusedAIwritingassistantswhenworkingonthispaper?
+Leftblank.
+3
+B (cid:3) Didyouuseorcreatescientificartifacts?
+1Introduction2ProblemDefinitionandDataset
+3
+(cid:3) B1. Didyoucitethecreatorsofartifactsyouused?
+1Introduction
+3
+(cid:3) B2. Didyoudiscussthelicenseortermsforuseand/ordistributionofanyartifacts?
+2.2DatasetCreationEthicsStatement
+3
+(cid:3) B3. Didyoudiscussifyouruseofexistingartifact(s)wasconsistentwiththeirintendeduse,provided
+thatitwasspecified? Fortheartifactsyoucreate,doyouspecifyintendeduseandwhetherthatis
+compatiblewiththeoriginalaccessconditions(inparticular,derivativesofdataaccessedforresearch
+purposesshouldnotbeusedoutsideofresearchcontexts)?
+EthicsStatement
+3
+(cid:3) B4. Didyoudiscussthestepstakentocheckwhetherthedatathatwascollected/usedcontainsany
+informationthatnamesoruniquelyidentifiesindividualpeopleoroffensivecontent,andthesteps
+takentoprotect/anonymizeit?
+EthicsStatement
+3
+(cid:3) B5. Did you provide documentation of the artifacts, e.g., coverage of domains, languages, and
+linguisticphenomena,demographicgroupsrepresented,etc.?
+2.2DatasetCreationEthicsStatement
+3
+(cid:3) B6. Didyoureportrelevantstatisticslikethenumberofexamples,detailsoftrain/test/devsplits,
+etc. forthedatathatyouused/created? Evenforcommonly-usedbenchmarkdatasets,includethe
+numberofexamplesintrain/validation/testsplits,astheseprovidenecessarycontextforareader
+tounderstandexperimentalresults. Forexample,smalldifferencesinaccuracyonlargetestsetsmay
+besignificant,whileonsmalltestsetstheymaynotbe.
+2.2DatasetCreation
+3
+C (cid:3) Didyouruncomputationalexperiments?
+4Experiments
+3
+(cid:3) C1. Didyoureportthenumberofparametersinthemodelsused, thetotalcomputationalbudget
+(e.g.,GPUhours),andcomputinginfrastructureused?
+4.1ExperimentSetupAppendixADetailedExperimentSetup
+TheResponsibleNLPChecklistusedatACL2023isadoptedfromNAACL2022,withtheadditionofaquestiononAIwriting
+assistance.
+3187
+3
+(cid:3) C2. Did you discuss the experimental setup, including hyperparameter search and best-found
+hyperparametervalues?
+3.2Generation-basedmethod4.1ExperimentSetupAppendixADetailedExperimentSetup
+3
+(cid:3) C3. Didyoureportdescriptivestatisticsaboutyourresults(e.g.,errorbarsaroundresults,summary
+statisticsfromsetsofexperiments),andisittransparentwhetheryouarereportingthemax,mean,
+etc. orjustasinglerun?
+AppendixADetailedExperimentSetup
+3
+(cid:3) C4. Ifyouusedexistingpackages(e.g.,forpreprocessing,fornormalization,orforevaluation),did
+youreporttheimplementation,model,andparametersettingsused(e.g.,NLTK,Spacy,ROUGE,
+etc.)?
+3.2Generation-basedmethod4.1ExperimentSetup
+7
+D (cid:3) Didyouusehumanannotators(e.g.,crowdworkers)orresearchwithhumanparticipants?
+Leftblank.
+(cid:3) D1. Did you report the full text of instructions given to participants, including e.g., screenshots,
+disclaimersofanyriskstoparticipantsorannotators,etc.?
+Noresponse.
+(cid:3) D2. Didyoureportinformationabouthowyourecruited(e.g.,crowdsourcingplatform,students)
+andpaidparticipants,anddiscussifsuchpaymentisadequategiventheparticipants’demographic
+(e.g.,countryofresidence)?
+Noresponse.
+(cid:3) D3. Did you discuss whether and how consent was obtained from people whose data you’re
+using/curating? For example, if you collected data via crowdsourcing, did your instructions to
+crowdworkersexplainhowthedatawouldbeused?
+Noresponse.
+(cid:3) D4. Wasthedatacollectionprotocolapproved(ordeterminedexempt)byanethicsreviewboard?
+Noresponse.
+(cid:3) D5. Didyoureportthebasicdemographicandgeographiccharacteristicsoftheannotatorpopulation
+thatisthesourceofthedata?
+Noresponse.
+3188

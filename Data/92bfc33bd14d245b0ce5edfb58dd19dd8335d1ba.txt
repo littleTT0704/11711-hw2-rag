@@ -1,0 +1,619 @@
+ACOUSTIC-TO-WORDRECOGNITIONWITHSEQUENCE-TO-SEQUENCEMODELS
+ShrutiPalaskarandFlorianMetze
+CarnegieMellonUniversity
+LanguageTechnologiesInstitute
+Pittsburgh,PA,USA
+{spalaska|fmetze}@cs.cmu.edu
+ABSTRACT largewordvocabularieswithoutrequiringthousandsofhours
+of data. As a way to manage that problem, [1] restricts the
+Acoustic-to-Wordrecognitionprovidesastraightforward
+vocabulary to 10,000 frequently occurring words or resorts
+solutiontoend-to-endspeechrecognitionwithoutneedingex-
+to using sub-word units to avoid out-of-vocabulary (OOV)
+ternaldecoding,languagemodelre-scoringorlexicon. While
+words. Butbothoftheseapproacheshavecertaindrawbacks.
+character-basedmodelsofferanaturalsolutiontotheout-of-
+First, restrictedvocabularyleadstoOOVwords. Andinad-
+vocabulary problem, word models can be simpler to decode
+ditiontothat,sub-wordunitsarenotsemanticallyorsyntac-
+andmayalsobeabletodirectlyrecognizesemanticallymean-
+ticallyasrichaswhole-wordunits. Inthispaper,wepresent
+ingfulunits. WepresenteffectivemethodstotrainSequence-
+a large vocabulary full word model that does not have these
+to-Sequence models for direct word-level recognition (and
+constraints.
+character-level recognition) and show an absolute improve-
+ment of 4.4-5.0% in Word Error Rate on the Switchboard Forend-to-endspeechrecognition,RecurrentNeuralNet-
+corpuscomparedtopriorwork. Inadditiontothesepromis- work(RNN)acousticmodelspairedwithConnectionistTem-
+ing results, word-based models are more interpretable than poralClassification(CTC)[2,3]orattention-basedSequence-
+charactermodels,whichhavetobecomposedintowordsus- to-Sequence(S2S)models[4,5,6,7]provideamorepower-
+ing a separate decoding step. We analyze the encoder hid- fulandsimpleframeworkthatscaleswellwithlargetraining
+denstatesandtheattentionbehavior,andshowthatlocation- corpora. These sequence-based models no longer need pre-
+awareattentionnaturallyrepresentswordsasasinglespeech- defined alignments between acoustic features and transcrip-
+word-vector, despite spanning multiple frames in the input. tions,andthisflexibilitymakesworkingtowardsA2Wmod-
+WefinallyshowthattheAcoustic-to-Wordmodelalsolearns elsapossibilitynow.
+to segment speech into words with a mean standard devia- Recently,notableprogresshasbeenmadetowardsbuild-
+tion of 3 frames as compared with human annotated forced- ingdirectA2WmodelsusingCTC[8,9,10,11]butiteither
+alignmentsfortheSwitchboardcorpus. requireslargetrainingdata[9,10,12]orsmallervocabulary
+[1,8,11]. Inthispaper,wepresentonesuchapproachusing
+Index Terms— end-to-end speech recognition, encoder-
+nomorethan300hoursoftrainingdatabutwithaS2Smodel
+decoder,acoustic-to-word,speechembeddings
+insteadofaCTCmodel.
+OurmotivationforusingaS2SmodelisthatwhileCTC
+1. INTRODUCTION
+followsamonotonicalignmentbetweenacousticframesand
+DirectAcoustic-to-Word(A2W)mappingisrelevantforAu- word predictions, an A2W model would benefit more from
+tomatic Speech Recognition (ASR) because it no longer re- a flexible alignment scheme between acoustics and words.
+quiresalexiconorseparately-trainedlanguagemodel,thatis As spoken words are more variable in a number of frames
+currentlynecessarytodecodeinagrapheme,phoneme,char- perwordascomparedtothenumberofframesforcharacters
+acter or sub-word models. It would lead to truly end-to-end or phonemes, enforcing a monotonicity for such alignment
+speech recognition models giving P(Words|Acoustics). An- wouldbeanoverhead. Especiallyinspontaneousspeech, or
+other strong motivation for building direct word models is noisy,ormulti-speakerscenarios,thelabelsmaynotbe100%
+toobtainsemanticallymeaningfulrepresentationsthatwould accurate and model will benefit with flexibility. With this
+be useful in co-learning tasks with other modalities like text method,wecanusedirectacoustic-to-wordmodelinginother
+wheretheunitofrepresentationisgenerallywords. sequence-basedtaskslikepart-of-speechtaggingorsyntactic
+Recently, A2W models have been explored in order to parsingwithspeechinput.
+have a simpler and efficient solution for end-to-end recogni- AnA2Wmodelmayshowbetterinterpretabilityasitdi-
+tion. The challenges of these models are how to handle the rectly maps two correlated streams of data, end-to-end i.e.
+8102
+guA
+12
+]SA.ssee[
+2v79590.7081:viXra
+speech to words. In this paper, we explore the interpretabil- 3. SEQUENCE-TO-SEQUENCEMODEL
+ity,inparticular,weanalyzetheencoderhiddenstatesandthe
+attentionmechanismofaS2Smodel. Intheprocess,wefind
+Our S2S model is similar in structure to the Listen, At-
+thatthismodellearnstosegmentinputspeechintowords,si-
+tend and Spell model [20] which consists of 3 components:
+lence, and non-silence parts without any added supervision
+the encoder network, a decoder network and an attention
+forthissegmentation. Wealsofindthattheword-alignments
+model. The encoder maps the input acoustic features vec-
+produced by our model are as accurate as human annotated
+tors x = (x ,x ,...,x ) where x ∈ Rd into a sequence
+segmentations. Usingthislearnedsegmentation,weareable 1 2 T i
+of higher-level features h = (h ,h ,...,h ). The encoder
+todirectlyobtainspeech-word-vectorsfromthesemodels. 1 2 T(cid:48)
+is a multi-layer bi-directional Long Short Term Memory
+(BLSTM) RNN that is structured as a pyramid by skipping
+everyotherframebetweencertainencoderlayersforefficient
+2. RELATEDWORK
+training. This reduces the length of the input from T to T(cid:48).
+Thisencodernetworkisanalogoustothetraditionalacoustic
+A2WmodelinghasbeenlargelypursuedusingCTCmodels.
+model of an ASR. The decoder network is also an LSTM
+Soltauetal.[10]introducedthefirstA2Wmodelbutneededa
+networkthatlearnstomodeltheoutputdistributionoverthe
+verylargetrainingcorpus(125,000hours)duetothelargevo-
+next target conditioned on sequence of previous predictions
+cabularyofA2Wmodels,100000wordsintheircase. These i.e. P(y |y∗ ,y∗ ,...,y∗,x)wherey∗ = (y∗,y∗,...,y∗ )
+wordvocabulariesarenoticeablymuchlargerthancharacter isthegrol unl− d1 -trul t− h2 labels0 equence. Inthiswo0 rk,y1 ∗ ∈ UL+ ca1 n
+orsub-wordvocabularies. Audhkhasietal. [8]foundthatfil- i
+be a token from a character, sub-word or word vocabulary.
+teringoutrarewordsandreplacingthemwithanOOVsymbol
+This decoder network is similar to the language model in
+alleviatestheneedforlargedata. ButproducingOOVwould
+traditional ASR as it generates targets y from h using an at-
+leadtohigherworderrorrates. Acommontechniquetosolve
+tentionmechanism. Theattentionmodellearnsanalignment
+this OOV problem has been to use word-level prediction for
+weightvectorbetweentheencodinghandthecurrentoutput
+frequentwordsandreverttothecharacterorsub-wordpredic-
+ofdecodery . Ateachtimestep, theattentionmodulecom-
+tionforrarewords[9,1]. Thisisatwo-stepprocedure,stray- l
+putes a context vector that is fed into the decoder together
+ingfromtheregularsequence-to-sequencemappingofacous- withthepreviousground-truthlabely∗ .
+tics to units. Recently, Li et al. [9] proposed a hybrid-CTC l−1
+We use a location-aware attention mechanism [21] that
+modelwhereanA2WmodelconsultedanAcoustic-to-Letter
+enforcesmonotonicityinthealignments,whichmaybeben-
+model upon generation of the OOV symbol. They also pro-
+eficial for speech recognition. To do so, the location-aware
+posedamixed-unitCTCmodelusingfrequentwords,letters
+attention applies a convolution across time to the attention
+andsub-wordsalthoughagainwithlargeamountsofdata(ap-
+of previous time step using trainable filters. This convolved
+proximately3,400hours). In[1],theauthorsproposeaSpell
+attention feature is used for calculating the attention for the
+and Recognize model where they first predict the “spelling”
+currenttimestep.Weapplyaone-dimensionalconvolutionK
+ofthewordbeforecomposingitintoawordunit(ifafrequent
+alongtheinputfeatureaxisttogetasetofT features{f}T
+word), or preserving the “spelling” as character units. This t=1
+describedasfollows:
+approach is single-step method as they use a common soft-
+maxforthemixedvocabularies. Allthesemethodsdescribed
+aboveusetheCTClossfunction. {f}T =K∗a
+t=1 l−1
+S2Smodelshavealsobeenusedforrecognizingsub-word
+e =gTtanh(Lin(y )+Lin(h)+LinB(f ))
+[13] or word-piece units in ASR [14, 12, 7] that no longer lt l−1 t
+haveOOVwordsbuttheseresultswerepresentedwith12,500 a lt =Softmax({e lt}T t=1)
+hours of in-house speech data. Lu et al. [15] present one of
+the first S2S models for large vocabulary A2W recognition
+wherea =[a ,...,a ]T,gisalearnablevectorpa-
+with the 300 hour Switchboard corpus with a vocabulary of l−1 l−1,1 l−1,T
+30,000words. Inthispaper,webuildupontheirmethodsand rameter,{e lt}T t=1 isaT-dimensionalvector,Lin()isalinear
+presentaneffectivewayoftrainingend-to-endA2Wmodels layer with learnable matrix parameters without bias vectors,
+withimprovedperformance. LinB()isalinearlayerwithlearnablematrixandbiasparam-
+eters.
+Another area of research that our paper is relevant to is
+speech-vectorrepresentationlearning. [16,17,18,19]allex- TheS2Smodelistrainedbyoptimizingthecrossentropy
+plorewaystoextractspeechembeddings. Theirmethodsare lossfunctionwhichmaximizesthelog-likelihoodofthetrain-
+commonly unsupervised learning based on clustering where ingdata. Weusebeamsearchtoperforminference. Wealso
+theydonotusethetranscriptsordonotperformspeechrecog- applyunigramlabelsmoothingthatdistributestheprobability
+nition. In this work, we obtain similar speech-vectors as a ofmost-probabletokentopreventtheover-confidenceofthe
+by-productofourspeechrecognition. model[22,23].
+4. EXPERIMENTALSETUP Table 1: Word Error Rate (WER) for the SW and CH test
+setsusingcharactertargetunits,andcomparisonwithother
+We use the standard 300-hour Switchboard corpus (SW, end-to-endcharacter-levelmodels. Wecomparewiththere-
+LDC97S62) [24] which consists of 2,430 two-sided tele- scoredcharacter-LMresultsfrompriorworkwhenavailable.
+phonic conversations between 500 different speakers and
+contains 3 million words of text. We evaluate on the HUB5 WER(%)
+eval2000 (LDC2002S09, LDC2002T43) containing Switch- Model Vocab SW CH
+board subset similar to training data and CallHome (CH) PriorWorkCTC
+subsetthatisatougherset.Thereare196,656totalutterances Hannunetal.+LM[30] 29 20.0 31.8
+out of which we use the first 4,000 utterances as a valida- Zweigetal. +LM[31] 79 19.8 32.1
+tionset. Ourinputfeaturesare80-dimensionallog-melfilter Audhkhasietal. [1] 79 18.9 30.9
+banks normalized with per-speaker mean and variance. We PriorWorkS2S
+alsouse3-dimensionalpitchfeatures. Luetal. +LM[15] 35 32.6 51.9
+Wepresentthreedifferenttypesoftargetunitsforspeech Zenkeletal. [32] 46 28.1 40.6
+recognition in this paper: characters, BPE units and words. Toshniwaletal. [33] N/A 23.1 40.8
+The character vocabulary is made of 46 units containing 26
+Ourmodels
+letters,10digits,andotherfrequentlyoccurringspecialsym-
+S2SChar 46 18.0 32.5
+bols. We try different BPE vocabularies like 300, 500, 1k,
+S2SChar+LM 46 17.1 31.1
+5k,10kand16k. Wefinallypresentalarge-vocabularymodel
+S2SChar+WordLM 46 15.6 31.0
+madeofall29,874uniquewordsintheSwitchboardset. The
+vocabularies also contain non-language special symbols that
+denotenoise,vocalized-noiseandlaughter. Wetraincharac- Table 2: Word Error Rate (WER) for the SW and CH test
+terandwordlevelRNNlanguagemodelsontheSwitchboard setsusingBPEandwordleveltargetunits,andcomparison
++ Fisher (LDC2004T19) [25] transcripts as is the common withotherend-to-endword-levelmodels. *denotescharacter
+practiceforthisdata. initialization
+Our encoder consists of 6 layers each with 320 bi-
+directional LSTM cells. The second and third layer skip WER(%)
+every other frame to get a reduction of T/4 in input frames. Model Vocab SW CH
+We use the AdaDelta [26] optimizer. The location-aware PriorWorkCTC
+attention convolution uses 10 filters with width 100. We Audhkhasietal. [1] 10000 14.5 23.9
+use a projection layer of 320 dimensions after each layer of Chenetal. [34] 29874 24.9 36.5
+the encoder. Our decoder is a single layer LSTM contain- PriorWorkS2S
+ing 300 cells. We initialize all parameters uniformly within Chenetal. [34] 29874 31.2 40.5
+[−0.1,0.1] unless otherwise specified. We use unigram la- Luetal. [15] 29874 26.8 48.2
+bel smoothing with weight 0.05. The beam size used for all Luetal. +LM[15] 29874 26.2 47.4
+experiments is 10. We use the ESPnet toolkit[27, 28] as a
+Ourmodels
+startingpointforourexperiments.
+S2SBPE12k 11690 21.3 35.7
+S2SWord>=5 11069 23.0 37.2
+5. RESULTS S2SWord>=5* 11069 22.4 36.1
+S2SLargeVocab 29874 22.4 36.2
+In Table 1, we present our character-level S2S model and S2SLargeVocab+LM 29874 22.1 36.3
+comparewithpreviouslypublishedCTCandS2Smodels,us-
+ingthe300hSWcorpusandcharactervocabulariesforbetter
+understanding. Accordingtotheseresults,ourmodelsobtain wordsbutwithanOOVrateof2.3%intheeval2000testset.
+thebestWordErrorRate(WER)inbothSWandCHtestsets ToaddressthishighOOVrate,wetriedtomatchthewordvo-
+among the S2S models with and without a language model. cabularybyanequivalentBPEvocabularyof12kmergeop-
+We also perform better than all CTC models in the SW test erations.Thismodelperformedbetterthanthewordmodelas
+set and the difference in the CH set is minor. Furthermore, expected. Wealsoexperimentwithinitializingtheword>=5
+weobservea13%relativeimprovementintheSWsubsetby model with a pretrained character model (similar to [1]) for
+using an RNNLM with shallow fusion [29] which is trained betterconvergenceandobserveimprovements.
+atthecharacterandwordlevel. Our second model is a large vocabulary model made of
+In Table 2, we present the A2W models with BPE and allthe wordsinthe trainingset. This modelperformsbetter
+word units. Our first model consists of words occurring at thanthepreviouswordmodelwhichmaybeduetoabsenceof
+least5times(Word>=5)inthetrainingsetthatledto11069 thefrequentlyoccurringOOVtoken. Wegetanabsoluteim-
+provementof4.4%and12%inSWandCHsubsetsoverour
+<sos> just the go them
+baseline [15] without a language model. Ideally, S2S A2W maybe too <unk> and you
+modeldoesnotneedaseparatelanguagemodelasitdirectly they involved person sit know
+'re for to through
+predictsasequenceofwordsusingthedecoderLSTM.Butas
+0.8
+theLMistrainedonalargercorpus,weintegrateittocheck
+its effect and do not observe improvements as large as the 0.7
+charactermodel.
+0.6
+ComparisonwithCTC.ThevocabulariesofCTCmod-
+els (both character and word) is different than ours hence
+0.5
+modelsarenotcomparable.PriorworkinCTC[1]hasalmost
+20,000lesswordsthanourmodelandtheyusedstronghyper 0.4
+parameter tuning techniques to arrive at a successful A2W
+0.3
+model. On a similar setup, their character-based model is
+worseby5%WER.Inthepaper,theydonotprovideareason
+0.2
+for this behavior. In our S2S model, we observe the reverse
+trend i.e. the word-model performs worse than character- 0.1
+model. This is an interesting trend for CTC and S2S mod-
+0.0
+elsandneedsfurtherexploration. WenotethatCTCandS2S 0 20 40 60 80 100 120 140 160
+modelsarenotcomparablewitheachotherduetocriticaldif- Input time-steps
+ferencesinlosscomputation.
+Fig. 1: Attention visualization for a sample utterance from
+thevalidationsetshowshighlylocalizedattentionforaword-
+6. ATTENTIONANALYSIS
+levelS2Smodel
+InthefollowingtwosectionsweanalyzethebehaviorofS2S
+models, specifically for the A2W recognition task. We ana-
+6.1. AttentionBehavior
+lyze attention in the decoder and the hidden representations
+oftheencoder. In Figure 1 we plot the attention of a sample utterance from
+Human Annotated Word Boundaries in SWBD. NXT ourvalidationsetofthecorpus. Wenoticethattheattention
+SwitchboardAnnotations(LDC2009T26)areasubsetofthe isverypeakyandfocusesonlyoncertainframesintheinput
+Switchboardcorpus(LDC97S62)containing1millionwords althoughgenerallyawordspansmultipleinputframes.
+that were annotated for syntactic structure and disfluencies Tounderstandthisbehaviorofthemodel,letusrevisitthe
+as part of the Penn Treebank project. This subset of the location-awareattentionexplainedinSection3.Thelocation-
+Switchboard corpus contains human annotated word-level aware attention is useful in speech to enforce a monotonic
+forced alignments that mark the beginning and end of each alignmentbetweensourceandtarget. Itdoessobyconvolv-
+word in the utterance in time 1. In the following sections, ing the previous attention vector along input time-steps and
+we analyze attention behavior of the A2W model and the feedingitasanotherinputparameterwhilecalculatingatten-
+speech-word-vectorsobtainedfromit.Todothisanalysis,we tionofthecurrenttimestep. Thisway,themodelisinformed
+needgroundtruthword-levelsegmentationsandthiscorpusis where to pay attention “next” and would mostly look in the
+agoodmatch. “future”tomakeaprediction.
+FromNXTSwitchboard,wechoosethoseutterancesthat
+Asthismodelistrainedtowardsword-unitsandtheatten-
+arealsopresentintheTreebank-3(LDC99T42)corpus. The
+tion is focused only on certain frames, we speculate that the
+speechinthiscorpusisre-segmentedtomatchthesentences
+hidden states corresponding to those frames are the speech-
+inTreebank-3. Wefilteroututteranceswithlessthan3words
+word-vectors for those words. Here, we are able to extract
+resulting in 67,654 utterances in total. This is divided into
+speech-word-vectors from an end-to-end model trained for
+56,100train,5,829validationand5,725testsets. Wetraina
+direct word recognition without the need of any predefined
+separate A2W model with this data in the same setup as de-
+forced-alignments. Thesizeoftheseembeddingsisequalto
+scribed in Section 4, without using any explicit information
+thenumberofRNNcellsinthelastlayeroftheencoder.
+aboutword-segments. Weonlytrainonthisdatasettoavoid
+introducingamorevariabilityinouranalysis,i.e. aretheseg-
+6.2. AutomaticSegmentationofSpeechintoWords
+mentations due to our model or due to training with a larger
+corpus (SW 300h)? In our setup, we split compound words
+Given that the attention is highly localized, we attempt to
+intotwowords(eg. they‘re→− theyand‘re).
+quantify whether the attention weights corresponded to ac-
+1http://groups.inf.ed.ac.uk/switchboard/ tual word boundaries. From the Switchboard NXT dataset,
+structure.html we chose all utterances (train, validation and test) for which
+seitilibaborP
+noitnettA
+wehave0%WERduringtesting. 39%ofthetotalutterances wellasfutureinput.Therefore,theencoderlearnstolookinto
+have 0 WER. We perform decoding with beam size 1 here. the future to recognize where a different word is beginning,
+Weconvertedthehuman-annotatedforced-alignmentstotheir and the BLSTM would hold richest embeddings in the unit
+corresponding frame numbers using the 10ms frame rate of corresponding to each of frame of the current word. We in-
+our model. The predicted frame number is calculated from vestigatetheencoderembeddingsinthenextsectioninmore
+the attention distribution shown in Figure 1 as follows. The detail. Itisalsoimportanttonotethatthelocation-awareat-
+inputframewiththemaxattentionprobabilityischosenasthe tentionconstrainsthemodeltoonlylookintothefuture,and
+predicted frame for the word. The frame error is calculated notthepast,whichwouldpushtheboundariestowardsword
+at each word level by taking an absolute difference between endsratherthanbeginnings. Hence,theattentionmechanism
+the predicted and grouthtruth frame number. A positive dif- learnstofocusmostlyonthewordboundaries.
+ferencemeansthepredictedframewasafterthegroundtruth Weobtainacontextvectorfromtheattentionmechanism
+alignment, and a negative difference means that it was be- thatisaweightedsumoftheencoderhiddenstates.Following
+fore. We average this frame error for all words in all utter- thispeakynatureoftheattentionmechanism,weexpecttosee
+ances (171073 words). An example of this computation is certainpatternsreflectedintheencoderembeddings. Thisis
+Predicted=[988,1008,1012,1044,1092] exploredinthefollowingsection.
+Groundtruth=[988,1005,1013,1042,1100]
+andFrameError=[0,+3,−1,+2,−8].
+7. SPEECHEMBEDDINGS
+The attention weights for the last word predicted in the
+sequence is often most erroneous. As an example, in Fig-
+WetrainasimilarA2WmodelontheWallStreetJournalcor-
+ure 1 we see that “know”, the last word, has a distributed
+pus (WSJ, LDC93S6B and LDC94S13B) which comprises
+attentionweight,andhastheleastprobabilityvalue(approx-
+about 90 hours of read speech in clean acoustic environ-
+imately0.2)comparedtootherwords. Forbetterunderstand-
+ments with a close-talk microphone. This dataset has about
+ing, we also compute frame errors without considering the
+300 different speakers in the train, validation (dev93) and
+lastwordofeveryutterance.
+test (eval92) sets. WSJ is sampled at 16kHz while SWBD
+We compute the mean and standard deviation of frame
+is sampled at 8kHz and we upsample SWBD to 16kHz for
+errors for all words. During training, we use a pyramidal
+implementation reasons. We bring the readers attention to
+encoder that reduces the input frame lengths by a factor of
+these major differences in acoustic and speaker variability
+4. Hence, while computing mean and standard deviation of
+and domain of the data in WSJ and SWBD. In Figure 2 we
+frameerrors,wescalethemby4aswellforfaircomparison.
+visualizetheencoderhiddenstatesforsampleutterancesfrom
+The standard deviation of frame error without including last
+the validation sets of WSJ (4k8c030h) and SWBD (same as
+word is 3.6 frames after the groundtruth. For a word-based
+inFigure1). WetrainaWSJmodeltocomparehiddenstate
+model,thisisanencouragingresultasusuallyacharacterunit
+activations of the noisier SWBD dataset with a clean WSJ
+spans7(or1.75framesafterapyramidalencoder)andaword
+datasetasweexpecttheactivationpatternstobeclearerand
+wouldspanmanymore.
+more interpretable in the cleaner dataset. The hidden state
+dimensionhereissameasthenumberofBLSTMcellsinthe
+Table 3: Average frame error mean and standard deviation
+lastencoderlayer(320D).Forthisvisualization, wesortthe
+(std dev.) between groundtruth forced-alignments and S2S
+hidden states of the encoder in an ascending order of total
+wordsegmentprediction
+activation over time. We use a tanh non-linearity hence all
+valuesrangefrom-1to+1. Wenotethattherearethreetypes
+Avg. FrameError
+ofpatternstoobserveintheseactivations: 1)stablehorizon-
+Train Val Test
+tal lines, 2) disruptions, and 3) vertical dashed-line pattern
+W/oLastWord-Mean 0 -0.08 -0.01
+across encoder hidden states (Y-axis) within the disruptions.
+W/oLastWord-StdDev 3.7 3.3 2.0
+Pattern3iseasiertonoticeintheWSJactivations.
+AllWords-Mean 0.4 0.3 0.3
+Upon listening to these utterances, we found that sta-
+AllWords-StdDev 10.1 9.8 10.5
+ble horizontal lines (pattern 1) corresponds to silence in the
+utterance, while disruptions (pattern 2) corresponds to the
+Whydoesattentionfocusontheendofword? Theop- speech. We observe similar patterns identifying speech and
+timization task in A2W recognition is to map a sequence of non-speech in both WSJ and SWBD. From this, we under-
+input frames (usually larger number of input frames than in standthatthemodelhaslearnedtodetectandsegmentpauses
+character or BPE prediction models) to a sequence of target in speech. As WSJ is the acoustically cleaner corpus with
+words. Duringtraining,themodellearnswherewordbound- less variability, “silence” acoustics are stable and repetitive
+ariesoccurbyrecognizingtheattentiondistributionthatleads throughout,whichiswhatweobserveinthebeginning,mid-
+to highest probability of generating the correct output. The dleandendoftheWSJutterance–whiletheSWBD“silence”
+bi-directionalLSTMintheencoderhasaccesstothepastas activations look different. In WSJ, we can further identify
+WSJ utterance SWBD utterance
+1.0
+0.8
+0.6
+0.4
+0.2
+0.0
+0.2
+0.4
+0.6
+0.8
+1.0
+0 20 40 60 80 100120140 0 20 40 60 80100120140
+Input time-steps Input time-steps
+Fig. 2: Encoder hidden state visualization for WSJ (acoustically clean data) and SWBD (acoustically noisier). Visualization
+showsencoderactivationsacrossinputtimeframes.
+multipleverticaldashed-linepatternsacrossallencoderhid- show that it is possible to extract speech-word-vectors from
+den states (i.e. Y-axis; pattern 3). This pattern is formed by this type of model. As a follow up study, we would like to
+encoderunitsturningonandoff(+1,-1)whenawordbound- explore this behavior on corpora other than Switchboard or
+ary is reached. This particular WSJ utterance has 15 words WallStreetJournal.
+and we observe 15 vertical dashed-line patterns in the acti-
+vations. This further reinstates that we are able to represent
+9. ACKNOWLEDGEMENTS
+multiple frames of speech using single 320D speech-word-
+vectors. Pattern3istoughertospotinSWBDcomparatively
+We thank Desmond Elliot, Amanda Duarte, Ozan Caglayan
+butstillnoticeable;itmightneedmoretrainingdataorbetter
+and Jindrich Libovicky for their valuable feedback on this
+regularization with this data to obtain similar properties as
+writeup. WealsothanktheCMUspeechgroupformanyuse-
+theWSJmodel.
+ful discussions. We gratefully acknowledge the support of
+NVIDIACorporationwiththedonationoftheTitanXPascal
+8. CONCLUSION GPUsusedforthisresearch. Thisworkispartiallysupported
+bytheDARPAAIDAgrant.
+In this paper, we presented promising results on character-
+based and word-based S2S models on the 300 hour Switch-
+boardcorpuswithimprovedtrainingstrategies.Wethenshow Appendix
+aquantitativeanalysisofmodelbehaviorbyanalyzingtheen-
+coder hidden states and attention mechanism. We find that In this section, we investigate the Speech Embeddings fur-
+the model learns to segment speech into word, silence, and therusingTSNEvisualizationandfindingnearestneighbors
+non-silence parts without any supervision other than word- of each acoustic-word-embedding. In Figure 3 and Table 4
+level transcripts (with utterance level alignments). We also wesee“same”wordsclustertogether.
+)D023(
+setats
+neddih
+redocnE
+<uannkd>
+20
+thinkand
+think
+and well
+whbeunt ththaatt
+just have
+'s
+i
+15 i
+tthhiinnkk
+nos to
+it
+'s's's
+did
+it
+oh andand
+10
+interesting
+ii i i uh younglikemynow
+a so
+it itti ht atit it really 's's
+i
+chaanlwgainygs i ititthat 's a
+living
+thnaott
+we
+been
+5
+they
+real and 'muh
+uohh
+aw mith ot uh nin tgs th na ot t
+ththeerw yeawsaswas
+a said
+gota
+to prewtteyre <uthnikn>g
+not
+<unbkig> of tomy <unk>year olf dair were wmouulsdt
+knoswo
+0 ohtheir them all went i of
+ways really
+plaryeal do n't
+yyoouu wwee i
+just <tuhninkg>s <unk o>
+ut
+do daid
+i
+so like
+5
+importluanckt ui
+p n't todo
+<uvnekr>y
+be that too know you
+did try it toosnow know 're
+them you neatsee
+kidding
+ffoorr and us work be true
+10 sports sad off
+mother
+wyoeugllood
+15 10 5 0 5 10 15
+Fig. 3: TSNE visualization of 300 randomly selected speech embeddings. We observe that same words occur close together
+whichshowsthattheembeddingsaregoodrepresentationsofthewords.
+10. REFERENCES Ju¨rgen Schmidhuber, “Connectionist temporal classifi-
+cation:labellingunsegmentedsequencedatawithrecur-
+[1] Kartik Audhkhasi, Brian Kingsbury, Bhuvana Ramab- rent neural networks,” in Proc. ICML, 2006, pp. 369–
+hadran, George Saon, and Michael Picheny, “Build- 376.
+ingcompetitivedirectacoustics-to-wordmodelsforen-
+glishconversationalspeechrecognition,” arXivpreprint
+[3] Alex Graves and Navdeep Jaitly, “Towards end-to-end
+arXiv:1712.03133,2017.
+speech recognition with recurrent neural networks,” in
+[2] AlexGraves,SantiagoFerna´ndez,FaustinoGomez,and Proc.ICML,2014.
+Table 4: Nearest Neighbor search over acoustic-word-embeddings. Table shows 10 nearest neighbor for a particular word.
+Wordsshownbelowarerandomlychosen.
+word nearestneighbors
+oh oh,oh,oh,oh,oh,oh,oh,oh,#eos#,oh
+i i,i,i,i,i,i,i,i,i,i
+see see,see,see,see,see,see,see,see,see,see
+#eos# #eos#,#eos#,#eos#,#eos#,#eos#,#eos#,#eos#,#eos#,#eos#,#eos#
+that that,that,that,that,that,that,neat,obviously,that,it
+’s ’s,’s,#eos#,’s,’s,’s,you,’s,’s,’s
+really really,know,a,so,really,really,really,really,well,really
+neat neat,me,neat,#eos#,neat,neat,neat,neat,#eos#,funny
+#eos# #eos#,#eos#,#eos#,#eos#,#eos#,well,#eos#,she,#eos#,#eos#
+and and,and,i,and,and,#eos#,and,and,and,and
+so so,so,so,so,so,couple,know,so,well,so
+we we,they,we,we,#eos#,we,we,go,we,they
+did did,just,just,tell,just,just,in,just,because,goes
+you you,you,east,of,you,you,you,you,thing,you
+know know,know,know,know,know,know,know,know,would,know
+[4] Ilya Sutskever, Oriol Vinyals, and Quoc V Le, “Se- [11] Thomas Zenkel, Ramon Sanabria, Florian Metze, and
+quence to sequence learning with neural networks,” in Alex Waibel, “Subword and crossword units for ctc
+Proc.NIPS,2014. acoustic models,” arXiv preprint arXiv:1712.06855,
+2017.
+[5] Jan Chorowski, Dzmitry Bahdanau, Kyunghyun Cho,
+and Yoshua Bengio, “End-to-end continuous speech [12] Chung-Cheng Chiu, Tara N Sainath, Yonghui Wu,
+recognitionusingattention-basedrecurrentNN:Firstre- Rohit Prabhavalkar, Patrick Nguyen, Zhifeng Chen,
+sults,” arXivpreprintarXiv:1412.1602,2014. Anjuli Kannan, Ron J Weiss, Kanishka Rao, Katya
+Gonina, et al., “State-of-the-art speech recognition
+[6] Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob
+with sequence-to-sequence models,” arXiv preprint
+Uszkoreit,LlionJones,AidanNGomez,LukaszKaiser,
+arXiv:1712.01769,2017.
+andIlliaPolosukhin, “Attentionisallyouneed,” inAd-
+vancesinNeuralInformationProcessingSystems,2017,
+[13] Rico Sennrich, Barry Haddow, and Alexandra Birch,
+pp.6000–6010.
+“Neuralmachinetranslationofrarewordswithsubword
+[7] Kanishka Rao, Has¸im Sak, and Rohit Prabhavalkar, units,” arXivpreprintarXiv:1508.07909,2015.
+“Exploring architectures, data and units for stream-
+[14] WilliamChan,YuZhang,QuocLe,andNavdeepJaitly,
+ingend-to-endspeechrecognitionwithrnn-transducer,”
+“Latent sequence decompositions,” arXiv preprint
+in Automatic Speech Recognition and Understanding
+arXiv:1610.03035,2016.
+Workshop (ASRU), 2017 IEEE. IEEE, 2017, pp. 193–
+199. [15] Liang Lu, Xingxing Zhang, and Steve Renals, “On
+training the recurrent neural network encoder-decoder
+[8] Kartik Audhkhasi, Bhuvana Ramabhadran, George
+for large vocabulary end-to-end speech recognition,”
+Saon, Michael Picheny, and David Nahamoo, “Direct
+in Acoustics, Speech and Signal Processing (ICASSP),
+acoustics-to-word models for english conversational
+2016 IEEE International Conference on. IEEE, 2016,
+speechrecognition,” arXivpreprintarXiv:1703.07754,
+pp.5060–5064.
+2017.
+[9] Jinyu Li, Guoli Ye, Amit Das, Rui Zhao, and Yifan [16] Yu-An Chung and James Glass, “Speech2vec:
+Gong, “Advancingacoustic-to-wordctcmodel,” arXiv A sequence-to-sequence framework for learning
+preprintarXiv:1803.05566,2018. word embeddings from speech,” arXiv preprint
+arXiv:1803.08976,2018.
+[10] Hagen Soltau, Hank Liao, and Hasim Sak, “Neural
+speech recognizer: Acoustic-to-word lstm model for [17] Herman Kamper, Weiran Wang, and Karen Livescu,
+large vocabulary speech recognition,” arXiv preprint “Deep convolutional acoustic word embeddings using
+arXiv:1610.09975,2016. word-pair side information,” in Acoustics, Speech and
+Signal Processing (ICASSP), 2016 IEEE International [29] Caglar Gulcehre, Orhan Firat, Kelvin Xu, Kyunghyun
+Conferenceon.IEEE,2016,pp.4950–4954. Cho,LoicBarrault,Huei-ChiLin,FethiBougares,Hol-
+ger Schwenk, and Yoshua Bengio, “On using mono-
+[18] David Harwath and James Glass, “Deep multimodal
+lingual corpora in neural machine translation,” arXiv
+semantic embeddings for speech and images,” arXiv
+preprintarXiv:1503.03535,2015.
+preprintarXiv:1511.03690,2015.
+[30] Awni Hannun, Carl Case, Jared Casper, Bryan Catan-
+[19] Samy Bengio and Georg Heigold, “Word embeddings
+zaro, Greg Diamos, Erich Elsen, Ryan Prenger, San-
+for speech recognition,” in Fifteenth Annual Confer-
+jeev Satheesh, Shubho Sengupta, Adam Coates, et al.,
+enceoftheInternationalSpeechCommunicationAsso-
+“Deep speech: Scaling up end-to-end speech recogni-
+ciation,2014.
+tion,” arXivpreprintarXiv:1412.5567,2014.
+[20] William Chan, Navdeep Jaitly, Quoc Le, and Oriol
+[31] GeoffreyZweig,ChengzhuYu,JashaDroppo,andAn-
+Vinyals, “Listen, attend and spell: A neural network
+dreas Stolcke, “Advances in all-neural speech recog-
+forlargevocabularyconversationalspeechrecognition,”
+nition,” in Acoustics, Speech and Signal Process-
+in Acoustics, Speech and Signal Processing (ICASSP),
+ing(ICASSP),2017IEEEInternationalConferenceon.
+2016 IEEE International Conference on. IEEE, 2016,
+IEEE,2017,pp.4805–4809.
+pp.4960–4964.
+[32] Thomas Zenkel, Ramon Sanabria, Florian Metze, Jan
+[21] JanKChorowski,DzmitryBahdanau,DmitriySerdyuk,
+Niehues, Matthias Sperber, Sebastian Stu¨ker, and Alex
+KyunghyunCho,andYoshuaBengio, “Attention-based
+Waibel, “Comparison of decoding strategies for ctc
+models for speech recognition,” in Advances in neural
+acoustic models,” arXiv preprint arXiv:1708.04469,
+informationprocessingsystems,2015,pp.577–585.
+2017.
+[22] GabrielPereyra,GeorgeTucker,JanChorowski,Lukasz
+[33] Shubham Toshniwal, Hao Tang, Liang Lu, and Karen
+Kaiser, and Geoffrey Hinton, “Regularizing neural
+Livescu, “Multitask learning with low-level auxiliary
+networks by penalizing confident output distributions,”
+tasks for encoder-decoder based speech recognition,”
+arXivpreprintarXiv:1701.06548,2017.
+arXivpreprintarXiv:1704.01631,2017.
+[23] JanChorowskiandNavdeepJaitly, “Towardsbetterde-
+coding and language model integration in sequence to [34] ZhehuaiChen,QiLiu,HaoLi,andKaiYu, “Onmodu-
+sequence models,” arXiv preprint arXiv:1612.02695, lartrainingofneuralacoustics-to-wordmodelforlvcsr,”
+2016. arXivpreprintarXiv:1803.01090,2018.
+[24] John J Godfrey, Edward C Holliman, and Jane Mc-
+Daniel, “Switchboard: Telephone speech corpus for
+research and development,” in Acoustics, Speech, and
+SignalProcessing,1992.ICASSP-92.,1992IEEEInter-
+national Conference on. IEEE, 1992, vol. 1, pp. 517–
+520.
+[25] Christopher Cieri, David Miller, and Kevin Walker,
+“The fisher corpus: a resource for the next generations
+ofspeech-to-text.,” inLREC,2004,vol.4,pp.69–71.
+[26] MatthewDZeiler, “Adadelta: anadaptivelearningrate
+method,” arXivpreprintarXiv:1212.5701,2012.
+[27] SuyounKim,TakaakiHori,andShinjiWatanabe,“Joint
+ctc-attentionbasedend-to-endspeechrecognitionusing
+multi-task learning,” in Acoustics, Speech and Signal
+Processing(ICASSP),2017IEEEInternationalConfer-
+enceon.IEEE,2017,pp.4835–4839.
+[28] Shinji Watanabe, Takaaki Hori, Suyoun Kim, John R
+Hershey, and Tomoki Hayashi, “Hybrid ctc/attention
+architecture for end-to-end speech recognition,” IEEE
+JournalofSelectedTopicsinSignalProcessing,vol.11,
+no.8,pp.1240–1253,2017.

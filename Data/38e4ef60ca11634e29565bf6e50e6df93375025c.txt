@@ -1,0 +1,546 @@
+TheTenthAAAISymposiumonEducationalAdvancesinArtificialIntelligence(EAAI-20)
+Semi-Supervised Learning to Perceive Children’s Affective States in a Tablet Tutor
+MansiAgarwal JackMostow
+DelhiTechnologicalUniversity, CarnegieMellonUniversity,
+NewDelhi,India Pittsburgh,PA,USA
+mansiagarwal bt2k16@dtu.ac.in mostow@cs.cmu.edu
+Abstract 15-month-long independent controlled study of 2700 chil-
+drenin170villagesinTanzania.RoboTutor’sthousandsof
+Likegoodhumantutors,intelligenttutoringsystemsshould
+activities teach children who have little or no prior school-
+detectandrespondtostudents’affectivestates.However,ac-
+ing. Our eventual goal for automated affect detection is to
+curacy in detecting affective states automatically has been
+help RoboTutor increase children’s engagement and learn-
+limitedbythetimeandexpenseofmanuallylabelingtrain-
+ing gains. The work reported here is novel in several re-
+ing data for supervised learning. To combat this limitation,
+weusesemi-supervisedlearningtotrainanaffectivestatede- spects.
+tectoronasparselylabeled,culturallynovel,authenticdata Novelpopulation:Workonaffectdetectioninintelligent
+set in the form of screen capture videos from a Swahili lit- tutors has typically focused on American high school and
+eracy and numeracy tablet tutor in Tanzania that shows the collegestudents.Incontrast,theworkreportedhereisbased
+faceofthechildusingit.Weachieved88%leave-1-child-out
+on data from children ages 6-12 in Tanzania. This data is
+cross-validatedaccuracyindistinguishingpleasant,unpleas-
+novel in three respects. First, few databases of facial ex-
+ant,andneutralaffectivestates,comparedtoonly61%forthe
+pressionsincludechildren’sfaces(Eggeretal.2011)(Noja-
+best supervised learning method we tested. This work con-
+vanasgharietal.2016).Second,evenfewerincludeAfricans
+tributestowardusingautomatedaffectdetectionbothoff-line
+toimprovethedesignofintelligenttutors,andatruntimeto (Du,Tao,andMartinez2014).Finally,emotionalexpression
+respond to student affect based on input from a user-facing varies from culture to culture (Matsumoto 1991), so affect
+tabletcameraorwebcam. detectorstrainedonanAmericanpopulationmightnotwork
+foranEastAfricanpopulation.
+Authenticcontext:Foundationalresearchonemotionde-
+1 IntroductionandRelationtoPriorWork
+tectionhasmainlyfocusedonsix“basic”emotions(happi-
+The field of affective computing seeks to narrow the com- ness,sadness,surprise,disgust,anger,andfear)(Craigetal.
+municativegapbetweenthenaturallyemotionalhumanand 2008). Typically these emotions are represented by delib-
+theemotionallychallengedcomputerbydevelopingcompu- erate facial expressions (Kaulard et al. 2012) or elicited by
+tationalsystemsthatrecognizeandrespondtotheaffective experimentalstimuli(ValstarandPantic2010).Incontrast,
+states (i.e., emotions) of the user (Picard 2000). In partic- theaffectivestatesrelevanttointelligenttutorsarestudents’
+ular,considerableworkhasinvestigatedtheautomatedesti- normal reactions to them, namely boredom, confusion, de-
+mationofaffectivestatesfromfacialexpressions(e.g.(Faria light, frustration, surprise, and neutral or “flow” (D’Mello,
+etal.2017))andothervisualcues(e.g.(BidwellandFuchs Picard, and Graesser 2007). Most facial expression data is
+2011)).Emotionalexpressionsaresociallyreactive,sousers recorded in well-controlled laboratory conditions. In con-
+may try to mask certain unpleasant emotions (McDaniel et trast,thispaperisbasedondatafromauthenticcontextsof
+al.2007). childrenusingRoboTutor.
+Muchoftheresearchonaffectivecomputinghasfocused
+Camera-only: Even data on authentic affective states in
+on making intelligent tutoring systems react to students’
+intelligent tutors are typically collected in heavily instru-
+emotions (e.g., (Woolf et al. 2009), (D’Mello and Graesser
+mented laboratory conditions using an expensive array of
+2012), (Craig et al. 2004)). This paper likewise presents
+devices such as pressure sensors (D’Mello and Graesser
+workonautomateddetectionofchildren’saffectivestatesin
+2009)andEEGheadsets(PetrantonakisandHadjileontiadis
+RoboTutor(Mostow2019),atabletappthat(liketheother4
+2009),aswellasvideofromcamerasexternaltothetutorit-
+Finalists in the Global Learning XPRIZE (XPRIZE 2015))
+self.Theseinputsignalsareinformativeforresearchbutnot
+achieveddramaticallyhigherlearninggainsinbasicliteracy
+practicaloutsidethelab.
+andnumeracythanadelayed-treatmentgroupinXPRIZE’s
+Incontrast,weuseonlyvideoinputrecordedbyGoogle
+Copyright(cid:2)c 2020,AssociationfortheAdvancementofArtificial PixelCAndroidtabletsrunningRoboTutorinthefield,both
+Intelligence(www.aaai.org).Allrightsreserved. indoorsandoutdoors.Limitingitstemporalandspatialreso-
+13407
+lutionservedtoavoidfillinguptabletmemoryorswamping we expected neutral to be by far the most frequent affec-
+the WiFi bandwidth required to send it to our lab for anal- tivestate.Tofindlikelyinstancesoflesscommonaffective
+ysis. This data is therefore characterized by limited resolu- states,werandomlyselectedsevenofthevideos,locatedun-
+tion,variableindoorandoutdoorillumination,andocclusion usuallyhighorlowvaluesofvariousvisualfeatures,i.e.,lo-
+bychildren’sfriendsandtheirownhands. calmaximaorminimamorethan3standarddeviationsfrom
+Multi-channel: Facial expressions are an important vi- the mean, and chose 10-second windows centered at these
+sualchanneltoconveyemotions,butbynomeanstheonly points.Thismethodyielded285clips.Toobtainanunbiased
+one.Wealsouseothervisualfeaturesknowntoreflectaffec- samplemorerepresentativeoftypicalaffectivebehavior,we
+tivestates:headproximity(Stanley2013),headorientation randomlychoseatotalof6010-secondclipsfrom10other
+(Hess,Adams,andKleck2007),blinkrate(HaqandHasan videos.Werandomlyintermixedthetwosamplesandparti-
+2016),pupilsize(PartalaandSurakka2003),andeyegaze tionedtheminto16batches,eachcomprising15-20pairsof
+(BidwellandFuchs2011). clips.
+Semi-supervised: Systems that rely on supervised ma- We constructed a separate Google form for each batch,
+chine learning require large amounts of labeled training withtheseinstructions:
+data (e.g. (Michel and El Kaliouby 2003), (Reddy et al.
+1. ThisGoogleformwillpresentaseriesofpairsofRobo-
+2018)).Labelingaffectivestatesbyhandiscostlyandtime-
+Tutorscreenvideoclipsforyoutoannotate.
+consuming. Therefore we employ a semi-supervised ap-
+proach for training an affective state detector on a sparsely 2. The first clip of each pair contains just the zoomed-in
+labeleddataset(Chapelle,Scholkopf,andZien2009).That camerainputshowingthekid.
+is, we train a classifier on the manually labeled instances,
+3. Theotherclipshowstheentirescreen,includingthecam-
+”pseudo-label” a subset of the unlabeled data using the
+erainput.Whitedotsindicatescreentouches.
+trained classifier, retrain it on the expanded set of labeled
+4. Picktheoptionthatfitsbest.Ifitfitspoorly,orifanother
+data,repeat,anditerate.
+optionfitsalmostaswell,usetheCommentsfieldtoex-
+In summary, this paper reports progress on using AI
+plainwhy.
+(specifically computer vision) to “improve teaching and
+evaluation.”FromrecordedscreenvideoofchildreninTan- This protocol first elicited judges’ perception of the
+zaniausingRoboTutoronanAndroidtablet,weinfertheir child’s affective state based solely on the video clip of the
+affective states. Our longer term goal is to use this infor- child,withoutanyadditionalcontext,andthenbasedonthe
+mation to redesign RoboTutor off-line, and even to inform video showing the same time interval but in the context of
+itsresponsesinreal-time.Therestofthepaperisorganized theentireRoboTutorscreen.Thuschangesinlabelfromthe
+asfollows:Section2describesourdataset.Section3speci- firstcliptothesecondclipcouldrevealtheinfluenceofcon-
+fiesourmethodologyfortrainingtheaffectivestatedetector. textonthejudge’sperceptionoftheaffectivestate.
+Section4reportsourresults.Finally,Section5summarizes Thereweretwoquestionsforeachclip.
+contributions,limitations,andfuturework.
+1. Isthestudentpayingattention?(Yes,No,Can’ttell)
+2 DataSet 2. Which of the following best describes the kid’s state?
+Thedataforthepresentstudycomefrom229screencapture (Boredom,Confusion,Delight,Frustration,Neutral,Sur-
+videos of approximately 30 children using RoboTutor on prise,orIcan’ttell.)
+twotabletsinTanzaniabetween6/22/2016and7/17/2017.
+Weexpectedthefirstquestiontobeeasyforbothhumans
+Eachvideotypicallyshowsonesessionlasting20−30min-
+andcomputertoanswerbasedsimplyongaze,i.e.whether
+utes (until the next child’s turn). The videos were recorded thechildwaslookingatthescreen.Thesecondquestionre-
+byafreeappcalledAZScreenRecorder(PlayStore2018), quired finer-grained distinctions, and in fact proved much
+which displayed the front-facing camera input in a small harder. Figure 2 shows the six affective states manifested
+window and included it in the screen video it recorded, as whilethechildrenwereusingRoboTutor.
+showninFigure1.Tolimitstorageconsumption,weconfig-
+uredAZScreenRecordertorecordatatemporalresolution
+of 48 frames per second and a spatial resolution of 1024 x
+720pixels,ofwhichthecamerawindowtook192x148pix-
+els.
+The entire 100+ hours of video was far too large to la-
+belmanually,soweselectedapproximately345shortclips
+to label. As in previous work (Westlund, D’Mello, and Ol-
+ney2015),weexcludedthefirstandlastminuteofavideo
+so as to avoid artifacts at the start and end of each session.
+Basedonwatchingafewshortclips,wedeterminedthat10-
+secondclipswerelongenoughtolabelyetshortenoughto
+bedominatedbyasingleaffectivestate.
+We used two types of sampling to find clips to label.
+Based on previous research (D’Mello and Graesser 2010), Figure1:RoboTutorinterfacewithcamerawindow.
+13408
+based at least in part on children’s interactions with Robo-
+Tutor. Figure 3 shows the transition frequency from label i
+to label j, represented graphically by the arrow from i to j.
+Thenumberoflabelchangeswashighestforfrustrationand
+confusion.
+To avoid training our classifier on distinctions with
+low inter-rater reliability, we combined hard-to-distinguish
+states,therebyreducingtheoriginalsetof6affectivestates
+tojust3classes,namelypleasant(delightandsurprise),un-
+pleasant(boredom,confusion,andfrustration),andneutral
+(flow).Inter-raterreliabilitywashigherforthisreducedset,
+with 67% agreement and κ of 0.63 on the cropped clips.
+Reliabilitywashigherontheuncroppedclipsthankstothe
+additional context they provided, with 73% agreement and
+κof0.65.Weusedthecroppedclipswhereboththejudges
+agreed.These231“consensus”clipsweredistributedmore
+equallyamongthe3classesthanamongtheoriginal6affec-
+tivestates:42clipswerelabelledaspleasant,91asunpleas-
+ant,and98asneutral.
+3 Approach
+Ourapproachhas4steps:
+Figure2:Thesixaffectivestates 1. Extractfeaturesfromthevideos.
+2. Aggregate each feature over the 10-second duration of a
+videoclipintoasinglevalue.
+To label our data, we recruited a Kenyan professor with
+PhDs in English and International Education, a Tanzanian 3. Use semi-supervised learning to train a classifier on la-
+with a PhD in Instructional Technology, a Tanzanian doc- beledandunlabeleddata.
+toral student in Linguistics, and two American undergrad- 4. Usethetrainedclassifiertopredicttheaffectivestateofa
+uate Psychology majors, all of whom were familiar with childinavideoclip.
+RoboTutor.ItwasimportanttoincludeEastAfricanjudges
+Wenowdescribeeachstepinmoredetail.
+not only because they understood the Swahili spoken by
+RoboTutoranditsusers,butalsobecauseperceptionofaf-
+3.1 Featureextraction
+fectivestatesisknowntobeculture-dependent(Matsumoto
+1991).Allthejudgesclassifiedtheclipsindependently. Westartedbyextractingthecamerainput,whichAZScreen
+Recorder displayed over RoboTutor in a translucent win-
+2.1 Inter-raterreliability dowasshowninFigure1.Thiswindowoverlappedwiththe
+greenbanneratthetopofthescreen.Fortunately,thisover-
+Asanintuitivemeasureofconsistencyinlabeling,wecom-
+lap did not prevent us from detecting faces and extracting
+putedthepercentageagreementbetweenthejudges.Tomea-
+usefulinformation.
+sure the degree to which it exceeded the amount of agree-
+mentexpectedbychance,wecomputedCohen’sKappaκ. As Figure 4 shows, this information consisted of visual
+features relevant to affective state, namely head proximity,
+To quantify the influence of cultural differences on an-
+notation,wecomparedpairwiseagreementbetween judges
+from similar backgrounds (East Africa or USA) versus
+agreementbetweenjudgesfromdifferentbackgrounds.The
+East African judges agreed 61% of the time, with κ of
+0.58, compared to 55% and κ of 0.47 for the Ameri-
+can judges, who averaged only 50% agreement with East
+Africanjudges,withκof0.41.Thatis,judgesagreedmore
+often with judges from the same culture than with judges
+from another culture. Accordingly, we used only the East
+Africanjudges’labelstotrainandtesttheclassifier.
+Judges agreed on some distinctions more than on oth-
+ers.Inparticular,theyhadtroubledistinguishingfrustration
+from confusion. One clue to the reason comes from the la-
+beling protocol. The frequency with which judges changed
+theirinitiallabels,whichwerebasedjustonthecamerain- Figure 3: Number of label changes from cropped to un-
+put,reflectstheextenttowhichtheyinferredaffectivestates croppedvideoclip
+13409
+Figure4:SystemArchitecture.
+head orientation, facial action units, blink rate, pupil size, ence as absent (value = 0), low (< 0.2), medium (0.2 −
+and eye gaze. Each of these features provides a different 0.7),orhigh(>0.7).
+channelofvisualinformation.Tohelpextractthesefeatures Blink rate: Researchers have found that when nervous
+from video input, we used OpenFace (Baltrusˇaitis, Robin- or troubled, humans’ blink rate increases (Haq and Hasan
+son, and Morency 2016), an open-source facial behavior 2016).UsingtheeyecoordinatesobtainedfromOpenFace,
+analysis toolkit trained on a large collection of facial data wecalculatedaneye-aspectratio(HaqandHasan2016)for
+sets, both static images and videos, diverse in age, gender, eacheyeandusedtheaveragevalueofbotheyes.Iftheeye
+andethnicity. aspect ratio was below a threshold θ for t frames, we con-
+We now describe how we computed and used each fea- sidered it to be a blink. We tried different values for these
+ture. twothresholds.θ =0.4andt=4gavethebestaccuracyon
+Headproximity:Researchonbodylanguagehasshown asampleof10videoclips.Equation3formallydefinesthe
+that leaning forward indicates an increase in interest and eyeaspectratio(Er)as:
+leaning backward shows disinterest (Stanley 2013). This
+(cid:3)(h−b)(cid:3)+(cid:3)(f −d)(cid:3)
+fi On pd ei nn fg acm eo gti iv va et se td hu es loto cam tie oa nsu or fe th he ea hd ed ai dst ia nnc me it lo limth ee tec ram coe ora r-. Er =
+2∗(cid:3)(e−a)(cid:3)
+(3)
+dinatesas(Hx,Hy,Hz)ina3-dimensionalreferenceframe
+where a, b, d, e, f, and h are eye landmark coordinates ob-
+withthecameraattheorigin,wheretheXaxisishorizontal,
+tainedfromOpenFace(Fig.5).
+theY axisisvertical,andthecameraispointedalongtheZ
+axis.WecomputedtheEuclideandistanceoftheheadfrom
+thecameraasshowninEquation1.
+(cid:2)
+Hd = (H x2+H y2+H z2) (1)
+Head orientation: OpenFace computes pitch (Rx), yaw
+(Ry), and roll (Rz) of the head rotation relative to the lo-
+cation and orientation of the camera. The rotation is in ra-
+dians around the X, Y, and Z axes. When restless, humans Figure5:EyecoordinatesobtainedfromOpenFace
+tendtobemorefidgetyandhencemovetheirheadsuncon-
+sciously. Therefore, head orientation is the overall angle of Pupilsize:Pupilsizereflectswhetherapersonisaroused
+theheadfromthebaselineandreflectsaffectivestate.Equa- andalert,orboredandfatigued(Kret2018),soitisauseful
+tion2specifiesheadorientationasafunctionofpitch,yaw, indicatorofaffectivestate.Usingtheeyecoordinatescom-
+androll. puted by OpenFace, we determined the ratio of the area of
+Ho =Rx∗Ry∗Rz (2) the pupil to the area of the eye using Equation 4. The ratio
+helpedusdealwithsituationswherethechildwastooclose
+Facial action units: Prior work on affective state recog-
+tothescreen,leadingtoalargepupilsize,withoutanyrole
+nizershasfocusedonFacialActionUnits(FAUs)thatwere
+ofaffect.Weusedtheaverageofthisratioforbotheyesas
+mostdiagnosticofthelearning-centeredemotions.Follow-
+an input to our classifier. We used Equation 4 to compute
+ing(McDanieletal.2007),weemployAU04,AU07,AU12,
+thisratio(Pr)asfollows:
+AU25,AU26,andAU45.ForeveryFAU,OpenFaceoutputs
+aclassificationandregressionvalue.Weusedtheregression (cid:3)(l−j)(cid:3)∗(cid:3)(k−i)(cid:3)
+value, which characterizes the intensity of the FAU’s pres-
+Pr =
+(cid:3)(e−a)(cid:3)∗(cid:3)(g−c)(cid:3)
+(4)
+13410
+where a, c, e, g, i, j, k, and l are eye landmark coordinates
+obtainedfromOpenFace(Fig.5).
+Eye gaze: Eye gaze has been used by many researchers
+to detect alertness, attentiveness, and awareness (Bidwell
+and Fuchs 2011). OpenFace outputs the gaze direction av-
+eraged across the two eyes as (gaze angle x, gaze angle y)
+inradians.Lookingfromrighttoleftchangesgaze angle x
+fromnegativetopositive;lookingfromuptodownchanges
+gaze angle y from negative to positive. Looking straight
+ahead is represented as zero for both gaze angle x and
+gaze angle y.
+3.2 Temporalaggregation
+we chose the 10 unlabeled instances closest to any of the
+To avoid the complications and computational cost of time
+labeled instances. In practice the method always exhausted
+series analysis (Ceballos and Sorrosal 2002), we reduced
+all the unlabelled instances. In theory it could reach a state
+each feature of a clip to a single summary value. To ag-
+whereitcouldn’tclassifyanyofthemwithconfidenceτ,in
+gregatediscretefeatures,wesimplycountedthenumberof
+whichcaseitshouldterminate.
+occurrencesinthevideoclipanddividedbyitsdurationto
+We considered several popular classifier learning meth-
+obtainarate,e.g.blinkspersecond.Toaggregatecontinuous
+ods.WechoseRandomForestbecauseitperformedbeston
+features,weexperimentedwithseveralfunctions:
+ourdata(seeTable1).Wecomputedtheconfidenceofapre-
+• To summarize the feature, we computed its mean over dictionasthepercentageoftreesintheforestthatpredicted
+the10-secondwindow.However,thisfunctioncanbedis- classC.Wesetourconfidencethresholdτ to0.9.
+tortedbyoutliers.
+• Tocombatdistortionscausedbynoise,especiallyoutliers, 4 Results
+wecomputeditsmedianoverthewindow.However,this
+function fails to capture significant events shorter than
+halfthedurationoftheclip.
+• Tomeasurethespikecausedbythemaineventintheclip,
+we computed the maximum value of the feature. How-
+ever,thisfunctioncanbedistortedbyoutliers.
+• Toaccentuatespikeswhilereducingdistortionbyoutliers,
+wecomputedtherootmeansquaredvalue.However,this
+functionisinvarianttoscramblingtheorder.
+• To select clips based on extreme values of features, i.e.
+localminimaandmaximaatleast3ormorestandardde-
+Figure6:PleasantInstance
+viationsfromthemean,wechosethe10-secondclipcen-
+tered around each extreme value. To focus on its central
+region,weweightedthemeanandrootmeansquaredby To illustrate how our detector works in practice by us-
+dividingthevalueateachpointintheclipbyitsdistance ing the features defined in Section 3.1, Figure 6 shows an
+tfromthemidpointoftheclip(plusanoffsetotoprevent instance classified as a pleasant affective state. After strug-
+divisionbyzero). gling to write the preceding number 0, the child wrote the
+number1correctlyonthefirsttry,andsmiledwhenRobo-
+Wethennormalizedeachaggregatefeaturevaluevtothe
+Tutor responded Mzuri! (”good” in Swahili). This clip had
+interval[0,1]as(v−min)/(max−min),wheremaxand
+negligibledeflectionfromtypicalheadorientation.Eyegaze
+minarethelargestandsmallestaggregatevaluesofthefea-
+andblinkratewerenormal,i.e.,withinonestandarddevia-
+ture over the entire set of 10-second clips. We found that
+tionoftheirrespectivemeans.However,thechildwasvery
+proximity-weightedrootmeansquaredachievedthehighest
+closetothescreen,i.e.,headdistancewaslessthanitsmean
+cross-validatedaccuracywhenusedinaclassifiertrainedas
+valuebymorethanthreestandarddeviations.Headproxim-
+wenowdescribe.
+itytypicallyindicatesengagement.Also,hispupilsweredi-
+lated,whichtypicallyindicatesinterest.AU04(BrowLow-
+3.3 Semi-supervisedlearning
+erer)andAU45(Blink)wereabsent,AU25(LipsPart)was
+Semi-supervised learning (Chapelle, Scholkopf, and Zien presentwithlowintensity,AU07(LidTightener)andAU26
+2009)trainsaclassifierbyusingunlabeleddatatoaugment (JawDrop)werepresentwithmediumintensity,andAU12
+sparse labeled data in order to achieve higher classification (LipCornerPuller)waspresentwithhighintensity.Asthis
+accuracy. exampleillustrates,ourdetector’srecognitionofpleasantin-
+One can select an unlabelled instance at random, or stancesisprobablyinfluencedbyheadproximity,pupilsize,
+choosetheoneclosesttoalabeledinstance.Forefficiency, and smiling. We say ”probably” because a random forest’s
+13411
+calculations are too complicated to readily analyze the in- 4.2 ErrorAnalysis
+dividual influence ofall the features. Instead, we described
+theirvaluesrelativetotheirdistributions,ontheassumption
+thatunusualvaluesarelikelytoaffecttheclassifieroutput.
+4.1 QuantitativeEvaluation
+Toestimateperformanceonunseenchildren,weusedleave-
+1-child-outcross-validation,trainingtheclassifieronallbut
+onechildandtestingitontheheld-outchild.Weperformed
+this process for 5 randomly chosen children and report the
+medianresults.Accuracyisthepercentageoftestinstances
+classified correctly. This measure is simplest and has prac-
+ticalsignificancebecauseitpredictsperformanceonunseen
+datadrawnfromthesamedistribution.However,itissensi-
+Figure7:ConfusionMatrix
+tivetothatdistribution.Incontrast,thefollowingweighted
+measures are weight-averaged across all three classes, and
+Figure7showsthatourclassifierperformedwellinmost
+therefore independent of the training set distribution. Each
+cases.However,theclassifierincorrectlycharacterizedfour
+class is assigned a weight equal to the ratio of the number
+unpleasantinstancesasneutral.Mostofthesemisclassifica-
+of instances in that class to the total number of instances
+tionsinvolvedboredom.Boredomisnoteasilydistinguish-
+in the test set. Weighted precision is the percentage cor-
+able from neutral based on facial features. Indeed, bore-
+rect among the instances classified as positive. Weighted
+dom typically lacks facial expression. To detect boredom,
+recall is the percentage correct among the true positive in-
+we may have to use additional indicators, such as posture
+stances. Weighted F1 is the harmonic mean of weighted
+andacoustic-prosodicfeaturesofspeech.
+recall and weighted precision. As unlabelled data, we used
+Accuracy is limited by the quality of the visual features
+1007clipsfrom20videos,sampledusingthesamesampling
+inputbytheclassifierfromOpenFace,whichdependinturn
+techniquesdescribedinSection2.
+onitsfacedetection.Ourdatacomefromauthenticsettings
+AsTable1shows,ourmethodbeatthesupervisedlearn-
+subjecttovaryingilluminationandocclusion.Consequently,
+ingmethodsonallfourcriteria:
+OpenFace occasionally (especially in low-light conditions)
+failstodetectafacewhenitispresent.Inspectionofsample
+Classifier Accuracy Precision Recall F1-Score
+NaiveBayes 0.21 0.52 0.21 0.23 videosshowedthatOpenFacefailedtodetectafaceapprox-
+DecisionTree 0.44 0.43 0.44 0.43 imately2%ofthetime,typicallyforasecondatatime.
+SVM 0.51 0.49 0.51 0.46
+Adaboost 0.47 0.47 0.47 0.47
+4.3 Sensitivityanalysis
+LogisticRegression 0.53 0.50 0.53 0.51
+KNN 0.53 0.53 0.53 0.53 To explore the sensitivity of the results to different factors,
+RandomForest 0.61 0.63 0.61 0.60
+we varied the amount of unlabeled data, the amount of la-
+OurApproach 0.88 0.88 0.84 0.86
+beleddata,andthemethodforselectingunlabeleddata.
+Table1:Comparisonwithsupervisedlearning. Effect of amount of unlabeled data: How did test ac-
+curacy vary with the amount of unlabeled data? We started
+These results were for the consensus data where both withnounlabeleddata,i.e.,supervisedlearning,andadded
+judgesagreed.Wefurthertestedourclassifieronallourla- 10% of the unlabeled data at each iteration until all of the
+beled test data, including 55 consensus clips not used for unlabeled data was utilized. Figure 8(a) shows that as the
+training and 114 clips on which the judges disagreed. This
+numberofunlabeledinstancesincreasedfromzeroto1007,
+experiment helped us quantify the degradation in perfor-
+accuracyroseasymptoticallyfrom61%to88%.
+manceduetolabelnoise.Weevaluatedtheaccuracyofthe Effectofamountoflabeleddata: Toanalyzetheeffect
+predictioncomparedtobothjudges’labelsandtooktheav- oftheamountoflabeleddataonclassifierperformance,we
+erage.Asexpected,averageaccuracydroppedfrom88%to variedthepercentageoflabelledinstancesusedfrom10%to
+56%whenweincludedthenon-consensuslabels,compared 100%,keepingtheunlabeledtrainingsetconstant,i.e.1007
+to testing on the consensus data alone. The lower accuracy instances.Figure8(b)showsthat:
+ontheunfiltereddatareflectstheinherentdifficultyofrepli- 1. Accuracy,precision,andrecallincreasedwiththeamount
+cating subjective judgments on which human experts dis- oflabeleddata,asexpected.
+agree.
+2. Toolittlelabeleddataproducedpoorresults,evenwithall
+Toestimatetheeffectofculturaldifferences,wetestedour
+theunlabeleddata.
+trained classifier on both sets of consensus labels, African
+andAmerican.Accuracyfellfrom88%to57%whentested Effectofchoiceofdatatopseudo-label: Weconducted
+on Americanlabels. Thisdifference quantifiesthe effect of anexperimenttounderstandwhyunlabeleddatahelped,and
+cultural influence on people’s facial expressions and other where the action was. We hypothesized that the order in
+visual cues, and the consequent importance of recruiting which semi-supervised learning chose unlabeled instances
+judgesfromthesameculturetolabeltheiraffectivestates. topseudo-labelhadasubstantialeffectontheperformance
+13412
+Limitationsandfuturework: Toincreaseinter-raterre-
+liability, we combined confusable affective states into the
+sameclass.Futureworktodistinguishthemcouldenhance
+RoboTutor’semotionalintelligence.
+The evaluated method is based solely on input from the
+tablet’s front-facing camera, consistent with our focus on
+identifying what information about affect we can derive
+fromvisualcues.Thistypeofinputismorepracticalinre-
+alisticsettingsthaninputscurrentlyavailableinlabsettings,
+such as EEG, pressure sensors, or even video from exter-
+nalcameras.However,someothertypesofinputarereadily
+availabletoatablettutor.
+In particular, tablets input audio. Speech input is peda-
+gogicallyinformativewhenitcanaccuratelyberecognized
+oranalyzedforotherproperties,suchasprosody.Boththese
+uses of audio input are feasible in quiet lab settings. How-
+ever, in natural settings where multiple children use tablets
+incloseproximityandnoise-cancelingheadsetmicrophones
+aretoofragileorexpensive,audioinputisliberallycontami-
+natedwithbackgroundspeechfromotherchildrenandtheir
+tablets.
+Thetutoritselfcouldbeafruitfulsourceofinformation,
+includingitsinternalstates,decisions,andactions,andstu-
+Figure 8: Classifier Performance vs. (a) Number of Unla-
+dentinputsuchasscreentapsandothergestures.Suchdata
+beled Training Instances (b) Number of Labeled Training
+istutor-specificbutinformative,andweplantoexploititin
+Instances
+the future, especially to recognize the contextual clues that
+our judges used to distinguish among boredom, confusion,
+of the resulting classifier. To test this hypothesis, we com- andfrustration.
+paredchoosing10randominstancesateachiterationversus WeimplementedourdetectoronaWindowsPC.Wecan
+choosingthe10instancesclosesttotheinstanceslabeled(or useitoff-linetoanalyzescreen-recordedsessionsforguid-
+pseudo-labeled)sofar. anceinredesigningRoboTutor.Inprinciple,itcouldbeap-
+pliedtoanyscreencapturevideothatincludescamerainput
+Datapseudo-labeled Accuracy Precision Recall F1-Score oftheuser,whetherfromthefront-facingcameraofatablet,
+10Randominstances 0.78 0.78 0.72 0.74
+orthewebcamatopacomputermonitor.
+10closestinstances 0.88 0.88 0.84 0.86
+However, RoboTutor itself runs on Android tablets. In-
+Table2:Effectoforderofpseudo-labeling corporating the detector into RoboTutor will require port-
+ing it to an Android tablet to detect facial expressions and
+Table 2 shows that choosing the 10 nearest instances at othervisualcuesinrealtime.Wewillalsoneedtoredesign
+eachiterationperformedbetterthanchoosing10randomin- RoboTutor to respond to detected affective states, evaluate
+stances.Why?Semi-supervisedlearningexploitstheconti- the effects of such responses, and refine them accordingly.
+nuityassumptionthatinstancesneareachotherarelikelierto TheseresponsesshouldimproveRoboTutor’sabilitytoen-
+belongtothesameclassthanotherinstancesassignedtothat gagechildrenandhelpthemlearn,andmaygeneralizeuse-
+classbasedsolelyongeneralizationbyaclassifiertrainedon fullytoothertutorsaswell.
+incompletetrainingdata.
+5 Conclusion Acknowledgements
+Contributions: We presented an innovative, multi-channel
+methodforautomatingaffectdetectioninatabletappsolely We thank the team that developed RoboTutor and the chil-
+by integrating visual cues extracted from its front-facing drenwhousedit.Wewouldliketoexpressourgratitudeto
+camerainput.Weusedsemi-supervisedlearningtoleverage Fortunatus Massewe for recording many hours of RoboTu-
+our sparsely labeled training data. We evaluated it against tor screen video, and Dr. Leonora Anyango Kivuva, Joash
+humanjudgesonauthenticdatafromanovelpopulationof Gambarage,ShebaNaderzad,andAndrewMcReynoldsfor
+children using RoboTutor in natural settings, and analyzed labelingso muchdata. Wewould alsolike tothank Rachel
+its performance both quantitatively and qualitatively. This Burcin,Dr.JohnDolanandMikaylaTrostfortirelesslysup-
+workconstitutessignificantprogressinautomatedaffectde- porting us throughout the summer. The first author was a
+tection, whether to improve tutor design off-line or to re- Robotics Institute Summer Scholar supported by an S.N.
+spondtostudentaffectatruntime. BoseScholarship.
+13413
+References onthesignalvalueofemotionalfacialexpressions. Motiva-
+Baltrusˇaitis, T.; Robinson, P.; and Morency, L.-P. 2016. tionandEmotion31(2):137–144.
+Openface: an open source facial behavior analysis toolkit. Kaulard,K.;Cunningham,D.W.;Bu¨lthoff,H.H.;andWall-
+In 2016 IEEE Winter Conference on Applications of Com- raven,C. 2012. Thempifacialexpressiondatabase—aval-
+puterVision(WACV),1–10. IEEE. idated database of emotional and conversational facial ex-
+Bidwell,J.,andFuchs,H. 2011. Classroomanalytics:Mea- pressions. PloSone7(3):e32321.
+suring student engagement with automated gaze tracking. Kret, M. E. 2018. The role of pupil size in communica-
+BehavResMethods49:113. tion. is there room for learning? Cognition and Emotion
+Ceballos, D., and Sorrosal, M. 2002. Time aggregation 32(5):1139–1145.
+problemsinfinancialtimeseries. InMS’2002International Matsumoto, D. 1991. Cultural influences on facial ex-
+Conference on Modelling and Simulation in Technical and pressionsofemotion. SouthernJournalofCommunication
+SocialSciences,25–27. 56(2):128–137.
+Chapelle, O.; Scholkopf, B.; and Zien, A. 2009. Semi- McDaniel,B.;D’Mello,S.;King,B.;Chipman,P.;Tapp,K.;
+supervisedlearning(chapelle,o.etal.,eds.;2006)[bookre- andGraesser,A. 2007. Facialfeaturesforaffectivestatede-
+views]. IEEETransactionsonNeuralNetworks20(3):542– tectioninlearningenvironments. InProceedingsoftheAn-
+542. nualMeetingoftheCognitiveScienceSociety,volume29.
+Craig, S.; Graesser, A.; Sullins, J.; and Gholson, B. 2004. Michel,P.,andElKaliouby,R. 2003. Realtimefacialex-
+Affectandlearning:anexploratorylookintotheroleofaf- pressionrecognitioninvideousingsupportvectormachines.
+fectinlearningwithautotutor.Journalofeducationalmedia InProceedingsofthe5thinternationalconferenceonMul-
+29(3):241–250. timodalinterfaces,258–264. ACM.
+Craig,S.D.;D’Mello,S.;Witherspoon,A.;andGraesser,A. Mostow,J. 2019. robotutor.org.
+2008.Emotealoudduringlearningwithautotutor:Applying
+Nojavanasghari, B.; Baltrusˇaitis, T.; Hughes, C. E.; and
+thefacialactioncodingsystemtocognitive–affectivestates
+Morency, L.-P. 2016. Emoreact: a multimodal approach
+duringlearning. CognitionandEmotion22(5):777–788.
+anddatasetforrecognizingemotionalresponsesinchildren.
+D’Mello,S.,andGraesser,A. 2009. Automaticdetectionof
+InProceedingsofthe18thacminternationalconferenceon
+learner’saffectfromgrossbodylanguage. AppliedArtificial
+multimodalinteraction,137–144. ACM.
+Intelligence23(2):123–150.
+Partala,T.,andSurakka,V. 2003. Pupilsizevariationasan
+D’Mello, S. K., and Graesser, A. 2010. Multimodal semi-
+indication of affective processing. International journal of
+automated affect detection from conversational cues, gross
+human-computerstudies59(1-2):185–198.
+body language, and facial features. User Modeling and
+Petrantonakis, P. C., and Hadjileontiadis, L. J. 2009.
+User-AdaptedInteraction20(2):147–187.
+Emotion recognition from eeg using higher order cross-
+D’Mello,S.,andGraesser,A. 2012. Autotutorandaffective
+ings. IEEE Transactions on Information Technology in
+autotutor:Learningbytalkingwithcognitivelyandemotion-
+Biomedicine14(2):186–197.
+allyintelligentcomputersthattalkback. ACMTransactions
+Picard,R.W. 2000. Affectivecomputing. MITpress.
+onInteractiveIntelligentSystems(TiiS)2(4):23.
+PlayStore,G. 2018. Azscreenrecorder.
+D’Mello, S.; Picard, R. W.; and Graesser, A. 2007. To-
+wardanaffect-sensitiveautotutor. IEEEIntelligentSystems Reddy,R.P.;Krishna,P.M.;Narayanan,V.;andLalitha,S.
+22(4):53–61. 2018. Affectivestaterecognitionusingimagecues. In2018
+InternationalConferenceonAdvancesinComputing,Com-
+Du, S.; Tao, Y.; and Martinez, A. M. 2014. Compound
+municationsandInformatics(ICACCI),928–933. IEEE.
+facialexpressionsofemotion. ProceedingsoftheNational
+AcademyofSciences111(15):E1454–E1462. Stanley, D. 2013. Measuring attention using microsoft
+Egger,H.L.;Pine,D.S.;Nelson,E.;Leibenluft,E.;Ernst, kinect.
+M.; Towbin, K. E.; and Angold, A. 2011. The nimh child Valstar, M., and Pantic, M. 2010. Induced disgust, hap-
+emotionalfacespictureset(nimh-chefs):anewsetofchil- piness and surprise: an addition to the mmi facial expres-
+dren’sfacialemotionstimuli. Internationaljournalofmeth- siondatabase. InProc.3rdIntern.WorkshoponEMOTION
+odsinpsychiatricresearch20(3):145–156. (satelliteofLREC):CorporaforResearchonEmotionand
+Faria, D. R.; Vieira, M.; Faria, F. C.; and Premebida, C. Affect, 65. Paris,France.
+2017. Affective facial expressions recognition for human- Westlund, J. K.; D’Mello, S. K.; and Olney, A. M. 2015.
+robotinteraction. In201726thIEEEInternationalSympo- Motion tracker: Camera-based monitoring of bodily move-
+siumonRobotandHumanInteractiveCommunication(RO- mentsusingmotionsilhouettes. PloSone10(6):e0130293.
+MAN),805–810. IEEE.
+Woolf,B.;Burleson,W.;Arroyo,I.;Dragon,T.;Cooper,D.;
+Haq, Z. A., and Hasan, Z. 2016. Eye-blink rate detection and Picard, R. 2009. Affect-aware tutors: recognising and
+for fatigue determination. In 2016 1st India International respondingtostudentaffect.InternationalJournalofLearn-
+ConferenceonInformationProcessing(IICIP),1–5. IEEE. ingTechnology4(3-4):129–164.
+Hess,U.;Adams,R.B.;andKleck,R.E. 2007. Lookingat XPRIZE. 2015. learning.xprize.org.
+youorlookingelsewhere:Theinfluenceofheadorientation
+13414

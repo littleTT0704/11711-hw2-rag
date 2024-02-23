@@ -1,0 +1,1003 @@
+Conversational Multi-Hop Reasoning with
+Neural Commonsense Knowledge and Symbolic Logic Rules
+ForoughArabshahi∗ JenniferLee∗ AntoineBosselut
+Facebook Facebook EPFL
+forough@fb.com jenniferlee98@fb.com antoine.bosselut@epfl.ch
+YejinChoi TomMitchell
+UniversityofWashington CarnegieMellonUniversity
+yejin@cs.washington.edu tom.mitchell@cmu.edu
+Abstract
+Oneofthechallengesfacedbyconversational
+agents is their inability to identify unstated
+presumptions of their users’ commands, a
+task trivial for humans due to their common
+sense. In this paper, we propose a zero-
+shot commonsense reasoning system for con-
+versational agents in an attempt to achieve
+this. Ourreasoneruncoversunstatedpresump-
+tions from user commands satisfying a gen-
+eral template of if-(state), then-(action),
+because-(goal). Ourreasonerusesastate-of-
+the-arttransformer-basedgenerativecommon-
+Figure 1: (cid:131)(cid:140)(cid:149)(cid:133)’s conversation with a human. The
+sense knowledge base (KB) as its source of
+multiplechoices1through5arecommonsenseknowl-
+backgroundknowledgeforreasoning. Wepro-
+edge obtained from COMET using our multi-hop rea-
+pose a novel and iterative knowledge query
+soner, ranked by the reasoner’s confidence. Since the
+mechanism to extract multi-hop reasoning
+userchoosesOption2(BecauseIstaydry),(cid:131)(cid:140)(cid:149)(cid:133)se-
+chains from the neural KB which uses sym-
+lectsthisreasoningpathasthefinalreasoningchain.
+bolic logic rules to significantly reduce the
+search space. Similar to any KBs gathered
+to date, our commonsense KB is prone to
+missingknowledge. Therefore,weproposeto “If (state holds), Then (perform action), Be-
+conversationally elicit the missing knowledge cause (I want to achieve goal)”. We refer
+from human users with our novel dynamic to commands satisfying this template as if-then-
+question generation strategy, which generates because commands. As stated in Arabshahi et al.
+and presents contextualized queries to human
+(2021), humans often under-specify conditions
+users.Weevaluatethemodelwithauserstudy on the if-portion (state) and/or then-portion
+with human users that achieves a 35% higher
+(action) of their commands. These under-
+successratecomparedtoSOTA.
+specified conditions are referred to as common-
+1 Introduction sense presumptions. For example, consider the
+command, “If it’s going to rain in the afternoon
+Conversationalagentsarebecomingprominentin (·)Thenremindmetobringanumbrella(·)Be-
+ourdailylivesthankstoadvancesinspeechrecog- cause I want to remain dry”, where (·) indicates
+nition, natural language processing and machine
+thepositionoftheunstatedcommonsensepresump-
+learning. However, most conversational agents
+tions. Thepresumptionsforthiscommandare(and
+stilllackcommonsensereasoning,preventingthem
+I am outside) and (before I leave the house), re-
+fromengaginginrichconversationswithhumans.
+spectively. The goal in this task is to infer such
+Recently, Arabshahi et al. (2021) proposed commonsensepresumptionsgivenif-then-because
+a commonsense reasoning benchmark task for commands.
+conversational agents that contains natural lan-
+In this paper, we propose the ConversationaL
+guage commands given to an agent by humans.
+mUlti-hop rEasoner ((cid:131)(cid:140)(cid:149)(cid:133)) for this task which
+These commands follow a general template of:
+performs zero-shot reasoning. (cid:131)(cid:140)(cid:149)(cid:133) extracts a
+∗Equalcontribution multi-hop reasoning chain that indicates how the
+Figure2: (cid:131)(cid:140)(cid:149)(cid:133)diagram. (cid:131)(cid:140)(cid:149)(cid:133)hasthreemaincomponents: Theparser, themulti-hopreasoner(prover)and
+the dialog system. Given an if-then-because command, the parser extracts independent natural language clauses
+forthestate,actionandgoal. Theproverextractsmulti-hopreasoningchainsgiventhelogictemplatesusing
+our neural commonsense KB, COMET that indicates how the actionachieves the goalwhen the stateholds.
+The extracted reasoning chains go through the dialog system that generates template-dependent questions and
+converseswithahumanwhoeithervalidatesthereturnedproofsorcontributesnovelcommonsenseknowledgeif
+theproofsareincorrect.
+action leadstothegoal whenthestate holds. tothiscommand. Moreimportantly,itisalsoun-
+Forexample,thesimplifiedreasoningchainforthe likelythatacommandrequiringthesametypeof
+previousexampleis,“ifIamremindedtobringan reasoningwilloccuragaininthefuture,makingit
+umbrella before I leave the house, then I have an cost-ineffectivetomanuallyannotate.
+umbrella”,“ifIhaveanumbrellaanditrainswhen Toovercomethis,weproposeconversationally
+Iamoutside,thenIcanusetheumbrellatoblock eliciting missing knowledge from human users.
+the rain”, “if I block the rain, then I remain dry”. Conversationwithusersisreadilyavailablesince
+Additionalcommonsenseknowledgeprovidedby (cid:131)(cid:140)(cid:149)(cid:133)isdevelopedforconversationalagents. We
+thereasoningchainisconsideredacommonsense developanovelquestiongenerationstrategythat
+presumptionoftheinputcommand. Inordertocon- usesCOMETtogeneratequestionsinthecontext
+structthemulti-hopreasoningchain,wedevelopa oftheinputif-then-becausecommands,allowing
+novel reasoning system that uses a few symbolic (cid:131)(cid:140)(cid:149)(cid:133) to acquire contextual feedback from hu-
+logictemplatestoprunetheexponentialreasoning mans. We evaluate our reasoner by conducting a
+search space, resulting in significantly improved userstudywithhumans.
+generatedcommonsenseknowledge.
+Summary of Results and Contributions: The
+Our multi-hop reasoner uses a state-of-the-art
+contributionsofthispaperaretwo-fold. First,we
+(SOTA) transformer-based commonsense knowl-
+proposeanovelconversationalcommonsenserea-
+edge model called COMmonsEnse Transformers
+soningapproachcalledConversationaLmUlti-hop
+(COMET )(Bosselutetal.,2019)asitssourceof
+rEasoner((cid:131)(cid:140)(cid:149)(cid:133))thatincorporatesCommonsense
+backgroundknowledgeandisthefirsttimereason-
+Transformers(COMET),alargescaleneuralcom-
+ingtaskistackledusingalargescaleKB.Knowl-
+monsense KB, as its main source of background
+edgemodelscanbeusedinplaceofKBs,butthey
+knowledge. We propose a multi-hop knowledge
+aremoreflexibleintermsofinformationaccess,so
+querymechanismthatextractsreasoningchainsby
+weusethisterminterchangeablywithKB.
+iterativelyqueryingCOMET. Thismechanismuses,
+DespitebeingaSOTAKB,COMETstillmisses for the first time, a few symbolic logic templates
+requisite knowledge for reasoning about if-then- toprunethereasoningsearchspace,significantly
+becausecommands. Infact,manyif-then-because improving the quality of the generated common-
+commands often fall under the long tail of tasks sense knowledge. Second, we propose a conver-
+forwhichthereistoolittleknowledgeavailablein sational knowledge acquisition strategy that uses
+anycommonsenseKBs. Forexample, oneofthe theknowledgeextractedfromCOMETtodynami-
+commandsinthedatasetis: “IfIgetanemailwith callyaskcontextualquestionstohumanswhenever
+subjectthegaskilnfired,thensendmealistofall there is missing knowledge. We ran a user study
+the pots I put on the glaze shelf between the last andevaluatedourproposedapproachusingrealhu-
+firingandnow,becauseIwanttopickupthepots manusers. Ourresultsshowthat(cid:131)(cid:140)(cid:149)(cid:133)achieves
+fromthestudio.” Itisunlikelyforanyknowledge a35%highersuccessratecomparedtoabaseline,
+sourcetocontainafactthatiscontextuallyrelevant whichusesalesssophisticatedconversationalinter-
+faceandasmallerbackgroundknowledgeonthe
+benchmarkdataset. Wealsoextensivelyevaluate
+theperformanceofthereasonerinanisolatednon-
+conversationalsettingandempiricallyre-iteratethe
+needforconversationalinteractions. (cid:131)(cid:140)(cid:149)(cid:133)’scom-
+ponentswerenottrainedonthebenchmarkdataset.
+Therefore, our results assess the performance of
+(cid:131)(cid:140)(cid:149)(cid:133)’szero-shotreasoning.
+Figure 3: Logic templates and an example if-then-
+because command for each one. ∧, ¬, and (cid:68) denote
+2 BackgroundandNotation
+logical AND, negation, and implication, respectively.
+action indicates a hidden action. For example, the
+h
+Inthissection,webrieflyre-introducethebench- hidden action for the third command (green template)
+mark task, the logic templates, and Arabshahi is“plantingflowerbulbs”.
+etal.’sreasoningengineCORGI(COmmonsense
+ReasoninGByInstruction),alongwithanoverview
+2.2 CORGI
+ofCOMET(Bosselutetal.,2019).
+COmmonsense ReasoninG By Instruction
+2.1 If-Then-BecauseCommands (CORGI; Arabshahi et al. (2021)) is the SOTA
+commonsense reasoning engine designed for
+The benchmark dataset (Arabshahi et al., 2021) inferring commonsense presumptions of if-then-
+containsnaturallanguagecommandsgiventocon- becausecommands. CORGIhasaneuro-symbolic
+versational agents. These commands follow the reasoningmodule(theoremprover)thatgenerates
+template“If-(state),Then-(action),Because- multi-hop reasoning trees given if-then-because
+(goal)”. Theif-clauseisreferredtoasthestate, commands. Theneuro-symbolicreasoningmodule
+the then-clause as the action and the because- is a soft logic programming system that reasons
+clauseasthegoal. using backward chaining (a backtracking algo-
+rithm). CORGI does not use the logic templates
+Logic Templates: The data is partitioned into to do reasoning. One of the main limitations of
+4 color-coded reasoning logic templates that CORGI is that it uses a small hand-crafted KB
+indicatehowthecommandedaction leadstothe that is not diverse enough to reason about all
+goal whenthestate holds. Tobeself-contained, the if-then-because commands in the benchmark
+wehaveincludedthetableoflogictemplatesfrom dataset. CORGIwastestedonlyon10commands
+Arabshahietal. inFigure3. Intheinterestofspace, inthereleasedbenchmark(Arabshahietal.,2021).
+we give one example of the blue logic template, Moreover, CORGI’s KB is programmed in a
+(¬(goal) (cid:68) state)∧(goal (cid:68) action(state)) syntax similar to Prolog (Colmerauer, 1990), but
+,where¬indicatesnegation,and∧indicateslogi- large-scalecommonsenseProlog-likeknowledge
+calAND.Underthistemplate,thestate implies basesarenotreadilyavailable. Therefore,inthis
+the negation of the goal AND the action im- paperweproposetousealarge-scaleSOTAneural
+plies the goal when the state holds. An commonsenseKBwhichbothextendsthatlimited
+example if-then-because command that satisfies sourceofbackgroundknowledgeandalsoenables
+this template is, “If it snows tonight then wake theuseofanewtypeofknowledgesource.
+me up early because I want to get to work on CORGI is equipped with a conversational in-
+time”. Here,thestate ofsnowing(alot)atnight teraction strategy to acquire knowledge from hu-
+results in the negation of the goal and the user manswhenthatknowledgeismissingfromtheKB.
+willnotbeabletogettoworkontime. ANDifthe However,CORGIusesastaticquestiongeneration
+action ofwakingtheuserupearlierisperformed strategy that often confuses the end-users. First,
+when the state of snowing (a lot) at night holds, theparseroftenomitsverbconjugationorsubjects,
+theuserwillgettoworkontime. Theotherthree resultingingrammaticallyincorrectquestions. Sec-
+follow different logic templates, but are of the ond,thestaticquestiongenerationstrategydoesnot
+samenature. WereferthereadertoArabshahietal. alwaysgeneratecontextualqueries. Therefore,in
+formoredetails. thispaperweproposeadynamicquestiongenera-
+tionstrategythatgeneratesmorerelevantquestions tem(Figure2). TheParsertakesinthecommand
+resultinginahigherqualityknowledgeextraction and extracts the state, actionand goalfrom
+fromhumans. Wealsoincludeamorerobustparser it. Atthesecondstep,theproverattemptstofind
+toensurethequestionsaregrammaticallycorrect. reasoning chains that connect the actionto the
+goalwhen the stateholds. The extracted rea-
+2.3 COMET soning chains go through the dialog system that
+COMmonsensETransformer(COMET ;Bosselut generatesandpresentscontextualizedquestionsto
+etal.) isagenerativetransformer-basedcommon- ahumanuserwhoeithervalidatesareturnedrea-
+sense KB that learns to generate rich and diverse soning chain or contributes novel knowledge to
+commonsense descriptions. COMET constructs (cid:131)(cid:140)(cid:149)(cid:133)ifnoneofthereasoningchainsarecorrect.
+commonsense KBs by using existing tuples as a
+Allthreecomponentsinteractwith(cid:131)(cid:140)(cid:149)(cid:133)’stwo
+seedsetofknowledgeonwhichtotrain. Inessence, sources of background knowledge: (I) A small
+a pre-trained language model learns to adapt its handcraftedknowledgebasecontaininglogicfacts
+learned representations to knowledge generation,
+andrules,K,programmedinalogicprogramming
+producingnovelhigh-qualitytuples. languageand(II)Alargescaleneuralknowledge
+Unlike other KBs, COMET represents knowl- base, COMET, containing free-form text. During
+the user-interaction sessions, the system’s back-
+edge implicitly in its neural network parameters
+ground knowledge base K grows in size as new
+andexpressesknowledgethroughgeneratedfree-
+knowledgeisaddedtoit. Thisnewknowledgeis
+form open-text descriptions. This makes it well-
+eithernovelinformationaddedbytheuserduring
+suitedforthestudiedreasoningtask,astheif-then-
+conversationalinteractions,orknowledgequeried
+becausecommandsarealsoexpressedinfree-form
+fromCOMETandconfirmedbytheuser. Thisnew
+textdescriptions. Therefore,wecandirectlyquery
+COMETforcommonsensepre-conditionsandpost- knowledge will be added to K for future similar
+effects of the state, actionand goal. For ex- reasoning tasks. In what follows, we explain the
+ample, “pouring coffee” is a commonsense pre- threecomponentsof(cid:131)(cid:140)(cid:149)(cid:133)indetail.
+conditionfor“drinkingcoffee”(Fig4a).
+3.1 Parser
+Our system uses a COMET model trained on
+Our parser extracts the state, action, and
+twoknowledgegraphs,ATOMIC(Sapetal.,2019)
+goal asindependentclausesfromtheinputif-then-
+and ConceptNet (Speer et al., 2016). Each of
+becausecommand. WeuseSpacy’s(Honnibaland
+these knowledge graphs consists of a collection
+Montani, 2017) NLP tools such as POS tagging
+of tuples, {s,r,o}, where s and o are the subject
+andcoreferenceresolutiontomaketheclausesself-
+and object phrase of the tuple, respectively and
+r ∈ [r0,r1,...,r(cid:96)−1]istherelationbetween sand containedandcontextual.
+o, and (cid:96) is the number of relations in the KB.
+3.2 Multi-HopProver
+COMETistrainedtogenerateogiven sandr. E.g.,
+InspiredbyhowProloggeneratesproofscontain-
+Figure4showsexamplesofthegeneratedobjects
+ing chains of logical rules and facts using a KB,
+givenaninputsubject,“Idrinkcoffee,”andseveral
+our prover (reasoner) generates chains of natural
+relationsfromtheATOMIC-trained(Fig.4a)and
+language commonsense facts and rules to reason
+ConceptNet-trained(Fig.4b)COMETmodels.
+about an input command by iteratively querying
+3 (cid:131)(cid:140)(cid:149)(cid:133): ConversationalMulti-Hop COMET (detailsontheanaloguebetweenProlog
+andourproverareintheappendix). Wedenotea
+Reasoner
+COMET query by COMET(r,s) where r is a rela-
+(cid:131)(cid:140)(cid:149)(cid:133) (ConversationaL mUlti-hop rEasoner) is tionand sisasubjectoraninputnaturallanguage
+a commonsense reasoning engine that inputs if- clause. COMETusesbeamsearchatdecodingtime
+then-becausecommandsandoutputsareasoning and COMET(r,s) outputs a list of candidate ob-
+chain(proof)containingif-thenlogicalstatements jectsO = [o0,o1,...,ob−1]orderedbyconfidence,
+thatindicateshowtheactionachievestheuser’s where b indicates COMET’s beam size. We cate-
+goalwhenthestateholds. (cid:131)(cid:140)(cid:149)(cid:133)isbuiltontop gorizeCOMETrelationsintotwoclasses,namely
+ofCORGIandistriggeredwhenCORGIfails. It pre-conditionsandpost-effects. Forexample,the
+consistsofthreecomponents: (1)theparser,(2)the relations“BecauseIwanted”and“isusedfor”in
+multi-hopprover(reasoner),and(3)thedialogsys- Fig4arepost-effects,whereastherelations“Before
+to wake up
+to be alert
+Because I
+wanted
+to have a caffeine boost
+to be energized
+I drink to be awake
+coffee pour coffee
+buy coffee
+Before, I needed tt oo hp ao vu er c co of ff fe ee
+e Figure5: Bidirectionaltwo-hopproofforthebluetem-
+none plate (¬(goal)(cid:68)state) . The dotted orange lines
+(a)ATOMICbeamresultsfortworelationsBecauseIwanted indicatesemanticcloseness. ri’sareKBrelations,C is
+andBefore,Ineeded
+thenumberofpre-conditionrelationsandEisthenum-
+make from grind coffee bean ber of post-effect relations in the KB. The ¬ symbol
+brew from grind coffee bean referstorelationsthatrepresentnegation;forexample,
+requires action serve in cup
+NotCapableOf orNotIsA.
+brew
+I drink grind
+coffee keep me awake at night
+eat breakfast
+is used for stay awake markdatasetusedforevaluationinthispaper.
+keep me awake
+eat
+SemanticCloseness: Inordertomeasureseman-
+(b)ConceptNetbeamresultsfortworelationsrequiresaction
+andisusedfor ticclosenessoftheobjectandsubjectphrases,we
+embed the sequence of tokens that make up the
+Figure 4: COMET (s) generations for s = I drink cof-
+r objectoftheprevioustuple(o )andthesequence
+fee and two different relations r. Our neural KB was i−1
+oftokensthatmakeupthesubjectofthenexttuple
+trainedonATOMICandConcepNetknowledgegraphs.
+Thegenerationsarelistedontherightofthe block. (s i)intheprooftrace. Semanticcloseness,usedfor
+rankingthereturnedproofs,isdefinedasavector
+cosinesimilarityoflargerthanathreshold,τ.
+Ineeded”and“requiresaction”arepre-conditions. We investigate several embedding methods to
+findonethatbestsuitesourmulti-hopprover. We
+Let us now formally define a reasoning chain usedGloVeembeddings(Penningtonetal.,2014),
+or proof extracted from our neural knowledge BERTpre-trainedembeddings(Devlinetal.,2019)
+base. A proof consists of a chain of knowledge andfine-tunedembeddingsinCOMET,whichwe
+tuples{s i,r i,o i},wherei ∈ [1,N]and N indicates call commonsense embeddings. For GloVe and
+the number of hops in the proof chain such that BERTembeddings,wecomputethephraseembed-
+o i−1 is semantically close to s i. (We discuss the ding by averaging the embeddings of the tokens.
+notion of semantic closeness in the next subsec- Forcommonsenseembeddings,weusethephrase
+tion.) The search space for finding a proof chain embeddings returned by COMET. In the results
+fromCOMETgrowsexponentiallywithN ifimple- section,wecomparetheoutcomeofthesechoices.
+mentednaively. Inthenextsubsectionsweexplain
+howweprunethesearchspaceusingthelogictem- Pruning the Proof Search Space In order to
+platesreleasedwiththebenchmarkdataset. form a reasoning chain (proof) for an if-then-
+ThegoalofourproveristoscaleupCORGI’s because command using COMET, we leverage
+smallhand-craftedknowledgebase,whichispro- the logic templates discussed in Sec. 2. All the
+grammedinaProlog-likelanguage. Sincealarge- templates consist of a conjunction of two logi-
+scale commonsense KB in Prolog is not readily cal implications. For each implication (Head (cid:68)
+available, (cid:131)(cid:140)(cid:149)(cid:133) proposes an alternative prover Body),theHeadandBodyaregivenintheif-then-
+thatenablesusingSOTAlarge-scalecommonsense because command. For example, the goal and
+KBs. Moreover,(cid:131)(cid:140)(cid:149)(cid:133)’sproverisconsistentwith state in the first implication of the purple tem-
+CORGI’sneuro-symboliclogictheoremprover(re- plate ( goal (cid:68) state ) are extracted from the
+fer to the appendix for details), allowing us to input command. Therefore, in order to prove the
+seamlessly extend CORGI’s background knowl- first implication, we need to find a chain of rea-
+edgewithoutrequiringalargescalecommonsense soningthatleadsfromthestate tothegoalina
+KB programmed in Prolog. Lastly, (cid:131)(cid:140)(cid:149)(cid:133) per- seriesofN hops. Inordertodothat,weeitherper-
+forms reasoning in a zero-shot manner since the formunidirectionalorbidirectionalbeamsearchas
+pre-trained COMET is not trained on the bench- explainedbelow.
+UnidirectionalBeamSearch: Here,foragiven AsshowninFigure1,fiveexplanationsforthe
+numberofhops N,wefirstconstructallbeamre- questionarereturnedby(cid:131)(cid:140)(cid:149)(cid:133). Theuserchooses
+sults O =COMET(r ,s ) where s is the natural oneandprovidesanexplanationastowhyhe/she
+1 e 1 1
+language clause that corresponds to the Body of chose that option. The explanation is in open-
+theimplicationinthelogictemplate,andforallr domaintext,formattedasaseriesofif-thenstate-
+e
+thatarepost-effectCOMETrelations. Wecontinue ments. Thisisbecauseif-thenformattedexplana-
+j
+to query COMET(r ,o ) recursively in a breadth- tionscanbeeasilyparsedusingourparser. Inthis
+e n
+firstmannerfor∀oj ∈ O wheren ∈ [1,...,N]is step,thequestionaskedfromusersiscontingenton
+n n
+thehopindex. Ineachhop,weonlycontinuethe whichlogictemplatetheif-then-becausecommand
+queryforthetopK resultsrankedbythesemantic follows. Thedialogsystem’sflowchartaswellas
+j
+closenessofthereturnedbeamresulto andtheim- anexampledialogareintheappendix.
+n
+plication’sHead,whereKisthesearch’sbeamsize.
+Humans as Novel Knowledge Contributors
+Atthe Nth hop,theproverreturnsproofchainsfor
+We also use human interaction to acquire novel
+whicho issemanticallyclosetotheimplication’s
+N
+knowledge that does not exist in the background
+Head,whichcorrespondstothegoal.
+knowledgebases,K andCOMET.
+BidirectionalBeamSearch: Here,weconstruct When faced with missing knowledge in K,
+allpossiblebeamresultsofCOMET(r ,s ),where (cid:131)(cid:140)(cid:149)(cid:133) uses the same technique from Arabshahi
+e 1
+s isthenaturallanguageclausethatcorresponds et al. (2021) with a rephrased, more comprehen-
+1
+to the implication’s Body, for all r that are post- sive question, “what ensures (cid:104) goal(cid:105)?” result-
+e
+effect relations as well as COMET(r ,o ), where ing in higher quality feedback. If the user’s re-
+c N
+o isthenaturallanguageclausecorrespondingto sponsetothemultiple-choicequestionis“Noneof
+N
+theHeadoftheimplicationinthelogictemplate, the above”, it indicates that COMET has missing
+forallr thatarepre-conditionrelations. Theproof knowledge. (cid:131)(cid:140)(cid:149)(cid:133)thenaskstheuserforanexpla-
+c
+succeedswhentwointermediatebeamresultsare nationandaddsthenewknowledgetoK andruns
+semantically close in the beam search path from CORGI’sreasoningmoduletoconstructaproof. It
+eitherdirection(Fig5). isworthnotingthatsinceK isordersofmagnitudes
+smaller than SOTA knowledge bases, growing it
+3.3 DialogSystem
+withnovelknowledgedoesnotintroduceanyscal-
+The reasoning chains obtained by the prover are abilityissues.
+passedtotheDialogSystem,whichhastwomain
+goals. The first is to confirm the prover obtained 4 ExperimentsandResults
+valid reasoning chains by asking the user if they
+Here we discuss our experimental setup, evalua-
+thinktheautomaticallyrecoveredproofsare“cor-
+tionmethod,baselinesandresults. Weworkwith
+rect”fromacommonsensestandpoint(Fig1). The
+132outofthe160commandsfromthebenchmark
+necessity of this was also confirmed in Bosselut
+dataset(2021)thatfallunderthreelogictemplates
+etal.(2019)’shumanevaluationstudies. Thesec-
+blue,orangeandgreen(Figure3). Theredtemplate
+ondistoovercometheproblemofmissingknowl-
+containscommandsforwhichthereisnounifying
+edgewhentheuserrejectsalltheproofsreturned
+logictemplate. Therefore,wecannotuseit.
+bytheprover. Weintroducethedialoggenerators
+responsibleforfulfillingeachoftheabovegoalsin Evaluation: Wedonotuseautomatedevaluation
+whatfollows. metricsandinsteadusehumanevaluationsfortwo
+reasons. First, there are currently no metrics in
+HumansasKnowledgeEvaluators Thedialog
+theliteraturethatassesswhetherthereturnedrea-
+generator confirms the returned COMET proofs
+soningchainsare“correct”fromacommonsense
+withhumansbeforeaddingitasbackgroundknowl-
+perspective. Second, evaluating dialog systems
+edge to K. In order to do this, it chooses the
+is challenging. It is debated that metrics such as
+top5proofswiththehighestsimilarityscoresand
+BLEU(Papinenietal.,2002)andperplexityoften
+presentsthemascandidatestothehumanuserto
+fail to measure true response quality (Liu et al.,
+choose from. Our study shows that these multi-
+2016;Lietal.,2016).
+plechoicesnotonlyhelpconfirmCOMETresults
+buttheyalsoprovideguidancetousersastowhat Experiments: Inthefirstexperiment,weevalu-
+informationthesystemislookingfor. ateourmulti-hopproverinisolationandwithout
+conversationalinteractions. Thehumanevaluators Table1: Numberofhops(N)requiredtoobtainahalf-
+prooffortheimplicationgoal(cid:68)actionfortwoproof
+in this studyare expert evaluators. In our second
+searchstrategiesand132commands. Similarityscore
+experiment,wetest(cid:131)(cid:140)(cid:149)(cid:133)’sperformanceend-to-
+iscomputedusingGloVeembeddings.
+endwithnon-experthumanusersandinvestigate
+theefficacyoftheconversationalinteractions. Inor-
+N
+1 2 3 4 5
+dertobecomparablewithArabshahietal.(2021)’s Pruning
+study,weusetheknowledgebaseofcommonsense Unidirectional #Expert-verifiedproofs 50 21 13 2 1
+facts and rules, K, released with the dataset. It beamsearch #Automatedproofs 26 10 6 1 1
+Bidirectional #Expert-verifiedproofs N/A 67 16 9 3
+contains228factsandrules. OurCOMETmodelis beamsearch #Automatedproofs N/A 42 6 0 0
+pre-trainedonknowledgegraphsConceptNetand
+ATOMIC. We used COMET’s open-source code1 Table 2: Number of successful unidirectional half-
+for training with the hyper-parameters reported proofs for the implication goal(cid:68) actionfor a given
+there(Bosselutetal.,2019). numberofhops(N)amongthetopk proofcandidates
+for132commands. Similarityscoreiscomputedusing
+GloVeembeddings.
+4.1 Multi-hopProverEvaluation
+AsshowninFigure3,eachlogictemplateconsists N
+1 2 3 4 5
+of a conjunction of two logical implication state- k
+ments. Weusetheterminologyend-to-end proof 1 26 10 6 1 1
+2 32 12 7 1 1
+torefertoprovingbothoftheimplicationsinthe
+3 35 12 9 1 1
+templateandhalf-proof torefertoprovingone. 4 37 14 9 1 1
+Table 1 presents the number of proved logical 5 39 14 10 1 1
+implicationsgoal(cid:68)action,withrespecttothe
+number of hops using unidirectional and bidirec-
+isincreasedbeyondacertainpoint. Pleasenote,in
+tionalbeamsearch. Expert-verifiedproofsreferto
+bidirectionalbeamsearchN = 1isnotapplicable
+reasoning chains with similarity score of at least
+becausethesmallestnumberofhopsextractedfor
+0.8 that are validated by a human evaluator. The
+bidirectionalbeamsearchis2. Moreover,ifastate-
+similarity threshold of 0.8 was tuned offline on a
+mentisprovedwithlowernumberofhops,wedo
+smallsubsetofthebenchmarkdatasetandpicked
+notproveitwithahigherN. Therefore,thenumber
+from the following list [0.7,0.8,0.85,0.9]. Auto-
+ofhopsneededforprovingacertainstatementis
+mated proofs are the portion of the human evalu-
+notpredefined, andisratherchosenbasedonthe
+atedproofsforwhichthehighestscoringproofis
+bestsemanticclosenessamongallextractedhops
+the verified one. As shown, the number of auto-
+at test time. The automated half-proofs obtained
+mated proofs almost doubles when an expert hu-
+fromtheproverarelistedinTables6and7inthe
+manevaluatorvalidatestheproofs. Thisindicates
+Appendix.
+that the model benefits from human knowledge
+In Table 2, we present the number of expert-
+evaluators. Aninstanceofthisscenarioisshown
+verifiedhalf-proofsachievedwithdifferentnumber
+inFigure1wherethehumanuserchoosesthesec-
+ofhops(N)withinthetopk rankedresults. Note
+ond ranking candidate as the correct proof. As
+thatweexcludesuccessfulhalf-proofsforhigher
+expected, a portion of the commands cannot be
+degreesofN ifthereexistsaproofwithfewerhops,
+provedusingCOMETaloneevenwithhumaneval-
+andweincludeaproofaslongastheverifiedresult
+uators. This indicates that we are encountering
+iswithinthetopk results. Table2showsthatthe
+missing knowledge. Therefore, there is need for
+majority of successful half-proofs are achievable
+humans as novel knowledge contributors. More-
+inN ≤ 3.
+over,Table1showsthatbidirectionalbeamsearch
+In Table 3, we present the number of obtained
+is more successful than unidirectional search for
+full proofs for 2-hop bidirectional beam search
+lowerhopsgreaterthan1. Thisisbecausethereis
+(thebestresultfromTable1)usingGloVeembed-
+a higher chance of finding a good scoring match
+dingsbrokendownbylogictemplates. Although
+whenthetwodirectionsmeetduetoanextended
+COMETissuccessfulatfindinghalfproofs,thesuc-
+searchspace. Forthesamereason,thenumberof
+cessratedecreaseswhentwoimplicationsneedto
+successful proofs drop when the number of hops
+beproveninconjunction. Asshown,COMETcan
+1https://github.com/atcbosselut/comet-commonsense (fully) prove 12.8% of the if-then-because com-
+Table3: NumberofEnd-to-EndProofsperLogicTem- from this study and report the percentage of the
+platefor2-hopbidirectionalbeamsearch.
+if-then-becausecommandsthatweresuccessfully
+proved (end-to-end) as a result of the conversa-
+LogicTemplate #Successful #FalsePositive TotalCount
+tionalinteractionsinTable5. Ourusersworkedon
+orange 1 0 50
+Automated
+blue 6 1 65 atotalof288if-then-becausecommandsthatfitthe
+proof
+green 6 2 17
+blue, orange, and green logic templates. We had
+Expert orange 1 N/A 50
+evaluated blue 7 N/A 65 129 unique commands and 29 participants in the
+proof green 9 N/A 17 studywithatleast2userspercommand. The129
+commandsusedinthisstudyareasubsetofthe132
+Table 4: Number of half-proofs using bidirectional
+commands (half-proofs) in Table 1. The remain-
+beamsearch: evaluatedbyexperthumanevaluators.
+ing3statementswereexcludedbecauseeitherthe
+EmbeddingSpace goal(cid:68)action ¬goal(cid:68)state statementswerelongerthanCOMET’smaximum
+inputtokensize(forthefull-proof)ortheydidnot
+GloVe 67 17
+BERT 52 14
+triggeraCORGI/CLUEinteractionsoitdoesnot
+Commonsense 59 12 makesensetoincludethemintheuser-study. Each
+participant worked on 9-10 statements taking ap-
+proximately 30-40 minutes to complete them all.
+mands. Thisemphasizesthenecessityofusinghu-
+Theparticipantswereundergraduate,graduateor
+manconversationalinteractionsforobtainingfull
+recentlygraduatedstudentswithabackgroundin
+proofs. Therefore,ifCOMETsucceedsatproving
+computerscienceorengineering. Pleasenotethat
+halfofthetemplate,thereisachancetoprovethe
+no skills beyond reading is required for interact-
+other half with the help of a human user. This is
+ingwith(cid:131)(cid:140)(cid:149)(cid:133);noparticulardomainexpertiseis
+becausemostofthecommandsbelongtothelong
+neededeitherbecausemosthumanspossesscom-
+tailoftasksforwhichthereistoolittleknowledge
+monsenseregardingday-to-dayactivities.
+availableinanycommonsenseKB.
+Theuserscontributedatotalnumberof70novel
+Table 4 compares the number of successful
+knowledge tuples to our background knowledge
+proofsobtainedusingGloVe,BERTandcommon-
+baseandvalidated64.86%oftheproofsextracted
+senseembeddings. Asshown,GloVeembeddings
+using our multi-hop prover. (cid:131)(cid:140)(cid:149)(cid:133) is built on
+performbetterthantheotherssincecommonsense
+top of CORGI,2 and is triggered only if CORGI
+andBERTembeddingsperformpoorlywhenthere
+fails. Therefore,the19and4commandsprovedby
+is little surrounding context for the words. The
+(cid:131)(cid:140)(cid:149)(cid:133)arenotprovablebyCORGI;thecommands
+returned objects by COMET tend to have a few
+provedbyCORGIineachrowisindicatedinthe
+number of tokens, (around 1-2). Therefore, the
+parentheses. Therefore, (cid:131)(cid:140)(cid:149)(cid:133) successfully in-
+similarityscoresassignedbyBERTandcommon-
+creasesthereasoningsuccessrateby35%. Please
+senseembeddingseitherresultinmorefalsepos-
+notethattheabsolutegainintermsofsuccessper-
+itives or in pruning out good candidates. For ex-
+centagecomparedwithCORGIis8%.
+ample,BERTandcommonsenseembeddingsboth
+We did not experience any inconsistencies be-
+tendtoassignalowersimilarityscoreto“Isleep”
+tween user responses in the study because users
+and“sleep”thansingletokenwordslike“ski”and
+receivedthesamegoalforagivencommand. Itis
+“spoil”. But this is not an issue with GloVe em-
+difficulttogeneratecontradictoryproofswhenthe
+beddings. Therefore,inalltheotherexperiments
+we have used GloVe embeddings. The effect of context is the same. However, proofs among dif-
+ferentusersdonothavetobeidentical. Aslongas
+theembeddingsisamplifiedasthenumberofhops
+theprooffulfillsthecriteriaandis“correct”from
+increases. ForexampleinTable1,Thenumberof
+a commonsense perspective, it holds. Every user
+expert-verified2-hopsproofsdropsfrom21to5if
+hasdifferentpreferences,linguistictendencies,and
+weuseBERTembeddings.
+livinghabits,whichcanaffectthegeneratedproof.
+Consequently, proofs are tailored to users. Also,
+4.2 UserStudy
+showing the five multiple choice options helps
+Toassess(cid:131)(cid:140)(cid:149)(cid:133)’send-to-endperformance,weran
+usersunderstandwhatkindofknowledge(cid:131)(cid:140)(cid:149)(cid:133)is
+auserstudyinwhichhumanusersengagedinacon-
+lookingfor,improvingtheirresponses.
+versationalinteractionwith(cid:131)(cid:140)(cid:149)(cid:133)andanswered
+itsprompts. Wecollectedatotalof700dialogues 2https://github.com/ForoughA/CORGI
+Table 5: User-study results. Commands not prov- tomaticknowledgebaseconstructionmethodsthat
+ablebyCORGItriggera(cid:131)(cid:140)(cid:149)(cid:133)dialog,socommands
+relyonsemi-structured(Suchaneketal.,2007;Hof-
+proved by (cid:131)(cid:140)(cid:149)(cid:133) are in addition to CORGI’s. The
+fartetal.,2013;Aueretal.,2007)andunstructured
+numbers in the parentheses in #proved column is the
+(Dongetal.,2014;Carlsonetal.,2010;Mitchell
+numberofstatementsthatCORGIproved.
+et al., 2018; Nakashole et al., 2012) text extrac-
+tion, COMET uses transfer learning to adapt lan-
+DialogPhase #Proved #Tried Proved/Tried
+guagemodelstogenerateknowledgegraphtuples
+CORGI 65 288 0.2256 bylearningonexamplesofstructuredknowledge
+(cid:131)(cid:140)(cid:149)(cid:133)[orange] 17(+27) 126 0.1349
+from a seed KB. COMET was recently used for
+(cid:131)(cid:140)(cid:149)(cid:133)[green] 2(+0) 17 0.1176
+(cid:131)(cid:140)(cid:149)(cid:133)[blue] 4(+38) 145 0.0276 persona-groundeddialogforchatbots(Majumder
+etal.,2020).
+5 RelatedWork 6 Conclusions
+Efforts in developing commonsense reasoning WeintroducetheConversationaLmUlti-hoprEa-
+soner((cid:131)(cid:140)(cid:149)(cid:133))forcommonsensereasoningincon-
+startedasearlyasthefoundationofthefieldofar-
+versational agents. (cid:131)(cid:140)(cid:149)(cid:133) uses a neural com-
+tificialintelligence(Grice,1975;Winograd,1972;
+monsense KB and symbolic logic rules to per-
+Davis and Marcus, 2015; Minsky, 1975). Com-
+form multi-hop reasoning. It takes if-(state),
+monsensereasoningisbecomingmoreprominent
+then-(action), because(goal) commands as input
+ascomputersincreasetheirinteractionswithusin
+and returns a multi-hop chain of commonsense
+ourdailylives. Forexample,conversationalagents
+knowledge,indicatinghowtheactionleadstothe
+suchasAlexa,Siri,GoogleHomeandothershave
+goalwhen the stateholds. The symbolic logic
+veryrecentlyenteredourdailylives. However,they
+rules help significantly reduce the multi-hop rea-
+cannotcurrentlyengageinnaturalsoundingconver-
+soningsearchspaceandimprovethequalityofthe
+sationswiththeirhumanusersmainlyduetolackof
+generatedcommonsensereasoningchains. Weeval-
+commonsensereasoning. Moreover,theyoperate
+uate(cid:131)(cid:140)(cid:149)(cid:133)withauserstudywithhumanusers.
+mostlyonapre-programmedsetoftasks. Onthe
+otherhand,instructableagents(Azariaetal.,2016;
+Acknowledgments
+Labutovetal.,2018;Lietal.,2018,2017b,a;Guo
+etal.,2018;MohanandLaird,2014;Miningerand TomMitchellissupportedinpartbyAFOSRun-
+Laird,2018;Mohanetal.,2012),canbetaughtnew dergrantFA95501710218. AntoineBosselutand
+tasksthroughnaturallanguageinstructions/demon- Yejin Choi gratefully acknowledge the support
+strations. Oneofthechallengesthesebotsfaceis of DARPA under No. N660011924033 (MCS),
+correctlygroundingtheirnaturallanguageinstruc- JD.com,andtheAllenInstituteforAI.
+tionsintoexecutablecommands.
+Our approach addresses a new reasoning task
+References
+proposedbyArabshahietal.(2021)thatcontains
+commandsgiventoaninstructableagentsatisfying ForoughArabshahi,JenniferLee,MikaylaGawarecki,
+KathrynMazaitis, AmosAzaria, andTomMitchell.
+a general template. In contrast to this challeng-
+2021. Conversational neuro-symbolic common-
+ing task and TimeTravel (Qin et al., 2019), most
+sense reasoning. In Proceedings of the AAAI Con-
+commonsense reasoning benchmarks have tradi- ferenceonArtificialIntelligence.
+tionallybeendesignedinamultiplechoicemanner.
+Sören Auer, Christian Bizer, Georgi Kobilarov, Jens
+Moreover,theyarenottypicallytargetedatconver-
+Lehmann, Richard Cyganiak, and Zachary Ives.
+sational agents. Refer to Storks et al. (2019) and
+2007. Dbpedia: A nucleus for a web of open data.
+Arabshahietal.(2021)foracomprehensivelistof InThesemanticweb,pages722–735.Springer.
+commonsensereasoningbenchmarks.
+Amos Azaria, Jayant Krishnamurthy, and Tom M
+Our commonsense reasoning engine uses a
+Mitchell. 2016. Instructable intelligent personal
+SOTA neural knowledge model, COMET (Bosse- agent. InThirtiethAAAIConference.
+lut et al., 2019), as an underlying source of com-
+AntoineBosselut,HannahRashkin,MaartenSap,Chai-
+monsenseknowledge. COMETisaframeworkfor
+tanya Malaviya, Asli Çelikyilmaz, and Yejin Choi.
+constructing knowledge bases from transformer-
+2019. Comet: Commonsensetransformersforauto-
+basedlanguagemodels. Incontrasttopreviousau- maticknowledgegraphconstruction. InACL.
+AndrewCarlson,JustinBetteridge,BryanKisiel,Burr Toby Jia-Jun Li, Yuanchun Li, Fanglin Chen, and
+Settles, Estevam R Hruschka Jr, and Tom M BradAMyers.2017b. Programmingiotdevicesby
+Mitchell. 2010. Toward an architecture for never- demonstration using mobile apps. In International
+endinglanguagelearning. InAAAI. Symposium on End User Development, pages 3–17.
+Springer.
+AlainColmerauer.1990. Anintroductiontoprologiii.
+InComputationalLogic,pages37–79.Springer. Chia-Wei Liu, Ryan Lowe, Iulian Vlad Serban, Mike
+Noseworthy, Laurent Charlin, and Joelle Pineau.
+Ernest Davis and Gary Marcus. 2015. Common- 2016. How not to evaluate your dialogue system:
+sensereasoningandcommonsenseknowledgeinar- Anempiricalstudyofunsupervisedevaluationmet-
+tificial intelligence. Communications of the ACM, rics for dialogue response generation. In Proceed-
+58(9):92–103. ingsof2016EMNLP,pages2122–2132.
+Jacob Devlin, Ming-Wei Chang, Kenton Lee, and
+Bodhisattwa Prasad Majumder, Harsh Jhamtani, Tay-
+KristinaToutanova.2019. Bert:Pre-trainingofdeep
+lor Berg-Kirkpatrick, and Julian McAuley. 2020.
+bidirectional transformers for language understand-
+Like hiking? you probably enjoy nature: Persona-
+ing. InNAACL-HLT.
+groundeddialogwithcommonsenseexpansions. In
+Proceedingsof2020EMNLP,pages9194–9206.
+XinDong,EvgeniyGabrilovich,GeremyHeitz,Wilko
+Horn, Ni Lao, Kevin Murphy, Thomas Strohmann,
+AaronMiningerandJohnELaird.2018. Interactively
+Shaohua Sun, and Wei Zhang. 2014. Knowledge
+learningablendofgoal-basedandproceduraltasks.
+vault: Aweb-scaleapproachtoprobabilisticknowl-
+InThirty-SecondAAAIConference.
+edge fusion. In Proceedings of the 20th ACM
+SIGKDDConference,pages601–610.
+MMinsky.1975. Aframeworkforrepresentingknowl-
+edge.thepsychologyofcomputervision,s.211277,
+Herbert P Grice. 1975. Logic and conversation. In
+newyork.
+Speechacts,pages41–58.Brill.
+Tom Mitchell, William Cohen, Estevam Hruschka,
+Daya Guo, Duyu Tang, Nan Duan, Ming Zhou, and
+ParthaTalukdar,BishanYang,JustinBetteridge,An-
+Jian Yin. 2018. Dialog-to-action: Conversational
+drewCarlson,BhavanaDalvi,MattGardner,Bryan
+question answering over a large-scale knowledge
+Kisiel,etal.2018. Never-endinglearning. Commu-
+base. InNeurIPS,pages2942–2951.
+nicationsoftheACM,61(5):103–115.
+Johannes Hoffart, Fabian M Suchanek, Klaus
+Shiwali Mohan and John Laird. 2014. Learning goal-
+Berberich, and Gerhard Weikum. 2013. Yago2: A
+oriented hierarchical tasks from situated interactive
+spatially and temporally enhanced knowledge base
+instruction. In Twenty-Eighth AAAI Conference on
+fromwikipedia. ArtificialIntelligence,194:28–61.
+ArtificialIntelligence.
+Matthew Honnibal and Ines Montani. 2017. spacy 2:
+ShiwaliMohan,AaronHMininger,JamesRKirk,and
+Naturallanguageunderstandingwithbloomembed-
+John E Laird. 2012. Acquiring grounded represen-
+dings. Convolutional Neural Networks and Incre-
+tationsofwordswithsituatedinteractiveinstruction.
+mentalParsing.
+InAdvancesinCognitiveSystems.
+Igor Labutov, Shashank Srivastava, and Tom Mitchell.
+2018. Lia: A natural language programmable per- Ndapandula Nakashole, Gerhard Weikum, and Fabian
+sonal assistant. In Proceedings of 2018 EMNLP: Suchanek. 2012. Patty: a taxonomy of relational
+SystemDemonstrations,pages145–150. patternswithsemantictypes. InProceedingsofthe
+2012JointConferenceonEmpiricalMethodsinNat-
+Jiwei Li, Will Monroe, Alan Ritter, Dan Jurafsky, uralLanguageProcessingandComputationalNatu-
+MichelGalley, andJianfengGao.2016. Deeprein- ralLanguageLearning,pages1135–1145.
+forcementlearningfordialoguegeneration. InPro-
+ceedingsof2016EMNLP,pages1192–1202. KishorePapineni,SalimRoukos,ToddWard,andWei-
+JingZhu.2002. Bleu: amethodforautomaticeval-
+Toby Jia-Jun Li, Amos Azaria, and Brad A Myers. uationofmachinetranslation. InProceedingsofthe
+2017a. Sugilite: creating multimodal smartphone 40th annual meeting of the Association for Compu-
+automationbydemonstration. InProceedingsofthe tationalLinguistics,pages311–318.
+2017CHIConference,pages6038–6049.ACM.
+JeffreyPennington,RichardSocher,andChristopherD
+Toby Jia-Jun Li, Igor Labutov, Xiaohan Nancy Li, Xi- Manning.2014. Glove:Globalvectorsforwordrep-
+aoyi Zhang, Wenze Shi, Wanling Ding, Tom M resentation. InProceedingsof2014EMNLP,pages
+Mitchell, and Brad A Myers. 2018. Appinite: A 1532–1543.
+multi-modal interface for specifying data descrip-
+tions in programming by demonstration using natu- LianhuiQin,AntoineBosselut,AriHoltzman,Chandra
+rallanguageinstructions. In2018IEEESymposium Bhagavatula,ElizabethClark,andYejinChoi.2019.
+on Visual Languages and Human-Centric Comput- Counterfactual story reasoning and generation. In
+ing(VL/HCC),pages105–114.IEEE. Proceedingsof2019EMNLP-IJCNLP.
+Maarten Sap, Ronan Le Bras, Emily Allaway, Chan-
+draBhagavatula,NicholasLourie,HannahRashkin,
+BrendanRoof,NoahASmith,andYejinChoi.2019.
+Atomic: An atlas of machine commonsense for if-
+thenreasoning. InProceedingsofAAAI,volume33,
+pages3027–3035.
+RobynSpeer,JoshuaChin,andCatherineHavasi.2016.
+Conceptnet5.5: Anopenmultilingualgraphofgen-
+eralknowledge. InAAAI.
+Shane Storks, Qiaozi Gao, and Joyce Y Chai. 2019.
+Commonsensereasoningfornaturallanguageunder-
+standing: A survey of benchmarks, resources, and
+approaches. arXivpreprintarXiv:1904.01172.
+Fabian M Suchanek, Gjergji Kasneci, and Gerhard
+Weikum.2007. Yago:acoreofsemanticknowledge.
+InProceedingsofthe16thinternationalconference
+onWorldWideWeb,pages697–706.
+Terry Winograd. 1972. Understanding natural lan-
+guage. Cognitivepsychology,3(1):1–191.
+Appendix
+If CORGI fails…
+Multi-hopProverDetails
+Parser(sentence):
+<latexit sha1_base64="5g5Y9nY8kfnerwVSo9Z4Sm5oqe8=">AAACAnicbVC7SgNBFJ2Nrxhfq3baLAYhNmE3CopV0MYygnlAsoTZyU0yZPbBzF0xLAELv8XCRsXWn7D0b5xNttDEAwOHc+6dmXO8SHCFtv1t5JaWV1bX8uuFjc2t7R1zd6+hwlgyqLNQhLLlUQWCB1BHjgJakQTqewKa3ug69Zv3IBUPgzscR+D6dBDwPmcUtdQ1DzoID4iY1KhUIEsKAoSAwcnlpGsW7bI9hbVInIwUSYZa1/zq9EIW+/oKJqhSbceO0E2oRM4ETAqdWEFE2YgOoK1pQH1QbjLNMLGOtdKz+qHUJ0Brqv7eSKiv1Nj39KRPcajmvVT8z2vH2L9wEx5EcRps9lA/FhaGVlqI1eMSGIqxJpRJrv9qsSGVlKGuTXfgzCdeJI1K2TktV27PitWrrI08OSRHpEQcck6q5IbUSJ0w8kieySt5M56MF+Pd+JiN5oxsZ5/8gfH5A9/Ol/E=</latexit>S GA<<<lllaaattteeexxxiiittt ssshhhaaa111___bbbaaassseee666444==="""UoXJBRfmIcDdp90P6QP3YRNGMpnWvrdVxzjP/tHK14fudNCP0AiB/b2CoYc8RrA0BWULKLEIkUd767EgY===""">>>AAAAAAAAABBB///XnHiiicccbbbVVVDDDJLLSSSgggNMMBxxEFFOMM233JUUWVV466x22bvvVq8DubxDF5GzaTERW1KgqEREiKiBklBKBmZm4q6kQkGtKPdXQVRStR82ee46Irr5GGoAAFffk02hhBBll6KKOJJjssV22J00koo5ZZ6llFkk7SShDDoLLlKKDUWMAOGtpf+X8h+AFAc/E8guew3FoKH2ixK46W9n3Td/94DczZ9Nfm//9YGMWtHQNw6OtaFt+tPKhXD6Dg4h8ccVDM4j6Vn9VX3fuHX6tc9PSxEA4Dq8ONYqtVtjdO2qO22MUxri1MuZzrmSaa8+Xsslrblq6dWcSn32YM791ntvt7bvGOY573tlNb5r12ej/y76e+C/7muVwNl1ZUhSgxIkqJJPSjJZUQ1shLmqJJriDhQNMLAgRC18nSpCBwKFiCBgcFn1gdTRUTI0Ua1jkIzQ6VL1gmISuEFxhALTWq6M7jNuDIBTL69+4w5tddcXhfEvQb3G9Bk4ORTpBqqvaOcjC4g3jtOKzoDq2tJJsiH1B64eEgiuPHpMqyEcHZBFGxSqUBmguTbpPqbbZRoM9r/cNuFECe5j+pdOSHo4UcKOdHXITkqKUJnAGwjUkK4WcgpUFkD2CRBJDW1gJs1t3iuin+7bCaZUUnn9gABInlug4EIsmnxdFJGnvipptFxWDrCJneeT/y2IfP8Pyro8i0NapK1aJTb/vdv7vdbf67XoQkYof8cg9hJi4CFRJArcLzYpJ4nBaWSUTbaccreelOOOstrJDP0d0wEBhUkYlpJPpLMiGyRGCoVjYan5sxLYo1apEIEk8CRQArH9irQPQjud7qPQRQNlg5KPSEmgcgkR2yU8hfnt50Og/7cBxvE/09BQMIHU6hqNmX0leYAqS0ECMykhFKTSaXC7EdhNqVJrP+80rn9vEMiuUQZSGrhKPUlfkERnqdoj0mw+8Hk4RzQG76SObPt6fFaUb9vyyDLbc+iW5f/z1/V4Nj7a91iCsQ7G7b5PiN/Q6QiQHi8lGicCjaHXIghJsOx0F9V0NeUFLxYCAcmxKGqgdAFJSnIdAFhc7wBQCeo6xFVQHBSOGbXuBQWmEGqMISaKEVwIMpSLO2dZpSWu3ihmPbetiKIHcmJTgMSxLJMamZBQCGyYYcDyxZcY/O+7cXj/SRXadi1KTUo1dlcMJs63kLT9pcLVuZsXVTGvxhThHBWEgZJXIUYUmI2ToOBsSIOYSA4iRUA5iEUEnAMDQuAuSGOJaAniMcCVkacA1AqA2pDqEdokYA4DYSBw8Iek3ALgQeBvyb4L+AvD21d8ZeWLr01J/aeWHrq9Q/b/VnrhrMfD2UV35lNbzWMWL9cOZOZsyfZRfh9A/YH8X1gztf/cXVP1JcAZv9gmoLY8<Yl/Q3l=ka==t<<e//xlliaattt>eexxiitt>>(((XYZ))) gast ocatait loen
+Prologisalogicprogramminglanguagethatcon-
+Is logic template Y
+blue?
+sistsofasetofpredicates. Apredicatehasaname
+N
+(functor)andasetofN > 0arguments. Forexam- Is “¬¬<<llaatteexxiitt sshhaa11__bbaassee6644==""66DDnnBBCC5599rrGG22ccaaeezz00MMaazzffuu1122iiqqSSEEQQ=="">>AAAAAABB77nniiccbbVVBBNNSS88NNAAEEJJ33UUrr11qq//qqhh6699LLBBbbBBUU00mmqqooMMeeiiBBzz11WWssBB//QQhhrrLLZZTTttqqllmm0033YY33QQiill99EEdd4488aaCCIIVV33++PPNN//++NNmmzzYYHHbbXX00ww88HHhhvvhhppll55QQSSKK44NNqq777777RRTTWW11jjcc22tt44rrbbppZZ33ddvvff22DD88uuFFRRSS88eeppYYtthhkkssYYhhVVJJ66AAaaBBZZffYYNNNNwwII77CCQQKKaaRRQQIIbbAAffjj2288xxvvPP66HHSSPPJJaaPPZZppKKggHH99GGhh55CCFFnn11FFiipp33ZZMM44JJHHeellffrrnniiVVtt0055yyCCrrxxccllKKBBHHII11++++aass33iiFFkkaaooTTRRMMUUKK2277nnppssYYff00qqVV44UUzzggrrNNRRLLNNSSaaUUjjeekkQQuu55ZZKKGGqqHH22pp//NNzzZZ++TTMMKKggMMSSxxssqqWWNNGGSSuu//pp66YY00kkjjrrSSRRTTYYzzooiiaakkVV7722MMvvEE//rr55uuaa88NNqqffccppmmkkBBiiVVbbLLAAppTTQQUUxxMMsstt//JJggCCttkkRRkkwwssooUUxxxxeeyytthhII66ooooMMzzaahhLLAARRvv++eeVVVV00qqppVVvvYYttqq77eeGGyyUUrr//JJ44yyjjCCCCZZzzCCOOXXhhwwBBXXWW44hhwwYY00ggccEEYYnnuuEEVV33ppzzEEeeXXHHeennYY99FFaa88HHJJZZ4477hhDD55zzPPHHyymmTTjjssss==<<//llaatteexxiitt>>GG” U ths ee r o D ppia ol so ig te: of “GG<<llaatteexxiitt sshhaa11__bbaassee6644==""66jjff44xxZZUU9955bbKKTTXXsszzHHuuJJHHwwqqTTAAjjhhii00=="">>AAAAAABB5533iiccbbVVBBNNSS88NNAAEEJJ3344WWeettXX11aaOOXXxxSSJJ44KKkkkkVV99FFjj00ooMMccWW77AAee00ooWWyy22kk33bbppZZhhNN22NN00IIJJ//QQUUeevvKKhh4499SSdd5599NN++44bbXXPPQQ11ggccDDjj//ddmmmmJJkkXXJJIIJJrr4477rrffzzttrr66xxuubbWWddmmGGnnuuLLuu33ff33BBYYOOjjppuu66TThhVVDDJJssssFFrrHHqqBBFFSSjj44BBKKbbhhhhuuBBnnUUQQhhjjQQKKBB77WWBB88NN//PPbbTT66gg00jj++WWjjmmSSTTooRR33QQooeeccggZZNNVVZZqq33PPddLLZZbbffiizzkkFFWWiiZZeeTTMMuuSSoo9900ttffvvUUHHMM00ggiillYYYYJJqq33ffXXccxxPPggZZVVYYYYzzggddNNiiLL99WWYYUUDDaammQQ++xxaaKKmmmmEE22ss//mmhh0077JJuuVVUUGGJJIIyyVVLLWWnnIIXXPP0099kkddFFII6600kkUU22MM66IImmppFFee99mmbbiiff114433NNeeGGNNnn33GGZZppAAYYllWWyywwKKUU00FFMMTTGGZZffkkwwFFXXyyIIyyYYWWEEKKZZ44vvZZWWwwkkZZUUUUWWZZssNNjjYYDDbb//nnjjVVddKKqqVVrrzzLLSSrrVVxxVVaa77dd55mmkkUU44BBTTOO44AAII88uuIIYYaaPPEEAAddmmssAAAA44RRllee44cc33hhzzoovvzz77nnwwssWWtteeccffOOYYEE//ssDD55//AAEEaannooyy//<<//llaatteexxiitt>>”?
+ple,get(i, work, on_time)isapredicatewithfunc- Y Is log gi rc e t ee nm ?plate N Y
+User Dialog: User Dialog:
+t so er tg oe ft loa gn id ca3 la rr ug lu esm oe rn Hts o. rP nre cd laic ua st ee ss (a Hre ead defi (cid:68)ne Bd ob dy ya
+)
+W thh aa tt aw llo ou wlU d s s I me br e eD ta oi ba al lo e c hg t io: e vd eo “if GG<<llaatteexxiitt sshhaa11__bbaassee6644==""66jjff44xxZZUU9955bbKKTTXXsszzHHuuJJHHwwqqTTAAjjhhii00=="">>AAAAAABB5533iiccbbVVBBNNSS88NNAAEEJJ3344WWeettXX11aaOOXXxxSSJJ44KKkkkkVV99FFjj00ooMMccWW77AAee00ooWWyy22kk33bbppZZhhNN22NN00IIJJ//QQUUeevvKKhh4499SSdd5599NN++44bbXXPPQQ11ggccDDjj//ddmmmmJJkkXXJJIIJJrr4477rrffzzttrr66xxuubbWWddmmGGnnuuLLuu33ff33BBYYOOjjppuu66TThhVVDDJJssssFFrrHHqqBBFFSSjj44BBKKbbhhhhuuBBnnUUQQhhjjQQKKBB77WWBB88NN//PPbbTT66gg00jj++WWjjmmSSTTooRR33QQooeeccggZZNNVVZZqq33PPddLLZZbbffiizzkkFFWWiiZZeeTTMMuuSSoo9900ttffvvUUHHMM00ggiillYYYYJJqq33ffXXccxxPPggZZVVYYYYzzggddNNiiLL99WWYYUUDDaammQQ++xxaaKKmmmmEE22ss//mmhh0077JJuuVVUUGGJJIIyyVVLLWWnnIIXXPP0099kkddFFII6600kkUU22MM66IImmppFFee99mmbbiiff114433NNeeGGNNnn33GGZZppAAYYllWWyywwKKUU00FFMMTTGGZZffkkwwFFXXyyIIyyYYWWEEKKZZ44vvZZWWwwkkZZUUUUWWZZssNNjjYYDDbb//nnjjVVddKKqqVVrrzzLLSSrrVVxxVVaa77dd55mmkkUU44BBTTOO44AAII88uuIIYYaaPPEEAAddmmssAAAA44RRllee44cc33hhzzoovvzz77nnwwssWWtteeccffOOYYEE//ssDD55//AAEEaannooyy//<<//llaatteexxiitt>> “ ”AA<<llaatteexxiitt sshhaa11__bbaassee6644==""VVYYwwbbUU//PP3322RRMM44vvddFFCC++wwYYJJlljjrrvvzzDDgg=="">>AAAAAABB5533iiccbbVVBBNNSS88NNAAEEJJ3344WWeettXX11aaOOXXxxSSJJ44KKkkkkVV99FFjj1144rrEEFF++wwFFttKKJJvvttppFF226622YYTTddjjVVBBCCff44EEHHLLyyppee//UUkkee//TTdduu22xxyy0099ccHHAA447700ZZZZuuYYFFiieeDDaauuOO6633ss77aa++ssbbmm11XXddggpp77uu77ttHHxxyyWWjjoo55bbOOkk44VVwwyyaaLLRRaaww66AAddUUoouuMMSSmm44UUZZggJJ11FFIIoo00BBggOOxxjjffzz//zz22EEyyrrNNYY//llooJJggnn66EERR11KKHHnnJJGGjjZZUUaatt//11SS22aa2244cc55BBVV44uuWWkkDDDDnnqq//ddJJXXbbxxCCzzNNEEJJppmmKKBBaaddzz0033MMXX55GGlleeFFMM44LLTTYYSSzzUUmmllII33ppEELLuuWWSShhqqhh99rrPP55ooVVNNyybbppUUBBCCWWNNllSSxxooyyVV3399PPZZDDTTSSeehhIIFFttjjOOiiZZqqSSXXvvZZnn44nn99ddNNTTXXjjjjZZ11wwmmqqUUHHJJFFoovvCCVVBBAATTkk99nnXXZZMMAAVVMMiiMMmmllllCCmmuuLL22VVssBBFFVVllBBmmbbjjcc33AAWW//5544llbbSSqqFFee++yyUUmm11ccllWWtt33eeRRooFFOOIIUUzzuuAAAAPPrrqqEEGGDD11CCHHJJjjBBAAeeIIZZXXeeHHOO4488++KK88OOxx++LL11jjUUnnnnzzmmBBPP33AA++ffwwAARRjjIIyy55<<//llaatteexxiitt>>?” N What d d ifo fie cs u “ ltSS<<llaatteexxiitt sshhaa11__bbaassee6644==""NNQQzz77llZZQQHHssccXXoollYY22XXCCDDooZZSS44bb44UUUUMM=="">>AAAAAABB5533iiccbbVVBBNNSS88NNAAEEJJ3344WWeettXX11aaOOXXxxSSJJ44KKkkkkVV99FFjj0044rrFFFF++wwFFttKKJJvvttppFF226622YYTTddjjVVBBCCff44EEHHLLyyppee//UUkkee//TTdduu22xxyy0099ccHHAA447700ZZZZuuYYFFiieeDDaauuOO6633ss77aa++ssbbmm11XXddggpp77uu77ttHHxxyyWWjjoo55bbOOkk44VVwwyyaaLLRRaaww66AAddUUoouuMMSSmm44UUZZggJJ11FFIIoo00BBggOOxxjjffzzffzz22EEyyrrNNYY//llooJJggnn66EERR11KKHHnnJJGGjjZZUUaaDD//11SS22aa2244cc55BBVV44uuWWkkDDDDnnqq//ddJJXXbbxxCCzzNNEEJJppmmKKBBaaddzz0033MMXX55GGlleeFFMM44LLTTYYSSzzUUmmllII33ppEELLuuWWSShhqqhh99rrPP55ooVVNNyybbppUUBBCCWWNNllSSxxooyyVV3399PPZZDDTTSSeehhIIFFttjjOOiiZZqqSSXXvvZZnn44nn99ddNNTTXXjjjjZZ11wwmmqqUUHHJJFFoovvCCVVBBAATTkk99nnXXZZMMAAVVMMiiMMmmllllCCmmuuLL22VVssBBFFVVllBBmmbbjjcc33AAWW//5544llbbSSqqFFee++yyUUmm11ccllWWuu33eeRRooFFOOIIUUzzuuAAAAPPrrqqEEGG9911CCHHJJjjBBAAeeIIZZXXeeHHOO4488++KK88OOxx++LL11jjUUnnnnzzmmBBPP33AA++ffwwAAsswwoozzLL<<//llaatteexxiitt>> t” o c aa cu hs ie e vt eh a “t GG<<llaatteexxiitt sshhaa11__bbaassee6644==""66jjff44xxZZUU9955bbKKTTXXsszzHHuuJJHHwwqqTTAAjjhhii00=="">>AAAAAABB5533iiccbbVVBBNNSS88NNAAEEJJ3344WWeettXX11aaOOXXxxSSJJ44KKkkkkVV99FFjj00ooMMccWW77AAee00ooWWyy22kk33bbppZZhhNN22NN00IIJJ//QQUUeevvKKhh4499SSdd5599NN++44bbXXPPQQ11ggccDDjj//ddmmmmJJkkXXJJIIJJrr4477rrffzzttrr66xxuubbWWddmmGGnnuuLLuu33ff33BBYYOOjjppuu66TThhVVDDJJssssFFrrHHqqBBFFSSjj44BBKKbbhhhhuuBBnnUUQQhhjjQQKKBB77WWBB88NN//PPbbTT66gg00jj++WWjjmmSSTTooRR33QQooeeccggZZNNVVZZqq33PPddLLZZbbffiizzkkFFWWiiZZeeTTMMuuSSoo9900ttffvvUUHHMM00ggiillYYYYJJqq33ffXXccxxPPggZZVVYYYYzzggddNNiiLL99WWYYUUDDaammQQ++xxaaKKmmmmEE22ss//mmhh0077JJuuVVUUGGJJIIyyVVLLWWnnIIXXPP0099kkddFFII6600kkUU22MM66IImmppFFee99mmbbiiff114433NNeeGGNNnn33GGZZppAAYYllWWyywwKKUU00FFMMTTGGZZffkkwwFFXXyyIIyyYYWWEEKKZZ44vvZZWWwwkkZZUUUUWWZZssNNjjYYDDbb//nnjjVVddKKqqVVrrzzLLSSrrVVxxVVaa77dd55mmkkUU44BBTTOO44AAII88uuIIYYaaPPEEAAddmmssAAAA44RRllee44cc33hhzzoovvzz77nnwwssWWtteeccffOOYYEE//ssDD55//AAEEaannooyy//<<//llaatteexxiitt>> m ”a ?kes it What does “SS<<llaatteexxiitt sshhaa11__bbaassee6644==""NNQQzz77llZZQQHHssccXXoollYY22XXCCDDooZZSS44bb44UUUUMM=="">>AAAAAABB5533iiccbbVVBBNNSS88NNAAEEJJ3344WWeettXX11aaOOXXxxSSJJ44KKkkkkVV99FFjj0044rrFFFF++wwFFttKKJJvvttppFF226622YYTTddjjVVBBCCff44EEHHLLyyppee//UUkkee//TTdduu22xxyy0099ccHHAA447700ZZZZuuYYFFiieeDDaauuOO6633ss77aa++ssbbmm11XXddggpp77uu77ttHHxxyyWWjjoo55bbOOkk44VVwwyyaaLLRRaaww66AAddUUoouuMMSSmm44UUZZggJJ11FFIIoo00BBggOOxxjjffzzffzz22EEyyrrNNYY//llooJJggnn66EERR11KKHHnnJJGGjjZZUUaaDD//11SS22aa2244cc55BBVV44uuWWkkDDDDnnqq//ddJJXXbbxxCCzzNNEEJJppmmKKBBaaddzz0033MMXX55GGlleeFFMM44LLTTYYSSzzUUmmllII33ppEELLuuWWSShhqqhh99rrPP55ooVVNNyybbppUUBBCCWWNNllSSxxooyyVV3399PPZZDDTTSSeehhIIFFttjjOOiiZZqqSSXXvvZZnn44nn99ddNNTTXXjjjjZZ11wwmmqqUUHHJJFFoovvCCVVBBAATTkk99nnXXZZMMAAVVMMiiMMmmllllCCmmuuLL22VVssBBFFVVllBBmmbbjjcc33AAWW//5544llbbSSqqFFee++yyUUmm11ccllWWuu33eeRRooFFOOIIUUzzuuAAAAPPrrqqEEGG9911CCHHJJjjBBAAeeIIZZXXeeHHOO4488++KK88OOxx++LL11jjUUnnnnzzmmBBPP33AA++ffwwAAsswwoozzLL<<//llaatteexxiitt>>“” ¬¬<<llaatteexxiitt sshhaa11__bbaassee6644==""66DDnnBBCC5599rrGG22ccaaeezz00MMaazzffuu1122iiqqSSEEQQ=="">>AAAAAABB77nniiccbbVVBBNNSS88NNAAEEJJ33UUrr11qq//qqhh6699LLBBbbBBUU00mmqqooMMeeiiBBzz11WWssBB//QQhhrrLLZZTTttqqllmm0033YY33QQiill99EEdd4488aaCCIIVV33++PPNN//++NNmmzzYYHHbbXX00ww88HHhhvvhhppll55QQSSKK44NNqq777777RRTTWW11jjcc22tt44rrbbppZZ33ddvvff22DD88uuFFRRSS88eeppYYtthhkkssYYhhVVJJ66AAaaBBZZffYYNNNNwwII77CCQQKKaaRRQQIIbbAAffjj2288xxvvPP66HHSSPPJJaaPPZZppKKggHH99GGhh55CCFFnn11FFiipp33ZZMM44JJHHeellffrrnniiVVtt0055yyCCrrxxccllKKBBHHII11++++aass33iiFFkkaaooTTRRMMUUKK2277nnppssYYff00qqVV44UUzzggrrNNRRLLNNSSaaUUjjeekkQQuu55ZZKKGGqqHH22pp//NNzzZZ++TTMMKKggMMSSxxssqqWWNNGGSSuu//pp66YY00kkjjrrSSRRTTYYzzooiiaakkVV7722MMvvEE//rr55uuaa88NNqqffccppmmkkBBiiVVbbLLAAppTTQQUUxxMMsstt//JJggCCttkkRRkkwwssooUUxxxxeeyytthhII66ooooMMzzaahhLLAARRvv++eeVVVV00qqppVVvvYYttqq77eeGGyyUUrr//JJ44yyjjCCCCZZzzCCOOXXhhwwBBXXWW44hhwwYY00ggccEEYYnnuuEEVV33ppzzEEeeXXHHeennYY99FFaa88HHJJZZ4477hhDD55zzPPHHyymmTTjjssss==<<//llaatteexxiitt>> c GGau ”s ?e that leads to
+CLUE parses explanation CLUE parses explanation
+andfacts(Head),whereHeadisapredicate,Body CLUE parses explanation and adds them to K and adds them to K
+and adds them to K
+is a conjunction of predicates, and (cid:68) is logical CORGI attempts to prove CORGI attempts to prove
+CORGI attempts to prove GG <<llaatteexxiitt sshhaa11__bbaassee6644==""++ggNNNNVVBB++xx//44aappKKwwyyDDeeqqbbyyVVAAWWyy882244=="">>AAAAAABB66nniiccbbVVBBNNTTwwIIxxEEJJ33FFLL88QQvv11KKOOXXRRmmKKCCFF77KKLLJJnnookkeettAAjjJJggJJGG22JJBBuu66UUJJDD22992200XXRROOyy44SS994488KKLLGGqq33//IIoo////GGLLuuxxBBwwZZddMM88vvLLeeTTGGbbmmBBTTFFnn22rrjjuutt11NNYYWWVV11bb33yyhhuullrraa22dd33bb33yyvvssHHbbRR00lliittAAWWiiXXiikkHHggKKssKKWWeeSSttggwwzznnDD77EEiimmIIRRccNNooJJxxtteeZZ3333mmiiSSrrNNII33ppttJJTTHH22BBhh55KKFFjjGGCCTTSSTTffVVxx99NN++uueeLLWW33BBnnQQMMvvFFyyUUooEEcczzXX7755qqzzeeIISSCCKKooNNIIRRjjrrbbuueeGGxxss//xxccoowwwwuumm0011EEss00jjTTEEZZ44yyHHttWWiiqqxxooNNppPPZZ77ddOO00YYllVVBBiiiiMMllCC11pp00EEzz99PPZZFFiiooffVVEEBBLLZZTTYYDDPPSSii1144mm//uudd11EExxNNee++iimmTTccWWKKooJJPPNNFFYYccKKRRiiVVDD22OOBBoowwRRYYnnhhEE00sswwUUcczzeeiissggIIKK00yyMMjjccddmm44CC11++vvEEzzaa99ZZpp33VVqqvvffnnVVccaaVV33kkaaRRTTiiCCYY66iiCCBBxxffQQggFFttooQQggssIIjjOOAAZZXXuuHHNN44cc66LL88++5588zzFFssLLTTjj55zzCCHH//ggffPP44AAjjVVyyNNiiAA====<<//llaatteexxiitt>>((ZZ)) ¬¬<<llaatteexxiitt sshhaa11__bbaassee6644==""zz++rrIIzzmmEERRffRR77NNGGGGjj//wwggqqbbggHHpp55++zz00=="">>AAAAAABB7733iiccbbVVBBNNSSwwMMxxEEMM3366WWeettXX11aaOOXXYYBBHHqqppeexxWWQQYY99FFDD33qqssYYDD++00XXUUoo22nnWW11DDkk++yyaaZZIIWWyy99FFdd4488KKLLii11ZZ//jj00XX99jj22uu55BBWWxx88MMPPNN66bbYYWWZZeeEEHHOOmmjjeett++OO00vvLLKK66ttrr6677mmNN//OObbWW99ss55uuYYWW++//ooaaNNEEUUaajjTTiiEEeeqqFFRRAANNnnEEmmooGG22YY44ttGGIIFFRRAAQQccmmssHHwwaauuII33nn00BBppFFsskk77MM44rrBBFF66QQvvWWccggooMMVVaa667700jjoo44++vvSSww00mm33UUHHTTLL77hhRR44kkXXggZZKKaaIIMMttWW77hhqq99OOLLaaCCJJAAGGssqqJJ11mm33PPjjYY22ffEEmmUUYY55TTDDOOddxxIINNMMaaFFDD00ooee22ppZZIIII00HH4466PPXXiiMMjj6633SSww22GGkkbbEEmmDDpp++rrvviiZZQQIIrrUUcciissJJ22CCmmIIGGee99yybbiiff114477MMeeGGFFnnzzIIZZJJwwYYkknnSS00KKEE4455NNhhCCffff44xx55TTQQAA00ffWWUUKKooYYvvZZWWTTAAddEEEEWWppssRRjjYYDDbb//77jjRRddKKoollLL33TTccuuXX22rrFFii99zzNNLLIIooUUNN00hhEErrIIQQ++eeooiimm55QQDDddUURRRRQQII99oo11ff0055jjww66LL88667788zzFFrrXXXXKKyymmQQPP00BB8877nnDD++ccPPjj33AA==<<//llaatteexxiitt>>GG((ZZ))
+implication. Prologusesbackward-chainingtolog- GG <<llaatteexxiitt sshhaa11__bbaassee6644==""++ggNNNNVVBB++xx//44aappKKwwyyDDeeqqbbyyVVAAWWyy882244=="">>AAAAAABB66nniiccbbVVBBNNTTwwIIxxEEJJ33FFLL88QQvv11KKOOXXRRmmKKCCFF77KKLLJJnnookkeettAAjjJJggJJGG22JJBBuu66UUJJDD22992200XXRROOyy44SS994488KKLLGGqq33//IIoo////GGLLuuxxBBwwZZddMM88vvLLeeTTGGbbmmBBTTFFnn22rrjjuutt11NNYYWWVV11bb33yyhhuullrraa22dd33bb33yyvvssHHbbRR00lliittAAWWiiXXiikkHHggKKssKKWWeeSSttggwwzznnDD77EEiimmIIRRccNNooJJxxtteeZZ3333mmiiSSrrNNII33ppttJJTTHH22BBhh55KKFFjjGGCCTTSSTTffVVxx99NN++uueeLLWW33BBnnQQMMvvFFyyUUooEEcczzXX7755qqzzeeIISSCCKKooNNIIRRjjrrbbuueeGGxxss//xxccoowwwwuumm0011EEss00jjTTEEZZ44yyHHttWWiiqqxxooNNppPPZZ77ddOO00YYllVVBBiiiiMMllCC11pp00EEzz99PPZZFFiiooffVVEEBBLLZZTTYYDDPPSSii1144mm//uudd11EExxNNee++iimmTTccWWKKooJJPPNNFFYYccKKRRiiVVDD22OOBBoowwRRYYnnhhEE00sswwUUcczzeeiissggIIKK00yyMMjjccddmm44CC11++vvEEzzaa99ZZpp33VVqqvvffnnVVccaaVV33kkaaRRTTiiCCYY66iiCCBBxxffQQggFFttooQQggssIIjjOOAAZZXXuuHHNN44cc66LL88++5588zzFFssLLTTjj55zzCCHH//ggffPP44AAjjVVyyNNiiAA====<<//llaatteexxiitt>>((ZZ))
+ically reason about (prove) an input query, repre- Y Is CORGI
+PASS sI us c C ceO sR sfG ulI ? successful?
+sented by a predicate. From a high level, a proof N
+consistsofachainoflogicalfactsandrulesavail- N What d yo oeU us “s ae AA<<llaatteexxiitt sshhaa11__bbaassee6644==""VVYYwwbbUU//PP3322RRMM44vvddFFCC++wwYYJJlljjrrvvzzDDgg=="">>AAAAAABB5533iiccbbVVBBNNSS88NNAAEEJJ3344WWeettXX11aaOOXXxxSSJJ44KKkkkkVV99FFjj1144rrEEFF++wwFFttKKJJvvttppFF226622YYTTddjjVVBBCCff44EEHHLLyyppee//UUkkee//TTdduu22xxyy0099ccHHAA447700ZZZZuuYYFFiieeDDaauuOO6633ss77aa++ssbbmm11XXddggpp77uu77ttHHxxyyWWjjoo55bbOOkk44VVwwyyaaLLRRaaww66AAddUUoouuMMSSmm44UUZZggJJ11FFIIoo00BBggOOxxjjffzz//zz22EEyyrrNNYY//llooJJggnn66EERR11KKHHnnJJGGjjZZUUaatt//11SS22aa2244cc55BBVV44uuWWkkDDDDnnqq//ddJJXXbbxxCCzzNNEEJJppmmKKBBaaddzz0033MMXX55GGlleeFFMM44LLTTYYSSzzUUmmllII33ppEELLuuWWSShhqqhh99rrPP55ooVVNNyybbppUUBBCCWWNNllSSxxooyyVV3399PPZZDDTTSSeehhIIFFttjjOOiiZZqqSSXXvvZZnn44nn99ddNNTTXXjjjjZZ11wwmmqqUUHHJJFFoovvCCVVBBAATTkk99nnXXZZMMAAVVMMiiMMmmllllCCmmuuLL22VVssBBFFVVllBBmmbbjjcc33AAWW//5544llbbSSqqFFee++yyUUmm11ccllWWtt33eeRRooFFOOIIUUzzuuAAAAPPrrqqEEGGDD11CCHHJJjjBBAAeeIIZZXXeeHHOO4488++KK88OOxx++LL11jjUUnnnnzzmmBBPP33AA++ffwwAARRjjIIyy55<<//llaatteexxiitt>>cr
+h
+”D
+i
+eci vaa eul o s “g e
+GG<<llaatteexxiitt sshhaa11__bbaassee6644==""66jjff44xxZZUU9955bbKKTTXXsszzHHuuJJHHwwqqTTAAjjhhii00=="">>AAAAAABB5533iiccbbVVBBNNSS88NNAAEEJJ3344WWeettXX11aaOOXXxxSSJJ44KKkkkkVV99FFjj00ooMMccWW77AAee00ooWWyy22kk33bbppZZhhNN22NN00IIJJ//QQUUeevvKKhh4499SSdd5599NN++44bbXXPPQQ11ggccDDjj//ddmmmmJJkkXXJJIIJJrr4477rrffzzttrr66xxuubbWWddmmGGnnuuLLuu33ff33BBYYOOjjppuu66TThhVVDDJJssssFFrrHHqqBBFFSSjj44BBKKbbhhhhuuBBnnUUQQhhjjQQKKBB77WWBB88NN//PPbbTT66gg00jj++WWjjmmSSTTooRR33QQooeeccggZZNNVVZZqq33PPddLLZZbbffiizzkkFFWWiiZZeeTTMMuuSSoo9900ttffvvUUHHMM00ggiillYYYYJJqq33ffXXccxxPPggZZVVYYYYzzggddNNiiLL99WWYYUUDDaammQQ++xxaaKKmmmmEE22ss//mmhh0077JJuuVVUUGGJJIIyyVVLLWWnnIIXXPP0099kkddFFII6600kkUU22MM66IImmppFFee99mmbbiiff114433NNeeGGNNnn33GGZZppAAYYllWWyywwKKUU00FFMMTTGGZZffkkwwFFXXyyIIyyYYWWEEKKZZ44vvZZWWwwkkZZUUUUWWZZssNNjjYYDDbb//nnjjVVddKKqqVVrrzzLLSSrrVVxxVVaa77dd55mmkkUU44BBTTOO44AAII88uuIIYYaaPPEEAAddmmssAAAA44RRllee44cc33hhzzoovvzz77nnwwssWWtteeccffOOYYEE//ssDD55//AAEEaannooyy//<<//llaatteexxiitt>>
+: t ”h ?at helps FAIL
+ableinthebackgroundKB.Inspiredbythisprover,
+CLUE parses explanation
+weextendthistofree-formtextproofsinthispaper. and adds them to K
+Thischain-structureddefinitionofaproofisin-
+CORGI attempts to prove
+GG((ZZ))
+<<llaatteexxiitt sshhaa11__bbaassee6644==""++ggNNNNVVBB++xx//44aappKKwwyyDDeeqqbbyyVVAAWWyy882244=="">>AAAAAABB66nniiccbbVVBBNNTTwwIIxxEEJJ33FFLL88QQvv11KKOOXXRRmmKKCCFF77KKLLJJnnookkeettAAjjJJggJJGG22JJBBuu66UUJJDD22992200XXRROOyy44SS994488KKLLGGqq33//IIoo////GGLLuuxxBBwwZZddMM88vvLLeeTTGGbbmmBBTTFFnn22rrjjuutt11NNYYWWVV11bb33yyhhuullrraa22dd33bb33yyvvssHHbbRR00lliittAAWWiiXXiikkHHggKKssKKWWeeSSttggwwzznnDD77EEiimmIIRRccNNooJJxxtteeZZ3333mmiiSSrrNNII33ppttJJTTHH22BBhh55KKFFjjGGCCTTSSTTffVVxx99NN++uueeLLWW33BBnnQQMMvvFFyyUUooEEcczzXX7755qqzzeeIISSCCKKooNNIIRRjjrrbbuueeGGxxss//xxccoowwwwuumm0011EEss00jjTTEEZZ44yyHHttWWiiqqxxooNNppPPZZ77ddOO00YYllVVBBiiiiMMllCC11pp00EEzz99PPZZFFiiooffVVEEBBLLZZTTYYDDPPSSii1144mm//uudd11EExxNNee++iimmTTccWWKKooJJPPNNFFYYccKKRRiiVVDD22OOBBoowwRRYYnnhhEE00sswwUUcczzeeiissggIIKK00yyMMjjccddmm44CC11++vvEEzzaa99ZZpp33VVqqvvffnnVVccaaVV33kkaaRRTTiiCCYY66iiCCBBxxffQQggFFttooQQggssIIjjOOAAZZXXuuHHNN44cc66LL88++5588zzFFssLLTTjj55zzCCHH//ggffPP44AAjjVVyyNNiiAA====<<//llaatteexxiitt>>
+spiredbyaPrologproof. Aknowledgetuplehere
+is analogous to a logical rule in Prolog (Head (cid:68) sI us c C ceO sR sfG ulI ?
+Y N
+Body)wherethesubjectandobjectcorrespondto
+eithertheBody,ortheHeaddependingonthere- PASS FAIL
+lation. We categorize COMET relations into two Figure6: FullControlFlowDiagramfortheDialogue
+classes,namelypre-conditionsandpost-effects. If SysteminFigure2.
+therelationisapost-effect,theobjectistheHead
+and the subject is the Body. If the relation is a
+pre-condition,thereverseistrue. Forexample,the
+) for the command “If it snows tonight then
+relations“BecauseIwanted”and“isusedfor”in
+wake me up early because I want to get to work
+Fig4arepost-effects,whereastherelations“Before
+on time”. (cid:131)(cid:140)(cid:149)(cid:133) first tries to find the nega-
+Ineeded”and“requiresaction”arepre-conditions.
+tion of the goal(get to work on time) by query-
+The subject (Body) consists of a single predicate
+ing COMET(r,goal) for relations (r) indicating
+(insteadofaconjunctionofpredicatesinProlog).
+negation (such as NotCapableOf and NotIsA).
+Since there is no conjunction in the Body of the
+(cid:131)(cid:140)(cid:149)(cid:133) then picks the highest ranking returned
+rules, the logical proof reduces to a chain (as op-
+COMETstatement(Iamlate)andaskstheuser“is
+posed to a proof tree in Prolog). Moreover, the
+(cid:104)¬goal(cid:105)theoppositeof(cid:104)goal(cid:105)?(y/n)”(Is“Iam
+semanticclosenessofo and s isinspiredbythe
+i−1 i late”theoppositeof“Igettoworkontime”?(y/n)).
+unificationoperation(Colmerauer,1990)inProlog
+Iftheuserresponds‘yes’,then(cid:131)(cid:140)(cid:149)(cid:133)asks“what
+and is analogous to the soft unification operation
+does (cid:104) state(cid:105) cause that leads to (cid:104)¬ goal(cid:105)?”
+of CORGI’s neuro-symbolic theorem prover. It
+(whatdoes“itsnowstonight”causethatleadsto“I
+is worth noting that this analogue falls short of
+amlate”?) andexpectsanexplanationfromtheuser
+Prolog’s variable grounding and is an interesting
+in response. If the user responds ‘no’ to the first
+avenueforourfuturework.
+question, then (cid:131)(cid:140)(cid:149)(cid:133) asks “what does (cid:104) state(cid:105)
+cause that makes it difficult to achieve (cid:104) goal(cid:105)?”
+DialogueSystemDetails
+(Whatdoes“itsnowstonight”causethatmakesit
+Thecontrolflowof(cid:131)(cid:140)(cid:149)(cid:133)’sdialogsysteminFig- difficulttoachieve“Igettoworkontime”?) and
+ure 2 is shown in detail in Figure 6. The dialog expectsanexplanationfromtheuserinresponse.
+systemusesthelogictemplatesandtheresultsre- The reason for querying COMET for the negated
+turnedbyCOMETtointeractwiththehumanuser goal is that negation in Prolog is implemented
+andaskquestions. basedonnegationasfailure. Therefore,tobecon-
+For example, consider proving the first impli- sistent, (cid:131)(cid:140)(cid:149)(cid:133) converts the goalto its negated
+cation of the blue template (¬ goal(cid:68) state statementandprovesthatinstead.
+ExtendedExperiments
+Tables6and7show32examplesofthe67expert-
+verified half-proofs reported in Table 1. These
+half-proofs are obtained using bidirectional 2-
+hop beam search and logically prove the goal(cid:68)
+actionimplication. Recallthatactionrefersto
+theThen-portionofthecommandandgoalrefers
+totheBecause-portionofthecommand. Theem-
+beddings used to measure semantic closeness in
+theproverisGloVe. Thesecondintermediatehop
+obtained by (cid:131)(cid:140)(cid:149)(cid:133)’s prover is shown in column
+4ofthetables. Eachrowindicatesasuccessfully
+half-provedif-then-becausecommandalongwith
+itsintermediatecommonsensereasoninghop. Let
+us explain the proofs through an example. Con-
+sider the example on Row 5 of Table 6: “if the
+temperature is going to be below 40 degrees in
+the evening but above 40 degrees in the morning
+thenremindmetobringajacketbecauseiwantto
+stay warm on my commute”. The relations (col-
+umn 3) and COMET outputs (column 4) for this
+exampleindicatethattheactionofremindingthe
+user to bring a jacket causesDesire for the user
+towearthe jacket whichis aPrerequisite forthe
+goalof staying warm on the user’s commute. In
+otherwords(cid:131)(cid:140)(cid:149)(cid:133)isabletounderstandwhyre-
+minding someone to bring a jacket would allow
+themtostaywarm(becausetheywouldbeableto
+wearthejacket). Thisisalogicalprooffortheim-
+plication goal(cid:68) action according to the proof
+definitionoftheproverproposedinthispaper. For
+moreexamples,pleaserefertoTables6and7.
+Table 6: Half Proofs goal(cid:68) action, Part 1. The half-proofs are obtained using our proposed prover and are
+obtained using bidirectional pruning. The input if-then-because commands are listed in the first column. The
+semanticclossenessescoresareobtainedwithGloVeembeddings. (r ,r )onthethirdcolumnarerelationstuples
+1 2
+onthefinalproofpathobtainedfromtheCOMET(r ,action)andCOMET(r ,goal)queries.
+1 2
+Semantic (cid:16) (cid:17)
+Commands
+ClosenessScore
+(r1,r2) COMET(r1,action),COMET(r2,goal)
+ifihaveanupcomingexam
+thenremindmetoprepare3daysahead 1.0 (CausesDesire,HasSubevent) (prepareforexam,prepareforexam)
+becauseiwanttoprepareforit
+iftheairtemperatureisforecasttobewarmerthan70tonight
+thenremindmetoturnontheairconditioner 1.0 (CapableOf,CreatedBy) (coolair,coolair)
+becauseiwanttostaycool
+ifihaven’tbeentothegymformorethan3days
+thenremindmetogotothegym 0.9220791 (CapableOf,HasPrerequisite) (workout,workoutregularly)
+becauseiwanttostayfit
+ifiamgoingtoschool
+thenremindmetotakemyofficekeyswithme 1.0 (CausesDesire,CausesDesire) (gotowork,gotowork)
+becauseiwanttobeabletounlockmyofficedoor
+ifthetemperatureisgoingtobebelow40degreesintheeveningbutabove40degreesinthemorning
+thenremindmetobringajacket 1.0 (CausesDesire,Prerequisite) (wearjacket,wearjacket)
+becauseiwanttostaywarmonmycommute
+ifigetanemailfrommybossaboutourupcoming
+1.0 (Causes,CausesDesire) (openemail,openemail)
+deadlinethennotifymeabouttheemailbecauseiwanttoreadtheemail
+ifmycalendariscleartoday,thenremindmetogoto
+1.0 (Desires,Desires) (exercise,exercise)
+gymintheafternoon,becauseiwanttokeepmyselfhealthy
+ifistartusinggooglemapstogohome
+thentellalexatoturnontheheat 1.0 (Desires,CreatedBy) (heat,heat)
+becauseiwantmyhometobewarmwheniarrive
+ifthereisheavytrafficintheroutethatiusetooffice
+thenremindmetoleaveearly 0.9641539 (CausesDesire,CausesDesire) (gotoworkearly,gotowork)
+becauseiwanttoreachofficeontime
+ifpapersrelatedtowhati’mworkingonarepostedontheproceedingsofanynlpormlconference
+thentellmeaboutthepapersimmediately 1.0 (HasSubevent,CausesDesire) (read,read)
+becauseiwanttostayup-to-dateoncurrentresearch
+ifi’mnotinbedat12pm
+thenremindmetogotobed 1.0 (Desires,CreatedBy) (sleep,sleep)
+becauseiwanttogotobedearly
+ifanewpaperrelatedtowhati’mworkingonispostedonarxiv
+thennotifymeaboutthenewpaperimmediately 1.0 (HasSubevent,CausesDesire) (read,read)
+becauseiwanttostayup-to-dateoncurrentresearch
+ifthepriceofsomethingiwanttobuydrops
+thennotifymeaboutthepricedrop 0.9652006 (MotivatedByGoal,CausesDesire) (buysomething,buysomethingelse)
+becauseiwanttobuyitwhenthepriceislow
+ifthereisheavytrafficonmycurrentcommutepath
+thengivemealesscongestedpath 1.0 (MotivatedByGoal,HasSubevent) (idrivefast,idrivefast)
+becauseiwanttominimizemydrivingtime
+ifihavemorethantenunreademails
+thensetanonehouremailreplyingeventoncalendar 1.0 (CausesDesire,HasPrerequisite) (sendemail,sendemail)
+becauseiwanttoberesponsivetoemails
+ifihavesetanalarmfortakingmypills
+thenmakesurethealarmsareoffafterihavefinishedmypills 1.0 (HasPrerequisite,HasPrerequisite) (turnoffalarmclock,turnoffalarmclock)
+becauseiwanttomakesureidon’thavefalsealarms
+iftheweathertemperatureforecastinthenext10daysisabove30degreescelsius
+thenremindmetoturntheheateroff 0.93141675 (MotivatedByGoal,HasSubevent) (itbecold,itgetcold)
+becauseidon’twanttomakethehousewarm
+ifiamdrivinghomeandihaveanemailaboutagroceryshoppinglist
+thenremindmetostopatthegrocerystore 0.99999994 (CapableOf,UsedFor) (buygrocery,buygrocery)
+becauseiwanttobuytheitemsonmygroceryshoppinglist
+ifthereisasaleonsketchbooksbetweennowandaugust
+thennotifymeaboutthesale 0.8800874 (CausesDesire,HasPrerequisite) (buysomething,buythem)
+becauseineedtogetsketchbooksformyfallclass
+ifihavesetanalarmforatimebetween2am-8amonweekends
+thennotifymethatihaveanalarmset 0.93820596 (CreatedBy,CreatedBy) (turnoffalarm,turnoffalarmclock)
+becauseiwanttocorrectthealarm
+Iftheairtemperatureisforecasttobecolderthan40degrees
+thentellmetoclosethewindows 1.0 (Desires,HasPrerequisite) (getwarm,getwarm)
+becauseIwanttostaywarm
+iftheairtemperatureisforecasttobewarmerthan70tonight
+thenremindmetoturnontheairconditioner 0.9137391 (UsedFor,UsedFor) (cooldownroom,cooldown)
+becauseiwanttostaycool
+ifthereisanaturaldisasterbackathome
+thenremindmetodonatemoney 0.9001999 (CapableOf,Causes) (idonatemoney,igivemoney)
+becauseiwanttogivebacktomycommunity
+Table 7: Half Proofs goal(cid:68) action, Part 2. The half-proofs are obtained using our proposed prover and are
+obtained using bidirectional pruning. The input if-then-because commands are listed in the first column. The
+semanticclossenessescoresareobtainedwithGloVeembeddings. (r ,r )onthethirdcolumnarerelationstuples
+1 2
+onthefinalproofpathobtainedfromtheCOMET(r ,action)andCOMET(r ,goal)queries.
+1 2
+Semantic (cid:16) (cid:17)
+Commands
+ClosenessScore
+(r1,r2) COMET(r1,action),COMET(r2,goal)
+ifanauthorilikeisdoingareadinginmycity
+thenletmeknowaboutthereading 0.8933883 (HasPrerequisite,HasPrerequisite) (gotobookstore,gotostore)
+becauseiwanttoseethem
+ifihaveanupcomingbillpayment
+thenremindmetopayit 1.0 (CausesDesire,Desires) (paybill,paybill)
+becauseiwanttomakesureiavoidpayingalatefee
+Ifitsnowstonight
+thenwakemeupearly 0.95353657 (Causes,Causes) (igotoworkearly,gettoworkearly)
+becauseIwanttogettoworkearly
+ifihaveameeting
+thenremindmefifteenminutesbeforehand 0.9151366 (ReceivesAction,UsedFor) (prepareformeet,preparefor)
+becauseiwanttobepreparedforthemeeting
+ifweareapproachingfall
+thenremindmetobuyflowerbulbs 1.0 (CausesDesire,CausesDesire) (plantflower,plantflower)
+becauseiwanttomakesureihaveaprettyspringgarden
+ifireceiveemailsaboutsalesonbasketballshoes
+thenletmeknowaboutthesale 0.9345853 (CausesDesire,UsedFor) (buysomething,ibuysomething)
+becauseiwanttosavemoney
+ifireceiveanemailrelatedtowork
+thennotifymeabouttheemailimmediately 1.0 (CausesDesire,CausesDesire) (openemail,openemail)
+becauseiwanttostayontopofmywork-relatedemails
+iftheforecastisdryandgreaterthan50degreesfonaweekendday
+thenremindmetoline-drythelaundry 1.0 (MotivatedByGoal,CapableOf) (smellgood,smellgood)
+becauseiwantourclothestosmellgood
+ifihavemorethanthreehoursmeetingonmycalendarforaday
+thenremindmetorelaxforanhourintheevening 0.96545255 (CapableOf,CapableOf) (makemefeelgood,makemelookgood)
+becauseiwanttoachieveworklifebalance

@@ -1,0 +1,865 @@
+MetaXL: Meta Representation Transformation for Low-resource
+Cross-lingual Learning
+MengzhouXia§ ∗ GuoqingZheng‡ SubhabrataMukherjee‡ MiladShokouhi‡
+GrahamNeubig† AhmedHassanAwadallah‡
+§PrincentonUniversity †CarnegieMellonUniversity ‡MicrosoftResearch
+mengzhou@princeton.edu,{zheng,submukhe,milads}@microsoft.com
+gneubig@cs.cmu.edu,hassanam@microsoft.com
+Abstract Joint Training MetaXL
+en en
+tel tel
+The combination of multilingual pre-trained
+representations and cross-lingual transfer
+learning is one of the most effective methods
+for building functional NLP systems for low-
+resource languages. However, for extremely
+low-resource languages without large-scale
+monolingual corpora for pre-training or
+(a) (b)
+sufficient annotated data for fine-tuning,
+Figure 1: First two principal components of sequence
+transfer learning remains an under-studied
+representations (corresponding to [CLS] tokens) of
+and challenging task. Moreover, recent work
+TeluguandEnglishexamplesfromajointlyfine-tuned
+shows that multilingual representations are
+mBERTandaMetaXLmodelforthetaskofsentiment
+surprisingly disjoint across languages (Singh
+analysis. MetaXL pushes the source (EN) and target
+et al., 2019), bringing additional challenges
+(TEL)representationsclosertorealizeamoreeffective
+for transfer onto extremely low-resource
+transfer. The Hausdorff distance between the source
+languages. Inthispaper,weproposeMetaXL,
+a meta-learning based framework that learns
+andtargetrepresentationsdropsfrom0.57to0.20with
+to transform representations judiciously from
+F1scoreimprovementfrom74.07to78.15.
+auxiliarylanguagestoatargetoneandbrings
+theirrepresentationspacescloserforeffective
+Wikipedia and XLM-R (Conneau et al., 2020) is
+transfer. Extensiveexperimentsonreal-world
+low-resource languages – without access pre-trainedon100languageswithCommonCrawl
+to large-scale monolingual corpora or large Corpora. However,thesemodelsstillleavebehind
+amountsoflabeleddata–fortaskslikecross- more than 200 languages with few articles avail-
+lingual sentiment analysis and named entity ableinWikipedia,nottomentionthe6,700orso
+recognition show the effectiveness of our ap-
+languages with no Wikipedia text at all (Artetxe
+proach.CodeforMetaXLispubliclyavailable
+et al., 2020). Cross-lingual transfer learning for
+atgithub.com/microsoft/MetaXL.
+these extremely low-resource languages is essen-
+1 Introduction tialforbetterinformationaccessbutunder-studied
+inpractice (HirschbergandManning,2015). Re-
+Recentadvancesinmultilingualpre-trainedrepre- centworkoncross-lingualtransferlearningusing
+sentationshaveenabledsuccessonawiderangeof pre-trainedrepresentationsmainlyfocusesontrans-
+naturallanguageprocessing(NLP)tasksformany ferringacrosslanguagesthatarealreadycovered
+languages. However, these techniques may not byexistingrepresentations(WuandDredze,2019).
+readily transfer onto extremely low-resource lan- In contrast, existing work on transferring to lan-
+guages, where: (1) large-scale monolingual cor- guageswithoutsignificantmonolingualresources
+poraarenotavailableforpre-trainingand(2)suf- tends to be more sparse and typically focuses on
+ficient labeled data is lacking for effective fine- specifictaskssuchaslanguagemodeling(Adams
+tuning for downstream tasks. For example, mul- etal.,2017)orentitylinking(Zhouetal.,2019).
+tilingualBERT(mBERT)(Devlinetal.,2018)is BuildingNLPsystemsinthesesettingsischal-
+pre-trainedon104languageswithmanyarticleson lenging for several reasons. First, a lack of suf-
+ficient annotated data in the target language pre-
+∗Mostoftheworkwasdonewhilethefirstauthorwasan
+internatMicrosoftResearch. vents effective fine-tuning. Second, multilingual
+pre-trained representations are not directly trans- languages1 andthenapplyittothetargetlanguage.
+ferableduetolanguagedisparities. Thoughrecent This is widely adopted in the zero-shot transfer
+workoncross-lingualtransfermitigatesthischal- setup where no annotated data is available in the
+lenge,itstillrequiresasizeablemonolingualcor- targetlanguage. Thepracticeisstillapplicablein
+pustotraintokenembeddings(Artetxeetal.,2019). thefew-shotsetting,inwhichcaseasmallamount
+As noted, these corpora are difficult to obtain for ofannotateddatainthetargetlanguageisavailable.
+manylanguages(Artetxeetal.,2020). In this work, we focus on cross-lingual trans-
+Additionally, recent work (Singh et al., 2019) fer for extremely low-resource languages where
+shows that contextualized representations of dif- only a small amount of unlabeled data and task-
+ferentlanguagesdonotalwaysresideinthesame specificannotateddataareavailable. Thatincludes
+spacebutareratherpartitionedintoclustersinmul- languagesthatarenotcoveredbymultilinguallan-
+tilingualmodels. Thisrepresentationgapbetween guage models like XLM-R (e.g., Maori or Turk-
+languages suggests that joint training with com- men),orlow-resourcelanguagesthatarecovered
+bined multilingual data may lead to sub-optimal but with many orders of magnitude less data for
+transferacrosslanguages. Thisproblemisfurther pre-training(e.g.,TeleguorPersian). Weassume
+exacerbated by the, often large, lexical and syn- theonlytarget-languageresourcewehaveaccess
+tacticdifferencesbetweenlanguageswithexisting toisasmallamountoftask-specificlabeleddata.
+pre-trainedrepresentationsandtheextremelylow- More formally, given: (1) a limited amount of
+resourceones. Figure1(a)providesavisualization annotatedtaskdatainthetargetlanguage,denoted
+(i) (i)
+ofonesuchexampleofthedisjointrepresentations as D = {(x ,y );i ∈ [1,N]}, (2) a larger
+t t t
+ofaresource-richauxiliarylanguage(English)and amountofannotateddatafromoneormoresource
+(j) (j)
+resource-scarcetargetlanguage(Telugu). language(s), denoted as D = {(x ,y );j ∈
+s s s
+We propose a meta-learning based method, [1,M]} where M (cid:29) N and (3) a pre-trained
+MetaXL,tobridgethisrepresentationgapandal- modelf θ,whichisnotnecessarilytrainedonany
+lowforeffectivecross-lingualtransfertoextremely monolingual data from the target language – our
+low-resourcelanguages. MetaXLlearnstotrans- goalistoadaptthemodeltomaximizetheperfor-
+formrepresentationsfromauxiliarylanguagesina manceonthetargetlanguage.
+waythatmaximallyfacilitatestransfertothetarget Whensometargetlanguagelabeleddataisavail-
+language. Concretely,ourmeta-learningobjective ableforfine-tuning,astandardpracticeistojointly
+encouragestransformationsthatincreasethealign- fine-tune(JT)themultilinguallanguagemodelus-
+mentbetweenthegradientsofthesource-language ingaconcatenationofthelabeleddatafromboth
+setwiththoseofatarget-languageset. Figure1(b) the source and target languages D s and D t. The
+showsthatMetaXLsuccessfullybringsrepresenta- representationgap(Singhetal.,2019)betweenthe
+tionsfromseeminglydistantlanguagescloserfor source language and target language in a jointly
+moreeffectivetransfer. trainedmodelbringsadditionalchallenges,which
+motivatesourproposedmethod.
+We evaluate our method on two tasks: named
+entity recognition (NER) and sentiment analysis
+2.2 RepresentationTransformation
+(SA).Extensiveexperimentson8low-resourcelan-
+guagesforNERand2low-resourcelanguagesfor Thekeyideaofourapproachistoexplicitlylearn
+SAshowthatMetaXLsignificantlyimprovesover totransformsourcelanguagerepresentations,such
+strong baselines by an average of 2.1 and 1.3 F1 that when training with these transformed repre-
+scorewithXLM-Rasthemultilingualencoder. sentations, the parameter updates benefit perfor-
+mance on the target language the most. On top
+ofanexistingmultilingualpre-trainedmodel,we
+2 MetaRepresentationTransformation
+introduceanadditionalnetwork,whichwecallthe
+representation transformation network to model
+2.1 BackgroundandProblemDefinition
+thistransformationexplicitly.
+Therepresentationtransformationnetworkmod-
+Thestandardpracticeincross-lingualtransferlearn-
+els a function g : Rd → Rd, where d is the di-
+ing is to fine-tune a pre-trained multilingual lan- φ
+guagemodelf parameterizedbyθ,(e.g. XLM-R
+θ 1Wealsorefertoauxiliarylanguagesassourcelanguages
+andmBERT)withdatafromoneormoreauxiliary asopposedtotargetlanguages.
+training loss meta loss
+Repeat following steps until convergence:
+Transformer Transformer
+Layer Layer ① Forward pass for training loss
+Representatio
+nTransformatio
+n Network Backward pass from training loss
+Transformer (RTN) Transformer ② a (gn rd a dX iL eM nt- sR du ep pd ea nte d ency on RTN kept)
+Layer Layer
+③ Forward pass for meta loss
+Updated XLM-R
+Embeddings (a function of RTN) Embeddings Backward pass from meta loss
+④
+and RTN update
+source data target data
+Figure 2: Overview of MetaXL. For illustration, only two Transformer layers are shown for XLM-R, and the
+representationtransformationnetworkisplacedafterthefirstTransformerlayer. (cid:13)1 sourcelanguagedatapasses
+throughthefirstTransformerlayer,throughthecurrentrepresentationtransformationnetwork,andfinallythrough
+theremaininglayerstocomputeatraininglosswiththecorrespondingsourcelabels. (cid:13)2 Thetraininglossisback-
+propagatedontoallparameters,butonlyparametersofXLM-Rareupdated. TheupdatedweightsofXLM-Rare
+a function of the current representation transformation network due to gradient dependency (highlighted by the
+light-purplebackgroundoftheupdatedXLM-R).(cid:13)3 Abatchoftargetlanguagedatapassesthroughtheupdated
+XLM-R and the meta loss is evaluated with the corresponding labels. (cid:13)4 The meta loss is back-propagated into
+therepresentationtransformationnetwork,sincethemeta-lossisineffectafunctionofweightsfromthatnetwork,
+andonlytherepresentationtransformationnetworkisupdated.
+mensionoftherepresentations. Conceptually,any encodedbyboththebasemodelandtherepresen-
+networkwithproperinputandoutputsizesisfea- tation transformation network. In contrast, for a
+sible. Weopttoemployatwo-layerfeed-forward targetexamplex ,y ∈ D ,weonlypassitthrough
+t t t
+network, a rather simple architecture with the in- thebasemodelasusual,denotedasf(x ;θ).
+t
+tentiontoavoidheavyparameteroverheadontop Ideally, suppose that we have a representation
+of the pre-trained model. The input to the repre- transformationnetworkthatcouldproperlytrans-
+sentationtransformationnetworkisrepresentations formrepresentationsfromasourcelanguagetothe
+from any layer of the pre-trained model. By de- target language. In that case, the source data can
+notingrepresentationsfromlayeriash ∈ Rd,we bealmostequivalentlyseenastargetdataonarep-
+i
+haveaparameterizedrepresentationtransformation resentation level. Unfortunately, we cannot train
+networkasfollows: sucharepresentationtransformationnetworkina
+supervisedmannerwithoutextensiveparalleldata.
+g (h ) = wT(ReLU(wTh +b ))+b (1)
+φ i 2 1 i 1 2
+Architecturally, the representation transforma-
+where φ = {w ,w ,b ,b |w ∈ Rd×r,w ∈ tion network adopts a similar structure to ex-
+1 2 1 2 1 2
+Rr×d,b ∈ Rr,b ∈ Rd} is the set of parame- isting works on language and task adapters for
+1 2
+tersoftherepresentationtransformationnetwork. cross-lingualandmulti-tasktransfer(Pfeifferetal.,
+In practice, we set r to be bottlenecked, i.e. r < 2020b), a simple down- and up-projection of in-
+d, so the representation transformation network put representations. Nevertheless, beyond net-
+firstcompressestheinputrepresentationandthen workarchitecture,thegoalandtrainingprocedure
+projects back onto the original dimension of the of the two approaches are significantly different.
+inputrepresentation. Adapters are typically trained to encode task or
+AsshowninFigure2,byassumingthatthebase language-specific information by fixing the rest
+modelhasN layers,asourceexample(x ,y ) ∈ of the model and updating the parameters of the
+s s
+D passesthroughthefirstilayers, thenthrough adaptersonly. Adaptersallowtrainingparameter-
+s
+therepresentationtransformationnetwork,finally efficientmodelsthatcouldbeflexiblyadaptedto
+throughthelastN−ilayersofthebasemodel. We multiple languages and tasks. While in our pro-
+denotethefinallogitsofthisbatchasf(x ;θ,φ), posed method, we use the representation trans-
+s
+Algorithm1TrainingprocedureforMetaXL
+Input: InputdatafromthetargetlanguageD andthesourcelanguageD
+t s
+1: Initialize base model parameters θ with pretrained XLM-R weights, initialize parameters of the
+representationtransformationnetworkφrandomly
+2: whilenotconvergeddo
+3: Sampleasourcebatch(x s,y s)fromD s andatargetbatch(x t,y t)fromD t;
+4: Updateθ: θ(t+1) = θ(t)−α∇ θL(x s;θ(t),φ(t))
+5: Updateφ: φ(t+1) = φ(t)−β∇ φL(x t;θ(t)−α∇ θL(x s;θ(t),φ(t)))
+6: endwhile
+fernetworkattrainingtimetoadjustthetraining learningrate. Notethattheresultingθ(cid:48) isineffect
+dynamicstomaximallyimprovetest-timeperfor- a function of φ. We then evaluate the updated
+mance on the target language. The optimization weightsθ(cid:48) ondatax fromthetargetlanguagefor
+t
+procedure and the function of the representation updatingg :
+φ
+transformationnetworkwillbediscussedinmore
+detailinthenextsection. φ(cid:48) = φ−β∇ φL Dt(f(x t;θ(cid:48)),y t) (4)
+2.3 Optimization whereL (x ;·)istheloss functionoftheupper
+Dt t
+The training of the representation transformation probleminEquation2andβ isitscorresponding
+network conforms to the following principle: If learning rate. Note that the meta-optimization is
+therepresentationtransformationnetworkg effec- performedovertheparametersoftherepresentation
+φ
+tivelytransformsthesourcelanguagerepresenta- transformationnetworkg φ whereastheobjectiveis
+tions,suchtransformedrepresentationsf(x ;φ,θ) calculatedsolelyusingtheupdatedparametersof
+s
+should be more beneficial to the target task than themainarchitectureθ(cid:48). BypluggingEquation3
+theoriginalrepresentationsf(x ;θ),suchthatthe intoEquation4,wecanfurtherexpandthegradient
+s
+modelachievesasmallerevaluationlossL
+Dt
+on term ∇ φL(f(x t;θ(cid:48)),y t). We omit f and y in the
+thetargetlanguage. Thisobjectivecanbeformu- followingderivativeforsimplicity.
+latedasabi-leveloptimizationproblem:
+∇ L (x ;θ(cid:48))
+min L (f(x ;θ∗(φ)),y ) (2)
+φ Dt t
+φ
+Dt t t =∇ φL Dt(x t;θ−α∇ θL Ds(x s;θ,φ))
+s.t. θ∗(φ) = argminL (f(x ;φ,θ),y ) =−α∇2 L (x ;θ,φ)∇ L (x ;θ(cid:48))
+Ds s s φ,θ Ds s θ Dt t
+θ
+=−α∇ (∇ L (x ;θ,φ)T∇ L (x ;θ(cid:48)))
+whereL(·)isthetasklossfunction. Inthisbi-level
+φ θ Ds s θ Dt t
+optimization, the parameters φ of the representa-
+During training, we alternatively update θ with
+tiontransformationnetworkarethemetaparame-
+Equation 3 and φ with Equation 4 until conver-
+ters,whichareonlyusedattrainingtimeanddis-
+gence. We term our method MetaXL, for its na-
+cardedattesttime. Exactsolutionsrequiresolving
+turetoleverageMeta-learningforextremelylow-
+fortheoptimalθ∗wheneverφgetsupdated. Thisis
+resourcecross(X)-Lingualtransfer. BothFigure2
+computationallyinfeasible,particularlywhenthe
+andAlgorithm1outlinetheprocedurefortraining
+base model f is complex, such as a Transformer-
+MetaXL.
+based language model. Similar to existing work
+involvingsuchoptimizationproblems(Finnetal., 3 Experiments
+2017; Liu et al., 2019; Shu et al., 2019; Zheng
+etal.,2021),insteadofsolvingtheoptimalθ∗ for 3.1 Data
+any given φ, we adopt a one-step stochastic gra- We conduct experiments on two diverse tasks,
+dient descent update for θ as an estimate to the namely,sequencelabelingforNamedEntityRecog-
+optimalbasemodelforagivenφ: nition (NER) and sentence classification task for
+Sentiment Analysis (SA). For the NER task, we
+θ(cid:48) = θ−α∇ L (f(x ;φ,θ),y ) (3)
+θ Ds s s
+use the cross-lingual Wikiann dataset (Pan et al.,
+where L (x ;) is the loss function of the lower 2017). Forthesentimentanalysistask,weusethe
+Ds s
+probleminEquation2andαisthecorresponding EnglishportionofMultilingualAmazonReviews
+Language Related mimic the low-resource setting by manually con-
+Language Code
+Family Language structing a train, development, and test set with
+Quechua qu Quechua Spanish 100, 1000, and1000examplesthroughsampling.
+MinDong cdo Sino-Tibetan Chinese
+ForSentiraama,wemanuallysplitthedatasetinto
+Ilocano ilo Austronesian Indonesian
+Mingrelian xmf Kartvelian Georgian train, development, and test subsets of 100, 103,
+MeadowMari mhr Uralic Russian and100examples.2
+Maori mi Austronesian Indonesian
+Turkmen tk Turkic Turkish
+3.2 ExperimentalSetup
+Guarani gn Tupian Spanish
+Base Model We use mBERT3 (Devlin et al.,
+Table1: TargetlanguageinformationontheNERtask.
+2018) and XLM-R (Conneau et al., 2020) as our
+Thedatasetsizeofthetheselanguagesis100.
+base models, known as the state-of-the-art multi-
+lingual pre-trained model. However, our method
+Corpus(MARC)(Keungetal.,2020)asthehigh- isgenerallyapplicabletoalltypesofTransformer-
+resourcelanguageandproductreviewdatasetsin basedlanguagemodels.
+two low-resource languages, Telugu and Persian
+(GangulaandMamidi,2018;Hosseinietal.,2018). TargetLanguage ForNER,weusethesame8
+low-resource languages as Pfeiffer et al. (2020c),
+WikiAnn WikiAnn(Panetal.,2017)isamulti-
+summarizedinTable1. Theselanguageshaveonly
+lingual NER dataset constructed with Wikipedia
+100examplesintheWikiAnndatasetandarenot
+articlesandanchorlinks. Weusethetrain,devel-
+includedforpre-trainingXLM-R.ForSA,Persian
+opmentandtestpartitionsprovidedinRahimietal.
+andTeluguarethetargetlanguages. Forbothtasks
+(2019). The dataset size ranges from 100 to 20k
+underanysetting, weonlyuseafixednumberof
+fordifferentlanguages.
+100examplesforeachtargetlanguage.
+MARC TheMultilingualAmazonReviewsCor-
+Source Language The selection of source lan-
+pus(Keungetal.,2020)isacollectionofAmazon
+guagesiscrucialfortransferlearning. Weexperi-
+productreviewsformultilingualtextclassification.
+mentwithtwochoicessourcelanguagesonNER:
+ThedatasetcontainsreviewsinEnglish,Japanese,
+English and a related language to the target lan-
+German, French, Spanish, andChinesewithfive-
+guage. Therelatedlanguagewaschosenbasedon
+starratings. Eachlanguagehas200kexamplesfor
+LangRank (Lin et al., 2019), a tool for choosing
+training. NotethatweonlyuseitsEnglishdataset.
+transferlanguagesforcross-linguallearning. Alist
+SentiPers SentiPers (Hosseini et al., 2018) is ofrelatedlanguagesusedforeachtargetisshown
+a sentiment corpus in Persian (fa) consisting of inTable1. Inabsenceoftrainingdatathatfitour
+around26ksentencesofusers’opinionsfordigital related-languagecriteriaforthelow-resourcetarget
+products. Eachsentencehasanassignedquantita- languagesinSA,weuseonlyEnglishasthesource
+tivepolarityfromthesetof{−2,−1,0,1,2}. language.
+Sentiraama Sentiraama (Gangula and Mamidi, Tokenization For all languages, either pre-
+2018)isasentimentanalysisdatasetinTelugu(tel), trainedwithXLM-Rornot,weuseXLM-R’sde-
+a language widely spoken in India. The dataset fault tokenizer for tokenizing. We tried with the
+containsexamplereviewsintotal,labeledaseither approach where we train subword tokenizers for
+positiveornegative. unseen languages similar to Artetxe et al. (2020)
+butobtainedworseresultsthanusingtheXLM-R
+Pre-processing For SA, we use SentiPers and
+tokenizer as is, due to the extremely small scale
+SentiraamaastargetlanguagedatasetsandMARC
+of target language data. We conjecture that the
+as the source language dataset. To unify the la-
+subwordvocabularythatXLM-Rlearnsisalsoben-
+belspace,wecurateMARCbyassigningnegative
+eficialtoencodelanguagesonwhichitisnoteven
+labels to reviews rated with 1 or 2 and positive
+labels to those rated with 4 or 5. We leave out
+2Details of data splits can be found at github.com/
+neutral reviews rated with 3. For SentiPers, we microsoft/MetaXL.
+assignnegativelabelstoreviewsratedwith-1and 3XLM-Rasabasemodelleadstosignificantlybetterre-
+sultsforbothbaselinesandMetaXLthanmBERT,thuswe
+-2andpositivelabelstothoseratedwith1or2. For
+mainlypresentresultswithXLM-Rinthemaintext.Detailed
+SentiPers,thoughthedatasetisrelativelylarge,we resultsonmBERTcanbefoundinAppendixC
+Source Method qu cdo ilo xmf mhr mi tk gn average
+(1) - target 57.14 37.72 61.32 59.07 55.17 76.27 55.56 48.89 56.39
+JT 66.10 55.83 80.77 69.32 71.11 82.29 61.61 65.44 69.06
+(2) English
+MetaXL 68.67 55.97 77.57 73.73 68.16 88.56 66.99 69.37 71.13
+JT 79.65 53.91 78.87 79.67 66.96 87.86 64.49 70.54 72.74
+(3) Related
+MetaXL 77.06 57.26 75.93 78.37 69.33 86.46 73.15 71.96 73.69
+Table2: F1forNERacrossthreesettingswherewe,(1)onlyusethetargetlanguagedata;(2)usetargetlanguage
+data along with 5k examples of English; (3) use the target language data along with 5k examples of a related
+language. JTstandsforjointtrainingandMetaXLstandsforMetaRepresentationTransformation. Weboldthe
+numberswithabetteraverageperformanceineachsetting.
+Method tel fa cantgainstothejointtrainingbaseline(JT)over
+using target language data only (target only), as
+(1) targetonly 86.87 82.58
+intheNERtask. Inaddition,MetaXLstilloutper-
+JT 88.68 85.51 formsjointtrainingbyaround0.9and1.6F1score
+(2)
+MetaXL 89.52 87.14 onTeluguandPersian. Theseresultssupportour
+hypothesis that MetaXL can transfer representa-
+Table3:F1forsentimentanalysisontwosettingsusing tionsfromotherlanguagesmoreeffectively. That,
+(1) only the target language data; (2) target language inturn,contributestotheperformancegainonthe
+dataalongwith1kexamplesofEnglish.
+targettask.
+4.2 SourceLanguageDataSize
+pre-trained on. We leave exploring the best tok-
+enizationstrategyforleveragingpre-trainedmodel ToevaluatehowMetaXLperformswithdifferent
+onunseenlanguageasfuturework. sizesofsourcelanguagedata,weperformexperi-
+mentsonvaryingthesizeofsourcedata. ForNER,
+4 ResultsandAnalysis weexperimentwith5k,10k,and20ksourceexam-
+ples. For SA, we test on 1k, 3k and 5k 4 source
+4.1 MainResults
+examples.
+NER We present results of NER in Table 2,
+AsobservedfromTable4,MetaXLdeliverscon-
+whereweuse5kexamplesfromEnglishorarelated
+sistent gains as the size of source data increases
+language as source data. When we only use the
+over the joint training model (except on fa when
+annotateddataofthetargetlanguagetofine-tune
+using5kauxiliarydata).5 However,themarginal
+XLM-R(target),weobservethattheperformance
+gain decreases as the source data size increases
+variessignificantlyacrosslanguages,rangingfrom
+on NER. We also note that MetaXL continues to
+37.7to76.3F1score. Jointlyfine-tuningXLM-R
+improveevenwhenjointtrainingleadstoaminor
+withtargetandsourcedata(JT)leadstoasubstan-
+performancedropforSA.
+tial average gain of around 12.6 F1 score. Using
+thesameamountofdatafromarelatedlanguage 4.3 PlacementofRepresentation
+(insteadofEnglish)ismoreeffective,showingan TransformationNetwork
+averageimprovementof16.3F1scoreoverusing
+Previousworks(Jawaharetal.,2019;Tenneyetal.,
+target data only. Our proposed method, MetaXL,
+2019) have observed that lower and intermediate
+consistently outperforms the joint training base-
+layersencodesurface-levelandsyntacticinforma-
+lines,leadingtoasignificantaveragegainof2.07
+tion,whereastoplayersaremoresemanticallyfo-
+and 0.95 F1 score when paired with English or
+cused. Thesefindingssuggestthattheplacement
+relatedlanguages,respectively.
+of the representation transformation network can
+SA We present results on the task of SA in Ta- potentiallyaffecttheeffectivenessoftransfer. To
+ble3,whereweuse1KexamplesfromEnglishas
+4Nosignificantgainswereobservedforanyofthemodels
+sourcelanguagedata. Wefindthatauxiliarydata
+whengoingbeyond5Kexamples.
+fromsourcelanguagesbringslessbutstillsignifi- 5PleaserefertoAppendixCforfullresults.
+NER(average) SA(tel) SA(fa)
+#en JT MetaXL ∆ #en JT MetaXL ∆ #en JT MetaXL ∆
+5k 69.06 71.13 +2.07 1k 88.68 90.53 +1.85 1k 85.51 87.14 +1.63
+10k 70.11 71.63 +1.52 3k 87.13 87.23 +0.10 3k 82.88 86.19 +3.31
+20k 72.31 73.36 +1.05 5k 84.91 85.71 +0.80 5k 86.34 85.63 -0.71
+Table4: F1onvarioussourcelanguagetransferdatasizes. #endenotesthenumberofEnglishexamplesusedfor
+transfer. ∆denotestheimprovementofMetaXLoverthejointtrainingbaseline. RTNisplacedafter12thlayer.
+NER SA NER SA
+Method Average tel fa Layer Method Average tel fa
+JT 69.06 88.68 85.51 - JT 69.06 88.68 85.51
+MetaXLL0 70.02 89.52 85.41 JTw/RTN 59.80 63.95 72.32
+L0
+MetaXLL6 70.27 86.00 85.80 MetaXL 70.02 89.52 85.41
+MetaXLL12 71.13 90.53 87.14
+JTw/RTN 67.18 83.75 70.40
+MetaXLL0,12 69.00 84.85 86.64 L12
+MetaXL 71.13 90.53 87.14
+Table 5: F1 when placing the transfer component at
+Table 6: F1 when joint training with and without the
+different positions on XLM-R. Under this setting, we
+representation transformation network in XLM-R. In
+use 5k English data for NER and 1K English data for
+this setting, we use 5k English examples for NER
+SA.Lstandsforlayer.
+and 1k English examples for SA. NER results are ag-
+gregated over 8 target languages. Bold denotes that
+MetaXLoutperformsbothJTandJTw/RTNbaselines.
+thisend,weconductedexperimentswithrepresen-
+tation transformation networks placed at various
+depthsoftheTransformermodel. dergoes transformation via an augmented repre-
+Specifically,weexperimentwithplacingtherep- sentationtransformationnetwork;(2)weadopta
+resentation transformation network after the 0th bi-leveloptimizationproceduretoupdatethebase
+(embeddinglayer),6thand12thlayer(denotedby model and the representation transformation net-
+L0,L6,L12). Wealsoexperimentwithplacingtwo work. To verify that the performance gain from
+identical representation transformation networks MetaXL is not attributed to increased model ca-
+afterboththe0thand12thlayers. pacity, we conduct experiments on joint training
+As observed from Table 5, transformations at using the representation transformation network.
+the 12th layer are consistently effective, suggest- Specifically, the forward pass remains the same
+ing that transformation at a higher and more ab- as MetaXL, whereas the backward optimization
+stractlevelresultsinbettertransferforbothtasks.6
+employs the standard stochastic gradient descent
+Transferringfromlowerlayersleadstofewergains algorithm. Weconductexperimentsonplacingthe
+for SA, coinciding with the fact that SA is more representationtransformationnetworkafterthe0th
+reliant on global semantic information. Transfer- layeror12thlayerandpresentresultsinTable67.
+ring at multiple layers does not necessarily lead Interestingly,jointtrainingwiththerepresenta-
+tohigherperformance,possiblybecauseitresults tiontransformationnetworkdeterioratesthemodel
+inincreasedinstabilityinthebi-leveloptimization performance compared to vanilla joint training.
+procedure. Transferringafterthe0thlayerisevenmoredetri-
+mentalthanthe12thlayer. Thisfindingshowsthat
+4.4 JointTrainingwithRepresentation
+Transformer models are rather delicate to subtle
+TransformationNetworks
+architecturalchanges. Incontrast,MetaXLbreaks
+TherearetwomajordifferencesbetweenMetaXL therestriction,pushingtheperformancehigherfor
+and joint training: (1) source language data un- bothlayersettings.
+6PleaserefertoAppendixB.2forfullresults. 7PleaserefertoAppendixB.3forfullresults.
+Joint Training MetaXL where cosine distance is used as as the inner dis-
+en en tance,i.e.,
+qu qu
+d(s,t) (cid:44) 1−cos(s,t) (6)
+ForSA,weobserveadrasticdropofHausdorff
+distance from 0.57 to 0.20 and a substantial per-
+formanceimprovementofaround4F1score. For
+NER, we observe a minor decline of Hausdorff
+Figure3: PCAvisualizationoftoken-levelrepresenta- distance from 0.60 to 0.53 as the representations
+tions of Quechua and English from the joint training areobtainedatthetokenlevel,leadingtoasignifi-
+mBERTmodelonNER.WithMetaXL,theHausdorff cantperformancegainof3F1score. ForNER,we
+distance drops from 0.60 to 0.53 and the F1 score in- observeacorrelationof0.4betweenperformance
+creasesfrom60.25to63.76.
+improvement and the reduction in representation
+distance. Bothqualitativevisualizationandquanti-
+tativemetricsconfirmourhypothesisthatMetaXL
+4.5 AnalysisofTransformedRepresentations
+performs more effective transfer by bringing the
+representationsfromdifferentlanguagescloser.
+ToverifythatMetaXLdoesbringthesourceand
+targetlanguagespacescloser,wequalitativelyand 4.6 AdditionalResultsonHigh-resource
+quantitativelydemonstratetherepresentationshift Languages
+withtransformation. Inparticular,wecollectrepre-
+sentationsofboththesourceandtargetlanguages
+fr es ru zh
+from the joint training and the MetaXL models,
+with mBERT as the multilingual encoder, and JT 76.50 72.87 71.14 60.62
+presentthe2-componentPCAvisualizationinFig- MetaXL 72.43 70.38 71.08 58.81
+ure1forSAandFigure3forNER.SAmodelsare
+trainedonTelugupairedwith5kEnglishexamples, Table 7: F1 on mBERT rich languages in a simulated
+low-resourcesetting.
+and NER models are trained on Quechua paired
+with5kEnglish. Fromthefigures,MetaXLmerges
+Despiteourexperimentssofaronextremelylow-
+therepresentationsfromtwolanguagesforSA,but
+resourcelanguages,givenbyfewlabeleddatafor
+thephenomenonisnotasevidentforNER.
+fine-tuningandlimitedornounlabeleddataforpre-
+Singh et al. (2019) quantitatively analyze
+training,MetaXLisgenerallyapplicabletoalllan-
+mBERT representations with canonical correla-
+guages. Tobetterunderstandthescopeofapplying
+tionanalysis(CCA).However,CCAdoesnotsuit
+MetaXLtolanguageswithvaryingresources,we
+our case as we do not have access to semanti-
+performexperimentson4targetlanguagesthatdo
+cally aligned data for various languages. Thus
+notbelongtoourextremelylow-resourcecategory
+we adopt Hausdorff distance as a metric that has
+fortheNERtask,namely,Spanish(es),French(fr),
+been widely used in vision and NLP tasks (Hut-
+Italian (it), Russian (ru) and Chinese (zh). These
+tenlocher et al., 1993; Dubuisson and Jain, 1994;
+languagesaretypicallyconsideredhigh-resource
+Patraetal.,2019)tomeasurethedistancebetween
+with20klabeledexamplesintheWikiAnndatasets
+two distinct datasets. Informally, the Hausdorff
+andlargeamountofunlabeleddataconsumedby
+distance measures the average proximity of data
+mBERT for pre-training. We use only 100 ex-
+representationsinthesourcelanguagetothenear-
+amples forall target languagesto mimicthe low-
+est ones in the target language, and vice versa.
+resourcesettinganduse5kEnglishexamplesfor
+Given a set of representations of the source lan-
+transfer.
+guageS = {s ,s ,...,s }andasetofrepresen-
+1 2 m As shown in Table 7, we found slight perfor-
+tationsofthetargetlanguageT = {t ,t ,...,t },
+1 2 n mancedropusingMetaXLforthesehigh-resource
+wecomputetheHausdorffdistanceasfollows:
+languages. Weconjecturethattheselanguageshave
+beenlearnedquitewellwiththemBERTmodeldur-
+ingthepre-trainingphase,therefore,leavingless
+max{maxmind(s,t),maxmind(s,t)} (5)
+s∈S t∈T t∈T s∈S scopeforeffectiverepresentationtransformationin
+the low-resource setup. Nonetheless, this can be metalearnanetworkthatexplicitlytransformsrep-
+remediedwithaback-offstrategybyfurtherfine- resentationsforcross-lingualtransferonextremely
+tuning the resulting model from MetaXL on the low-resourcelanguages.
+concatenateddatafrombothsourceandtargetlan-
+6 ConclusionsandFutureWork
+guagestomatchtheperformanceofJTtraining. As
+high-resourcelanguagesareoutofthescopeofthis
+Inthispaper,westudycross-lingualtransferlearn-
+paper,weleavefurtheranalysisandunderstanding
+ingforextremelylow-resourcelanguageswithout
+ofthesescenariosforfuturework.
+large-scalemonolingualcorporaforpre-trainingor
+sufficientannotateddataforfine-tuning. Toallow
+5 RelatedWork
+foreffectivetransferfromresource-richsourcelan-
+guagesandmitigatetherepresentationgapbetween
+UnifyingLanguageSpaces MetaXLinessence
+multilingual pre-trained representations, we pro-
+bringsthesourceandtargetrepresentationscloser.
+poseMetaXLtolearntotransformrepresentations
+Previous works have shown that learning invari-
+from source languages that best benefits a given
+antrepresentationsacrosslanguagesleadstobetter
+taskonthetargetlanguage. Empiricalevaluations
+transfer. On the representation level, adversarial
+oncross-lingualsentimentanalysisandnameden-
+trainingiswidelyadoptedtofilterawaylanguage-
+tityrecognitiontasksdemonstratetheeffectiveness
+related information (Xie et al., 2017; Chen et al.,
+of our approach. Further analysis on the learned
+2018). Onetheformlevel,Xiaetal.(2019)show
+transformationsverifythatMetaXLindeedbrings
+thatreplacingwordsinasourcelanguagewiththe
+the representations of both source and target lan-
+correspondence in the target language brings sig-
+guagescloser,thereby,explainingtheperformance
+nificantgainsinlow-resourcemachinetranslation.
+gains. For future work, exploring transfer from
+Adapters Adapternetworksaredesignedtoen- multiple source languages to further improve the
+code task (Houlsby et al., 2019; Stickland and performance and investigating the placement of
+Murray, 2019; Pfeiffer et al., 2020a), domain multiple representation transformation networks
+(Bapna and Firat, 2019) and language (Pfeiffer on multiple layers of the pre-trained models are
+et al., 2020c) specific information to efficiently bothinterestingdirectionstopursue.
+shareparametersacrosssettings. ThoughRTNin
+Acknowledgements
+MetaXL is similar to adapter networks in archi-
+tecture, in contrast to adapter networks, it plays
+Wethanktheanonymousreviewersfortheircon-
+a more explicit role in transforming representa-
+structivefeedback,andWeiWangforvaluabledis-
+tionsacrosslanguagestobridgetherepresentation
+cussions.
+gap. Moreimportantly,MetaXLtrainstherepresen-
+tation transformation network in a meta-learning EthicalConsiderations
+basedparadigm, significantlydifferentfromhow
+Thisworkaddressescross-lingualtransferlearning
+adaptersaretrained.
+ontoextremelylow-resourcelanguages,whichis
+MetaLearning MetaXLfallsintothecategory alessstudiedareainNLPcommunity. Weexpect
+ofmetalearningforitsgoaltolearntotransform thatprogressandfindingspresentedinthispaper
+undertheguidanceofthetargettask. Relatedtech- couldadvocateawarenessofadvancingNLPforex-
+niqueshavebeenusedinFinnetal.(2017),which tremelylow-resourcelanguagesandhelpimprove
+aimstolearnagoodinitializationthatgeneralizes informationaccessforsuchunder-representedlan-
+well to multiple tasks and is further extended to guagecommunities.
+low-resourcemachinetranslation(Guetal.,2018) The proposed method is somewhat compute-
+andlow-resourcenaturallanguageunderstanding intensiveasitrequiresapproximatingsecond-order
+tasks(Douetal.,2019). Thebi-leveloptimization gradientsforupdatingthemeta-parameters. This
+procedureiswidelyadoptedspanningacrossneu- mightimposenegativeimpactoncarbonfootprint
+ralarchitecturesearch(Liuetal.,2019),instance from training the described models. Future work
+re-weighting (Ren et al., 2018; Shu et al., 2019), on developing more efficient meta-learning opti-
+learning from pseudo labels (Pham et al., 2020) mizationmethodsandacceleratingmeta-learning
+and mitigatingnegative inferencein multilingual training procedure might help alleviate this con-
+systems(Wangetal.,2020). MetaXListhefirstto cern.
+References 9th International Joint Conference on Natural Lan-
+guage Processing (EMNLP-IJCNLP), pages 1192–
+Oliver Adams, Adam Makarucha, Graham Neubig,
+1197,HongKong,China.AssociationforComputa-
+StevenBird, andTrevorCohn.2017. Cross-lingual
+tionalLinguistics.
+wordembeddingsforlow-resourcelanguagemodel-
+ing. In Proceedings of the 15th Conference of the M-P Dubuisson and Anil K Jain. 1994. A modified
+European Chapter of the Association for Computa- hausdorff distance for object matching. In Pro-
+tional Linguistics: Volume 1, Long Papers, pages ceedingsof12thinternationalconferenceonpattern
+937–947. recognition,volume1,pages566–568.IEEE.
+ChelseaFinn,PieterAbbeel,andSergeyLevine.2017.
+Mikel Artetxe, Sebastian Ruder, and Dani Yo-
+Model-agnosticmeta-learningforfastadaptationof
+gatama. 2019. On the cross-lingual transferabil-
+deep networks. In Proceedings of the 34th Interna-
+ity of monolingual representations. arXiv preprint
+tionalConferenceonMachineLearning-Volume70,
+arXiv:1910.11856.
+pages1126–1135.
+Mikel Artetxe, Sebastian Ruder, Dani Yogatama,
+Rama Rohit Reddy Gangula and Radhika Mamidi.
+Gorka Labaka, and Eneko Agirre. 2020. A call for
+2018. Resource creation towards automated senti-
+more rigor in unsupervised cross-lingual learning.
+ment analysis in telugu (a low resource language)
+arXivpreprintarXiv:2004.14958.
+andintegratingmultipledomainsourcestoenhance
+sentimentprediction. InProceedingsoftheEleventh
+Ankur Bapna and Orhan Firat. 2019. Simple, scal-
+International Conference on Language Resources
+able adaptation for neural machine translation. In
+andEvaluation(LREC2018).
+Proceedings of the 2019 Conference on Empirical
+Methods in Natural Language Processing and the Jiatao Gu, Yong Wang, Yun Chen, Victor O. K. Li,
+9th International Joint Conference on Natural Lan- and Kyunghyun Cho. 2018. Meta-learning for low-
+guage Processing (EMNLP-IJCNLP), pages 1538– resource neural machine translation. In Proceed-
+1548,HongKong,China.AssociationforComputa- ings of the 2018 Conference on Empirical Methods
+tionalLinguistics. inNaturalLanguageProcessing,pages3622–3631,
+Brussels, Belgium. Association for Computational
+XilunChen,YuSun,BenAthiwaratkun,ClaireCardie, Linguistics.
+and Kilian Weinberger. 2018. Adversarial deep av-
+Julia Hirschberg and Christopher D Manning. 2015.
+eraging networks for cross-lingual sentiment classi-
+Advances in natural language processing. Science,
+fication. TransactionsoftheAssociationforCompu-
+349(6245):261–266.
+tationalLinguistics,6:557–570.
+Pedram Hosseini, Ali Ahmadian Ramaki, Hassan
+AlexisConneau, KartikayKhandelwal, NamanGoyal,
+Maleki, Mansoureh Anvari, and Seyed Abol-
+Vishrav Chaudhary, Guillaume Wenzek, Francisco
+ghasem Mirroshandel. 2018. Sentipers: A senti-
+Guzmán, Édouard Grave, Myle Ott, Luke Zettle- ment analysis corpus for persian. arXiv preprint
+moyer, and Veselin Stoyanov. 2020. Unsupervised arXiv:1801.07737.
+cross-lingual representation learning at scale. In
+Proceedingsofthe58thAnnualMeetingoftheAsso- Neil Houlsby, Andrei Giurgiu, Stanislaw Jastrzebski,
+ciation for Computational Linguistics, pages 8440– Bruna Morrone, Quentin De Laroussilhe, Andrea
+8451. Gesmundo, Mona Attariyan, and Sylvain Gelly.
+2019. Parameter-efficient transfer learning for nlp.
+Jacob Devlin, Ming-Wei Chang, Kenton Lee, and In International Conference on Machine Learning,
+KristinaToutanova.2018. Bert:Pre-trainingofdeep pages2790–2799.
+bidirectional transformers for language understand-
+Daniel P Huttenlocher, Gregory A. Klanderman, and
+ing. arXivpreprintarXiv:1810.04805.
+William J Rucklidge. 1993. Comparing images
+using the hausdorff distance. IEEE Transac-
+Jacob Devlin, Ming-Wei Chang, Kenton Lee, and
+tions on pattern analysis and machine intelligence,
+Kristina Toutanova. 2019. BERT: Pre-training of
+15(9):850–863.
+deep bidirectional transformers for language under-
+standing. In Proceedings of the 2019 Conference
+Ganesh Jawahar, Benoît Sagot, and Djamé Seddah.
+of the North American Chapter of the Association
+2019. What does bert learn about the structure of
+for Computational Linguistics: Human Language
+language? InProceedingsofthe57thAnnualMeet-
+Technologies, Volume 1 (Long and Short Papers),
+ingoftheAssociationforComputationalLinguistics,
+pages4171–4186,Minneapolis,Minnesota.Associ-
+pages3651–3657.
+ationforComputationalLinguistics.
+Phillip Keung, Yichao Lu, György Szarvas, and
+Zi-Yi Dou, Keyi Yu, and Antonios Anastasopoulos. Noah A. Smith. 2020. The multilingual Amazon
+2019. Investigating meta-learning algorithms for reviews corpus. In Proceedings of the 2020 Con-
+low-resource natural language understanding tasks. ferenceonEmpiricalMethodsinNaturalLanguage
+InProceedingsofthe2019ConferenceonEmpirical Processing(EMNLP),pages4563–4568,Online.As-
+Methods in Natural Language Processing and the sociationforComputationalLinguistics.
+Yu-Hsiang Lin, Chian-Yu Chen, Jean Lee, Zirui Li, Jun Shu, Qi Xie, Lixuan Yi, Qian Zhao, Sanping
+Yuyan Zhang, Mengzhou Xia, Shruti Rijhwani, Zhou, Zongben Xu, and Deyu Meng. 2019. Meta-
+Junxian He, Zhisong Zhang, Xuezhe Ma, Antonios weight-net: Learning an explicit mapping for sam-
+Anastasopoulos,PatrickLittell,andGrahamNeubig. ple weighting. In Advances in Neural Information
+2019. Choosingtransferlanguagesforcross-lingual ProcessingSystems,pages1919–1930.
+learning. InThe57thAnnualMeetingoftheAssocia-
+tionforComputationalLinguistics(ACL),Florence, Jasdeep Singh, Bryan McCann, Richard Socher, and
+Italy. CaimingXiong.2019. Bertisnotaninterlinguaand
+the bias of tokenization. In Proceedings of the 2nd
+Hanxiao Liu, Karen Simonyan, and Yiming Yang. Workshop on Deep Learning Approaches for Low-
+2019. DARTS: Differentiable architecture search. ResourceNLP(DeepLo2019),pages47–55.
+In International Conference on Learning Represen-
+tations. AsaCooperSticklandandIainMurray.2019. Bertand
+pals: Projected attention layers for efficient adapta-
+Xiaoman Pan, Boliang Zhang, Jonathan May, Joel tioninmulti-tasklearning. InInternationalConfer-
+Nothman,KevinKnight,andHengJi.2017. Cross- enceonMachineLearning,pages5986–5995.
+lingualnametaggingandlinkingfor282languages.
+In Proceedings of the 55th Annual Meeting of the Ian Tenney, Dipanjan Das, and Ellie Pavlick. 2019.
+Association for Computational Linguistics (Volume Bert rediscovers the classical nlp pipeline. In Pro-
+1: LongPapers),pages1946–1958. ceedings of the 57th Annual Meeting of the Asso-
+ciation for Computational Linguistics, pages 4593–
+BarunPatra,JoelRubenAntonyMoniz,SarthakGarg, 4601.
+Matthew R. Gormley, and Graham Neubig. 2019.
+Bilingual lexicon induction with semi-supervision Zirui Wang, Zachary C. Lipton, and Yulia Tsvetkov.
+in non-isometric embedding spaces. In Proceed- 2020. Onnegativeinterferenceinmultilingualmod-
+ings of the 57th Annual Meeting of the Association els: Findings and a meta-learning treatment. In
+forComputationalLinguistics, pages184–193, Flo- Proceedings of the 2020 Conference on Empirical
+rence,Italy.AssociationforComputationalLinguis- MethodsinNaturalLanguageProcessing(EMNLP),
+tics. pages4438–4450,Online.AssociationforComputa-
+tionalLinguistics.
+Jonas Pfeiffer, Aishwarya Kamath, Andreas Rücklé,
+Kyunghyun Cho, and Iryna Gurevych. 2020a. Shijie Wu and Mark Dredze. 2019. Beto, bentz, be-
+Adapterfusion: Non-destructive task composi- cas: The surprising cross-lingual effectiveness of
+tion for transfer learning. arXiv preprint bert. In Proceedings of the 2019 Conference on
+arXiv:2005.00247. EmpiricalMethodsinNaturalLanguageProcessing
+andthe9thInternationalJointConferenceonNatu-
+Jonas Pfeiffer, Andreas Rücklé, Clifton Poth, Aish- ralLanguageProcessing(EMNLP-IJCNLP),pages
+warya Kamath, Ivan Vulic´, Sebastian Ruder, 833–844.
+Kyunghyun Cho, and Iryna Gurevych. 2020b.
+AdapterHub: A framework for adapting transform- Mengzhou Xia, Xiang Kong, Antonios Anastasopou-
+ers. InProceedingsofthe2020ConferenceonEm- los, and Graham Neubig. 2019. Generalized data
+pirical Methods in Natural Language Processing: augmentation for low-resource translation. In Pro-
+SystemDemonstrations,pages46–54,Online.Asso- ceedings of the 57th Annual Meeting of the Asso-
+ciationforComputationalLinguistics. ciation for Computational Linguistics, pages 5786–
+5796.
+Jonas Pfeiffer, Ivan Vulic´, Iryna Gurevych, and Se-
+bastian Ruder. 2020c. MAD-X: An Adapter-Based Qizhe Xie, Zihang Dai, Yulun Du, Eduard Hovy, and
+Framework for Multi-Task Cross-Lingual Transfer. Graham Neubig. 2017. Controllable invariance
+InProceedingsofthe2020ConferenceonEmpirical throughadversarialfeaturelearning. InAdvancesin
+MethodsinNaturalLanguageProcessing(EMNLP), NeuralInformationProcessingSystems,pages585–
+pages7654–7673,Online.AssociationforComputa- 596.
+tionalLinguistics.
+GuoqingZheng,AhmedHassanAwadallah,andSusan
+Hieu Pham, Qizhe Xie, Zihang Dai, and Quoc V Dumais.2021. Metalabelcorrectionfornoisylabel
+Le. 2020. Meta pseudo labels. arXiv preprint learning. In Proceedings of the 35th AAAI Confer-
+arXiv:2003.10580. enceonArtificialIntelligence.
+AfshinRahimi,YuanLi,andTrevorCohn.2019. Mas- Shuyan Zhou, Shruti Rijhwani, and Graham Neubig.
+sively multilingual transfer for ner. In Proceedings 2019. Towards zero-resource cross-lingual entity
+of the 57th Annual Meeting of the Association for linking. arXivpreprintarXiv:1909.13180.
+ComputationalLinguistics,pages151–164.
+Mengye Ren, Wenyuan Zeng, Bin Yang, and Raquel
+Urtasun. 2018. Learning to reweight examples for
+robust deep learning. In International Conference
+onMachineLearning,pages4334–4343.
+A Hyper-parameters approachhasbeenadoptedin(Artetxeetal.,2020).
+Table12andTable8presentresultsforNERand
+Weuseamaximumsequencelengthof200and256
+SA respectively where we finetune the tasks on
+forNERandASrespectively. Weuseabottleneck
+mBERT. Note that the languages of SA are both
+dimensionof r = 384andr = 192forthe repre-
+covered by mBERT and XLM-R, while the lan-
+sentationtransformationnetwork,sameasPfeiffer
+guages of NER are not. Table 13 show MetaXL
+etal.(2020c). Duringthebi-leveloptimizationpro-
+results on mBERT with various sizes of source
+cess,weadoptalearningrateof3e-05fortraining
+data.
+themainarchitectureandtunedthelearningrateon
+Nevertheless, our method consistently brings
+3e-5,1e-6and1e-7fortrainingtherepresentation
+gains on both tasks. We observe an average of 2
+transformationnetwork. Weuseabatchsizeof16
+F1pointsimprovementonNERand2.0F1points
+for NER and 12 for AS, and train 20 epochs for
+improvement on SA. It shows that the improve-
+each experiment on both tasks. We use a single
+ment brought by our method is consistent across
+NVIDIATeslaV100witha32Gmemorysizefor
+differentlanguagemodels.
+eachexperiment. Foreachlanguage,wepickthe
+bestmodelaccordingtothevalidationperformance
+aftereachepoch.
+B DetailedResultsonEachLanguage
+B.1 SourceDataSize
+The full results of using 10k and 20k English ex-
+amplesastransferdataarepresentedinTable9.
+B.2 PlacementofRTN
+Thefullresultsofplacingtherepresentationtrans-
+formationnetworkatdifferentlayersarepresented
+inTable10.
+B.3 JointTrainingw/RTN
+The full results of joint training with the repre-
+sentationtransformationnetworkarepresentedin
+Table11.
+C AdditionalResultsonmBERT
+WeconductexperimentsonmBERT(Devlinetal.,
+2019), which covers 104 languages with most
+Wikipediaarticles. Foralanguagethatisnotpre-
+trained with mBERT, we train its subword tok-
+enizer with the task data. Further, we combine
+the vocabulary from the newly trained tokenizer
+with the original mBERT vocabulary. A similar
+Method tel fa
+(1) targetonly 75.00 73.86
+JT 75.13 74.81
+(2)
+MetaXL 77.36 76.69
+Table 8: F1 for sentiment analysis on mBERT on two
+settingsusing(1)onlythetargetlanguagedata;(2)tar-
+getlanguagedataalongwith10kexamplesofEnglish.
+Source Method qu cdo ilo xmf mhr mi tk gn average
+(1) - targetonly 57.14 37.72 61.32 59.07 55.17 76.27 55.56 48.89 56.39
+JT 71.49 50.21 76.19 73.39 66.36 89.34 66.04 67.89 70.11
+(2) 10ken
+MetaXL 72.57 57.02 81.55 65.56 70.18 90.64 66.98 68.54 71.63
+JT 73.19 53.93 88.78 71.49 62.56 90.80 68.29 69.44 72.31
+(3) 20ken
+MetaXL 73.04 55.17 85.99 73.09 70.97 89.21 66.02 73.39 73.36
+Table9: ExperimentresultsforNERonXLM-Racrossthreesettingswherewe,(1)onlyusethetargetlanguage
+data;(2)usetargetlanguagedataalongwith10kexamplesofEnglish;(3)usetargetlanguagedataalongwith20k
+examplesofEnglish. JTstandsforjointtraining
+Layer Method qu cdo ilo xmf mhr mi tk gn average
+- JT 66.1 55.83 80.77 69.32 71.11 82.29 61.61 65.44 69.06
+L0 MetaXL 70.43 54.76 77.14 66.09 68.72 89.53 63.59 69.86 70.02
+L6 MetaXL 65.53 56.67 78.5 72.0 68.75 88.05 65.73 66.96 70.27
+L0,12 MetaXL 69.83 53.97 69.44 69.26 66.96 89.41 67.92 65.18 69.00
+Table 10: Experiment results for NER on XLM-R with RTN placed across multiple layer settings. (All with 5k
+Englishexamples)
+Layer Method qu cdo ilo xmf mhr mi tk gn average
+- JT 66.10 55.83 80.77 69.32 71.11 82.29 61.61 65.44 69.06
+L0 JTw/RTN 50.81 45.67 60.09 58.91 63.83 81.71 65.37 52.02 59.80
+L12 JTw/RTN 64.41 50.2 73.83 63.87 68.7 85.88 71.92 58.6 67.18
+Table11: ExperimentresultsforNERonXLM-R,JointTraining(JT)withRTN.(Allwith5kEnglishexamples)
+Source Method qu cdo ilo xmf mhr mi tk gn average
+(1) - target 58.44 26.77 63.39 32.06 53.66 82.90 52.53 46.01 51.97
+JT 60.25 35.29 73.06 43.45 60.17 86.29 60.09 57.80 59.55
+(2) English
+MetaXL 63.76 38.63 76.36 45.14 60.63 88.96 64.81 54.13 61.55
+Table12: NERresultsonmBERTwhereweuse5kEnglishexamplesasauxiliarydataandplaceRTNafter12th
+layer.
+NER(average) SA(tel) SA(fa)
+#en JT MetaXL ∆ #en JT MetaXL ∆ #en JT MetaXL ∆
+5k 59.55 61.55 +2.00 100 75.12 77.36 +2.24 100 74.25 75.78 +1.53
+10k 62.36 63.66 +1.30 1k 74.76 76.39 +1.63 1k 74.71 75.58 +0.87
+20k 62.39 63.38 +0.99 5k 74.07 78.15 +4.08 5k 74.81 76.69 +1.88
+Table 13: F1 on various source language transfer data sizes on mBERT. # en denotes the number of English
+examplesusedfortransfer. ∆denotestheimprovementofMetaXLoverthejointtrainingbaseline.

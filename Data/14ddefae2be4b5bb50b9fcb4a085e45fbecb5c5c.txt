@@ -1,0 +1,1134 @@
+Modeling Empathic Similarity in Personal Narratives
+JocelynShen1 MaartenSap2,3 PedroColon-Hernandez1
+HaeWonPark1 CynthiaBreazeal1
+1MassachusettsInstituteofTechnology,Cambridge,MA,USA
+2CarnegieMellonUniversity,Pittsburgh,PA,USA
+3AllenInstituteforArtificialIntelligence,Seattle,WA,USA
+joceshen@mit.edu, maartensap@cmu.edu, {pe25171, haewon, cynthiab}@mit.edu
+Abstract
+Themostmeaningfulconnectionsbetweenpeo-
+ple are often fostered through expression of
+sharedvulnerabilityandemotionalexperiences
+in personal narratives. We introduce a new
+taskofidentifyingsimilarityinpersonalstories
+basedonempathicresonance, i.e., theextent
+towhichtwopeopleempathizewitheachoth-
+ers’experiences,asopposedtorawsemantic
+Figure 1: Examples of empathically similar and dis-
+orlexicalsimilarity,ashaspredominantlybeen
+similarstories. Highlightedarethefeaturesofourem-
+studiedinNLP.Usinginsightsfromsocialpsy-
+pathicsimilarityframework(mainevent,emotion,and
+chology,wecraftaframeworkthatoperational-
+moral/takeaway). NarratorAandBaremorelikelyto izesempathicsimilarityintermsofthreekey
+empathizewithoneanotherovertheirsharedfeelings
+featuresofstories: mainevents,emotionaltra-
+ofisolation.
+jectories,andoverallmoralsortakeaways. We
+createEMPATHICSTORIES,adatasetof1,500
+personalstoriesannotatedwithourempathic
+similarityfeatures,and2,000pairsofstoriesan-
+Konrath,2013;Konrathetal.,2011). Whilethese
+notatedwithempathicsimilarityscores. Using
+challengescannotbesolvedwithtechnologyalone,
+our dataset, we finetune a model to compute
+empathic similarity of story pairs, and show AIsystemscanbedevelopedtobolsteremotional
+thatthisoutperformssemanticsimilaritymod- support, empathy, and truly meaningful connec-
+elsonautomatedcorrelationandretrievalmet- tionsthroughfosteringpersonalexperiencesharing
+rics. Through a user study with 150 partici- (Sagayaraj et al., 2022; Chaturvedi et al., 2023;
+pants,wealsoassesstheeffectourmodelhas
+Berridgeetal.,2023). Inordertodoso,thesesys-
+onretrievingstoriesthatusersempathizewith,
+temsmustbeabletoreasonaboutcomplexsocial
+compared to naive semantic similarity-based
+andemotionalphenomenabetweenpeople.
+retrieval,andfindthatparticipantsempathized
+significantlymorewithstoriesretrievedbyour Inthiswork,weintroducethetaskofmodeling
+model. Ourworkhasstrongimplicationsfor empathic similarity, which we define as people’s
+theuseofempathy-awaremodelstofosterhu- perceivedsimilarityandresonancetoothers’expe-
+manconnectionandempathybetweenpeople. riences. For example, in Figure 1, empathic sim-
+ilarityaimstocapturethatNarratorA,whofeels
+1 Introduction
+lonely in their small town, is likely to empathize
+Throughpersonalexperiencesharing,humansare withNarratorB,whoisfeelingisolatedattheirnew
+abletofeelthestingofanotherperson’spainand job. Crucially,empathicsimilaritydiffersfromtra-
+thewarmthofanotherperson’sjoy. Thisprocess ditionalnotionsoftextualsimilaritythathavebeen
+ofempathyisfoundationalintheabilitytoconnect themainfocusofNLPwork(e.g.,semanticsimi-
+withothers,developemotionalresilience,andtake larity;ReimersandGurevych,2019); NarratorA
+prosocial actions in the world (Coke et al., 1978; willlikelynotempathizewithNarratorC,despite
+Morellietal.,2015;VinayakandJudge,2018;Cho bothstorieshavinghighersemanticsimilarity.
+andJeon,2019). Today,thereismorevisibilityinto We operationalize empathic similarity around
+thelivesofothersthaneverbefore,yetloneliness alignment in three features of a personal story
+and apathy are widespread (Buecker et al., 2021; (highlightedinFigure1): itsmainevent,itsemo-
+3202
+ceD
+6
+]LC.sc[
+2v64241.5032:viXra
+tionalreaction,anditsoverallmoralorstorytake- (Chaturvedi et al., 2018; Lin et al., 2014). One
+away (Hodges et al., 2010; Morelli et al., 2017; study used Latent Dirichlet Allocation (LDA) to
+Krebs, 1976; Wondra and Ellsworth, 2015; Bal clustercyberbullyingstoriesandmatchthesesto-
+andVeltkamp,2013;WalkerandLombrozo,2017; ries based on similarity in theme (Dinakar et al.,
+LabovandWaletzky,1997),asmotivatedbysocial 2012), but discovered that only 58.3% found the
+psychology and narratology literature. From our matchedstorytobehelpfulifprovidedtothenar-
+definition, empathic similarity arises from the in- ratoroftheoriginalstory.
+terplay of the main events, emotions, and morals
+Otherworkhasexploredwaystobridgethefea-
+in story, where some components or all compo-
+tures of a story and human-perceived similarity
+nentsmustbesimilarinorderfortwonarratorsto
+ofstories(Nguyenetal.,2014). SaldiasandRoy
+resonatewithoneanother. Forexample,Narrator
+(2020) found that people use Labov’s action (se-
+AandBbothexperienceloneliness,eventhough
+riesofevents)andevaluation(narrator’sneedsand
+theiractualsituationsaredifferent(livinginasmall
+desires) clauses to identify similarity in personal
+townversusworkingatacompany).
+narratives(LabovandWaletzky,1997). Theirfind-
+Toenablemachinestomodelempathicsimilar-
+ings support our decision to focus on modeling
+ity, we introduce EMPATHICSTORIES,1 a corpus
+events,emotions,andmoralswithinstories.
+of 1,500 personal stories, with crowdsourced an-
+Most relevant to our work are recent advances
+nontationsofthefree-textsummariesofthemain
+in social and emotional commonsense reasoning
+event,emotion,andmoralofthestories,aswellas
+using using language models. Specifically, prior
+anempathicsimilarityscorebetween2,000pairs
+methodshaveusedfinetuningoflanguagemodels
+ofstories. Wefindthatfinetuningonourpairedsto-
+such as BERT (Devlin et al., 2019; Reimers and
+riesdatasettopredictempathicsimilarityimproves
+Gurevych, 2019) and GPT-2 (Radford et al.) to
+performanceonautomaticmetricsascomparedto
+modeleventsandtheemotionalreactionscaused
+off-the-shelfsemanticsimilaritymethods.
+by everyday events (Rashkin et al., 2019, 2018;
+Whileautomaticevaluationavaluablesignalof
+Sap et al., 2019b; Bosselut et al., 2019; Wang
+model quality, it is crucial to showcase the real-
+etal.,2022;Westetal.,2022;Mostafazadehetal.,
+world impact of our task on improving empathy
+2020)aswellaspredictingempathy,condolence,
+towards people’s stories. As such, we conducted
+orprosocialoutcomes(Lahnalaetal.,2022a;Ku-
+afulluserstudywith150participantswhowrote
+mano et al., 2017; Boukricha et al., 2013; Zhou
+their own personal journal entries and were pre-
+andJurgens,2020;Baoetal.,2021). Understand-
+sented stories retrieved by our model (and by a
+ingtheemotionalreactionselicitedbyeventsisa
+semantic similarity baseline). Our results show
+challenging task for many NLP systems, as it re-
+that users empathize significantly more with sto-
+quirescommonsenseknowledgeandextrapolation
+riesretrievedbyourfinetunedempathicsimilarity
+of meanings beyond the text alone. Prior works
+model compared to those from a semantic simi-
+usecommonsenseknowledgegraphstoinferand
+larity baseline (SBERT; Reimers and Gurevych,
+automaticallygeneratecommonsenseknowledge
+2019). Ourfindingshighlighttheapplicabilityof
+ofemotionalreactionsandreasoningaboutsocial
+our framework, dataset, and model towards fos-
+interactions (Sap et al., 2019c,b; Bosselut et al.,
+tering meaningful human-human connections by
+2019;Hwangetal.,2021). However,therearestill
+enabling NLP systems to reason about complex
+manyunder-exploredchallengesindevelopingsys-
+interpersonalsocial-emotionalphenomena.
+temsthathavesocialintelligenceandtheabilityto
+inferstatesbetweenpeople(Sapetal.,2022).
+2 RelatedWork
+Incontrasttopreviousworks,wepresentatask
+Documentsimilarityisawell-definedtaskinNLP forreasoningbetweenpairsofstories,beyondpre-
+(Saltonetal.,1997;Damashek,1995;Deerwester dictingsocialcommonsensefeaturesoftextsalone.
+et al., 1990; Landauer and Dumais, 1997), but Our work builds on top of prior work by devel-
+few have applied this work to matching personal opingaframeworkaroundempathicresonancein
+narrativesbasedonsharedemotionalexperiences personalnarrativesinadditiontoassessingthehu-
+maneffectofAI-retrievedstoriesonempathicre-
+1We publicly release our dataset, annotation proce-
+sponsebeyondautomaticmetrics. Unlikeprevious
+dure, model, and user study at https://github.com/
+mitmedialab/empathic-stories works,ourhumanevaluationisafulluserstudyto
+seehowthemodelperformsgivenastorythatthe tivepsychologydiscussedin§3.1. Ourframework
+userstoldthemselves,whichismuchmorealigned differsfrompriorwork(Sharmaetal.,2020)inthat
+withreal-worldimpact. itisexpandedtotherelationshipbetweentwopeo-
+ple’sexperiences,ratherthanhowempathetically
+3 EmpathicAspectsofPersonalStories someoneresponds,andfocusesonlearningacon-
+tinuoussimilaritysignalasopposedtodetectingthe
+Modeling empathic similarity of stories requires
+presenceofempathy. Thisdistinctionisimportant,
+reasoningbeyondtheirsimplelexicalsimilarities
+assomeonemaybeabletoexpresscondolencesto
+(see Figure 1). In this section, we briefly discuss
+apersonalexperience,butnotnecessarilyrelateto
+how social science scholars have conceptualized
+theexperienceitself. Thecorefeaturesofempathic
+empathy (§3.1) and draw on empathy definitions
+similarityweidentifyareexplainedbelow,andwe
+relevantfortheNLPdomain(Lahnalaetal.,2022b).
+show how these features contribute to empathic
+Then, we introduce our framework for modeling
+similarityinAppendixA.
+empathicsimilarityofstoriesanditsthreedefining
+features(§3.2). (1)Mainevent. Priorworkdemonstratesthatpeo-
+pleempathizemorewithexperiencesthataresimi-
+3.1 BackgroundonEmpathyandStories
+lartotheirown(Hodgesetal.,2010;Morellietal.,
+Empathy, broadlydefinedastheabilitytofeelor 2017;Krebs,1976). Weformalizethisasthemain
+understand what a person is feeling, plays a cru- eventofthestoryexpressedinashortphrase(e.g.
+cialroleinhuman-humanconnections. Manyprior “livinginasmalltown”).
+worksinsocialpsychologyandnarrativepsychol-
+(2) Emotional Reaction. Although two people
+ogyfindthattheperceivedsimilarityofapersonal
+mayrelateoveranexperience,theymaydifferin
+experiencehaseffectsonempathy(Roshanaeietal.,
+how they emotionally respond to the experience
+2019;Hodgesetal.,2010;Wright,2002;Morelli
+(e.g. “overwhelmedwithfearofbeingallalone”vs
+etal.,2017; Krebs,1976;WondraandEllsworth,
+“lonelinessofnothavingarealconnection”). Prior
+2015). For example, Hodges et al. (2010) found
+work shows that people have a harder time em-
+thatwomenwhosharedsimilarlifeeventstospeak-
+pathizingwithothersiftheyfeltthattheemotional
+ers expressed greater empathic concern and re-
+response to an event was inappropriate (Wondra
+portedgreaterunderstandingofthespeaker.
+andEllsworth,2015).
+Aswiththesepriorworks, ourworkusesshar-
+ing of personal stories as a means to expressing (3) Moral. Readers are able to abstract a higher-
+similarity in shared experiences. Personal story- level meaning from the story, often referred to
+tellingasamediumitselfhastheabilitytoreduce as the moral of the story (Walker and Lombrozo,
+stress,shiftattitudes,elicitempathy,andconnect 2017) (e.g. “the importance of having people
+others (Green and Brock, 2000; Andrews et al., around”). In studying fictional narratives, prior
+2022;Brockingtonetal.,2021). Infact,somere- workhasfoundthatpeoplecanempathizewiththe
+search has shown that when telling a story to a takeawayofastory,despiteitsfictionalnature(Bal
+secondlistener,speakersandlistenerscoupletheir andVeltkamp,2013).
+brain activity, indicating the neurological under-
+pinnings of these interpersonal communications 4 EMPATHICSTORIES Dataset
+(Honeyetal.,2012;Vodrahallietal.,2018).
+Weintroduce EMPATHICSTORIES,acorpusofper-
+3.2 EmpathicSimilarityinPersonalStories
+sonal stories containing 3,568 total annotations.
+Wedefineempathicsimilarityasameasureofhow Specifically,thecorpusincludesempathicsimilar-
+much the narrators of a pair of stories would em- ityannotationsof2,000storypairs,andthemain
+pathize with one another. While there are many events,emotions,morals,andempathyreasonan-
+waystoexpressempathy,wefocusspecificallyon notationsfor1,568individualstories. Anoverview
+situationalempathy,whichisempathythatoccurs of our data annotation pipeline is shown in Fig-
+inresponsetoasocialcontext,conveyedthrough ure2anddatapreprocessingstepsareincludedin
+text-basedpersonalnarratives(Fabietal.,2019). AppendixD.InAppendixH,weshowthatusing
+Weoperationalizeanempathicsimilarityframe- LLMsforhumanannotationisnotviableforour
+workgroundedinresearchfromsocialandnarra- task.
+Figure2: Overviewofannotationpipelinestartingwith(a)individualstoryevent,emotion,andmoralto(b)using
+theseannotationstosamplebalancedstorypairsand(c)ratingempathicsimilarityscores
+#sents #words Topic Keywords %Stories
+Story 13.17 235.14 romanticrelationships relationships,divorced,passion 15.63%
+MainEvent 1.48 32.51 positivelifeevents opportunities,wedding,cruise 13.20%
+EmotionalReaction 2.39 46.08 depression depression,therapy,psych 12.95%
+family families,parents,relatives 10.33%
+Moral 1.38 31.35
+substanceuse recovery,drugs,addiction 9.38%
+encouragement encouragement,caring,distress 8.42%
+Table1: Storyandannotationstatistics collegeandschool students,classes,college 7.08%
+loneliness loneliness,relationships,haircut 5.87%
+youth teenage,childhood,twenties 4.97%
+lifechanges goodbyes,retired,graduating 4.40%
+4.1 DataSources
+work mundane,coworkers,volunteering 4.34%
+trauma abused,traumas,therapist 3.44%
+Wecollectadiversesetofstoriesfromsourcesin-
+cludingsocialmediasites,spokennarratives,and Table2: Themesacrossmaineventsofthestories.
+crowdsourcedstories. Wetakeapproximately500
+stories from each of the following sources (for a
+maineventofthestory,(2)themainemotionalstate
+full breakdown see Appendix F). These sources
+inducedbythemainevent,and(3)moral(s)ofthe
+contain English-written stories revolving around
+story. Thestoryandannotatedsummarystatistics
+deepemotionalexperiencesandopen-endedcon-
+areshowninTable1. Thethemesfromstoriesare
+versationstarters.
+showninTable2, andthemesforannotatedsum-
+(1) Online Personal Stories. We scrape
+mariesaswellasourtopicmodelingapproachare
+stories from subreddits2 about personal ex-
+presentedinAppendixE.
+periences (r/offmychest, r/todayiamhappy, and
+r/casualconversation). Wealsoincludeasmallset 4.3 PairedStoryAnnotation
+ofstoriesfromapubliccollegeconfessionsforum.
+Sampling Empathic Story Pairs. We devise a
+(2) Crowdsourced Personal Stories. We use a
+sampling method to create a sample of balanced
+subset of autobiographical stories from the exist-
+empathically similar and dissimilar story pairs,
+ingHippocorpusdataset(Sapetal.,2020),which
+since random sampling across all possible pairs
+containsrecalledandimagineddiary-likepersonal
+wouldlikelyresultinanunbalanceddatasetwith
+storiesobtainedfromcrowdworkers.
+moredissimilarstoriesthansimilarstories. First,
+(3)SpokenPersonalNarratives. Weusestories
+wesplitthe1,568storiesintoatrain,dev,andtest
+fromtheRoadtripNationcorpus(SaldiasandRoy,
+setusinga75/5/20split. UsingSBERT(Reimers
+2020),whichcontainstranscribedpersonalstories
+and Gurevych, 2019), we compute a composite
+aboutpeople’scareertrajectoriesandlifestories.
+similarityscoreusingaveragecosinesimilarityof
+the embeddings for the story and our 3 empathy
+4.2 IndividualStoryAnnotation
+features for every possible story pair within the
+Using these stories, we designed an annotation dataset. We randomly sample stories from each
+frameworkonAmazonMechanicalTurk(MTurk) binsuchthatbinswithhighercompositesimilarity
+thatasksworkerstolabelindividualstoryfeatures. scoresaremorelikelytobechosen.
+Then,weaskedforshortfreeresponseson(1)the
+Annotation Procedure With the sampled story
+2https://api.pushshift.io/ pairs,wereleasedanannotationtaskonAmazon
+Annotation PPA KA thy,event,emotion,andmoralsimilarityacrossthe
+Overall .80 .14
+entire dataset are shown in Table 3. While these
+Train .79 .14
+Empathicsimilarity
+Dev .81 .11 agreementscoresareseeminglyonthelowerside,
+Test .83 .17 usingasofterconstraint,weseethatmostcommon
+Overall .86 .27
+disagreementsareatmost1likertpointaway(73%
+Train .86 .26
+Eventsimilarity
+Dev .84 .25 of points are at most 1 distance away). We are
+Test .87 .30
+aimingforamoredescriptiveannotationparadigm
+Overall .83 .23
+andthusdonotexpectannotatorstoperfectlyagree
+Train .83 .23
+Emotionsimilarity
+Dev .79 .15 (Rottgeretal.,2022). Furthermore,ouragreement
+Test .84 .25
+ratesareinlinewithotherinherentlypersonaland
+Overall .80 .19
+Train .80 .18 affect-driven annotation tasks (Sap et al., 2017;
+Moralsimilarity
+Dev .80 .14 Rashkin et al., 2018). Given the difficulty of our
+Test .82 .20
+task(readinglongerstoriesandprojectingthemen-
+talstateof2characters),ouragreementisinline
+Table3: Similarityagreementscores(PPA=pairwise
+percentagreement,KA=Krippendorff’sAlpha) withpriorwork,whichachievearound0.51-0.91
+PPAand0.29-0.34KA.
+MTurk,askingworkerstoreadpairsofstoriesand 5 ModelingEmpathicSimilarity
+ratevariousaspectsofempathicsimilaritybetween
+Toenabletheretrievalandanalysisofempathically
+the stories. Two annotators rated each story pair.
+similarstories,wedesignataskdetailedbelow. In
+From early testing, we found that the task was
+AppendixB,wealsoproposeanauxiliaryreason-
+difficultbecauseofthelargeamountoftextinthe
+ing task to automatically extract event, emotion,
+storiesandthecognitiveloadofprojectingintotwo
+and moral features from stories, which could be
+narrator’smentalstates. Tosimplifythetask, we
+usedinfutureworktoquicklygeneratestoryanno-
+usedChatGPT(gpt-3.5-turbo)tosummarizeall
+tations.
+thestoriesbeforepresentingthepairstoannotators.
+Whilesummarizationmayremovespecificdetails
+5.1 TaskFormulation
+ofthestories,wefindthatthemainevent,emotion,
+andmoraltakeawayarestillpresent.3 Our ultimate retrieval task is given a query
+story Q and selects a story S from a set
+Atthebeginningofthetask,wefirstprovidethe i
+of N stories {S ,S ,...,S } such that i =
+annotator with 6 examples of empathically simi- 1 2 N
+argmax sim(f (S ),f (Q)). Here, sim(·,·) is
+larstories: onepositiveandonenegativeexample i θ i θ
+asimilaritymetric(e.g. cosinesimilarity)between
+forstoriesthatareempathicallysimilar/dissimilar
+twostoryrepresentationsf (S )andf (Q)thatare
+based on each feature: main event, emotion, and θ i θ
+learnedfromhumanratingsofempathicsimilarity.
+moral of the story. After reading the two stories,
+weaskworkerstoprovideexplanationsofwhether EmpathicSimilarityPrediction. Theoveralltask
+andwhythenarratorswouldempathizewithone is, given a story pair (S , S ), return a similar-
+1 2
+another,toprimeannotatorstothinkabouttheem- ityscoresim(f (S ),f (Q))suchthatsim(·,·)is
+θ i θ
+pathic relationship between the stories. We then largeforempathicallysimilarstoriesandsmallfor
+ask workers to provide four similarity ratings on empathicallydissimilarstories.
+a 4-point Likert scale (1 = strongly disagree, 4
+5.2 Models
+=stronglyagree): (1)overallempathicsimilarity
+(howlikelythetwonarratorswouldempathizewith WeproposefinetuningLLMstolearnembeddings
+each other), (2) similarity in the main events, (3) thatcaptureempathicsimilarityusingcosinedis-
+emotions,and(4)moralsofthestories. tance,forefficientretrievalattesttime. Incontrast,
+apopularapproachistousefew-shotpromptingof
+AgreementWeaggregateannotationsbyaveraging
+verylargelanguagemodels(e.g.,GPT-3andChat-
+betweenthe2raters. Agreementscoresforempa-
+GPT),whichhaveshownimpressiveperformance
+3Bycomparingthecosinesimilarityofhumanannotated acrossavarietyoftasks(Brownetal.,2020). How-
+event,emotion,andmoraltotheChatGPTsummarizedsto- ever,inarealdeploymentsetting,retrievalthrough
+ries,wefindthatthereishighsemanticoverlapofthehuman
+promptingeverypossiblepairofstoriesisexpen-
+ground-truthstotheautomaticallygeneratedsummaries(0.66
+forevent,0.64foremotion,and0.49formoral). siveandinefficient.
+Model r ρ Acc P R F1 P τ ρ
+k=1 rank rank
+SBERT 30.93 29.86 62.75 57.81 90.24 70.48 57.92 17.46 18.74
++finetuning 35.93 35.21 64.75 58.68 90.73 71.26 57.43 17.59 18.98
+BART 10.24 11.54 57.00 52.19 99.02 68.35 49.51 7.56 9.28
++finetuning 34.20 34.43 64.75 58.2 88.29 70.16 65.84 24.68 26.55
+GPT-3 3.24 2.79 51.25 51.25 100 67.77 90.59 0.33 0.79
++5examples 4.94 6.71 51.25 51.27 98.54 67.45 72.77 -4.8 -5.33
+ChatGPT 19.56 20.16 56.25 55.24 77.07 64.36 80.69 13.48 14.10
++5examples 27.75 28.07 63.25 60.43 81.95 69.57 85.15 21.27 22.10
+Table 4: Model performance for empathic similarity prediction task across correlation, accuracy, and retrieval
+metrics. r=Pearson’scorrelation,ρ=Spearman’scorrelation,Acc=accuracy,P =precision,R=recall,P =
+k=1
+precisionatkwherekis1,τ =KendallTauofrankingandρ =Spearmanofranking. Notethatallscores
+rank rank
+aremultipliedby100foreasiercomparison,andthemaximumforeachmetricis100. Inboldisthebestperforming
+andunderlinedisthesecond-bestperformingconditionforthemetric.
+Baseline Models. We compare performance to k = 1 (what proportion of the top-ranked stories
+finetuningwithSBERT(multi-qa-mpnet-base-dot- byourmodelarethetop-rankedstoryasratedby
+v1) (Reimers and Gurevych, 2019; Brown et al., human annotators), Kendall’s Tau (Abdi, 2007),
+2020)andBARTmodel(bart-base)(Lewisetal., andSpearman’scorrelation(Schoberetal.,2018)
+2019). Asafew-shotbaseline,weevaluateGPT-3 fortherankingofthestories(howclosetheoverall
+(text-davinci-003)andChatGPT’s(gpt-3.5-turbo) rankingsare).
+abilitytodistinguishempathicallysimilarstories ShowninTable4,ourresultsindicatethatfine-
+byusingak-shotpromptingsetupasdoneinSap tuning SBERT and BART with EMPATHICSTO-
+et al. (2022); Brown et al. (2020). For the query RIESresultsinperformancegainsacrossallmetrics.
+storypair,weaskforanempathicsimilarityscore SBERT has relatively high off-the-shelf perfor-
+from1-4. Wecompareacrossk = 0examplesand mance,asitistrainedwith215Mexamplesspecif-
+k = 5 examples from the training set. We also icallyforsemanticsimilaritytasks. However,we
+evaluatethesemodels’abilitytogeneratehuman- seethatfinetuningwithourdataset,whichcontains
+like main event, emotion description, and moral far fewer training examples relative to SBERT’s
+summariesforeachstory. Again,weuseak-shot pretrainingcorpus,improvesperformance. (+5.35
+prompting setup, comparing across k = 0 and ρ, +2 accuracy). BART, which is not specifically
+k = 10examples. SeeAppendixGandAppendix pre-trained for semantic similarity tasks, shows
+Cforpromptsusedandfinetuningdetails. even greater gains across retrieval metrics when
+EmpathySimilarityPrediction. Weproposeabi- finetunedonourdataset. (22.89ρ,+7.75accuracy).
+encoderarchitecturefinetunedwithmean-squared We find that for BART models, fine tuning im-
+error(MSE)lossofthecosine-similaritybetween provements (p = 0.02, p = 0.0006 respectively),
+story pairs, as compared to the empathic similar- asmeasuredwithMcNemar’stestontheaccuracy
+ity gold labels. For each of the encoders, we use scoresandFisher’stransformationoncorrelations,
+asharedpretrainedtransformer-basedmodeland aresignificantlyhigherthanbaselines.
+furtherfinetuneonthe1,500annotatedstorypairs While GPT-3 and ChatGPT have high perfor-
+inourtrainingset. Weobtainthefinalembedding mance on the precision at k retrieval metric, in
+usingmeanpoolingoftheencoderlasthiddenstate. practice, it is not feasible to prompt the models
+witheverypairofstoriesintheretrievalcorpus.
+6 AutomaticEvaluation
+7 UserStudy
+Toevaluatethequalityofempathicsimilaritypre-
+dictions,wefirstcomparetheSpearman’sandPear- Priorwork’sversionsofhumanevaluations(Zhou
+son’scorrelationsbetweenthecosinesimilarityof andJurgens,2020;Baoetal.,2021;Sharmaetal.,
+the sentence embeddings and the gold empathic 2020)arehumansverifyingorrankingmodelout-
+similaritylabels. Next, we binscoresinto binary putsbasedoninputsfromtestdata. Thisprovidesa
+similar/dissimilarcategories(> 2.5and≤ 2.5re- valuablesignalofmodelquality,butisn’trepresen-
+spectively) compute the accuracy, precision, re- tativeofhowamodelcouldbeusedinreal-world
+call, and F1 scores. Finally, we compute a series applicationsduetoinputdistributionmismatchand
+of retrieval-based metrics including precision at lack of personal investment in the task. Our hu-
+Figure 4: Breakdown of empathy dimensions for the
+storyretrievedbyourmodelvs. SBERT
+Figure3: Totalempathyforthestoryretrievedbyour
+modelvs. SBERT.Errorbarsshowstandarderror.
+(4xNvidiaA40s,256GBofRAM,and64cores),
+whichretrievesstoryresponsesinrealtime.
+manevaluationisafulluserstudytoseehowthe
+Writing Prompts and Stories Retrieved. We
+modelperformsinretrievingastorythatisempath-
+carefully designed writing prompts to present to
+ically similar to a story that the users told them-
+theparticipantstoelicithighlypersonalstories,in-
+selves. Through our user study, we demonstrate
+spiredbyquestionsfromtheLifeStoryInterview
+the applicability of the task to improve empathy
+(McAdams,2007),anapproachfromsocialscience
+towardsretrievalofhumanstories,aswellashow
+togatherkeymomentsfromaperson’slife.
+ourdatasetwasusedtodeveloptheempathicsim-
+ilarity retrieval task and why the task matters in Conditions. We used a within-subject study de-
+thereal-world. Ourhypothesisis: Userswillem- sign,whereeachparticipantwasexposedto2con-
+pathize more with stories retrieved by our model ditions presented in random order. In Condition
+(BARTfinetunedonEMPATHICSTORIES)thansto- 1, participants read a story retrieved by our best
+riesretrievedbySBERT. performingmodelontheempathicsimilaritytask
+(BART+finetuning). InCondition2,participants
+7.1 ParticipantsandRecruitment readastoryretrievedbySBERT.Forbothmodels,
+weselectthebestresponsethatminimizescosine
+Werecruitedapoolof150participantsfromPro-
+distance.
+lific. Participants were primarily women (58%,
+Measures. To measure empathy towards each
+38% men, 3% non-binary, 1% undisclosed) and
+story, we used a shortened version of the State
+white (73%, 8% Black, 9% other or undisclosed,
+Empathy Survey (Shen, 2010), which contains 7
+4% Indian, 3% Asian, 2 % Hispanic, 1% Native
+questionscoveringaffective(sharingofothers’feel-
+American). The mean age for participants was
+ings),cognitive(adoptinganother’spointofview),
+37 (s.d. 11.6), and participants on average said
+andassociative(identificationwithothers)aspects
+theywouldconsiderthemselvesempatheticpeople
+ofsituationalempathy. Wealsoaskuserstoprovide
+(mean4.3,s.d. 0.81forLikertscalefrom1-5).
+a free-text explanation of whether and why they
+7.2 StudyProtocol foundtheretrievedstoryempathicallyresonant,to
+gainqualitativeinsightsintotheirexperience.
+Participants rated their mood, wrote a personal
+story, then rated their empathy towards the sto- 7.3 EffectsonEmpathy
+riesretrievedbythebaselineandproposedmodels.
+With our results shown in Figure 3, we found
+They additionally answered questions about the
+throughapairedt-test(N = 150)thatuserssignif-
+storytheywrote(mainevent,emotion,andmoral
+icantlyempathizedmorewithstoriesretrieved
+of the story) and their demographic information
+byourmodelfinetunedonEMPATHICSTORIES
+(age,ethnicity,andgender).
+than off-the-shelf SBERT (t(149) = 2.43, p <
+UserInterface. Wedesignedawebinterfacesimi- 0.01,Cohen’sd = 0.26),validatingourhypothesis.
+lartoaguidedjournalingappanddistributedthe Inaddition,thiseffectwaspresentacrossallthree
+link to the interface during the study. The inter- dimensionsofempathy: affective(t(149) = 1.87,
+face connects to a server run on a GPU machine p = 0.03,Cohen’sd = 0.21),cognitive(t(149) =
+Figure5: Reasonswhyparticipantsdidordidnotempathizewiththeretrievedstory.
+2.05, p = 0.02, Cohen’s d = 0.21), and associa- narrator felt, and the takeaway of the story. For
+tiveempathy(t(149) = 2.61,p = 0.005,Cohen’s example, one participant shared that “I found no
+d = 0.27),asshowninFigure4(empathyvalues momentwhereIdidn’tfullyunderstandtheauthor,
+arethesummedscoresfromtheempathysurvey). andIshareaverysimilarstoryaboutmyfather...its
+Interestingly,thedifferenceinempathicresponse absolutelyamazing...Ienjoyedthisstudyverymuch.”
+acrossconditionsisstrongestforassociativeempa- Otherparticipantswrote,“Iempathizeheavilywith
+thy,whichmeasureshowmuchtheusercaniden- this story because it has many similarities to my
+tifywiththenarratorofthestory. own. Kindofa‘startedfromthebottom,nowwe’re
+We examine reasons why users empathized here’vibe,whichIlovetosee”and“Icanrelateto
+with retrieved stories across conditions (Figure thefeelingsofabandonmentandregretexpressed.”
+5). Across both conditions, empathy towards a
+8 FutureDirectionsforEmpathic
+storywasoftenrelatedtohowwell-read,genuine,
+Similarity
+andconsistentthestorywas,andiftheusercould
+empathizewiththenarrator’semotionalreactions.
+Insummary,fewpriorworksontext-basedempa-
+When participants did not empathize with a re-
+thyhavelookedatmodelingempathyintwo-way
+trievedstory,thiswasmoreoftenthannotdueto
+interpersonalsettingsforhuman-to-humanconnec-
+stark differences in the main events of their own
+tion,asmostfocusondetectingempathyorgenerat-
+story and the model’s selected story. This effect
+ingempatheticutterances,andevenfewerofthese
+was strongest for our finetuned model, as it was
+works have shown tangible outcomes in human
+trainedondatawithamoreopendefinitionofem-
+studies. With increasing polarization, loneliness,
+pathythanjustsharingthesamesituation. Incer-
+andapathy(Bueckeretal.,2021),personalexperi-
+taincases,thiscouldresultintheeventsbeingtoo
+encesareafundamentalwaypeopleconnect,yet
+differentfortheusertoempathizewith.
+existingsocialrecommendationisnottargetedfor
+Interestingly,weseethatourmodelchosestories human-humanconnectivityandempathy. Empath-
+that aligned better on events and emotions with ically encoded story embeddings could be useful
+respect to the story they wrote, and participants foravarietyofNLPtasks,includingretrieval,text
+thought the stories were more original compared generation,dialogue,andtranslation,forexample
+to SBERT-retrieved stories. In cases where the inthefollowingsettings:
+participant did not empathize with the retrieved
+• Usingempathicreasoningtoincorporatestory
+story,SBERT-retrievedstorieswereconsideredless
+retrievalindialoguegeneration.
+consistent,lessgenuine,less,original,didnotread
+as well, and did not match on emotions as well
+• Generating stories that users resonate with
+comparedtoourmodel.
+moreinconversationalAI
+From qualitative responses, we see that our
+modelretrievedstoriesthatuserempathizedwith • Extendingthisworktomultilingualsettings
+basedonthesituationdescribed,theemotionsthe andbetterunderstandtranslatingexperiences
+inwaysthatpreserveempathicmeaning Limitations
+Withregardstoourdatacollectionandannotation
+• Betterunderstandcognitiveinsights,suchas
+framework,ourannotationsforempathicsimilarity
+linguisticpatternsofemotion-drivencommu-
+are not first-person, which are sub-optimal given
+nication
+that it may be difficult for annotator’s to project
+theemotionalstatesoftwonarrators. Inaddition,
+• Applicationsandbuildinginteractionsthatfos- becauseofthecomplexityofourannotationtask,
+ter story sharing across geographic, ethnic, weoptedtouseChatGPTsummariesofthestories
+andculturalbridges,suchasdevelopingbetter during our paired story annotation, which could
+socialmediarecommendationorpersonaliza- introduce biases depending on the quality of the
+tion. generatedsummaries. However,giventheinherent
+difficultyofthetask,wefoundthisreductionneces-
+Weencouragefutureworkstoexplorethesedi- sarytoachieveagreementandreducenoiseinour
+rections in developing more human-centered ap- dataset,andwefoundthatimportantfeatureswill
+proachesforinteractionswithNLPsystems. stillpresentinthesummaries. Futureworkcould
+use our human experimental setup to collect first
+personlabelsovertheentirestories,ratherthanthe
+9 Conclusion
+automaticsummaries.
+This work explores how we can model empathic Another limitation of our modeling approach
+resonancebetweenpeople’spersonalexperiences. isthatourfinetunedmodeltakesindatathatcap-
+Wefocusedspecificallyonunpackingempathyin turesempathicrelationsacrossourframeworkof
+text-basednarrativesthroughourframeworkofthe events,emotions,andmorals. However,thelearned
+events, emotions, and moral takeaways from per- storyrepresentationsaregeneralpurposeandare
+sonalnarratives. WecollectedEMPATHICSTORIES, notpersonalizedtoauser’sempathicpreferences.
+adiversedatasetofhigh-qualitypersonalnarratives Personalizationcouldimprovemodelperformance
+withrichannotationsonindividualstoryfeatures acrossautomaticandhumanevaluationmetrics,as
+and empathic resonance between pairs of stories. there may exist finer-grained user preferences in
+Wepresentedanoveltaskforretrievalofempathi- howusersempathizewithcertainstories,andwhat
+callysimilarstoriesandshowedthatlarge-language aspectsusersfocuson. Furthermore,futurework
+modelsfinetunedonourdatasetcanachievecon- couldexploretrainingusingacontrastivesetupto
+siderable performance gains in our task. Finally, learnmorecontextualizedstoryembeddings.
+wevalidatedthereal-worldefficacyofourBART- Lastly,futureworkshouldexplorelongitudinal
+finetuned retrieval model in a user study, demon- effectsofrecievingstoriesretrievedbyoursystem.
+stratingsignificantimprovementsinfeelingsofem- Our survey measures (State Empathy Scale) are
+pathytowardsstoriesretrievedbyourmodelcom- usedforshort,quickassessmentsofimmediateem-
+paredtooff-the-shelfsemanticsimilarityretrieval. pathyratherthan“fixed”or“trait”empathy. While
+ourmodelmightperformwellinthisone-shotin-
+Empathy is a complex and multi-dimensional
+teractionsettings,itisalsoimportanttostudythe
+phenomenon,intertwinedwithaffectiveandcogni-
+lastempathiceffectsofreadingstoriesretrievedby
+tive states, and it is foundational in our ability to
+themodelandmeasurechangesinauser’slonger
+formsocialrelationshipsanddevelopmeaningful
+termempathy,mood,andfeelingsofconnection.
+connections. Inaworldwherelonelinessandapa-
+thyareincreasinglypresentdespitethenumerous
+EthicsStatement
+wayswearenowabletointeractwithtechnology-
+basedmedia,understandingempathy,developing Whilesuchasystemmightfosterempathyandcon-
+empathicreasoninginAIagents,andbuildingnew nectedness,itisimportanttoconsiderthepotential
+interactionstofosterempathyareimperativechal- harmsbroughtaboutbythiswork. Aswithmany
+lenges. Ourworklaysthegroundworktowardsthis recommenders,ourmodelissusceptibletoalgorith-
+broader vision and demonstrates that AI systems micbiasesinthetypesofstoriesitretrieves,aswell
+that can reason about complex interpersonal dy- ascreatinganechochamberforhomogeneousper-
+namicshavethepotentialtoimproveempathyand spectives(Kirketal.,2023). Embeddingdiversity
+connectionbetweenpeopleinthereal-world. in the recommended stories is important in both
+broadeningtheperspectiveofusersandpreventing measuresformachinetranslationand/orsummariza-
+biases. tion,pages65–72.
+Many social platforms struggle with the issue
+Jiajun Bao, Junjie Wu, Yiming Zhang, Eshwar Chan-
+of content moderation and content safety. In its drasekharan, and David Jurgens. 2021. Conver-
+proposedstate,ourmodeldoesnotdoanythingto sations Gone Alright: Quantifying and Predicting
+ProsocialOutcomesinOnlineConversations. InPro-
+guaranteethesafetyofcontentthatissharedwith
+ceedingsoftheWebConference2021,pages1134–
+users. Hateful speech and triggering experiences
+1145,LjubljanaSlovenia.ACM.
+shouldnotbepropagatedbyourmodelregardless
+ClaraBerridge,YuanjinZhou,JulieM.Robillard,and
+oftheextenttowhichusersrelatetothesestories
+JeffreyKaye.2023. Companionrobotstomitigate
+(Goeletal.,2023;Limaetal.,2018).
+lonelinessamongolderadults: Perceptionsofbenefit
+Finally,thegoalofourworkistoconnectpeo- and possible deception. Frontiers in Psychology,
+pletootherhumanexperiences. Storygeneration 14:1106633.
+and NLG that aims to mimic or appropriate hu-
+AntoineBosselut,HannahRashkin,MaartenSap,Chai-
+manexperiencesisnotsomethingweendorse,and tanya Malaviya, Asli Celikyilmaz, and Yejin Choi.
+we encourage the use of machine-text detectors 2019. COMET:CommonsenseTransformersforAu-
+in systems that retrieve empathic stories. In line tomaticKnowledgeGraphConstruction.
+with Oren Etzioni (2018)’s three rules of AI, we
+HanaBoukricha,IpkeWachsmuth,MariaNellaCarmi-
+alsodiscouragepresentinghumanswithmachine- nati, and Pia Knoeferle. 2013. A Computational
+generatedstorieswithoutdisclosingthatthestory ModelofEmpathy: EmpiricalEvaluation. In2013
+HumaineAssociationConferenceonAffectiveCom-
+iswrittenbyanAIauthor.
+putingandIntelligentInteraction,pages1–6,Geneva,
+Switzerland.IEEE.
+Acknowledgements
+Guilherme Brockington, Ana Paula Gomes Moreira,
+Wewouldliketothankallofourparticipants,an- MariaStephaniBuso,SérgioGomesdaSilva,Edgar
+notators, and teammates for their invaluable con- Altszyler,RonaldFischer,andJorgeMoll.2021. Sto-
+rytelling increases oxytocin and positive emotions
+tributionstothisproject. SpecialthankstoSharifa
+anddecreasescortisolandpaininhospitalizedchil-
+AlgohwinemandWonjuneKangfortheirtechnical
+dren. ProceedingsoftheNationalAcademyofSci-
+feedback throughout the project and thanks to Ji ences,118(22):e2018409118.
+MinMun,AkhilaYerukola,andIshaanGroverfor
+TomB.Brown,BenjaminMann,NickRyder,Melanie
+paper feedback. This work was supported by an
+Subbiah, Jared Kaplan, Prafulla Dhariwal, Arvind
+NSFGRFPunderGrantNo. 2141064andtheIITP Neelakantan,PranavShyam,GirishSastry,Amanda
+grant funded by the Korean Ministry of Science Askell, Sandhini Agarwal, Ariel Herbert-Voss,
+Gretchen Krueger, Tom Henighan, Rewon Child,
+andICTNo.2020-0-00842.
+Aditya Ramesh, Daniel M. Ziegler, Jeffrey Wu,
+ClemensWinter,ChristopherHesse,MarkChen,Eric
+Sigler,MateuszLitwin,ScottGray,BenjaminChess,
+References
+Jack Clark, Christopher Berner, Sam McCandlish,
+Alec Radford, Ilya Sutskever, and Dario Amodei.
+HervéAbdi.2007. Thekendallrankcorrelationcoeffi-
+2020. Language Models are Few-Shot Learners.
+cient. EncyclopediaofMeasurementandStatistics.
+arXiv:2005.14165[cs].
+Sage,ThousandOaks,CA,pages508–510.
+Susanne Buecker, Marcus Mund, Sandy Chwastek,
+MaryE.Andrews,BradleyD.Mattan,KeanaRichards,
+Melina Sostmann, and Maike Luhmann. 2021. Is
+SamanthaL.Moore-Berg,andEmilyB.Falk.2022.
+lonelinessinemergingadultsincreasingovertime?A
+Usingfirst-personnarrativesabouthealthcarework-
+preregisteredcross-temporalmeta-analysisandsys-
+ersandpeoplewhoareincarceratedtomotivatehelp-
+tematic review. Psychological Bulletin, 147:787–
+ingbehaviorsduringtheCOVID-19pandemic. So-
+805.
+cialScience&Medicine,299:114870.
+RijulChaturvedi,SanjeevVerma,RonnieDas,andYo-
+P.MatthijsBalandMartijnVeltkamp.2013. HowDoes geshK.Dwivedi.2023. Socialcompanionshipwith
+FictionReadingInfluenceEmpathy? AnExperimen- artificial intelligence: Recent trends and future av-
+talInvestigationontheRoleofEmotionalTransporta- enues. TechnologicalForecastingandSocialChange,
+tion. PLOSONE,8(1):e55341. 193:122634.
+SatanjeevBanerjeeandAlonLavie.2005. Meteor: An Snigdha Chaturvedi, Shashank Srivastava, and Dan
+automaticmetricformtevaluationwithimprovedcor- Roth. 2018. Where Have I Heard This Story Be-
+relationwithhumanjudgments. InProceedingsof fore? IdentifyingNarrativeSimilarityinMovieRe-
+theaclworkshoponintrinsicandextrinsicevaluation makes. In Proceedings of the 2018 Conference of
+theNorthAmericanChapteroftheAssociationfor Sara D. Hodges, Kristi J. Kiel, Adam D. I. Kramer,
+ComputationalLinguistics: HumanLanguageTech- DaryaVeach,andB.ReneeVillanueva.2010. Giving
+nologies,Volume2(ShortPapers),pages673–678, BirthtoEmpathy: TheEffectsofSimilarExperience
+NewOrleans,Louisiana.AssociationforComputa- onEmpathicAccuracy,EmpathicConcern,andPer-
+tionalLinguistics. ceivedEmpathy. PersonalityandSocialPsychology
+Bulletin,36(3):398–409.
+EunChoandSoohyunJeon.2019. Theroleofempa-
+thyandpsychologicalneedsatisfactioninpharmacy ChristopherJ.Honey,ChristopherR.Thompson,Yulia
+students’burnoutandwell-being. BMCMedicalEd- Lerner,andUriHasson.2012. NotLostinTransla-
+ucation,19(1):43. tion: Neural Responses Shared Across Languages.
+TheJournalofNeuroscience,32(44):15277–15283.
+JayS.Coke,C.DanielBatson,andKatherineMcDavis.
+JenaD.Hwang,ChandraBhagavatula,RonanLeBras,
+1978. Empathicmediationofhelping: Atwo-stage
+JeffDa,KeisukeSakaguchi,AntoineBosselut,and
+model. JournalofPersonalityandSocialPsychology,
+YejinChoi.2021. COMET-ATOMIC2020: OnSym-
+36(7):752–766.
+bolicandNeuralCommonsenseKnowledgeGraphs.
+Marc Damashek. 1995. Gauging Similarity with n-
+Hyunwoo Kim, Youngjae Yu, Liwei Jiang, Ximing
+Grams: Language-Independent Categorization of
+Lu,DanielKhashabi,GunheeKim,YejinChoi,and
+Text. Science,267(5199):843–848. Publisher: Amer-
+Maarten Sap. 2022. ProsocialDialog: A Prosocial
+icanAssociationfortheAdvancementofScience.
+BackboneforConversationalAgents.
+ScottDeerwester,SusanT.Dumais,GeorgeW.Furnas, Hannah Rose Kirk, Bertie Vidgen, Paul Röttger, and
+ThomasK.Landauer,andRichardHarshman.1990. ScottA.Hale.2023. Personalisationwithinbounds:
+Indexingbylatentsemanticanalysis. Journalofthe Arisktaxonomyandpolicyframeworkforthealign-
+AmericanSocietyforInformationScience,41(6):391–
+ment of large language models with personalised
+407. feedback. ArXiv:2303.05453[cs].
+Jacob Devlin, Ming-Wei Chang, Kenton Lee, and Sara Konrath. 2013. The Empathy Para-
+Kristina Toutanova. 2019. BERT: Pre-training dox: Increasing Disconnection in the Age
+of Deep Bidirectional Transformers for Language of Increasing Connection. https://www.igi-
+Understanding. arXiv:1810.04805 [cs]. ArXiv: global.com/chapter/content/www.igi-
+1810.04805. global.com/chapter/content/70356.
+KarthikDinakar,BiragoJones,HenryLieberman,Ros- Sara H. Konrath, Edward H. O’Brien, and Courtney
+alindPicard,CarolynRose,MatthewThoman,and Hsing. 2011. Changes in Dispositional Empathy
+RoiReichart.2012. YouToo?!Mixed-InitiativeLDA inAmericanCollegeStudentsOverTime: AMeta-
+StoryMatchingtoHelpTeensinDistress. Proceed- Analysis. PersonalityandSocialPsychologyReview,
+ingsoftheInternationalAAAIConferenceonWeb 15(2):180–198.
+andSocialMedia,6(1):74–81.
+DennisKrebs.1976. Empathyandaltruism. Journalof
+PersonalityandSocialPsychology,32(6):1134.
+SarahFabi,LydiaAnnaWeber,andHartmutLeuthold.
+2019. Empathic concern and personal distress de-
+ShiroKumano,RyoIshii,andKazuhiroOtsuka.2017.
+pend on situational but not dispositional factors.
+Comparing Empathy Perceived by Interlocutors in
+PLoSONE,14(11):e0225102–e0225102.
+MultipartyConversationandExternalObservers.
+Fabrizio Gilardi, Meysam Alizadeh, and Maël Kubli.
+WilliamLabovandJoshuaWaletzky.1997. Narrative
+2023. ChatGPT Outperforms Crowd-Workers for
+analysis: Oralversionsofpersonalexperience. Jour-
+Text-AnnotationTasks. ArXiv:2303.15056[cs].
+nalofNarrative&LifeHistory,7(1-4):3–38.
+VasuGoel,DhruvSahnan,SubhabrataDutta,AnilBand- AllisonLahnala,CharlesWelch,andLucieFlek.2022a.
+hakavi,andTanmoyChakraborty.2023. Hatemon- CAISA at WASSA 2022: Adapter-Tuning for Em-
+gersrideonechochamberstoescalatehatespeech pathyPrediction. InProceedingsofthe12thWork-
+diffusion. PNASNexus,2(3):pgad041. shoponComputationalApproachestoSubjectivity,
+Sentiment&SocialMediaAnalysis,pages280–285,
+MelanieC.GreenandTimothyC.Brock.2000. The Dublin,Ireland.AssociationforComputationalLin-
+roleoftransportationinthepersuasivenessofpublic guistics.
+narratives. Journal of Personality and Social Psy-
+chology,79(5):701–721. AllisonLahnala,CharlesWelch,DavidJurgens,andLu-
+cieFlek.2022b. ACriticalReflectionandForward
+Maarten Grootendorst. 2020. Keybert: Minimal key- PerspectiveonEmpathyandNaturalLanguagePro-
+wordextractionwithbert. cessing. InFindingsoftheAssociationforComputa-
+tionalLinguistics: EMNLP2022,pages2139–2158,
+LauraHanuandUnitaryteam.2020. Detoxify. Github. AbuDhabi,UnitedArabEmirates.Associationfor
+https://github.com/unitaryai/detoxify. ComputationalLinguistics.
+Thomas K. Landauer and Susan T. Dumais. 1997. A KishorePapineni,SalimRoukos,ToddWard,andWei-
+solutiontoPlato’sproblem: Thelatentsemanticanal- JingZhu.2002. Bleu: aMethodforAutomaticEval-
+ysistheoryofacquisition,induction,andrepresenta- uation of Machine Translation. In Proceedings of
+tionofknowledge. PsychologicalReview,104:211– the40thAnnualMeetingoftheAssociationforCom-
+240. Place: USPublisher: AmericanPsychological putationalLinguistics,pages311–318,Philadelphia,
+Association. Pennsylvania,USA.AssociationforComputational
+Linguistics.
+Mike Lewis, Yinhan Liu, Naman Goyal, Marjan
+Ghazvininejad,AbdelrahmanMohamed,OmerLevy, AlecRadford,JeffreyWu,RewonChild,DavidLuan,
+VesStoyanov,andLukeZettlemoyer.2019. BART: DarioAmodei,andIlyaSutskever. LanguageModels
+Denoising Sequence-to-Sequence Pre-training for areUnsupervisedMultitaskLearners.
+NaturalLanguageGeneration,Translation,andCom-
+HannahRashkin,AntoineBosselut,MaartenSap,Kevin
+prehension. ArXiv:1910.13461[cs,stat].
+Knight,andYejinChoi.2018. ModelingNaivePsy-
+LucasLima,JulioC.S.Reis,PhilipeMelo,FabricioMu- chologyofCharactersinSimpleCommonsenseSto-
+rai,LeandroAraujo,PantelisVikatos,andFabricio ries. InProceedingsofthe56thAnnualMeetingof
+Benevenuto.2018. InsidetheRight-LeaningEcho theAssociationforComputationalLinguistics(Vol-
+Chambers: Characterizing Gab, an Unmoderated ume1: LongPapers),pages2289–2299,Melbourne,
+Social System. In 2018 IEEE/ACM International Australia.AssociationforComputationalLinguistics.
+ConferenceonAdvancesinSocialNetworksAnaly-
+HannahRashkin,MaartenSap,EmilyAllaway,NoahA.
+sisandMining(ASONAM),pages515–522. ISSN:
+Smith, and Yejin Choi. 2019. Event2Mind: Com-
+2473-991X.
+monsense Inference on Events, Intents, and Reac-
+tions.
+Chin-Yew Lin. 2004. ROUGE: A Package for Auto-
+maticEvaluationofSummaries. InTextSummariza-
+Nils Reimers and Iryna Gurevych. 2019. Sentence-
+tionBranchesOut,pages74–81,Barcelona,Spain.
+BERT:SentenceEmbeddingsusingSiameseBERT-
+AssociationforComputationalLinguistics.
+Networks.
+Yung-ShenLin,Jung-YiJiang,andShie-JueLee.2014.
+MahnazRoshanaei,ChristopherTran,SylviaMorelli,
+A Similarity Measure for Text Classification and
+CorneliaCaragea,andElenaZheleva.2019. Paths
+Clustering. IEEETransactionsonKnowledgeand
+toEmpathy: HeterogeneousEffectsofReadingPer-
+DataEngineering,26(7):1575–1590.
+sonal Stories Online. In 2019 IEEE International
+ConferenceonDataScienceandAdvancedAnalyt-
+DanPMcAdams.2007. TheLifeStoryInterview–II.
+ics(DSAA),pages570–579,Washington,DC,USA.
+page5.
+IEEE.
+SylviaA.Morelli,MatthewD.Lieberman,andJamil
+PaulRottger,BertieVidgen,DirkHovy,andJanetPier-
+Zaki.2015. TheEmergingStudyofPositiveEmpa-
+rehumbert.2022. TwoContrastingDataAnnotation
+thy. Social and Personality Psychology Compass,
+ParadigmsforSubjectiveNLPTasks. InProceedings
+9(2):57–68.
+ofthe2022ConferenceoftheNorthAmericanChap-
+ter of the Association for Computational Linguis-
+Sylvia A. Morelli, Desmond C. Ong, Rucha Makati,
+tics:HumanLanguageTechnologies,pages175–190,
+MatthewO.Jackson,andJamilZaki.2017. Empa-
+Seattle,UnitedStates.AssociationforComputational
+thy and well-being correlate with centrality in dif-
+Linguistics.
+ferentsocialnetworks. ProceedingsoftheNational
+AcademyofSciences,114(37):9843–9847.
+Mary Fabiola Sagayaraj, Ignisha Rajathi George,
+R.Vedhapriyavadhana,andL.R.Priya.2022. Artifi-
+Nasrin Mostafazadeh, Aditya Kalyanpur, Lori Moon,
+cialIntelligencetoCombattheStingofthePandemic
+DavidBuchanan,LaurenBerkowitz,OrBiran,and
+onthePsychologicalRealmsofHumanBrain. SN
+JenniferChu-Carroll.2020. GLUCOSE:GeneraL-
+ComputerScience,3(3):182.
+ized and COntextualized Story Explanations. In
+Proceedings of the 2020 Conference on Empirical BelenSaldiasandDebRoy.2020. Exploringaspects
+MethodsinNaturalLanguageProcessing(EMNLP), ofsimilaritybetweenspokenpersonalnarrativesby
+pages4569–4586,Online.AssociationforComputa- disentanglingthemintonarrativeclausetypes.
+tionalLinguistics.
+GerardSalton,AmitSinghal,MandarMitra,andChris
+Dong Nguyen, Dolf Trieschnigg, and Mariët Theune. Buckley.1997. Automatictextstructuringandsum-
+2014. UsingCrowdsourcingtoInvestigatePercep- marization. InformationProcessing&Management,
+tionofNarrativeSimilarity. InProceedingsofthe 33(2):193–207.
+23rdACMInternationalConferenceonConference
+onInformationandKnowledgeManagement,CIKM MaartenSap,DallasCard,SaadiaGabriel,YejinChoi,
+’14,pages321–330,NewYork,NY,USA.Associa- andNoahA.Smith.2019a. TheRiskofRacialBias
+tionforComputingMachinery. in Hate Speech Detection. In Proceedings of the
+57thAnnualMeetingoftheAssociationforComputa-
+Oren Etzioni. 2018. Three rules of Artificial Intelli- tionalLinguistics,pages1668–1678,Florence,Italy.
+gence. AssociationforComputationalLinguistics.
+MaartenSap,EricHorvitz,YejinChoi,NoahA.Smith, Symbolic Knowledge Distillation: from Gen-
+and James Pennebaker. 2020. Recollection versus eral Language Models to Commonsense Models.
+Imagination: ExploringHumanMemoryandCogni- ArXiv:2110.07178[cs].
+tionviaNeuralLanguageModels. InProceedings
+of the 58th Annual Meeting of the Association for Joshua D. Wondra and Phoebe C. Ellsworth. 2015.
+Computational Linguistics, pages 1970–1978, On- An appraisal theory of empathy and other vicari-
+line.AssociationforComputationalLinguistics. ous emotional experiences. Psychological Review,
+122(3):411–428.
+Maarten Sap, Ronan Le Bras, Emily Allaway, Chan-
+draBhagavatula,NicholasLourie,HannahRashkin, KevinWright.2002. Motivesforcommunicationwithin
+Brendan Roof, Noah A. Smith, and Yejin Choi. on-line support groups and antecedents for inter-
+2019b. ATOMIC: An Atlas of Machine Common- personal use. Communication Research Reports,
+sense for If-Then Reasoning. Proceedings of the 19(1):89–98.
+AAAIConferenceonArtificialIntelligence,33:3027–
+Tianyi Zhang, Varsha Kishore, Felix Wu, Kilian Q.
+3035.
+Weinberger, and Yoav Artzi. 2020. BERTScore:
+EvaluatingTextGenerationwithBERT.
+MaartenSap, RonanLeBras, DanielFried, andYejin
+Choi.2022. NeuralTheory-of-Mind? OntheLimits
+NaitianZhouandDavidJurgens.2020. Condolenceand
+ofSocialIntelligenceinLargeLMs.
+EmpathyinOnlineCommunities. InProceedingsof
+the2020ConferenceonEmpiricalMethodsinNatu-
+MaartenSap,MarcellaCindyPrasettio,AriHoltzman,
+ralLanguageProcessing(EMNLP),pages609–626,
+Hannah Rashkin, and Yejin Choi. 2017. Connota-
+Online.AssociationforComputationalLinguistics.
+tionFramesofPowerandAgencyinModernFilms.
+page6.
+Maarten Sap, Hannah Rashkin, Derek Chen, Ronan
+LeBras, and Yejin Choi. 2019c. SocialIQA: Com-
+monsenseReasoningaboutSocialInteractions.
+PatrickSchober,ChristaBoer,andLotharASchwarte.
+2018. Correlationcoefficients: appropriateuseand
+interpretation. Anesthesia&analgesia,126(5):1763–
+1768.
+AshishSharma,AdamS.Miner,DavidC.Atkins,and
+Tim Althoff. 2020. A Computational Approach to
+Understanding Empathy Expressed in Text-Based
+MentalHealthSupport.
+LijiangShen.2010. OnaScaleofStateEmpathyDur-
+ingMessageProcessing. WesternJournalofCommu-
+nication,74(5):504–524.
+SeemaVinayakandJotikaJudge.2018. Resilienceand
+EmpathyasPredictorsofPsychologicalWellbeing
+amongAdolescents. InternationalJournalofHealth
+Sciences,(4):10.
+Kiran Vodrahalli, Po-Hsuan Chen, Yingyu Liang,
+ChristopherBaldassano,JaniceChen,EstherYong,
+ChristopherHoney,UriHasson,PeterRamadge,Ken-
+nethA.Norman,andSanjeevArora.2018. Mapping
+betweenfMRIresponsestomoviesandtheirnatural
+languageannotations. NeuroImage,180:223–231.
+CarenM.WalkerandTaniaLombrozo.2017. Explain-
+ingthemoralofthestory. Cognition,167:266–281.
+ZhilinWang,AnnaJafarpour,andMaartenSap.2022.
+UncoveringSurprisingEventBoundariesinNarra-
+tives. page12.
+PeterWest,ChandraBhagavatula,JackHessel,JenaD.
+Hwang, Liwei Jiang, Ronan Le Bras, Xim-
+ing Lu, Sean Welleck, and Yejin Choi. 2022.
+A UnderstandingAspectsofEmpathic Feature r ρ
+Similarity SimilarityinMainEvent 0.69 0.69
+SimilarityinEmotionDescription 0.65 0.65
+SimilarityinMoral 0.76 0.76
+Table5: Correlationbetweensimilarityscoresforindi-
+vidualfeaturescomparedtooverallempathicsimilarity
+score. r =Pearson’scorrelationcoefficient. ρ=Spear-
+man’scorrelationcoefficient.
+Feature Model BLEU ROUGE METEOR BertScore
+BART 1.16 16.87 21.26 13.30
++finetuning 9.56 32.72 29.14 39.79
+GPT-3 1.40 24.77 26.31 33.39
+Event
++10examples 7.72 32.22 23.60 36.84
+ChatGPT 1.85 25.35 25.36 34.93
++10examples 7.23 30.02 32.81 37.59
+BART 0.40 15.73 16.95 6.53
++finetuning 2.08 26.61 23.54 26.24
+GPT-3 1.56 22.37 27.90 21.28
+Emotion
++10examples 0.08 21.09 12.08 19.97
+Figure 6: Comparing the empathic similarity and se-
+ChatGPT 1.66 23.21 29.62 22.19
+manticsimilaritycoredistributions +10examples 1.09 25.43 27.67 26.46
+BART 0.02 11.78 15.52 0.40
++finetuning 13.77 33.52 29.66 32.26
+Before training any models to learn empathic
+GPT-3 5.86 28.10 27.87 31.64
+Moral
+similarityratings,itisimportanttounderstandthe +10examples 4.38 28.63 18.97 28.15
+ChatGPT 4.45 25.03 26.16 30.99
+mechanisms behind empathic similarity in text-
++10examples 6.63 27.91 27.51 33.97
+based personal narratives. In particular, we are
+Table 6: Quality of event, emotion, and moral sum-
+interested in how structural elements of stories
+mariesacrossmodels. Scoresaremultipliedby100for
+(events,emotionaltrajectories,andmorals)relate
+readability,andthemax. foreachmetricis100.
+toempathy. Thequestionweaimtoanswerthrough
+ouranalysisofthetextiswhatqualitiesofpersonal
+experiences people resonate with most and how weakly positively correlated with empathic sim-
+doesthisrelatetothepersonalexperiencetheyself ilarity(ρ = 0.17),withevent-basedfeaturescorre-
+disclose. latingthemost(ρ = 0.067),followedbyemotion-
+First,welookatthecorrelationbetweenhuman- basedfeatures(ρ = 0.0069)andlastlymoralfea-
+ratedsimilarityinevent,emotion,andmoralofthe tures (ρ = −0.048). These results indicate that
+storiestotheempathicsimilarityrating. Weshow semanticsimilarityisnaturallyrelatedtoempathic
+inTable5thatthecorrelationofthesimilaritybe- similarity,butmightnotcapturerelationshipsbe-
+tweenevents,emotions,andmoralstotheempathic tweenemotionsandtakeawaysinpairsofstories.
+similarityratingishighforallthreefeatures. This
+B EmpathyReasoningTask
+indicatesthatsimilarityinthesecomponentsisre-
+latedtosimilarityinempathicresonancebetween
+Empathy Reasoning Task Definition. Given a
+stories. Using a paired t-test between high and
+storycontextc,wefinetuneasequence-to-sequence
+lowempathicallysimilarstorypairs,wefindthat
+(seq2seq) model to generate an event (v), emo-
+empathically similar story pairs have statistically
+tion (e), and moral (m), concatenating annotated
+significantlyhighersimilaritiesinevents,emotions,
+summaries to construct the gold label and mod-
+andmorals,withthelargestincreaseinmoralsimi-
+eling p(v,e,m|c) (Kim et al., 2022). The model
+larityandroughlyequivalentincreasesineventand
+is trained to minimize negative log likelihood of
+emotionsimilarities.
+predictingeachwordintheconstructedgoldlabel.
+Next, we look at the differences between se-
+manticsimilarityandhuman-ratedempathicsim- Empathy Reasoning Results. We evaluate em-
+ilarity. As shown in Figure 6, we can see that pathy reasoning performance using BLEU (Pa-
+the distributions of similarity scores are differ- pineni et al., 2002), ROUGE (Lin, 2004), ME-
+entforhuman-ratedempathicsimilarityscoresas TEOR(BanerjeeandLavie,2005),andBertScore
+compared to semantic similarity scores obtained (Zhang et al., 2020), taking the human-written
+from SBERT. Semantic similarity of stories is free-textannotationsasgoldreferences. FromTa-
+ble 6, we see that finetuning BART with human- Notethatwedidnotincludetopicsfortheevents
+written story summaries improves performance since these were similar to Table 2. To identify
+acrossallmetrics. TheBARTmodelfinetunedon these topics, we use Latent Dirichlet Allocation
+EMPATHICSTORIES demonstrates improved per- (LDA)andKeyBERTontheclusters(Grootendorst,
+formanceacross3/4metricsineventandmoralrea- 2020).
+sons. Foremotionreasons,ChatGPTdemonstrates
+Topic Keywords %Stories
+better performance in 2/4 metrics, with the fine-
+depression melancholy,depression,unhappy 28.95%
+tunedBARTmodelclosebehind. Wenotethatthe happinessandsatisfaction happiness,satisfaction,overwhelmed 20.92%
+anxiety anxiety,frustrated,upset 11.03%
+BART-basemodelhas140Mparameters,whereas motivation motivated,success,achieving 10.40%
+compassion compassionate,happiness,gradchildren 9.38%
+ChatGPThasupwardsof175Bparameters.
+gratitude gratitude,generosity,happiness 9.31%
+desire desire,passion,youth 6.12%
+grief grief,sober,lifestyle 3.89%
+C FinetunedModelTrainingDetails
+Table 7: Themes across emotion descriptions of the
+Weusea75:5:20train:dev.:testsplitonbothindi-
+stories.
+vidualstoriesandpairsofstories. Fortheempathic
+similaritypredictiontask,weuselearningratesof
+1e-6and5e-6forSBERTandBARTrespectively, Topic Keywords %Stories
+motivationandencouragement motivation,success,achieving 40.31%
+and a linear scheduler with warmup. For the em- overcomingandresilience overcome,resilient,rehab 25.57%
+happinessandfulfilment opportunities,happiness,meaningful 17.60%
+pathic reasoning task, we use a learning rate of
+socialsupportandgratitude companionship,gratitude,stress 16.52%
+1e-5. Forbothtasks,weuseabatchsizeof8and
+Table8: Themesacrossmoralsofthestories.
+finetunefor30-50epochs,monitoringcorrelation
+and validation loss to select the best-performing
+models. Wetrainedallmodelson4xNvidiaA40s
+F CollectedStoriesBreakdown
+with256GBofRAMand64cores,andallmodel
+trainingtimeswereunder12hours. Abreakdownoftheamountofstoriespersource
+canbefoundinTable9.
+D DataPre-Processing
+DataSource NumberofStories
+Forallofthedatasources,weremovestoriesthat Hippocorpus 483
+areshorterthan5sentenceslong,longerthan500 RoadTripNarratives 476
+Reddit-TodayIAmHappy 198
+words, and which have a severe toxicity score of
+Reddit-CasualConversations 195
+lessthan0.005usingDetoxify(HanuandUnitary Reddit-OffMyChest 162
+team, 2020). While the latter step may filter out Facebook-[Redacted]Confessions 54
+meaningfulstoriesandintroducebiasinthestory
+Table9: Breakdownofretrievedstoriesperdatasource.
+selections (Sap et al., 2019a), we err on the side
+of removing any stories that could be potentially
+harmful,evenifnotseverelyso.
+G GPT-3andChatGPTPrompts
+Ourresearchteamthenselectedstoriesthatwere
+appropriatetoshare(didnotcontainexcessivepro- BelowarepromptswefedtoGPT-3andChatGPT
+fanityorexplicitsexualcontent),andwhichhada forourfew-shotbaselines. Notethatinadditionto
+first-personnarratorandconcreteresolutiontothe theprompts,weprovidedsampledexamplesfrom
+story. Wechosestorieswithaconcreteresolution ourtrainingcorpus.
+inordertoavoidrantposts,whichwerecommon
+• Eventsummary: Whatisthemaineventbe-
+on social media pages. In addition, we manually
+ingdescribedinthestory? Responsemustbe
+correctedovertgrammaticalerrorsaswellasref-
+at least 1 sentence and 50-1000 characters
+erences to the platform the story was shared on
+includingspaces.
+(e.g. addressing Redditors). Our final set of sto-
+riescontains1,568curated,high-qualitypersonal
+• Emotionsummary: Describetheemotions
+narratives.
+the narrator feels before and after the main
+eventandwhytheyfeelthisway. Answeras
+E StoryandAnnotationThemes
+though you were explaining how the narra-
+Belowweshowthetopthemesacrosseachstory’s tor felt to someone who knew nothing about
+emotion(Table7)andmoral(Table8)annotations. the situation. Response must be at least 2
+sentencesand150-1000charactersincluding Summary BLEU ROUGE METEOR BertScore
+MainEvent 2.86 26.37 28.20 36.53
+spaces.
+EmotionDescription 1.43 23.01 28.87 23.36
+Moral 7.67 27.64 27.33 33.24
+• Moral summary: What is the high-level
+Table10: QualityofChatGPTstoryempathyreasoning
+lesson or takeaway (ie. moral) of the story?
+annotations(scoresaremultipliedby100forreadability,
+Responsemustbeatleast1sentenceand100-
+andthemaximumforeachmetricis100)
+1000charactersincludingspaces.
+• Empathic similarity: Rate the extent to
+whichyouagreewiththestatement"thenar-
+ratorsofthetwostorieswouldempathizewith
+eachother."Wedefineempathyasfeeling,un-
+derstanding,andrelatingtowhatanotherper-
+son is experiencing. Note that it is possible
+tohaveempathyevenwithoutsharingtheex-
+actsameexperienceorcircumstance. Impor-
+tantly, for two stories to be empathetically
+similar,bothnarratorsshouldbeabletoem-
+pathizewitheachother(ifnarratorA’sstory
+wassharedinresponsetonarratorB’sstory,
+narratorBwouldempathizewithnarratorA Figure7: Comparingtheempathicsimilarityscoredis-
+andviceversa). Giveyouransweronascale tributionsbetweenChatGPTandhumanlabels
+from 1-4 (1 - not at all, 2 - not so much, 3 -
+verymuch,4-extremely)
+1-4 for the empathic similarity between two sto-
+H UsingLLMsasaProxyforHuman ries. TheSpearman’scorrelationbetweenhuman
+Annotations andChatGPTgeneratedlabelsis0.22(p < 0.001),
+indicatingweaklypositivecorrelationbetweenhu-
+RecentworksraisethequestionofwhetherLLMs
+manannotationsandChatGPTannotations. Inad-
+canbeusedtoproxyhumanannotations(Gilardi
+dition,weperformaone-samplet-testonthemean-
+etal.,2023). Themotivationbehindthismethodis
+squarederrorbetweenautomaticallygeneratedla-
+thatobtaininghumanlabelsacrossmanypairsof
+belsandhumanannotationsacrossallstorypairs
+storiesiscostly,andthiscostonlycompoundsas
+in the training data, obtaining a p-value < 0.001,
+thenumberofstoriesinthecorpusincreases. As
+indicatingthatthemeanofalltheerrorsisnonzero
+such,weprovideadditionalanalysesastowhether
+withstatisticalsignificance.
+ornotthesemodelscantrulyperformatthesame
+Finally, we bin the ChatGPT annotations into
+level as human annotators for our task, which in-
+agree/disagreecategories,andcomputetheclassi-
+volvesheavyempathyandemotionreasoning.
+fication precision (0.59), recall (0.40), F1 score
+(0.48), and accuracy (0.59) as compared to hu-
+H.1 IndividualStoryAnnotation
+man gold labels. These scores offer insight as to
+We prompt ChatGPT (gpt-3.5-turbo) to generate how well ChatGPT predicts the direction of the
+summaries of each story’s main event, emotion, empathicsimilarityannotation,butweseethatac-
+andmoral,inadditiontoalistofreasonswhyanar- curacyislowwhencomparingtohumanlabels. In
+ratormightempathizewiththestory. Wecompare Figure7,weseethatChatGPTsimilarityscoresare
+thesesummariesagainsthuman-writtensummaries skewedtotheleft,indicatingthathumansaremore
+usingBLEU,ROUGE,METEOR,andBertScore likelytofindempathicsimilaritiesbetweenexpe-
+(Table 10), showing that ChatGPT has relatively riences. These results are also supported by the
+lowperformanceacrossallfourmetrics. highernumberoffalsenegativeswhencomparing
+ChatGPTclassificationtohumangoldlabels.
+H.2 PairedStoryAnnotation
+Wefeedthesamepromptgiventohumanannota-
+torsintoChatGPT,askingforaLikertscorefrom

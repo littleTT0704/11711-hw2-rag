@@ -1,0 +1,1317 @@
+Symbolic Knowledge Distillation:
+from General Language Models to Commonsense Models
+PeterWest * ChandraBhagavatula JackHessel JenaD.Hwang
+†‡ ‡ ‡ ‡
+LiweiJiang RonanLeBras XimingLu SeanWelleck YejinChoi *
+†‡ ‡ †‡ †‡ †‡
+PaulG.AllenSchoolofComputerScience&Engineering,UniversityofWashington
+†
+AllenInstituteforArtificialIntelligence
+‡
+Abstract
+GPT-3
+The common practice for training common- 175B Parameters Symbolic Knowledge
+sensemodelshasgonefrom–human–to–corpus– General Model Distillation
+to–machine: humans author commonsense
+knowledge graphs in order to train common-
+CRITIC
+!
+sense models. In this work, we investigate Fine-tuned RoBERTa
+an alternative, from–machine–to–corpus–to– filters for quality
+machine:generallanguagemodelsauthorthese ATOMIC10X
+commonsenseknowledgegraphstotraincom-
+6.5M Examples
+monsensemodels. Commonsense KG
+Our study leads to a new framework, Sym- COMETdistil
+bolicKnowledgeDistillation. Aswithprior 1.5B Parameters !
+art in Knowledge Distillation (Hinton et al., Commonsense Model
+2015),ourapproachuseslargermodelstoteach
+Figure1: Symbolicknowledgedistillationextractsthe
+smaller models. A key difference is that we
+commonsensefromthelarge,generallanguagemodel
+distillknowledgesymbolically–astext–inad-
+GPT-3,into2forms: alargecommonsenseknowledge
+ditiontotheresultingneuralmodel. Wedistill
+onlyoneaspect–thecommonsenseofageneral
+graphATOMIC10x,andacompactcommonsensemodel
+languagemodelteacher,allowingthestudent
+COMETD TII LS. Thequalityofthisknowledgecanbecon-
+trolledandimprovedbyaddingacriticmodel,making
+to be a different type of model, a common-
+GPT-3astrongerteacher.
+sensemodel. Altogether,weshowthatcareful
+prompt engineering and a separately trained
+criticmodelallowustoselectivelydistillhigh-
+quality causal commonsense from GPT-3, a otherwisestellarperformanceonleaderboards. As
+generallanguagemodel. aresult,symboliccommonsenseknowledgegraphs
+Empiricalresultsdemonstratethat,forthefirst (Speeretal.,2017;Sapetal.,2019;Hwangetal.,
+time,ahuman-authoredcommonsenseknowl- 2021) and corresponding neural representations
+edgegraphissurpassedbyourautomatically (Bosselutetal.,2019;Hwangetal.,2021;Zhang
+distilled variant in all three criteria: quantity, etal.,2020b)havesupplementedpastmodelswith
+quality,anddiversity. Inaddition,itresultsin
+commonsense capabilities. This has enabled di-
+a neural commonsense model that surpasses
+versedownstreamapplications,includinginterac-
+theteachermodel’scommonsensecapabilities
+tive learning through a conversational interface
+despiteits100xsmallersize. Weapplythisto
+theATOMICresource,andwillshareournew (Arabshahietal.,2021),persona-andaffect-aware
+symbolicknowledgegraphandcommonsense conversationmodels(Kearnsetal.,2020),figura-
+models1. tive language understanding (Chakrabarty et al.,
+2020, 2021), story telling (Ammanabrolu et al.,
+1 Introduction
+2021a) and fantasy games (Ammanabrolu et al.,
+Prior works have suggested that pre-trained lan- 2021b).
+guage models possess limited understanding of Thecommonpracticeforcommonsenseknowl-
+commonsenseknowledge(Merrilletal.,2021;Tal- edge graph construction sees humans spell out
+moretal.,2021;DavisandMarcus,2017)despite as many pieces of knowledge as possible. This
+pipelinegoesfrom–human–to–corpus–to–machine,
+1Wewillsharethisfollowingtheanonymityperiod. We
+havepermissionfromOpenAItoreleaseGPT-3generations with commonsense models trained from human-
+4602
+Proceedingsofthe2022ConferenceoftheNorthAmericanChapteroftheAssociationforComputationalLinguistics:
+HumanLanguageTechnologies,pages4602-4625
+July10-15,2022©2022AssociationforComputationalLinguistics
+authored knowledge graphs. Yet, high-quality, edgegraph. WefindthatATOMIC10x,ourmachine-
+human-authoredknowledgeisexpensivetoscale, generated corpus, exceeds the human generated
+limiting coverage; this motivates an alternative: corpus in scale, accuracy, and diversity with re-
+from–machine–to–corpus–to–machine. Prior ef- spect to 7 commonsense inference types that we
+fortstowardautomaticcommonsenseknowledge focusoninthisstudy. Theresultingcommonsense
+graphs have resulted in considerably lower qual- model, COMETDIS,notonlysurpassesthehuman-
+TIL
+ity than human-written data (Hwang et al., 2021; trained equivalent COMET2 20 0, but is also smaller,
+Zhang et al., 2020b), which in turn leads to less more efficient, and produces commonsense at a
+reliableneuralmodels(Hwangetal.,2021). Broad higheraccuracythanitsownteacher–GPT-3.
+literature consistently shows machine-authored Symbolicknowledgedistillationoffersapromis-
+knowledgegraphsunderperformhuman-authored ingnewroleforgenerallanguagemodels,ascom-
+graphs(Etzionietal.,2011;Mitchelletal.,2015; monsense knowledge sources, and humans, as
+Bollackeretal.,2008). small-scaleevaluatorstotraincriticmodelsrather
+Inthiswork,weproposeSymbolicknowledge than authors of commonsense knowledge. Our
+distillation,anewconceptualframeworktowards work demonstrates that humans and LMs can be
+high-qualityautomaticknowledgegraphsforcom- effectivecollaboratorsforcuratingcommonsense
+monsense,leveragingstate-of-the-artmodelsand knowledgegraphsandtrainingefficientandperfor-
+novel methodology. Most prior art for automatic mantcommonsensemodels.
+knowledgegraphconstructionextractsknowledge
+fromrawtext(Bhakthavatsalametal.,2020;Zhang 2 OverviewandKeyFindings
+etal.,2020a;Zhouetal.,2020;Zhangetal.,2020b;
+Throughout our work, we describe the machine–
+Li et al., 2020). In contrast, our approach is mo-
+to–corpus–to–machinemethodologyofsymbolic
+tivated by knowledge distillation (Hinton et al.,
+knowledge distillation. We first go machine–to–
+2015) wherein a larger teacher model transfers
+corpus (§3), by decoding from GPT-3, then im-
+knowledgetoacompactstudentmodel(§2.1). Our
+prove our knowledge with a specialized critic
+methoddiffersfrompriorknowledgedistillationin
+model (§4), and finally distill this knowledge
+keyways: wedistillasymbolicknowledgegraph
+intoanefficientcommonsensemodel(§5),going
+(i.e.,generatedtext)inadditiontoaneuralmodel,
+corpus–to–machine. Throughoutthisprocess,we
+andwedistillonlyaselectiveaspectoftheteacher
+evaluateagainstahumanknowledgesource,com-
+model. Thisselectivelyallowsthestudentmodel
+paringourautomaticknowledgegraph ATOMIC10x
+to be of a different type (commonsense model),
+andcommonsensemodelCOMETDIS tothehuman-
+comparedtotheteacher(generallanguagemodel), TIL
+enrichingthescopeofdistillation. Anaddedben-
+authoredATOMIC2 20 0andresultingmodelCOMET2 20
+0
+(Hwangetal.,2021).
+efit is that knowledge distilled as text is human
+readable: itcanbeunderstoodandevaluated.
+2.1 SymbolicKnowledgeDistillation
+Agenerallanguagemodel–GPT-3inourcase–is
+Our proposed methodology parallels knowledge
+animperfectcommonsenseteacheronitsown,and
+distillation(Hintonetal.,2015),amethodforcom-
+theabilitytoevaluatedistilledknowledgeisuseful
+pressingalargeorcomplicatedteacherdistribution
+inimprovingit. Weempiricallydemonstratethat,
+P into a smaller/simpler student distribution P .
+by training a separate critic model to judge sym- t s
+Keytoknowledgedistillation2 isthenotionofmin-
+bolicgenerationquality,amorepreciseteachercan
+imizingthecross-entropybetweenP andP :
+be defined. Knowledge from this critical teacher t s
+ishigherquality–evenexceedinghuman-authored
+knowledge. Yet even before training a critic, our
+H(P ,P ) = P (y)logP (y) (1)
+studymakestheunexpectedfindingthatthestudent t s t s
+−
+modelsurpassesthecommonsenseofGPT-3,our y X∈Y
+knowledgesource.
+Knowledgeistransferredtothestudentbyencour-
+Totestsymbolicknowledgedistillationagainst
+agingittomatchteacherpredictions. Hintonetal.
+the human–to–corpus–to–machine paradigm, we
+(2015)applythistoconditionalclassification: for
+compare with ATOMIC2 20
+0
+(Hwang et al., 2021),
+whichisahuman-authoredcommonsenseknowl- 2Initssimplestcase,withtemperaturesetto1.0
+4603
+xEffect HinderedBy X can't remember
+X starts running gets in shape X sings a song
+so, X but not if the lyrics
+X and Y engage in xWant X is not well xReact
+to avoid Y lonely
+an argument so, X wants liked so, X feels
+X learns to type xNeed to have taken X takes care of xAttr
+kind
+fast X needed typing lessons a monkey X is seen as
+X steals his xEffect is punished by HinderedBy X is too shy to
+X butts in
+grandfather's sword so, X his grandfather but not if speak up
+X takes up new xIntent to be self X waits for the xEffect is safe from the
+employment because X wants sufficient storm to break so, X storm
+Figure2: ExampleautomaticallygeneratedATOMICtriplesfromourATOMIC10xcommonsenseknowledgegraph.
+Eachexampleincludesageneratedevent,relation(withnaturallanguageinterpretation),andgeneratedinference.
+each training input, P and P are model predic- Infact,samplingknowledgeinEq2offerseven
+t s
+tionsoverlabelsetY. TypicallyY isatractableset, more control, as generations can be individually
+overwhichthissumcanreasonablybecalculated. interpretedandjudged. Givenanindicatorfunction
+Fordistillingtheknowledgeofgenerativemod- A(x) for which knowledge x is correct, we can
+els, we can think of an unconditional language defineastrongerteachermodel. UsingaProductof
+model(LMe.g. GPT-3)asP . ThismakesY the Experts(Hinton,2002)betweenthelooseteacher
+t
+setofallstrings,overwhichLMsdefineprobability. PL and and the critic A(x), we define a critical
+t
+UnfortunatelyY isanexponentialset,intractable teacher:
+tosumoverinEq1. KimandRush(2016)address
+thisproblembysimplytakingthemodeofP over P (x) PL(x p) A(x) (3)
+t t ∝ t | ·
+Y,truncatingmostoftheteacherdistributiontothe
+Inpractice,A(x)isatextualclassifierlearnedon
+mostlikelysequenceanddiscardinginformation.
+humanjudgements,1forknowledgepredictedto
+Instead,weconsiderasampling-basedinterpre-
+becorrectand0otherwise. Thus,thecriticgives
+tationofthesameobjective:
+controloverthecorrectnessandconfidenceofthe
+knowledgethatistransferred(§4).
+H(P t,P s) = E [ logP s(y)] (2)
+−
+y Pt(y) 2.2 KeyFindings
+∼
+whichexactlyequalsthecross-entropyofEq1,at Applyingsymbolicknowledgedistillationinprac-
+thelimitunderpuresamplingfromP t.3 ticeresultsinpromisingandsurprisingfindings:
+Yetdistillingallknowledgefromtheteachermay
+1. Learningsymbolicknowledgefromlanguage
+notbedesirable–ourworkisspecificallyfocused
+modelscanbeframedasasymbolicextension
+on distlling commonsense knowledge from GPT-
+toknowledgedistillation. In§2.1,wedescribe
+3. TheidealteacherP isacommonsenseexpert,
+t
+learningcommonsenseasasymbolicextensionto
+butGPT-3canapproximatesuchateacher,off-the-
+knowledge distillation, with GPT-3 a knowledge
+shelf,viaprompting. Thisabilitytoselectinforma-
+source. Weelaborateonthisprocesswithpositive
+tion is one explicit benefit of the sampling-based
+resultsin§3,4,and5.
+interpretation of Eq 2: while Eq 1 uses continu-
+ous logits over existing data, sampling gives dis- 2. Symbolic knowledge distillation constructs
+crete control over transferred information, by se- ahighqualityknowledgegraphatscale. Our
+lecting which samples are elicited and used. For methodnaturallyyieldsamachine-generatedcom-
+the general language model GPT-3, We encour- monsense knowledge graph, which can achieve
+age domain/quality with prompting, and sample impressive quality (§4), beyond that of human-
+truncation (Holtzman et al., 2020). We call this authored data. An effective critic which filters
+thelooseteacherP tL–knowledgeisgeneratedand incorrectgeneratedknowledgeiskey.
+transferredfromGPT-3,butwithoutcriticalassess-
+3. Acriticalteacherresultsinahigherquality
+mentofcorrectness(§3).
+student. In§4,weshowthatmakingtheteacher
+3Ausefulconsequenceofthisframingisthataccesstothe
+morecriticalresultsinhigherqualityknowledge,
+fullmodeldistributionisnotrequired.Ourexperiments(§3)
+even as it reduces the scale of knowledge trans-
+useGPT-3,forwhichthedistributionisnotavailable,thus
+ourmethodisapplicablewhileknowledgedistillationisnot. ferred. Thisdemonstratesthatqualitymatters,not
+4604
+justquantity,ashigherqualityknowledgeresultsin • The format of <EX -INP> and <EX -OUT>
+i i
+ahigherqualitycommonsensemodelin§5despite should linguistically imply the relationship be-
+smallerscaledata. tweenthem. Seebelowforexamples.
+• <TASK-PROMPT> can be used to give extra
+4. Criticalteacherornot,astudentcanoutper- specificationtocomplicatedproblems.
+formtheknowledgesource. In§5,weshowthe
+unexpected result that all student models exceed 3.1 Data: ATOMIC
+thequalityofGPT-3,theknowledgesource.
+We demonstrate symbolic knowledge distillation
+ontheATOMICif-thenresource(Sapetal.,2019).
+5. Machinescanwinoverhumansforautomatic
+Thisfollowsanevent-relation-inference(triple)for-
+knowledge graph construction. In §4 and §5,
+mat. Thecorpuslinksevents(e.g. XattacksY)to
+weshowthatmachinegeneratedknowledgeandthe
+relations,e.g. HinderedBywhichdescribeswhat
+resultingcommonsensemodelcanoutperformtheir
+might hinder an event. For a relation/event, the
+equivalents that use a human knowledge source.
+goal is to generate a resulting inference, e.g. X
+Oursymbolicknowledgeexceedshumansatscale,
+attacksY HinderedByXisrestrained.
+quality,anddiversity. Theresultingcommonsense
+Ofthe23relationsfromthemostrecentversion–
+model achieves the most accurate commonsense
+KGcompletions.
+ATOMIC2 20 0–welimitourinvestigationto7relations
+that correspond to causal commonsense knowl-
+edge: xAttr(howXisperceivedafterevent),xRe-
+3 Machine-to-CorpusVerbalization
+act (how X reacts in response to event), xEffect
+(what X does after event), xIntent (X’s intent in
+Symbolicknowledgedistillationbeginsbygoing
+event),xWant(whatXwantsafterevent),xNeed
+machine–to–corpus, i.e. generating many com-
+(what X needed for event to take place) and Hin-
+monsensefacts, whichresultsinacommonsense
+deredBy. We describe how verbalization is ap-
+knowledge graph. §2.1 frames this as sampling
+pliedto ATOMICdatain2steps: generatingunder-
+toestimatetheknowledgedistillationobjective–a
+lyingevents(heads),thenfullexamples(inference
+studentcommonsensemodellearnsfromthegen-
+givenevent).
+erationsofateacher(GPT-3).
+Westartwithalooseteacher,transferringknowl-
+3.2 EventGeneration
+edgebypromptedgenerationwithtruncatedsam-
+plingalone–thisisincontrasttothecriticalteacher
+Events are context-free premises in ATOMIC
+involving PersonX (and sometimes a second
+(§4) which explicitly judges and filters the gen-
+PersonY)invariousscenarios. Theseeventsform
+erated samples. The loose teacher uses few-shot
+heads in knowledge graph triples. We generate
+prompting as in Brown et al. (2020). We use a
+eventsbyfillingintheelementsofourtemplate:
+few-shottemplate:
+1. Event: X overcomes evil with good
+<TASK-PROMPT>
+2. Event: X does not learn from Y
+<EX -INP><EX -OUT>
+1 1 ...
+... 10. Event: X looks at flowers
+<EX -INP><EX -OUT> 11.
+N 1 N 1
+− −
+<EX -INP>
+N The format is simple, as events are generated un-
+where <EX -INP>/<EX -OUT> are human- conditionally. Weuse100high-qualityeventsfrom
+i i
+authored, natural language ATOMIC entries, the ATOMIC2 20 0 corpus for our prompt, selected
+and <TASK-PROMPT> is a description of the to avoid grammatical or logical errors, and min-
+problem. Given such a prompt, GPT-3 generates imizesemanticoverlap. Werandomlysample10
+the missing piece, output <EX -OUT> for input oftheseseedeventsforeachgenerationbatch,re-
+N
+<EX -INP>, following the pattern of earlier sulting in randomized prompts. We use nucleus
+N
+examples(1toN-1). Wefindimportantaspectsfor sampling (p = 0.9) (Holtzman et al., 2020), and
+producinghigh-qualitycommonsenseknowledge: presence/frequencypenaltiesof0.5fromtheGPT-
+3interface. Wegenerate165Kuniqueeventsusing
+• Examples should be numbered. e.g.
+the175B-parameterDavincimodel4 fromBrown
+<EX -INP> might begin with "5)" to in-
+5
+dicateitisthe5thexample. 4thelargestavailableversionofGPT-3
+4605
+etal.(2020)(human-authored ATOMIC2 20 0 contains Relation ATOMIC2 20 0 ATOMIC10x
+only6.2Kevents).
+HinderedBy 77,616 1,028,092
+xNeed 100,995 760,232
+3.3 InferenceGeneration xWant 109,098 730,223
+xIntent 54,839 965,921
+GeneratingATOMICinferencesrequiresreasoning
+xReact 62,424 1,033,123
+abouteventsandrelationstogether. Wedesignver- xAttr 113,096 884,318
+balizationtemplatesforeachrelation,withiterative xEffect 90,868 1,054,391
+designandsmall-scaleverificationbytheauthors5 TotalCount 608,936 6,456,300
+EstTotalCost ~$40,000 ~$6,000
+e.g. wepromptthexNeedrelationasfollows:
+EstCostPerTriple ~$0.06 ~$0.001
+What needs to be true for this
+event to take place? Table 1: Number of unique triples with the given
+relation, (,relation, ). The estimated cost for
+... | · · |
+ATOMIC10xcomesatafractionofaconservativeestima-
+Event <i>: X goes jogging tionforATOMIC2 20 0crowdsourcingcosts.
+Prerequisites: For this to
+happen, X needed to wear running
+LexicalDifferences: DiversityandUniqueness
+shoes
+Recentworkfindsthatmachinegenerationscanbe
+...
+repetitiveandlackdiversity(Wellecketal.,2020;
+Event <N>: X looks at flowers Holtzmanetal.,2020);onewaygeneratedknowl-
+Prerequisites: For this to edgemaydifferfromhuman-authoredislesscre-
+happen, ativewordchoice,diversity,ormorerepetition.
+Thelanguageofthistemplateimpliestherelation- To test this, we begin with lexical diversity
+specifictask,both"Prerequisites:"andbeginning (i.e. unique words used, Table 2). While there
+with "for this to happen" suggest the xNeed re-
+isvariationbyrelation,thediveristyofATOMIC10x
+lation. As well, we include an xNeed-specific actually exceeds ATOMIC2 20 0 here, 5.2M unique
+<TASK-PROMPT>. Weuse10few-shotexamples wordsto1.5M.Inaddition,itcontainssignificantly
+foreachprompt.6 morestrictlyuniquegeneratedinferences(Table2,
+For each event/relation (165K X 7) we gener- uniquetails).
+ate 10 inferences with the Curie GPT-3 model7
+BLEU Soft Uniqueness. Exact match (above)
+andearlierhyperparameters. Removingduplicate
+failstocapturethenotionofsimilartext. Follow-
+anddegenerate(e.g. fewerthan3characters)gen-
+ing theintuition ofself-BLEU (Zhuet al.,2018),
+erations yields 6.46M ATOMIC-style data triples
+wedefinesoftuniquenesstodescribediversityof
+(examples in Figure 2). We call this ATOMIC10x,
+generationsinacorpus. Aninferencexissoftly-
+as it contains an order of magnitude more triples
+than ATOMIC2 20
+0
+forthe7relationswestudy. uniqueif:
+3.4 EvaluatingaGeneratedCommonsense
+BLEU (C,x) < 0.5
+2
+KnowledgeGraph
+Machinegenerationenablesalargescaleofunique where C is the set of inferences for a given in-
+generations at a much lower cost than human- put (in our case, event + relation), and 0.5 is an
+authored knowledge (Table 1), but what kind of empiricalthreshold. Tofind soft-uniquenessof a
+examples are produced by GPT-3, and how does corpus, we iteratively remove examples until all
+itdifferfromknowledgeproducedbyhumans? In are softly unique, i.e. low mutual lexical over-
+this section, we conduct an in-depth analysis to lap; higher diversity means more such examples
+answerthesequestions. (thus a larger softly unique corpus is preferable).
+Softly-unique corpus sizes are given in Table 4
+5SeeAppendixDforfullprompts.
+6Wealsoreplaceanonymousnames(“X”)withsampled
+(“Size(div)”). ATOMIC10x hasa smallerfraction
+genericnamesasthisimprovedquality,SeeAppendixD.Once of softly-unique examples than ATOMIC2 20 0, yet it
+generationiscomplete,wesubstituteingenericmarkers(“X”) contains many more such examples. ATOMIC10x
+forthefinaldataset.
+contains4.38Msuchexamples(fullsize6.5M)vs.
+7forthelargest,Davinci,12Mgenerationsiscomputation-
+ally/monetarilyintractable. ATOMIC2 20 0,whichhas560K(fullsize600K).
+4606
+Unique Unique Corpus Accept Reject N/A Size Size(div)
+Length Tokens(K) Tails(K)
+ATOMIC2 20
+0
+86.8 11.3 1.9 0.6M 0.56M
+A20 A10x A20 A10x A20 A10x
+xWant 4.62 90 5.16 322 20 784 62 90 152 ATOMIC10x 78.5 18.7 2.8 6.5M 4.38M
+xAttr 1.42 2.73 15 21 11 8 88.4 9.5 2.1 5.1M 3.68M
+xEffect 3.92 4.66 216 864 55 185 (critic low) 91.5 6.8 1.7 4.4M 3.25M
+xIntent 4.59 5.92 136 800 30 135 95.3 3.8 1.0 3.0M 2.33M
+xNeed 4.51 5.97 289 1378 64 231 (critic high) 96.4 2.7 0.8 2.5M 2.00M
+xReact 4.03 1.77 48 5 12 2 +GPT-J 72.0 27.6 0.4 - -
+HinderedBy 7.93 7.49 522 1775 290 874 +T5-11BLM 71.7 26.9 1.4 - -
+Events 5.20 5.32 109 881 6.2 165
+Table4: AttributesofATOMIC10xandATOMIC10x(row
+Table2: Averagelength,totaluniquetokensandtotal 2)includingthecriticmodel(§4,rows3-6)withvar-
+unique examples (in K, i.e. 1000s) by relation type ious filtering cutoffs. Accept and Reject are by ma-
+andinevents(bottomrow)fromATOMIC2 20 0(A2 20 0)and jority human vote unless any mark N/A. Size is in
+ATOMIC10x(A10x). unique examples9. The highest precision corpus is
+ATOMIC10x with(critic high),butmultipleversionssur-
+Entropy CrossEntropy KLDivergence
+passATOMIC2 20 0.Wealsoincludealternatemodels(GPT-
+JandT5-11B)asthelooseteacher.
+H(D1)=1.27 H(D1,D2)=9.31 DKL(D1 ||D2)=8.04
+H(D2)=7.80 H(D2,D1)=41.48 DKL(D2||D1)=33.68
+ATOMIC10x, and 1000 from ATOMIC2 20
+0
+(Table 4).
+Table 3: Entropy, cross-entropy, and divergence of WefindFleiss’kappa(Fleiss,1971)of40.8indicat-
+ATOMIC2 20 0(D 1)andATOMIC10x(D 2).
+ingmoderateagreement(LandisandKoch,1977),
+and90.5%accuracyagreement. Werequirework-
+ersmeetanAmazonMechanicalTurkqualification
+Model-basedDiversityMeasurement. Lexical
+forannotationqualitybasedonpastcommonsense
+notionsofdiversityrewarddifferencesinsurface
+evaluations. We compensate workers $0.17 per
+form, which may not always reflect diversity of
+task, which we estimate require 30 seconds. Fur-
+information, only format. Thus, we next study
+therdetailsandtasktemplateareinappendix§A.
+information-theoretic measures for diversity. In-
+tuitively, diverse information should be less pre- For the loose teacher, consider the top row of
+dictable,orhigherentropy. WithGPT-2XLmod- ATOMIC10x in Table 4 (other rows add the critic
+els finetuned on ATOMIC2 20 0 and ATOMIC10x (§5) §4). ATOMIC10x exceeds ATOMIC2 20 0 in scale, but
+we estimate entropy–roughly, how difficult it is is somewhat less acceptable by human raters–by
+foramodeltocapturethecorpusinformation(Ta- roughly8percentagepoints. Yet,thelargerscaleof
+ble 3). This is 4 times higher for ATOMIC10x, ATOMIC10x impliesasignificantlyhighernumber
+suggesting more content from a modeling per- ofaccurateexamples. Increasingtheproportionof
+spective. We also estimate cross-entropy–how theseisthemainobjectiveofthecritic(§4).
+wella modeltrainedon onecorpus describesthe
+other. From ATOMIC10x to ATOMIC2 20 0,thisis9.31, HowdoKnowledgeSourcesCompare? Toun-
+derstandtherobustnessofourapproach,weassess
+only 2 points higher than its entropy suggesting
+ATOMIC2 20
+0
+is describable with information from other language models as the knowledge source
+ATOMIC10x. In reverse, this is 41.48 suggesting (i.e. loose teacher): GPT-J (Wang and Komat-
+muchofATOMIC10xisnotcapturedbyATOMIC2 20 0– suzaki, 2021) and T5-11B adapted for language
+ATOMIC10x is surprising given only information modelling(Lesteretal.,2021). Wesubstituteboth
+from ATOMIC2 20 0. forGPT-3asin§3.2,3.3,generatingasmall-scale
+corpustoevaluate. Weconducthumanevaluation
+Human Evaluation of Quality. Perhaps most on1000examplesasabove(Table4). Bothmod-
+importantly,westudythequalityofknowledgein els attain roughly 72% accuracy, 6 points below
+each corpus. We conduct human evaluation with GPT-3(78.5). Thissuggestsstrongpotential,but
+AmazonMechanicalTurk. 3annotatorsrateeach higherqualityfromGPT-3. Weexplorethisfurther
+triple resulting in “accepted”, “rejected” or “no inAppendixB.
+judgement”. We evaluate 3000 examples8 from
+9SizeofATOMIC2 20 0isgivenasthenumberofcomparable
+8thisensuresatleast1000afterfilteringbythecritic§4) datapoints,i.e.thosewiththesamerelationsasATOMIC10x.
+4607
+4 MakingtheTeacherMoreCritical Random Inf Event EMAP Full
+Symbolicknowledgedistillationrequiresastrong AP 79.3 81.9 86.2 87.1 94.0
+teachermodeltomaximizethequalityofthegener-
+atedknowledgegraphandresultingstudentmodel
+Table 5: Average Precision for ablated critic models.
+(§5). While the loose teacher (GPT-3 alone) re- Thecriticnotonlyfiltersawkwardphrasingswhichcan
+sults in a viable commonsense knowledge graph, be identified by either the event (Event) or inference
+evaluationshowsthisisn’taperfectcommonsense (Inf)inisolation(EMAPonlyidentifiesthese),butalso
+teacher. Thus,wemultiplyinacriticmodel,tofil- logicalmisalignments,whichrequiremodelinginterac-
+tionsbetweenevent/inference,i.e. thefullcritic(Full).
+terlower-qualityknowledge,correctingtheteacher
+(§2.1). Withmodestsupervision(asmall-scalehu-
+manevaluation)wetrainaclassifiertopredictand 5.1M), ATOMIC10x’saccuracyrises78.5 88.4;
+→
+discriminateunacceptableexamples. Wemultiply human-authored ATOMIC2 20
+0
+contains600Kentries
+this with the loose teacher §3, creating a critical at86.8%accuracy. Reducingtototalsizeto2.5M
+teacherproductofexperts. Inpracticethismeans examples(38%offullsize),weattain96.4%accu-
+filtering ATOMIC10x tocreatenewcorporathatare racy,nearly10pointsaboveATOMIC2 20
+0
+whilestill
+higher quality, yet still larger scale than human- 4Xlarger.
+authored ATOMIC2 20 0.
+Whatgetsfilteredout? Wequalitativelyidentify
+Trainingaknowledgecritic Wegatheratrain- two types of filtered triples: 1) logical misalign-
+ingsetofcorrectvs. incorrect humanjudgments ments,events/inferencesjoinedinaninconsistent
+on a randomly-sampled set of 10K entries of manner. Recognizing these requires understand-
+ATOMIC10x,asin§3.4butwithoneannotationper ing events-inference interactions, e.g., X cannot
+example. Wetakea(random)train/dev/testsplitof find his shirt as a result X is wearing a shirt; 2)
+8k/1k/1k. Whilethissteprequireshumanannota- awkwardphrasings,inwhichevents/inferencesare
+tion,humanstakeontheroleofhigh-levelsupervi- individuallyincoherente.g. PersonXhasafirein
+sorshere–critiquingasmallnumberofgenerations thebath–resultingtriplesareinvalidastheeventis
+ratherthanauthoringtheentireknowledgegraph implausible.
+as in previous work. Indeed, the cost/complexity To understand what is filtered, we ablate the
+ofthisstepissimilartoatypicalhumanevaluation, critic (Table 5): our full model is compared to a
+makingitfarcheaper/easierthanelicitinghuman- randompredictor,event-onlymodel,andinference-
+authoredknowledgeinpastwork. onlymodel. WealsocomparetoanEMAP(Hessel
+Wetrainbinaryclassifiers(critics)forhumanac- andLee,2020)version,i.e. anensembleofevent
+ceptabilityusingRoBERTa-Large(Liuetal.,2019). and inference-only, without interactions between
+We find pretraining on MNLI results in the best event/inference(neededforlogicalmisalignments).
+modelintermsofprecisionandrecall,andwesug- We find GPT-3 produces both independent
+gestthistechniqueforfuturestudies. Wegivemore awkwardly-phrasedevents/inferences(filteredby
+detailinAppendixC,includingbaselines. Ourbest X-only models) and logical misalignments. The
+modelvastlyimprovestheaccuracyofATOMIC10x classifier, trained on validated knowledge triples,
+(Table 4), demonstrating that a small amount of helpsinbothcases. TheEMAPofourfullmodel
+humansupervisioncanconsistentlyhelptocorrect (identifiesonlyawkwardphrasings)achieves87%
+GPT-3’smistakes. AP,andourfullmodel(whichadditionallyidenti-
+fieslogicalmisalignments)improvesto94%AP.
+Size-accuracy trade-off Using our critic to fil-
+ter knowledge results in a natural trade-off be- Does filtering hurt diversity? One concern is
+tween size and accuracy. We test several cut- that the critic may keep only similar “safe” ex-
+offs for ATOMIC10x, i.e. confidence at which amples, lacking novelty. We repeat our diversity
+the critic rejects examples. We report human- analysis(§3.4)forcriticalcorpora(Table4,“Size
+measured accuracy (Accept/Reject column Ta- (div)”,higher=better). Aswefilter,wesurprisingly
+ble 4) following §3.4. We compare the loose observeproportionallymorediverseexamples: full
+teacher (unfiltered) to critical teachers. Discard- ATOMIC10x has a diverse subset 68% of its size;
+ing20%ofinstancesthatthecriticjudgesasleast risingto80%withthemostextremefiltering. One
+acceptable (reducing corpus size from 6.5M to possibility is that GPT-3 gravitates towards com-
+4608
+CKGCompletion TrainCorpus ferenceforeachinput,asthecriticmayrejectall
+Model Acc Accept Reject N/A tailsforsomeinputs. Wealsocomparetozero-shot
+GPT2-XLzero-shot - 45.1 50.3 4.6 GPT2-XL (Radford et al., 2019) using the same
+GPT-3 - 73.3 24.1 2.6 methodology(Table6).
+COMET2 20
+0
+86.8 81.5 16.3 2.2
+COMETD TII LS 78.5 78.4 19.2 2.4 How does COMETD TII LS compare to GPT-3? In
++critic low 91.5 82.9 14.9 2.2 knowledgedistillation,thestudentmodeloftende-
++critic high 96.4 87.5 10.2 2.3 terioratesinperformance(Hintonetal.,2015;Kim
+andRush,2016)comparedtoitsteacher. Compar-
+Table6: Modelperformanceonknowledgebasecom- ingourbaseteacher–GPT-3–tothesimplestversion
+pletion,measuredbyhumanjudgement. Inferencesare
+of COMETDIS (top-row COMETDIS ofTable6)sur-
+generatedonheld-outeventsfromATOMIC2 20 0. Models prisinglyshTI oL wsthestudentsurT pI aL
+ssesGPT-3,the
+besidesGPT-3useGPT-2XLarchitecture. COMETDIS
+TIL modelthatgeneratesitstrainingdata11. Weposit
+with a strong critic (+critic ) achieves the highest
+high
+acceptancerateoverall–87.5. that the superior performance of COMETD TII LS may
+havetodowithmistakesofGPT-3beingfilteredby
+verbalizationandtrainingofGPT-2,andpossibly
+mon sentence structures for inconsistent knowl- thefocusof COMETDIS ononecommonsensedo-
+TIL
+edge. These would be recognizable to the critic,
+mainwhileGPT-3coversamoregeneraldomain.
+and removing them would increase both quality
+Weleavefurtherstudyofthiseffectforfuturework.
+and diversity. This surprising result warrants fur-
+therstudy. HowdoesCOMETD TII LS comparetohumanknowl-
+edge? While COMETDIS without the critic is
+TIL
+5 Corpus-to-Machine: Distillation slightlyoutperformedbyCOMET2 20
+0
+intermsofac-
+curacy,thisreverseswiththecritic. Forbothcutoffs
+Thefinalstepofsymbolicknowledgedistillation tested,COMETD TII LS surpassesCOMET2 20 0,withmore
+trains a compact model on the generated natural
+filteringresultinginawidergap.
+language knowledge graph. Our base model is
+GPT2-XLtrainedonallof ATOMIC10x: wedenote Usefulnessof COMETD TII LS Foron-demandinfer-
+thismodelbyCOMETDIS. Weadditionallytrainthe ence, where a single high quality inference for
+TIL
+model on critical versions of ATOMIC10x–crit
+low
+some input event/relation is required, COMETD TII LS
+denotestrainingonthecorpusachieving91.5%ac- isthebestavailablemodel: themostperformant
+curacy,andcrit
+high
+onthe96.4%accuracycorpus. versionsurpassesCOMET2 20 0by5pointsandGPT-3
+Modelsaretrainedfor1epoch,withdefaultparam- by over 10. The critical teacher (GPT-3 + critic)
+etersusingtheHuggingfaceTransformerslibrary yields a more accurate corpus, but may filter all
+(Wolfetal.,2019). inferencesforaninput,givingnooutput.
+Limits and Future Work The success of
+5.1 EvaluatingaSymbolicallyDistilledModel
+symbolic knowledge distillation is a first step–
+Evaluationfollowspastwork(Hwangetal.,2021; demonstratingsuperiorperformancetohumanau-
+Bosselutetal.,2019;Sapetal.,2019)testingthe thoringonthecommonsenserelationstestedhere.
+abilityofmodelstodoknowledgebasecompletion, Noaspectofourapproachisspecifictotheserela-
+i.e. generating inferences for test events, specif- tions,yetfurtherworkisneededtoexplorethefea-
+ically from the ATOMIC2 20 0 test set. We use hu- sibilityofgenerationforotheraspectsofcommon-
+man evaluation10 following Section 3.4, on 1000 sense and knowledge, beyond these relations, to
+inputs(event+relation),withresultsinTable6. We conceptslikephysicalortemporalcommonsense.
+comparetotheGPT2-XL-based COMET2 20
+0
+model
+trainedonhuman-generated ATOMIC2 20 0,andGPT- 6 RelatedWork
+3 using the same generation method as §3–in ef-
+Commonsense Knowledge Graphs (CKG)
+fect,comparingthestudentCOMETDIS totheloose
+TIL CKGs provide knowledge for commonsense rea-
+teacherGPT-3. Weomitthecriticalteacher(GPT-
+soning. Some are manually constructed, e.g.
+3+critic),whichisnotassuredtoproduceanin-
+11The slight difference in acceptability for GPT-3 from
+10WefindFleiss’kappa(Fleiss,1971)of47.1foraccep- Table4islikelyduetovarianceinratersbetweenroundsof
+tance, indicating moderate agreement. (Landis and Koch, evaluation,andadifferentdistributionofevents–Table4uses
+1977),andaccuracyagreementof88.7%. generatedeventswhileTable6useseventsfromATOMIC2 20 0.
+4609
+ATOMIC (Sap et al., 2019; Hwang et al., 2021). acommonsensecorpus–yieldingacommonsense
+ConceptNet(Speeretal.,2017)containstaxonomy knowledge graph and model. Our resulting sym-
+andphysicalcommonsense,authoredbyhumans bolicknowledgegraphhasgreaterscale,diversity,
+or compiled from such sources. Some CKGs are andqualitythanhumanauthoring. symbolicknowl-
+automatically constructed: TransOMCS (Zhang edge distillation offers an alternative to human-
+etal.,2020a)extracts18.48Mtuplesfromsyntactic authoredknowledgeincommonsenseresearch.
+parses and CausalBank (Li et al., 2020) extracts
+314M cause-effect pairs by pattern-matching. In Acknowledgments
+contrast,wegeneratecommonsense.
+This work was funded in part by the Natural Sci-
+Extracting Knowledge from LMs Past work encesandEngineeringResearchCouncilofCanada
+usesmodelsforautomaticknowledgegraphcom- (NSERC)(fundingreferencenumber401233309),
+pletion(Bosselutetal.,2019;Hwangetal.,2021; DARPA MCS program through NIWC Pacific
+Lietal.,2020). Yet,modelsaretrainedonexisting (N66001-19-2-4031), and the Allen Institute for
+resources; ATOMIC10x isgeneratedwithoutthese. AI.
+Other works mine factual/commonsense knowl-
+EthicalConsiderations
+edgedirectlyfromoff-the-shelfLMs(Petronietal.,
+2019;Davisonetal.,2019;Xiongetal.,2020),but
+Oneaspectofourworkwiththepotentialforethi-
+notresultinginthequalityatscaleof ATOMIC10x.
+calpitfallsislarge-scalegenerationfrompretrained
+KnowledgeDistillation Otherworksuseknowl- languagemodels,inconstructing ATOMIC10x. Re-
+edge distillation (Hinton et al., 2015) for genera- centwork(Benderetal.,2021)hashighlightedthe
+tion. (Sanhetal.,2019)followalabelsmoothing risksofmodelstrainedonmassivetextresources,
+formulation,whileKimandRush(2016)followa as GPT-3 (Brown et al., 2020) is, which we use
+similar formulation to us (§2.1), use the mode of forgeneration. Indeed,opengenerationsfrompre-
+theteacherdistributionratherthansampling. Our trainedlanguagemodelscanoftencontainharmful,
+work is unique in distilling specific information biased, or offensive aspects. We argue here that
+(commonsense)fromagenerallanguagemodel. this risk is largely mitigated in our work, mainly
+due to the narrow and constrained nature of our
+DataGeneration Whilemanualdatasetcreation generations. Thegoalofourworkischaracterising
+is expensive and complex (Schwartz et al., 2017;
+simpleandgenericanonymoussituations,specifi-
+Agrawal et al., 2018; Tsuchiya, 2018; Bras et al.,
+callyintermsofcommonsensecausesandeffects.
+2020),crowdsourcingisthemostpopularmethod
+We ensure generations are focused on these top-
+forgoal-oriented,highquality/coveragedatasets.
+icsthroughcarefulprompting,whichwefoundto
+Past automatic data mainly use extractive ap-
+bequiteeffectiveatkeepingthesegenerationson-
+proaches, e.g. syntactic parsing (Zhang et al.,
+topic. Assuch,thepotentialforharmfulgeneration
+2020a)orpatternmatching(Lietal.,2020)from
+isverylow;indeed,inamanualinspectionof100
+unstructuredtext(Lehmannetal.,2015;Bucketal.,
+generatedexamples,wefoundnonethatweresig-
+2014). These scale, but are noisy and limited in
+nificantharmful,besidesonethatcontainedadult
+format–ATOMICknowledgewillnotappearsimply
+content.
+innaturaltext. Someworksexploreautomaticdata
+Arelatedconcernisthepotentialforlargemod-
+synthesis/expansionbyfinetuningLMsonexisting
+elsandtrainingsetstomakeautomatedoppression
+labeleddata(Anaby-Tavoretal.,2020;Papaniko-
+orexploitationpossible,forinstanceinsurveillance
+laouandPierleoni,2020;Kumaretal.,2020;Yang
+orgeneratingfakenews. Asabove,wearguethat
+etal.,2020),butarelimitedbydataquality.
+thegeneric,commonsensenatureofourdataand
+modelsmakesthisconcernlessrelevanthere. Our
+7 Conclusions
+datadoesnotcontainanyinformationdirectlyre-
+We introduce symbolic knowledge distillation, a latedtotheseharmfuldomains(e.g. socialmedia
+machine–to–corpus–to–machinepipelineforcom- orfakenewsgeneration). Whileourdatamayas-
+monsense that does not require human-authored sistmachinesinunderstandingbasicsituations,this
+knowledge–instead, using machine generation. isunlikelytobeusefulforharmfulmodelsgiven
+Knowledge is transferred from a large, general the simplicity of our data and still-flawed com-
+modeltoacompactcommonsensemodel,through monsensecapabilitiesofeventhemostadvanced
+4610
+models. Sabharwal,andYejinChoi.2020. Adversarialfilters
+Finally, we note that we ensure fair and gener- ofdatasetbiases. InICML.
+ouscompensationforallhumanevaluatorswehire
+TomB.Brown,BenjaminMann,NickRyder,Melanie
+throughAmazonMechanicalTurk. Basedonour Subbiah, Jared Kaplan, Prafulla Dhariwal, Arvind
+estimatesoftimerequiredpertask,weensurethat Neelakantan,PranavShyam,GirishSastry,Amanda
+Askell, Sandhini Agarwal, Ariel Herbert-Voss,
+theeffectivepayrateisatleast$15perhour.
+Gretchen Krueger, Tom Henighan, Rewon Child,
+Aditya Ramesh, Daniel M. Ziegler, Jeffrey Wu,
+ClemensWinter,ChristopherHesse,MarkChen,Eric
+References Sigler,MateuszLitwin,ScottGray,BenjaminChess,
+Jack Clark, Christopher Berner, Sam McCandlish,
+Aishwarya Agrawal, Dhruv Batra, Devi Parikh, and
+Alec Radford, Ilya Sutskever, and Dario Amodei.
+AniruddhaKembhavi.2018. Don’tjustassume;look
+2020. Languagemodelsarefew-shotlearners.
+andanswer: Overcomingpriorsforvisualquestion
+answering. 2018 IEEE/CVF Conference on Com- ChristianBuck,KennethHeafield,andBasVanOoyen.
+puterVisionandPatternRecognition,pages4971– 2014. N-gramcountsandlanguagemodelsfromthe
+4980. commoncrawl. InLREC,volume2,page4.Citeseer.
+Prithviraj Ammanabrolu, Wesley Cheung, William TuhinChakrabarty,DebanjanGhosh,SmarandaMure-
+Broniec,andMarkO.Riedl.2021a. Automatedsto- san,andNanyunPeng.2020. Rˆ3: Reverse,retrieve,
+rytellingviacausal,commonsenseplotordering. In andrankforsarcasmgenerationwithcommonsense
+AAAI. knowledge. InACL.
+Prithviraj Ammanabrolu, Jack Urbanek, Margaret Li, TuhinChakrabarty,XuruiZhang,SmarandaMuresan,
+ArthurD.Szlam,TimRocktaschel,andJasonWeston. andNanyunPeng.2021. MERMAID:Metaphorgen-
+2021b. Howtomotivateyourdragon: Teachinggoal- erationwithsymbolismanddiscriminativedecoding.
+drivenagentstospeakandactinfantasyworlds. In InProceedingsofthe2021ConferenceoftheNorth
+NAACL. AmericanChapteroftheAssociationforComputa-
+tionalLinguistics: HumanLanguageTechnologies,
+AteretAnaby-Tavor,BoazCarmeli,EstherGoldbraich, pages4250–4261,Online.AssociationforComputa-
+AmirKantor,GeorgeKour,SegevShlomov,Naama tionalLinguistics.
+Tepper,andNaamaZwerdling.2020. Donothave
+enoughdata? deeplearningtotherescue! Proceed- ErnestDavisandGaryMarcus.2017. Causalgenera-
+ingsoftheAAAIConferenceonArtificialIntelligence, tive models are just a start. Behavioral and Brain
+34:7383–7390. Sciences,40.
+JoeDavison,JoshuaFeldman,andAlexanderMRush.
+Forough Arabshahi, Jennifer Lee, Antoine Bosselut,
+2019. Commonsenseknowledgeminingfrompre-
+Yejin Choi, and Tom. Mitchell. 2021. Conversa-
+trainedmodels. InProceedingsofthe2019Confer-
+tionalmulti-hopreasoningwithneuralcommonsense
+enceonEmpiricalMethodsinNaturalLanguagePro-
+knowledgeandsymboliclogicrules. InEMNLP.
+cessingandthe9thInternationalJointConference
+EmilyM.Bender,TimnitGebru,AngelinaMcMillan- onNaturalLanguageProcessing(EMNLP-IJCNLP),
+Major, and Shmargaret Shmitchell. 2021. On the pages1173–1178.
+dangers of stochastic parrots: Can language mod-
+Oren Etzioni, Anthony Fader, Janara Christensen,
+els be too big? In Proceedings of the 2021 ACM
+Stephen Soderland, et al. 2011. Open information
+ConferenceonFairness,Accountability,andTrans-
+extraction:Thesecondgeneration. InTwenty-Second
+parency,FAccT’21,page610–623,NewYork,NY,
+International Joint Conference on Artificial Intelli-
+USA.AssociationforComputingMachinery.
+gence.
+Sumithra Bhakthavatsalam, Chloe Anastasiades, and
+JosephLFleiss.1971. Measuringnominalscaleagree-
+PeterE.Clark.2020. Genericskb: Aknowledgebase
+ment among many raters. Psychological bulletin,
+ofgenericstatements. ArXiv,abs/2005.00660.
+76(5):378.
+Kurt D. Bollacker, Colin Evans, Praveen K. Paritosh,
+JackHesselandLillianLee.2020. Doesmymultimodal
+Tim Sturge, and Jamie Taylor. 2008. Freebase: a
+modellearncross-modalinteractions? it’sharderto
+collaborativelycreatedgraphdatabaseforstructuring tellthanyoumightthink! InEMNLP.
+humanknowledge. InSIGMODConference.
+GeoffreyHinton,OriolVinyals,andJeffreyDean.2015.
+AntoineBosselut,HannahRashkin,MaartenSap,Chai- Distilling the knowledge in a neural network. In
+tanya Malaviya, A. Çelikyilmaz, and Yejin Choi. NIPSDeepLearningandRepresentationLearning
+2019. Comet: Commonsensetransformersforauto- Workshop.
+maticknowledgegraphconstruction. InACL.
+GeoffreyEHinton.2002. Trainingproductsofexperts
+RonanLeBras,SwabhaSwayamdipta,ChandraBha- byminimizingcontrastivedivergence. Neuralcom-
+gavatula,RowanZellers,MatthewE.Peters,Ashish putation,14(8):1771–1800.
+4611
+AriHoltzman,JanBuys,LiDu,MaxwellForbes,and TomMichaelMitchell,WilliamW.Cohen,EstevamR.
+Yejin Choi. 2020. The curious case of neural text Hruschka,ParthaP.Talukdar,BoYang,JustinBet-
+degeneration. In 8th International Conference on teridge,AndrewCarlson,BhavanaDalvi,MattGard-
+LearningRepresentations,ICLR2020,AddisAbaba, ner, Bryan Kisiel, Jayant Krishnamurthy, N. Lao,
+Ethiopia,April26-30,2020.OpenReview.net. Kathryn Mazaitis, Thahir Mohamed, Ndapandula
+Nakashole,EmmanouilAntoniosPlatanios,AlanRit-
+JenaD.Hwang,ChandraBhagavatula,RonanLeBras, ter,MehdiSamadi,BurrSettles,RichardC.Wang,
+JeffDa,KeisukeSakaguchi,AntoineBosselut,and D. Wijaya, Abhinav Gupta, Xinlei Chen, Abulhair
+YejinChoi.2021. Comet-atomic2020: Onsymbolic Saparov,MalcolmGreaves,andJoelWelling.2015.
+andneuralcommonsenseknowledgegraphs. AAAI. Never-endinglearning. CommunicationsoftheACM,
+61:103–115.
+William R. Kearns, Neha Kaura, Myra Divina,
+Cuong Viet Vo, Dong Si, Teresa M. Ward, and Yannis Papanikolaou and A. Pierleoni. 2020. Dare:
+Weichao Yuwen. 2020. A wizard-of-oz interface Data augmented relation extraction with gpt-2.
+andpersona-basedmethodologyforcollectinghealth ArXiv,abs/2004.13845.
+counselingdialog. ExtendedAbstractsofthe2020
+CHI Conference on Human Factors in Computing Fabio Petroni, Tim Rocktäschel, Sebastian Riedel,
+Systems. Patrick Lewis, Anton Bakhtin, Yuxiang Wu, and
+AlexanderMiller.2019. Languagemodelsasknowl-
+Yoon Kim and Alexander M. Rush. 2016. Sequence-
+edgebases? Proceedingsofthe2019Conferenceon
+levelknowledgedistillation. InEMNLP.
+EmpiricalMethodsinNaturalLanguageProcessing
+andthe9thInternationalJointConferenceonNatu-
+Diederik P. Kingma and Jimmy Ba. 2015. Adam:
+ralLanguageProcessing(EMNLP-IJCNLP),pages
+A method for stochastic optimization. CoRR,
+2463–2473.
+abs/1412.6980.
+Alec Radford, Jeff Wu, Rewon Child, David Luan,
+Varun Kumar, Ashutosh Choudhary, and Eunah Cho.
+DarioAmodei,andIlyaSutskever.2019. Language
+2020. Data augmentation using pre-trained trans-
+modelsareunsupervisedmultitasklearners.
+formermodels. InProceedingsofthe2ndWorkshop
+onLife-longLearningforSpokenLanguageSystems,
+Victor Sanh, Lysandre Debut, Julien Chaumond, and
+pages18–26,Suzhou,China.AssociationforCom-
+Thomas Wolf. 2019. Distilbert, a distilled version
+putationalLinguistics.
+ofbert: smaller, faster, cheaperandlighter. ArXiv,
+abs/1910.01108.
+J Richard Landis and Gary G Koch. 1977. The mea-
+surementofobserveragreementforcategoricaldata.
+Maarten Sap, Ronan Le Bras, Emily Allaway, Chan-
+biometrics,pages159–174.
+draBhagavatula,NicholasLourie,HannahRashkin,
+BrendanRoof,NoahASmith,andYejinChoi.2019.
+JensLehmann,RobertIsele,MaxJakob,AnjaJentzsch,
+Atomic: An atlas of machine commonsense for if-
+D. Kontokostas, Pablo N. Mendes, Sebastian Hell-
+then reasoning. In Proceedings of the AAAI Con-
+mann, M.Morsey, PatrickvanKleef, S.Auer, and
+ferenceonArtificialIntelligence,volume33,pages
+C.Bizer.2015. Dbpedia-alarge-scale,multilingual
+knowledgebaseextractedfromwikipedia. Semantic 3027–3035.
+Web,6:167–195.
+Roy Schwartz, Maarten Sap, Ioannis Konstas, Leila
+BrianLester,RamiAl-Rfou,andNoahConstant.2021. Zilles, YejinChoi, andNoahA.Smith.2017. The
+The power of scale for parameter-efficient prompt effect of different writing tasks on linguistic style:
+tuning. InEMNLP. A case study of the ROC story cloze task. In Pro-
+ceedingsofthe21stConferenceonComputational
+Zhongyang Li, Xiao Ding, Ting Liu, J. Edward Hu, Natural Language Learning (CoNLL 2017), pages
+andBenjaminVanDurme.2020. Guidedgeneration 15–25,Vancouver,Canada.AssociationforCompu-
+of cause and effect. In Proceedings of the Twenty- tationalLinguistics.
+Ninth International Joint Conference on Artificial
+Intelligence,IJCAI-20. RobynSpeer,JoshuaChin,andCatherineHavasi.2017.
+Conceptnet5.5: Anopenmultilingualgraphofgen-
+YinhanLiu,MyleOtt,NamanGoyal,JingfeiDu,Man- eralknowledge. InProceedingsoftheAAAIConfer-
+dar Joshi, Danqi Chen, Omer Levy, Mike Lewis, enceonArtificialIntelligence,volume31.
+Luke Zettlemoyer, and Veselin Stoyanov. 2019.
+RoBERTa: Arobustlyoptimizedbertpretrainingap- AlonTalmor,OriYoran,RonanLeBras,ChandraBha-
+proach. arXivpreprintarXiv:1907.11692. gavatula,YoavGoldberg,YejinChoi,andJonathan
+Berant. 2021. Commonsenseqa 2.0: Exposing the
+William Merrill, Yoav Goldberg, Roy Schwartz, and limitsofaithroughgamification.
+NoahA.Smith.2021. Provablelimitationsofacquir-
+ingmeaningfromungroundedform:Whatwillfuture MasatoshiTsuchiya.2018. Performanceimpactcaused
+language models understand? Transactions of the byhiddenbiasoftrainingdataforrecognizingtex-
+AssociationforComputationalLinguistics,9:1047– tualentailment. InProceedingsoftheEleventhIn-
+1060. ternationalConferenceonLanguageResourcesand
+4612
+Evaluation(LREC2018),Miyazaki,Japan.European
+LanguageResourcesAssociation(ELRA).
+Ben Wang and Aran Komatsuzaki. 2021. GPT-
+J-6B: A 6 Billion Parameter Autoregressive
+Language Model. https://github.com/
+kingoflolz/mesh-transformer-jax.
+SeanWelleck,IliaKulikov,StephenRoller,EmilyDi-
+nan,KyunghyunCho,andJasonWeston.2020. Neu-
+ral text generation with unlikelihood training. In
+International Conference on Learning Representa-
+tions.
+AdinaWilliams,NikitaNangia,andSamuelBowman.
+2018. A broad-coverage challenge corpus for sen-
+tenceunderstandingthroughinference. InProceed-
+ingsofthe2018ConferenceoftheNorthAmerican
+Chapter of the Association for Computational Lin-
+guistics: HumanLanguageTechnologies,Volume1
+(Long Papers), pages 1112–1122. Association for
+ComputationalLinguistics.
+Thomas Wolf, Lysandre Debut, Victor Sanh, Julien
+Chaumond,ClementDelangue,AnthonyMoi,Pierric
+Cistac,TimRault,R’emiLouf,MorganFuntowicz,
+andJamieBrew.2019. Huggingface’stransformers:
+State-of-the-artnaturallanguageprocessing. ArXiv,
+abs/1910.03771.
+WenhanXiong,JingfeiDu,WilliamYangWang,and
+Veselin Stoyanov. 2020. Pretrained encyclopedia:
+Weaklysupervisedknowledge-pretrainedlanguage
+model. In International Conference on Learning
+Representations.
+Yiben Yang, Chaitanya Malaviya, Jared Fernandez,
+SwabhaSwayamdipta,RonanLeBras,Ji-PingWang,
+ChandraBhagavatula,YejinChoi,andDougDowney.
+2020. Generative data augmentation for common-
+sensereasoning. InFindingsoftheAssociationfor
+Computational Linguistics: EMNLP 2020, pages
+1008–1025,Online.AssociationforComputational
+Linguistics.
+Hongming Zhang, Daniel Khashabi, Y. Song, and
+D.Roth.2020a. TransOMCS:Fromlinguisticgraphs
+tocommonsenseknowledge. InIJCAI.
+HongmingZhang,XinLiu,HaojiePan,Y.Song,and
+C. Leung. 2020b. Aser: A large-scale eventuality
+knowledgegraph. ProceedingsofTheWebConfer-
+ence2020.
+BenZhou,QiangNing,DanielKhashabi,andDanRoth.
+2020. Temporalcommonsenseacquisitionwithmin-
+imalsupervision. InProceedingsofthe58thAnnual
+Meeting of the Association for Computational Lin-
+guistics,pages7579–7589,Online.Associationfor
+ComputationalLinguistics.
+YaomingZhu,SidiLu,LeiZheng,JiaxianGuo,Weinan
+Zhang,JunWang,andYongYu.2018. Texygen: A
+benchmarkingplatformfortextgenerationmodels.
+InThe41stInternationalACMSIGIRConferenceon
+Research&DevelopmentinInformationRetrieval,
+pages1097–1100.
+4613
+A HumanEvaluationDetails notationsof2000examples,with1annotationper
+example. Thisfollowsasimilarsetupto§4–indeed,
+We conduct human evaluations on Amazon Me-
+wearereplicatingtheearliercriticexperimentsbut
+chanical Turk using the template of Figures 4,5.
+at a smaller scale (2000 annotations vs. 10000)
+WorkersarepresentedwithATOMIC-styletriples,
+to allow for more knowledge sources. For each
+replacingrelationswithnaturallanguagetemplates
+knowledgesource,werandomlysplitintosizesof
+(e.g. HinderedBybecomes“canbehinderedby”).
+1400/300/300fortrain,dev,andtestsets. Wefol-
+3 annotators rate each triple, with options for ac-
+low§4totrainacriticmodelforeachknowledge
+ceptability: “always/often”, “sometimes/likely”,
+source.
+“farfetched/never”,“invalid”,or“toounfamiliarto
+We plot different thresholds (% of corpus fil-
+judge”. The first two are considered “accepted”,
+tered) against the resulting precision (proportion
+thesecondtwo“rejected”andthefinalis“nojudge-
+ofcorpusthatisjudgedtobe“valid”knowledge)
+ment”. Forreportingacceptancerates,andtraining
+in Figure 3, and give numbers at various sizes
+a critic model, we only distinguish between “ac-
+in Table 7. One striking aspect is that a critic
+cepted”andnot“accepted”.
+modelcanraisetheprecisionofanyoftheseknowl-
+Workers are compensated $0.17 per task (i.e.
+edgesourcestoapproximately90%whileretaining
+completingallquestionsintheevaluationtemplate
+30% of the original corpus size. While this dis-
+Figures4,5). Weestimateanupperboundof30sto
+cardsasignificantportionoftheoriginalgenerated
+completeasingletask,whichgivesanhourlyrate
+knowledge,itraisestheexcitingprospectofusing
+of$20.4. WorkersareselectedbasedonanAmazon
+morecost-effectivemodelsatalargescaletogener-
+MechanicalTurkqualification,specificallyfiltering
+atestrongcommonsensecorporalike ATOMIC10x.
+forworkerswithhighaccuracyonpastknowledge
+GPT-J and T5-11B can both be run locally by
+basetripleevaluations. Wefollowthesamesetup
+researchers, unlike GPT-3 which uses a pay-per-
+forallevaluations, besidesnumberofannotators.
+generationAPI.Thus,onecanimagineproducing
+Thissetupisshowntoresultinconsistentandreli-
+alargeandhigh-qualitycorpuslike ATOMIC10x at
+ableannotations,withaninter-annotatoragreement
+alowercostbyinsteadgeneratingalargervolume
+givenbyFleiss’kappa(Fleiss,1971)of40.8when
+ofknowledgefromsuchanaccessiblemodel,and
+evaluatingwith3annotators,in§3.4.
+simplyfilteringtoagreaterextent.
+B UsingAlternateModelsasKnowledge Another interesting aspect is how the various
+Sources knowledgesourcesdiverge. Underlittletonocriti-
+calfiltering(i.e. corpussize=1.0), theprecision
+One natural question that arises from the strong
+ofvariousknowledgesourcesiswidelyspread. Be-
+performanceofsymbolicknowledgedistillationis
+foreapplyingacritic,qualityofknowledgesource
+whetherothersourcesofknowledge(i.e. language
+is very important. Indeed, precision is ordered
+models)wouldsimilarlybenefitfromthismethod. by cost of generation: human ATOMIC2 20
+0
+has the
+Inthissection,weparticularlymeasurethecapacity
+highestprecisionwhilebeingthemostexpensive,
+of other language models to serve as the “loose
+followed by GPT-3 (used here) which is pay-per-
+teacher” which generated the base knowledge of
+generation,andfinallythetwopubliclyavailable
+theresultingcorpus.
+models. Anotherpointofdivergenceisforextreme
+We expand our study beyond GPT-3 here (the
+filtering(atapproximately20%oftheoriginalcor-
+model used in our work), to include 2 contempo-
+pussize. AllknowledgesourcesbutGPT-3plateau
+rarylargelanguagemodels,GPT-J(WangandKo-
+atapproximately90%accuracy,whileGPT-3rises
+matsuzaki,2021)andT5-11B(Lesteretal.,2021)
+towards 100%. Indeed, this supports our use of
+finetunedforlanguagemodelling. Forknowledge
+GPT-3 in this work, as a high-quality automatic
+generation(verbalization)wefollowthesamepro-
+knowledgesource.
+cedureas§3alongwithsimpleadjustmentstoim-
+prove quality. We are investigating the effect of
+C CriticModel
+thecriticonknowledgeprecisionhere,sowealso
+include ATOMIC2 20
+0
+toprobetheusefulnessofauto- We train binary classifiers (critics) for human ac-
+maticfilteringforhuman-authoredknowledge. ceptabilityusingRoBERTa-Large(Liuetal.,2019),
+For each knowledge source, we follow the hu- fine-tuning all parameters, along with a 2-layer
+manevaluationsetupin§3.4toobtainqualityan- MLP on the [CLF] representation. We conduct
+4614
+PrecisionatCorpusSize(%)
+KnowledgeSource 100 90 80 70 60 50 40 30 20 10
+ATOMIC2 20
+0
+84.0 86.3 87.9 89.0 88.3 88.7 91.7 90.0 90.0 90.0
+GPT-J 71.7 76.7 81.7 83.8 86.7 88.0 88.3 87.8 93.3 90.0
+T5-11B 64.7 66.7 70.8 74.8 79.4 84.7 89.2 92.2 91.7 93.3
+GPT-3curie 79.3 81.5 85.0 86.2 88.3 90.7 91.7 90.0 98.3 100.0
+Table7: Knowledgeprecisionatvariouscorpussizes(from100%to10%)basedonfilteringbythecriticmodel.
+Precisioniscalculatedbyhumanannotationofvalidorinvalidknowledge. Weconsider4knowledgesources,as
+describedinAppendixB.ThiscorrespondstothedataplottedinFigure3.
+a small grid search on the validation set finding
+batch size 128, dropout .1, and Adam (Kingma
+and Ba, 2015) learning rate 5e-6 to be effective.
+Weuseearlystoppinganddecaylearningrateon
+validation performance plateauing, to maximize
+R@80%onthevalidationset. WefindRoBERTa
+pretrainedonMNLI(Williamsetal.,2018)effec-
+tive, outperforming other options. As well, we
+substituterandomly-samplednamesinforperson
+designations“X”/“Y”.Weincludeasabaselinean
+unsupervisedfiltrationmetricinspiredby(Davison
+100 ATOMIC2020
+GPT-J et al., 2019): they propose a model estimate of
+95 T5-11B
+PMItoscoreminedcommonsensetriples. Inour
+GPT-3 curie
+90 case,weuseNegativeLog-Likelihood(NLL)and
+token-mean-NLLfromGPT-3itself.
+85
+The validation precision/recall of our best per-
+80
+forming model, the baselines, and the in-optimal
+75 hyperparameter configurations are given in Fig-
+ure6. Oncefixingourmodel,weappliedittothe
+70
+testset(alsoinFig6),verifyingthatitgeneralizes
+65
+to ATOMIC10x entries. Overall, our trained critic
+0 20 40 60 80 100
+modelismoreeffectivethanthebaselinesiniden-
+corpus size (%)
+tifyinghighandlowqualityteachergenerationsat
+Figure3: Precisionresultingfromthecriticstepfrom alllevelsofprecisionandrecall. Thisresultdemon-
+§4, with various thresholds. We include corpora gen- stratesthatasmallamountofhumansupervision
+erated by GPT-3 (ATOMIC10x), GPT-J, T5-11B, and canconsistentlyhelptocorrectGPT-3’smistakes.
+humans(ATOMIC2 20 0). Withoutfiltering(corpussize=
+1.0),differentcorporahaveavarietyofprecisions. As D ATOMIC10x GenerationPrompts
+moreexamplesarefilteredbythecritic,precisionrises
+significantlydemonstratingthestrongvalueofthecritic We include example prompts for all generations
+step. we do, from Table 8 to 15. Note that elements
+of generation prompts are randomized for each
+batch. Foreventgeneration,thefew-shotexamples
+and order are randomly sampled from a seed set
+of 100 high-quality examples from ATOMIC2 20
+0
+in
+each batch. For inference generation, the natural
+namesusedforPersonXandPersonYarerandomly
+sampledfromasmallpredefinedsetofnames.
+4615
+)%(
+noisicerp
+Instructions (click to expand/collapse)
+(WARNING: This HIT may contain adult content. Worker discretion is advised.)
+Thanks for participating in this HIT!
+If the data is good, it's good. If bad, then bad. Please annotate as you see not worrying about how many of each label
+you !nd yourself assigning! If you understand the words but the Phrases or the complete assertation makes poor
+sense, please mark as INVALID. Thank you!
+You will evaluate how often assertions are true. Each assertion is comprised of 3 parts: Phrase A, Relation,
+Phrase B
+Phrase A, Phrase B Short phrases. May describe objects, object properties, events, actions, etc.
+Relation How A relates to B.
+For each assertion, determine how true it is:
+always/often Always or quite often true.
+sometimes/likely Sometimes is true or true for some people. -or- Likely true.
+farfetched/never False or farfetched, at best. -or- Unlikely to be true.
+invalid This assertion makes no sense (i.e., "what does this even mean?!").
+too unfamiliar to judge Cannot make a fair evaluation. Unfamiliar with one or both of the phrase.
+If you see "nothing in particular" for Phrase B, assess Phrase B in context:
+Sometimes certain actions can simply be responded to by doing nothing!
+Other times, doing nothing in particular is simply a weird or unlikely reaction to something.
+See examples under tricky relations tagged with nothing in particular example
+Please report any prejudiced or inappropriate language:
+Profane or o"ensive content (NSFW, R-rated material etc)
+Prejudiced assumptions or derogatory language that villainizes people.
+HOWEVER, please note, not all negative content is derogatory especially if Phrase B is intrinsically what Phrase
+A means. For example:
+criminals are characterized by committing crime is OK.
+↳ This isn't necessarily villianizing people since "criminal" means "a person who has commited a crime".
+homeless are characterized by being lazy is prejudiced.
+↳ There are many reason a person is rendered homeless. This is a gratuitous prejudice about homelessness.
+Material that people may !nd disturbing, o"-putting, or improper
+A couple NOTES:
+Please be forgiving of spelling or grammatical errors
+If the terms are too obscure or you don't know the truth of the fact at the top of your head, it is okay to mark is
+"too unfamiliar to judge". If you can answer (e.g., based on likelihood), please provide a response.
+Tricky Relations (click to expand/collpase)
+Examples (click to expand/collapse)
+Figure4: Page1oftemplateusedforhumanevaluation.
+4616
+1) PersonX approaches PersonY's aunt, as a result, PersonX feels, awkward
+How often does the assertion hold true?
+always/often sometimes/likely farfetched/never invalid too unfamiliar to judge
+This fact is true but outdated
+I would count this as an inappropriate, prejudiced or o"ensive material
+2) PersonX asked PersonY out on a date, can be hindered by, PersonX is still dating Sarah
+How often does the assertion hold true?
+always/often sometimes/likely farfetched/never invalid too unfamiliar to judge
+This fact is true but outdated
+I would count this as an inappropriate, prejudiced or o"ensive material
+3) PersonX fails to go home, as a result, PersonX, is grounded
+How often does the assertion hold true?
+always/often sometimes/likely farfetched/never invalid too unfamiliar to judge
+This fact is true but outdated
+I would count this as an inappropriate, prejudiced or o"ensive material
+4) PersonX makes her own clothes, as a result, PersonX feels, artistic
+How often does the assertion hold true?
+always/often sometimes/likely farfetched/never invalid too unfamiliar to judge
+This fact is true but outdated
+I would count this as an inappropriate, prejudiced or o"ensive material
+5) PersonX notices PersonY's response, can be hindered by, PersonX is distracted by the music
+How often does the assertion hold true?
+always/often sometimes/likely farfetched/never invalid too unfamiliar to judge
+This fact is true but outdated
+I would count this as an inappropriate, prejudiced or o"ensive material
+(Optional) Please let us know if anything was unclear, if you experienced any
+issues, or if you have any other fedback for us.
+You must ACCEPT the HIT before you can submit the results.
+Figure5: Page2oftemplateusedforhumanevaluation.
+4617
+1. Event: PersonXunwrapsPersonY’shands
+2. Event: PersonXovercomesevilwithgood
+3. Event: PersonXisfedupwiththepresentsituation
+4. Event: PersonXbreaksPersonX’sback
+5. Event: PersonXcallsnoone
+6. Event: PersonXnevergetsangry
+7. Event: PersonXdoesnotlearnfromPersonY
+8. Event: PersonXrefusestotouchPersonY’shands
+9. Event: PersonXlooksatflowers
+10. Event: PersonXunloadsanatomicbomb
+11. Event:
+Table8: Promptforheadgeneration.
+1.00
+0.95
+0.90
+0.85
+0.80
+0.75 Best Model Val
+0.70 Best Model Test
+GPT-3 NLL
+0.65
+GPT-3 mean NLL
+0.60
+0.0 0.2 0.4 0.6 0.8 1.0
+recall
+Figure 6: Precision vs. recall of our critic model on
+the human labelled validation set. The best trained
+modelsarelabelled,andotherhyper-parametersettings
+areshownasfadedlines. Wealsoincludegeneration
+negativelog-likelihood(nll)andtoken-wisemeannll
+ascutoffmeasures–theseperformmuchworsethanthe
+supervisedmodel.
+4618
+noisicerp
+Next,howarepeopleseenineachsituation? Examples:
+Situation1: DevinbulliesJean.
+Devinisseenasdominant.
+Situation2: Jamiemovestoanothercity.
+Jamieisseenasadventurous.
+Situation3: SydneychangesRyan’smind.
+Sydneyisseenasinfluential.
+Situation4: Lindsaywritesastory.
+Lindsayisseenascreative.
+Situation5: RowancoversPat’sexpenses.
+Rowanisseenaswealthy.
+Situation6: Leetakestimeoff.
+Leeisseenascarefree.
+Situation7: RileyadvisesNoel.
+Rileyisseenasinformed.
+Situation8: Adrianburstsintotears.
+Adrianisseenasdepressed.
+Situation9: Hunterdealswithproblems.
+Hunterisseenasresponsible.
+Situation10: SamfollowsCharlie.
+Samisseenassuspicious.
+Situation11: AlexmakesChriswait.
+Alexisseenas
+Table9: PromptforgeneratingxAttr.
+4619
+Next,whatdosituationsmakepeopledo? Examples:
+Situation1: Devingetsadivorce.
+Asaresult,Devindatessomeonenew.
+Situation2: Jamieliftsweights.
+Asaresult,Jamiehassoremuscles.
+Situation3: SydneytakesRyantoabar.
+Asaresult,Sydneygetsdrunk.
+Situation4: Lindsaydecidestohireatutor.
+Asaresult,Lindsaygetsbettergrades.
+Situation5: RowanbuysPatdrinks.
+Asaresult,RowanisthankedbyPat.
+Situation6: Leehearsbadnews.
+Asaresult,Leebeginstocry.
+Situation7: Rileybuysachocolatebar.
+Asaresult,Rileygetschange.
+Situation8: Adriandoesalotofwork.
+Asaresult,Adriangetsmentalfatigue.
+Situation9: Hunterattendsaconcert.
+Asaresult,Hunterhearsanewsong.
+Situation10: Samgetsthejobdone.
+Asaresult,Samgetsmoreresponsibilities.
+Situation11: AlexmakesChriswait.
+Asaresult,Alex
+Table10: PromptforgeneratingxEffect.
+4620
+Foreachsituation,describetheintent. Examples:
+Situation1: Devingetsthenewspaper.
+Devinintendstoreadthenewspaper.
+Situation2: Jamieworksallnight.
+Jamieintendstomeetadeadline.
+Situation3: SydneydestroysRyan.
+SydneyintendstopunishRyan.
+Situation4: Lindsayclearshermind.
+Lindsayintendstobereadyforanewtask.
+Situation5: Rowanwantstostartabusiness.
+Rowanintendstobeselfsufficient.
+Situation6: LeeensuresAli’ssafety.
+Leeintendstobehelpful.
+Situation7: Rileybuyslotterytickets.
+Rileyintendstobecomerich.
+Situation8: AlexmakesChriswait.
+Alexintends
+Table11: PromptforgeneratingxIntent.
+4621
+Next,wewilldiscusswhatpeopleneedforcertainsituations. Examples:
+1. BeforeDevinmakesmanynewfriends,Devinhastospendtimewithpeople.
+2. BeforeJamiegetsadate,Jamiehastoasksomeoneout.
+3. BeforeSydneychangesRyan’smind,Sydneyhastothinkofanargument.
+4. BeforeLindsaygetsajoboffer,Lindsayhastoapply.
+5. BeforeRowantakesaquicknap,Rowanhastoliedown.
+6. BeforeLeetriestokissAli,LeehastoapproachAli.
+7. BeforeRileyridesNoel’sskateboard,Rileyhastoborrowit.
+8. BeforeAdrianeatsthefood,Adrianhastoprepareameal.
+9. BeforeHunterwatchesNetflix,HunterhastoturnontheTV.
+10. BeforeSamhasababyshower,Samhastoinvitesomefriends.
+11. BeforeAlexmakesChriswait,Alexhas
+Table12: PromptforgeneratingxNeed.
+4622
+Next,howdopeoplefeelineachsituation? Examples:
+Situation1: DevinliveswithJean’sfamily.
+Devinfeelsloved.
+Situation2: Jamieexpectstowin.
+Jamiefeelsexcited.
+Situation3: Sydneycomeshomelate.
+Sydneyfeelstired.
+Situation4: Lindsayseesdolphins.
+Lindsayfeelsjoyful.
+Situation5: RowancausesPatanxiety.
+Rowanfeelsguilty.
+Situation6: Leegoesbroke.
+Leefeelsembarrassed.
+Situation7: Rileyhasadrink.
+Rileyfeelsrefreshed.
+Situation8: Adrianhasaheartcondition.
+Adrianfeelsscaredabouttheirhealth.
+Situation9: HuntershavesAvery’shair.
+Hunterfeelshelpful.
+Situation10: SamlosesallofCharlie’smoney.
+Samfeelshorrible.
+Situation11: AlexmakesChriswait.
+Alexfeels
+Table13: PromptforgeneratingxReact.
+4623
+Next,whatdopeoplewantineachsituation? Examples:
+Situation1: Devinmowsthelawn.
+Devinwantstotakeashower.
+Situation2: Jamieisgoingtoaparty.
+JamiewantstotakeanUberhome.
+Situation3: Sydneybleedsalot.
+SydneywantstogototheER.
+Situation4: Lindsayworksasacashier.
+Lindsaywantstofindabetterjob.
+Situation5: Rowangetsdirty.
+Rowanwantstodoaloadoflaundry.
+Situation6: Leestaysupallnightstudying.
+Leewantstorest.
+Situation7: RileygetsNoel’sautograph.
+Rileywantstotellsomefriends.
+Situation8: AdrianseesTaylor’spoint.
+AdrianwantstoagreewithTaylor.
+Situation9: HunterleavesAvery’sbike.
+Hunterwantstokeepthebikesafe.
+Situation10: Samwantsatattoo.
+Samwantstofindatattoodesign.
+Situation11: AlexmakesChriswait.
+Alexwants
+Table14: PromptforgeneratingxWant.
+4624
+Next,whatcanhindereachsituation? Examples:
+Situation1: Devinmakesadoctor’sappointment,
+ThisishinderedifDevincan’tfindthephonetocallthedoctor.
+Situation2: JamierubsWyatt’sforehead,
+ThisishinderedifJamieisafraidtotouchWyatt.
+Situation3: Sydneyeatspeanutbutter,
+ThisishinderedifSydneyisallergictopeanuts.
+Situation4: Lindsaylooksperfect,
+ThisishinderedifLindsaycan’tfindanymakeup.
+Situation5: Rowangoesonarun,
+ThisishinderedifRowaninjuresherknees.
+Situation6: LeetakesAlitotheemergencyroom,
+ThisishinderedifAlihasnohealthinsurancetopayformedicalcare.
+Situation7: RileyspendstimewithNoel’sfamily,
+ThisishinderedifNoel’sfamilydoesn’tlikespendingtimewithRiley.
+Situation8: Adrianmovesfromplacetoplace,
+ThisishinderedifAdriancan’taffordtomove.
+Situation9: Hunterproteststhegovernment,
+ThisishinderedifHunterisarrested.
+Situation10: Samhasahugefight,
+ThisishinderedifSamdoesnotlikeconfrontation.
+Situation11: AlexmakesChriswait,
+Thisishinderedif
+Table15: PromptforgeneratingHinderedBy.
+4625

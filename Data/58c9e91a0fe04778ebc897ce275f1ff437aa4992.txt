@@ -1,0 +1,388 @@
+MULTITRACKMUSICTRANSFORMER
+Hao-WenDong KeChen ShlomoDubnov JulianMcAuley TaylorBerg-Kirkpatrick
+UniversityofCaliforniaSanDiego
+ABSTRACT Table1.Comparisonsofrelatedtransformer-basedmusicmodels.
+Existingapproachesforgeneratingmultitrackmusicwithtransformer Instrument Compound Generative
+Model Multitrack
+modelshavebeenlimitedintermsofthenumberofinstruments,the control tokens modeling
+lengthofthemusicsegmentsandslowinference.Thisispartlydueto REMI[5] ✓
+thememoryrequirementsofthelengthyinputsequencesnecessitated MMM[10] ✓ ✓
+byexistingrepresentations.Inthiswork,weproposeanewmultitrack CP[6] ✓ ✓
+musicrepresentationthatallowsadiversesetofinstrumentswhile MusicBERT[15] ✓ ✓
+keepingashortsequencelength. OurproposedMultitrackMusic FIGARO[11] ✓ ✓
+Transformer(MMT)achievescomparableperformancewithstate-of- MMT(ours) ✓ ✓ ✓ ✓
+the-artsystems,landinginbetweentworecentlyproposedmodelsin
+asubjectivelisteningtest,whileachievingsubstantialspeedupsand
+memoryreductionsoverboth,makingthemethodattractiveforreal
+showthatourproposedmodelcangeneratelongermusicinafaster
+timeimprovisationornearrealtimecreativeapplications.Further,we
+inferencespeedthantwoexistingapproaches.Throughasubjective
+proposeanewmeasureforanalyzingmusicalself-attentionandshow listeningtest,weshowthattheproposedmodelachievesreasonably
+thatthetrainedmodelattendsmoretonotesthatformaconsonant
+goodperformanceintermsofcoherence,richnessandarrangement
+intervalwiththecurrentnoteandtonotesthatare4Nbeatsaway
+aswellastheoverallquality.Moreover,ourproposedrepresentation
+fromthecurrentstep.
+allowsatrainedautoregressivemodeltogeneratemusicforaspecific
+IndexTerms— Musicgeneration,musicinformationretrieval, setofinstruments,ataskthathasnotbeenwellstudiedinpriorwork.
+computermusic,neuralnetworks,deeplearning,machinelearning Further,whilethetransformermodelhasbeenwidelyusedon
+symbolicmusic,itremainsunclearhowself-attentionworkforsym-
+bolicmusic.Understandingmusicalself-attentioncouldrevealfuture
+1. INTRODUCTION
+researchdirectionsinimprovingtransformermodelsformusic.To
+thebestofourknowledge,existinganalysis[4,12–14]providesonly
+Priorworkhasinvestigatedvariousapproachesforsymbolicmusic
+casestudiesonfewselectedsamples,lackingasystematicanalysis
+generation[1,2],amongwhich,thetransformermodel[3]hasbecome
+onself-attentionformusic. Hence,weproposeanewquantityto
+populargivenitsrecentsuccessesinpianomusicgeneration[4–7].
+measuretheaverageattentionweightsthatatransformermodelas-
+Atthecoreofatransformermodelistheself-attentionmechanism
+signstoacertainkeyofacertaindifferencefromthequery. Our
+thatallowsthemodeltodynamicallyattendtodifferentpartsofthe
+analysisshowsthattheproposedmodellearnsarelativeself-attention
+inputsequenceandaggregateinformationfromthewholesequence.
+forcertainaspectsofmusic,specifically,beat,positionandpitch.
+Suchcapabilitiesmakeitsuitableformodelingthecomplexstructures
+Our proposed model provides a novel foundation for future
+andtexturesinmusic.However,whilepriorworkhasalsoexplored
+work exploring longer-form and real-time capable multitrack mu-
+applyingtransformermodelstogeneratemultitrackmusic[8–11],
+sicgeneration. Thesystematicanalysisalsoprovideinsightsinto
+successfulimplementationshaveonlybeenreportedeitheronalim-
+improving the self-attention mechanism for music. Audio sam-
+itedsetofinstruments[8,9]orshortmusicsegments[10,11].Thisis
+ples can be found on our demo website.1 For reproducibility, all
+partlyduetothelongsequencelengthinexistingmultitrackmusic
+sourcecode,hyperparametersandpretrainedmodelsareavailableat
+representations,whichresultsinalargememoryrequirementintrain-
+https://github.com/salu133445/mmt.
+ing.Forexample,aGPUwith11GBofmemorycanonlygenerate29
+secondsofmusiconaverageusingtheREMI+representation[11]on
+anorchestralmusicdataset.Moreover,itcanonlygeneratelessthan 2. RELATEDWORK
+fournotespersecond.Theselimitationstogetherposeachallengein
+scalingtransformermodelstolongermusicwithmanyinstruments, Multitrack music generation. Prior work has explored various
+e.g.,orchestralmusic,andforreal-timeusecases,e.g.,automatic approachesforsymbolicmusicgeneration[1,2],amongwhichgener-
+improvisationandhuman-AImusicco-creation. atingmultitrackmusicisconsideredmorechallengingforitscomplex
+In this paper, we propose a new multitrack music representa- interdependencybetweenvoicesandinstruments. In[16,17], the
+tiontoaddressthelongsequenceissueinexistingmultitrackmusic authorsusedaconvolutionalgenerativeadversarialnetworktogen-
+representations. Usingtheproposedrepresentation,wepresentthe erateshort,five-trackpopmusicsegments.In[18],theauthorsused
+MultitrackMusicTransformer(MMT)formultitrackmusicgenera- a variational autoencoder with recurrent neural networks to learn
+tion.Unlikeastandardtransformermodel,theproposedmodeluses alatentspaceformultitrackmeasures. In[8,9], theauthorsused
+adecoder-onlytransformerwithmulti-dimensionalinputsandout- decoder-onlytransformermodelstogeneratefour-trackgamemusic
+putstoreduceitsmemorycomplexity.Onanorchestraldataset,we andmulti-instrumentclassicalmusic,respectively. In[11],theau-
+Contact:hwdong@ucsd.edu 1https://salu133445.github.io/mmt/
+3202
+yaM
+42
+]DS.sc[
+4v38960.7022:viXra
+Fig. 1. An example of the
+proposedrepresentation—(a)
+an example of the first eight
+beatsofasongintheorches-
+tradataset,shownasamulti-
+trackpianoroll,(b)thesame
+song encoded by our pro-
+posed representation, where
+the grayed out zeros denote
+undefined values and (c) a
+human-readabletranslationof
+thecodesshownin(b).
+thorsusedatransformermodeltogeneratemultitrackmusicgiven For the duration field, following [11], we only allow a carefully-
+afine-graineddescriptionofthecharacteristicsofthedesiredmusic. chosensetofcommonnotedurationvaluesandreplaceanyduration
+Unlikethesesystems,ourproposedmodelisbuiltuponamorecom- outsideofthissetwiththeclosestknownduration.Fortheinstrument
+pactrepresentationthatallowsittoaccommodatelongersequences field,wemapsimilarMIDIprogramstothesameinstrumenttoreduce
+underthesameGPUmemoryconstraint. thetotalnumberofinstruments,resultingin64uniqueinstruments
+fromthe128MIDIprograms. Forexample, both‘acousticgrand
+Transformersforsymbolicmusic. Anotherrelevantlineofresearch
+piano’and‘brightacousticpiano’aremappedtothesame‘piano’
+isonmodelingsymbolicmusicwithtransformermodels[3].Some
+instrument. NotethatthereducednumberofMIDIinstrumentsdo
+priorworkfocusedonunconditionedgeneration,includinggenerating
+notaffecttheencodedsequencelength,andthemajorityofsavings
+pianomusic[5,6],leadsheets[19,20],guitartabs[21]andmulti-
+comesfromcombiningmultiplevariablesintoatuple.
+trackmusic[8,9]fromscratch. Othersstudiedcontrollablemusic
+Wenotethattheproposedrepresentationleadstoasignificantly
+generation[11,22],musicstyletransfer[23],polyphonicmusicscore
+shorter sequence length as compared to two existing representa-
+infilling [24] and general-purpose pretraining for symbolic music
+tions [10,11] for multitrack music generation. On an orchestral
+understanding[14,15,25].Inthiswork,wefocusonunconditioned
+dataset[26],anencodedsequenceoflength1,024usingourproposed
+generationforevaluationpurposes. However,ourproposedmodel
+representationcanrepresent2.6and3.5timeslongermusicsamples
+canalsogeneratemusicforasetofinstrumentsspecifiedbytheuser.
+comparedto[10]and[11],respectively.Further,becausethetiming
+informationisembeddedintoeachnoteevent,theproposedrepresen-
+3. PROPOSEDMETHOD
+tationisinvarianttopermutation,i.e.,reorderingthenoteeventsdo
+notaffectthedecodedmusic.Forthesakeofautoregressivetraining
+3.1. DataRepresentation
+forthetransformermodel,wesortthenoteswithrespecttothebeat
+Werepresentamusicpieceasasequenceofeventsx=(x ,...,x ), field,andsubsequentlytheposition,pitch,duration,instrumentfields.
+1 n
+whereeacheventx isencodedasatupleofsixvariables: Thisallowsatrainedautoregressivemodeltobereadilyapplicableto
+i
+thesongcontinuationtask.
+(xtype,xbeat,xposition,xpitch,xduration,xinstrument).
+i i i i i i
+Thefirstvariablextype determinesthetypeoftheevent,amongthe
+3.2. Model
+followingfiveeventtypes:
+• Start-of-song:Indicatesthebeginningofthesong. WepresenttheMultitrackMusicTransformer(MMT)forgenerating
+• Instrument:Specifiesaninstrumentusedinthesong. multitrackmusicusingtherepresentationproposedinSection3.1.We
+• Start-of-notes: Indicatestheendoftheinstrumentlistandthe basetheproposedmodelonadecoder-onlytransformermodel[27,
+beginningofthenotelist. (Thiseventsplitsthesequenceinto 28].Unlikeastandardtransformermodel,whoseinputsandoutputs
+twoparts:alistofinstrumenteventsfollowedbyalistofnote areone-dimensional,theproposedmodelhasmulti-dimensionalinput
+events,makingatrainedautoregressivemodelreadilyapplicable andoutputspacessimilarto[6],asillustratedinFigure2.Themodel
+toinstrument-informedgenerationtask;seeSection3.2.) istrainedtominimizethesumofthecrossentropylossesofdifferent
+• Note:Specifiesanote,whoseonset,pitch,durationandinstru- fieldsunderanautoregressivesetting.Weadoptalearnableabsolute
+ment are defined by the other five variables: xbeat, xposition, positional embedding [3]. Once the training is done, the trained
+xpitch,xduration andxinstrument. transformermodelcanbeusedinthreedifferentmodes,depending
+• End-of-song:Indicatestheendofthesong. ontheinputsgiventothemodeltostartthegeneration:
+For any non-note-type event, the variables xbeat, xposition, xpitch, • Unconditionedgeneration:Onlya‘start-of-song’eventispro-
+xduration,xinstrument aresettozero,whichisreservedforundefined videdtothemodel.Themodelgeneratestheinstrumentlistand
+values.Figure1showsanexampleofourproposedrepresentation. subsequentlythenotesequence.
+Following[5], wedecomposethenoteonsetinformationinto • Instrument-informedgeneration:Themodelisgivena‘start-
+beatandpositioninformation,wherexbeat denotestheindexofthe of-song’eventfollowedbyasequenceofinstrumentcodesand
+beatthatthenoteliesin,andxposition thepositionofthenotewithin a‘start-of-notes’eventtostartwith.Themodelthengenerates
+thatbeat.Tobespecific,theactualonsetofthenoteisequivalentto thenotesequence.Notethatweneedthe‘start-of-notes’event
+r·xbeat+xposition,whereristhetemporalresolutionofabeat.For asitmarkstheendoftheinstrumentlist,otherwisethemodel
+simplicity,weassumethatthebeatsarealwaysaquarternoteapartin maycontinuetogenerateinstrumentevents.
+thiswork.Thisdecompositionreducesthesizeofthevocabularyand • N-beatcontinuation:Allinstrumentandnoteeventsinthefirst
+helpsthemodellearnthemusicmetersystem,asevidencedby[5]. N beatsareprovidedtothemodel. Themodelthengenerates
+tolistentothesamplegeneratedmusiconourdemowebsite.1
+4.2. SubjectiveListeningTest
+Toassessthequalityofmusicsamplesgeneratedbyourproposed
+model,weconductedalisteningtestwith9musicamateursrecruited
+fromoursocialnetworks,whereallsurveyparticipantscanplayat
+leastonemusicalinstrument.Inthequestionnaire,eachparticipant
+wasaskedtolistento10audiosamplesgeneratedbyeachmodel
+andrateeachaudiosampleaccordingtothreecriteria—coherence,
+richnessandarrangement.2 WecomparedtheMMTmodelagainst
+twobaselinemodelsbasedonthestandarddecoder-onlytransformer
+model.ThefirstbaselinemodelusedtheMultiTrackrepresentation
+proposedintheMMMmodel[10],wherewereplacedthebartokens
+withbeattokens.TheotherusedasimplifiedversionoftheREMI+
+representationusedintheFIGAROmodel[11],whereweremoved
+thetimesignature,tempoandchordtokensassuchinformationisnot
+Fig.2.IllustrationoftheproposedMMTmodel. generallyavailableinourdatasets.Wewillrefertothetwobaseline
+modelsastheMMMandREMI+models. Forafaircomparison,
+wetrimmedallgeneratedsamplestoamaximumof64beats.More-
+subsequentnoteeventsthatcontinuetheinputmusic. over,asdiscussedinSection1,thelongsequencelengthofexisting
+Duringinference,thesamplingprocessisstoppedwhenan‘end- multitrackmusicrepresentationsrestrictsthemodelfromlearning
+of-song’ event is generated or the maximum sequence length is long-termdependencies.Hence,wealsocomputedthemeanlength
+reached. Weadoptthetop-k samplingstrategyon eachfieldand ofthegeneratedsamplesandtheinferencespeedinthisexperiment.
+setkto10%ofthenumberofpossibleoutcomesperfield.Moreover, WesummarizeinTable2theevaluationresults. Comparedto
+sincethetypeandbeatfieldsinourrepresentationarealwayssorted, theMMMmodel,ourproposedMMTmodelachievesahigherscore
+wefurtherenforceamonotonicconstraintduringdecoding.Forex- acrossallcriteria.Further,MMTgenerates2.6timeslongersamples
+ample, whensamplingforxtype, wesettheprobabilityofgetting andistwicefasterininferencespeed. AscomparedtotheREMI+
+i+1
+avaluesmallerthanxtype tozero. Thisprohibitsthemodelfrom model,ourproposedmodelachievesameanopinionscore(MOS)of
+i
+generatingeventsincertaininvalidorder,e.g.,an‘note’eventbefore 3.33,whiletheREMI+modelachievesanMOSof3.77.However,
+an‘instrument’event. MMTcangenerate3.5timeslongersamplesandis3.3timesfaster
+Finally,whileexistingmultitrackmusicgenerationsystems[10, ininferencespeed.Thisisbecausethebaselinemodelsneedmultiple
+11] need to combine several generated tokens to form a note, the inference passes to combine several generated tokens and form a
+proposedMMTmodelgeneratesanoteateachinferencestep,i.e., note,whereastheMMTmodelgenerateanoteinasingleinference
+alineinFigure1(b)and(c).ThisoffersMMTasignificantlyfaster pass.Finally,wenotethatwhileofferingafasterinferencespeedand
+inferencespeedandsmallermemoryfootprintthankstothereduced longergeneratedsamplelength,ourproposedmodelcannotmodel
+sizeoftheself-attentionmatrix.However,sinceMMTpredictsthe theinterdependenciesbetweenthesixoutputheadsasitpredictseach
+sixoutputfieldsnonautoregressively(i.e.,independently),itcannot fieldindependently.Forexample,theREMI+modelfirstgenerates
+modeltheinterdependenciesbetweenthesefieldsofthesamenote. an instrument token and then generates the pitch token given the
+Wewilldiscussthistrade-offbetweentime/memorycomplexityand instrument token, which allows the model to rule out unsuitable
+modelingcapacityinSection4.2. pitchesforthatparticularinstrument. Incontrast,theMMTmodel
+samplesfromeachoutputheadindependently.Wecanclearlyobserve
+thistrade-offbetweenqualityandbetweentime/memorycomplexity
+4. RESULTS canbeclearlyobservedfromTable2.
+4.1. ExperimentSetup
+4.3. ObjectiveEvaluation
+In this work, we consider the Symbolic Orchestral Database
+(SOD) [26]. We set the temporal resolution to 12 time steps Inadditionthesubjectivelisteningtest,wefollow[19,30]andmea-
+perquarternote.Wediscardtempoandvelocityinformationasnot surethepitchclassentropy,scaleconsistencyandgrooveconsistency
+all data contains such information. Further, we discard all drum forevaluatingtheperformanceoftheproposedmodelontheuncondi-
+tracks.Weendupwith5,743songs(357hours).Wereserve10%of tionedgenerationtask.Forthesemetrics,weconsideracloservalue
+thedataforvalidationand10%fortesting. WeuseMusPy[29]to tothatofthegroundtruthbetter.Table3showstheevaluationresults.
+processthedata.FortheproposedMMTmodel,weuse6transformer WecanseethattheREMI+modelachievesclosestvaluestothoseof
+decoderblocks,withamodeldimensionof512and8self-attention thegroundtruth.WealsonoticethatwhiletheMMMmodelresultin
+heads.Allinputembeddingshave512dimensions.Wetrimthecode closervaluesofpitchclassentropyandscaleconsistencytothoseof
+sequencestoamaximumlengthof1,024andamaximumbeatof256. thegroundtruth,itachievesalowerscoreinthesubjectivelistening
+Duringtraining,weaugmentthedatabyrandomlyshiftingallthe testpresentedinSection4.2thanourproposedMMTmodel.
+pitchesbys∼U(−5,6)(s∈Z)semitonesandrandomlyselecting
+2Tobespecific,weaskthefollowingquestions:coherence—“Isittempo-
+astartingbeat. Wevalidatethemodelevery1Kstepsandstopthe
+rallycoherent?Istherhythmsteady?Aretheremanyout-of-contextnotes?”;
+trainingat200Kstepsorwhentherewasnoimprovementsfor20
+richness—“Isitrichanddiverseinmusicaltextures?Arethereanyrepetitions
+validationrounds. WerenderallaudiosamplesusingFluidSynth andvariations?Isittooboring?”;arrangement—“Aretheinstrumentsused
+withtheMuseScoreGeneralSoundFont.Weencouragethereaders reasonably?Aretheinstrumentsarrangedproperly?”
+Table2.Performancecomparisonofourproposedmodelagainstthebaselinemodels.Meanvaluesand95%confidenceintervalsarereported.
+Numberof Averagesample Inferencespeed Subjectivelisteningtestresults
+parameters length(sec) (notespersecond) Coherence Richness Arrangement Overall
+MMM[10] 19.81M 38.69 5.66 3.48±0.35 3.05±0.38 3.28±0.37 3.17±0.43
+REMI+[11] 20.72M 28.69 3.58 3.90±0.52 3.74±0.21 3.74±0.44 3.77±0.41
+MMT(ours) 19.94M 100.42 11.79 3.55±0.46 3.53±0.35 3.40±0.44 3.33±0.47
+⋆ ⋆ ⋆ ⋆ ⋆ ⋆ ⋆ ⋆ ⋆
+Table3. Objectiveevaluationresults. Meanvaluesand95%confi- 1
+denceintervalsarereported.Acloservaluetothatofthegroundtruth 2 3
+isconsideredbetter. 4
+5
+6
+Pitchclass Scale Groove 7
+entropy consistency(%) consistency(%) 8
+-40 -36 -32 -28 -24 -20 -16 -12 -8 -4 0 4
+Groundtruth 2.974±0.018 92.26±1.25 93.05±1.00 (a) Beat difference
+MMM[10] 2.884±0.023 93.13±0.49 91.90±0.64 8thnotebehind sameposition 8thnoteahead
+↗ ↗ ↗
+REMI+[11] 2.897±0.019 93.12±0.51 92.90±0.49 1
+MMT(ours) 2.802±0.025 94.74±0.42 92.09±0.49 2 3
+4
+5
+6
+7
+4.4. MusicalSelf-attention 8
+-12 -8 -4 0 4 8 12
+(b) Position difference
+Despite the growing interests in applying transformer models to
+samepitch 4th 5th 8th(octave)
+music,littleefforthasbeenmadetounderstandhowself-attention ↖ ↖ ↗ ↗
+1
+works for symbolic music—existing analyses [4,12–14] provide 2
+3
+onlycasestudiesonfewselectedsamples. Inthissection,weaim 4
+to investigate musical self-attention in a systematic way. To this 5
+6
+end,weproposetwonewquantitiestomeasuretheaveragerelative 7
+8
+attention. Mathematically,givenatestsetD,wedefinethemean
+-25 -20 -15 -10 -5 0 5 10 15 20 25
+relativeattentionforafieldd(e.g.,pitchorbeat)as: (c) Pitch difference
+(cid:80) (cid:80) a (x)1
+γ k(d) = x∈D (cid:80) xs ∈> Dt (cid:80)s, st
+>t
+a
+s,x t( t (d x)− )x( sd)=k , (1) F
+γ˜
+kpig it. ch3. (sM eeea Sn ecr te iola nti 4v .e 4a ft ot ren dt ei fio nn itg ioai nn ss )o(a f) aγ˜ tkb re aa it n, e( db M)γ˜ Mkpo Tsi mtio on dea ln .d R( ec d)
+where1[·]istheindicatorfunctionanda (x)∈[0,1]denotesthe andbluecolorsindicatepositiveandnegativevalues,respectively.
+s,t
+attention weight assigned by x to x . Intuitively, γ(d) measures
+s t k
+theaverageattentionweightthatmodelassignstoacertainkeyof
+self-attentiongenerallycomplywithmusictheoryprinciples.
+acertaindifferencefromthequery. Notethateachattentionhead
+Whilerecentadvancesinsymbolicmusicgenerationhasbor-
+has its own attention weight a and thus its own γ . Moreover,
+s,t k
+rowedvarioustechniquesfromnaturallanguagemodeling, music
+we notice that γ(d) is biased towards differences that occur more
+k isfundamentallydifferentfromtextinthatmusichasaunderlying
+frequently.Thuswefurtherproposethemeanrelativeattentiongain:
+temporalaxisembeddedandcontainsstrongrecurrencepatternsin
+(cid:80) (cid:80) 1
+γ˜ k(d) =γ k(d)− x∈D (cid:80) s>t (cid:80)x( td)− 1x( sd)=k , (2) m leaa rn ny sa asp ree lc at ts iv. eO su elr f-a an ta tely ns tii os nh fe ore rcs eh ro taw ins t ah sa pt eco tu sr op fr mop uo ss ie cd ,sm peo cd ifiel -
+x∈D s>t cally,beat,positionandpitch.Wehopeouranalysiscanshedlight
+whichmeasuresthedifferencebetweenγ(d)andthesamequantity onfurtherimprovementsinoptimizingtheself-attentionmechanism
+k
+obtainedbyassumingauniformattentionmatrix. forsymbolicmusicmodeling.
+In this experiment, we compute γ˜beat, γ˜position and γ˜pitch on
+k k k
+100testsamplesforthelastattentionlayerofatrainedMMTmodel. 5. CONCLUSION
+AsshowninFigure3(a),wecanseethatthe2ndand6thattention
+headsattendmoretonearbybeats,whiletheotherattentionheads WehavepresentedtheMultitrackMusicTransformerformultitrack
+attendtobeatsinfurtherpast. Inaddition,severalattentionheads musicgeneration. Builtuponanewmultitrackrepresentation,our
+assignrelativelylargerweightstothebeatsthatare4N (i.e.,4,8, proposedmodelcangeneratelongermultitrackmusicinafasterinfer-
+12,16,etc.)beatsawayfromthecurrentone,ashighlightedbythe encespeedthantwoexistingapproaches.Weshowedinasubjective
+‘⋆’symbols.FromFigure3(b)weobservethatthemodelpaysmost listeningtestthattheproposedmodelperformreasonablywellagainst
+attentiontonotesthathavethesamepositionasthecurrentnote.That thetwobaselinemodelsintermsofthequalityofthegeneratedmusic.
+is,anoteonbeatattendsmoretothelastnoteonbeat,andanote Throughasystematicanalysis,weshowedthatourproposedmodel
+offbeatattendsmoretothelastnoteoffbeat.Figure3(c)showsthat learnsrelativeself-attentionincertainaspectsofmusicsuchasbeats,
+themodelattendsmoretopitcheswithinoneoctaveabove,andit positionsandpitches.Ourfindingsprovideanovelfoundationforfu-
+paysmoreattentiontopitchesthatformaconsonantintervalwiththe tureworkexploringlonger-form,real-timecapablemultitrackmusic
+currentnote,e.g.,a4th,a5thandanoctave.Wenotethatthelearned generationandimprovingtheself-attentionmechanismformusic.
+noitnettA
+noitnettA
+noitnettA
+daeh
+daeh
+daeh
+6. ACKNOWLEDGEMENTS [15] MingliangZeng,XuTan,RuiWang,ZeqianJu,TaoQin,and
+Tie-Yan Liu, “MusicBERT: Symbolic music understanding
+Hao-WenthanksJ.YangandFamilyFoundationandTaiwanMinistry withlarge-scalepre-training,” inProc.FindingsofACL,2021.
+ofEducationforsupportinghisPhDstudy.Thisprojecthasreceived 1,2
+fundingfromtheEuropeanResearchCouncil(ERCREACH)un-
+[16] Hao-WenDong,Wen-YiHsiao,Li-ChiaYang,andYi-Hsuan
+der the European Union’s Horizon 2020 research and innovation
+Yang, “MuseGAN: Multi-track sequential generative adver-
+programme(Grantagreement#883313).
+sarialnetworksforsymbolicmusicgenerationandaccompani-
+ment,” inProc.AAAI,2018. 1
+7. REFERENCES [17] Hao-WenDongandYi-HsuanYang, “Convolutionalgenerative
+adversarialnetworkswithbinaryneuronsforpolyphonicmusic
+[1] Jean-PierreBriot,GaëtanHadjeres,andFrançois-DavidPachet, generation,” inProc.ISMIR,2018. 1
+“Deeplearningtechniquesformusicgeneration–asurvey,”arXiv
+[18] IanSimon,AdamRoberts,ColinRaffel,JesseEngel,Curtis
+preprintarXiv:1709.01620,2017. 1
+Hawthorne, and Douglas Eck, “Learning a latent space of
+[2] ShuleiJi,JingLuo,andXinyuYang, “Acomprehensivesur- multitrackmeasures,” inProc.NeurIPSWorkshoponMachine
+veyondeepmusicgeneration:Multi-levelrepresentations,al- LearningforCreativityandDesign,2018. 1
+gorithms,evaluations,andfuturedirections,” arXivpreprint
+[19] Shih-LunWuandYi-HsuanYang, “TheJazzTransformeron
+arXiv:2011.06801,2020. 1
+the front line: Exploring the shortcomings of AI-composed
+[3] AshishVaswani,NoamShazeer,NikiParmar,JakobUszkoreit, musicthroughquantitativemeasures,” inProc.ISMIR,2020. 2,
+LlionJones,AidanNGomez,ŁukaszKaiser,andIlliaPolo- 3
+sukhin, “Attentionisallyouneed,” inProc.NeurIPS,2017. 1, [20] Shih-LunWuandYi-HsuanYang, “Compose&Embellish:
+2 Well-structuredpianoperformancegenerationviaatwo-stage
+[4] Cheng-Zhi Anna Huang, Ashish Vaswani, Jakob Uszkoreit, approach,” inProc.ICASSP,2023. 2
+IanSimon,CurtisHawthorne,NoamShazeer,AndrewM.Dai, [21] Yu-HuaChen,Yu-SiangHuang,Wen-YiHsiao,andYi-Hsuan
+MatthewD.Hoffman,MonicaDinculescu,andDouglasEck, Yang, “Automaticcompositionofguitartabsbytransformers
+“Musictransformer:Generatingmusicwithlong-termstructure,” andgroovemodeling,” inProc.ISMIR,2020. 2
+inProc.ICLR,2019. 1,4
+[22] Yi-JenShih,Shih-LunWu,FrankZalkow,MeinardMüller,and
+[5] Yu-SiangHuangandYi-HsuanYang, “Popmusictransformer: Yi-HsuanYang, “Themetransformer:Symbolicmusicgenera-
+Generatingmusicwithrhythmandharmony,” inProc.MM, tionwiththeme-conditionedtransformer,” IEEETransactions
+2020. 1,2 onMultimedia,2022. 2
+[6] Wen-YiHsiao,Jen-YuLiu,Yin-ChengYeh,andYi-HsuanYang, [23] Shih-LunWuandYi-HsuanYang, “MuseMorphose:Full-song
+“Compoundwordtransformer:Learningtocomposefull-song andfine-grainedpianomusicstyletransferwithonetransformer
+music over dynamic directed hypergraphs,” arXiv preprint VAE,” IEEE/ACMTASLP,2023. 2
+arXiv:2101.02402,2021. 1,2 [24] Chin-JuiChang,Chun-YiLee,andYi-HsuanYang, “Variable-
+[7] AashiqMuhamed,LiangLi,XingjianShi,SuriYaddanapudi, lengthmusicscoreinfillingviaXLNetandmusicallyspecial-
+WayneChi,DylanJackson,RahulSuresh,ZacharyC.Lipton, izedpositionalencoding,” inProc.ISMIR,2021. 2
+and Alexander J. Smola, “Symbolic music generation with [25] Yi-Hui Chou, I-Chun Chen, Chin-Jui Chang, Joann Ching,
+transformer-GANs,” inProc.AAAI,2021. 1 and Yi-Hsuan Yang, “MidiBERT-piano: Large-scale pre-
+training for symbolic music understanding,” arXiv preprint
+[8] ChristinePayne, “MuseNet,”OpenAI,2019. 1,2
+arXiv:2107.05223,2021. 2
+[9] ChrisDonahue, HuanruHenryMao, YitingEthanLi, Garri-
+[26] Léopold Crestel, Philippe Esling, Lena Heng, and Stephen
+sonW.Cottrell,andJulianMcAuley, “LakhNES:Improving
+McAdams, “A database linking piano and orchestral MIDI
+multi-instrumental music generation with cross-domain pre-
+scoreswithapplicationtoautomaticprojectiveorchestration,”
+training,” inProc.ISMIR,2019. 1,2
+inProc.ISMIR,2017. 2,3
+[10] Jeff Ens and Philippe Pasquier, “MMM: Exploring condi-
+[27] PeterJ.Liu, MohammadSaleh, EtiennePot, BenGoodrich,
+tionalmulti-trackmusicgenerationwiththetransformer,”arXiv
+RyanSepassi,LukaszKaiser,andNoamShazeer, “Generating
+preprintarXiv:2008.06048,2020. 1,2,3,4
+Wikipediabysummarizinglongsequences,” inProc.ICLR,
+[11] DimitrivonRütte,LucaBiggio,YannicKilcher,andThomas 2018. 2
+Hofmann, “FIGARO:Generatingsymbolicmusicwithfine- [28] TomBrown,BenjaminMann,NickRyder,MelanieSubbiah,
+grainedartisticcontrol,” Proc.ICLR,2023. 1,2,3,4 JaredDKaplan,PrafullaDhariwal,ArvindNeelakantan,Pranav
+[12] AnnaHuang,MonicaDinculescu,AshishVaswani,andDouglas Shyam,GirishSastry,AmandaAskell,SandhiniAgarwal,Ariel
+Eck, “Visualizing music self-attention,” in Proc. NeurIPS Herbert-Voss,GretchenKrueger,TomHenighan,RewonChild,
+WorkshoponInterpretabilityandRobustnessinAudio,Speech, andAdityaRames, “Languagemodelsarefew-shotlearners,”
+andLanguage,2018. 1,4 inProc.NeurIPS,2020. 2
+[13] Tsung-PingChenandLiSu, “Attendtochords: Improving [29] Hao-WenDong,KeChen,JulianMcAuley,andTaylorBerg-
+harmonicanalysisofsymbolicmusicusingtransformer-based Kirkpatrick,“MusPy:Atoolkitforsymbolicmusicgeneration,”
+models,” TransactionsofISMIR,vol.4,no.1,2021. 1,4 inProc.ISMIR,2020. 3
+[30] Olof Mogren, “C-RNN-GAN: Continuous recurrent neural
+[14] ZiyuWangandGusXia, “MuseBERT:Pre-trainingofmusic
+networkswithadversarialtraining,”inProc.NeurIPSWorkshop
+representationformusicunderstandingandcontrollablegenera-
+onConstructiveMachineLearning,2016. 3
+tion,” inProc.ISMIR,2021. 1,2,4

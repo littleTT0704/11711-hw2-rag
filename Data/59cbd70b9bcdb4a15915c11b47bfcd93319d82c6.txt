@@ -1,0 +1,620 @@
+TheThirty-SixthAAAIConferenceonArtificialIntelligence(AAAI-22)
+Explain, Edit, and Understand: Rethinking User Study Design
+for Evaluating Model Explanations
+SiddhantArora*1,DanishPruthi*1,NormanSadeh1,
+WilliamW.Cohen2,ZacharyC.Lipton1,GrahamNeubig1
+1CarnegieMellonUniversity
+2GoogleAI
+fsiddhana,ddanish,sadeh,zlipton,gneubigg@cs.cmu.edu,wcohen@google.com
+Abstract 2016; Hendricks et al. 2016; Sundararajan, Taly, and Yan
+2017; Smilkov et al. 2017), what precisely it means for a
+In attempts to “explain” predictions of machine learning
+featuretobesalientremainsapointofconceptualambiguity.
+models, researchers have proposed hundreds of techniques
+Thus, many proposed techniques are evaluated only via vi-
+forattributingpredictionstofeaturesthataredeemedimpor-
+sualinspectionofafewexampleswherethehighlightedfea-
+tant. While these attributions are often claimed to hold the
+potentialtoimprovehuman“understanding”ofthemodels, turesagreewiththeauthor’s(andreader’s)intuitions.Across
+surprisinglylittleworkexplicitlyevaluatesprogresstowards papers, one common motivation for such attributions is to
+this aspiration. In this paper, we conduct a crowdsourcing improve human “understanding” of the models (Ribeiro,
+study, where participants interact with deception detection Singh,andGuestrin2016;Doshi-VelezandKim2017;Sun-
+modelsthathavebeentrainedtodistinguishbetweengenuine dararajan,Taly,andYan2017).However,whethertheseat-
+andfakehotelreviews.Theyarechallengedbothtosimulate tributionsconferunderstandingisseldomevaluatedexplic-
+themodelonfreshreviews,andtoeditreviewswiththegoal
+itlyandthereisrelativelylittleworkthatcharacterizeswhat
+ofloweringtheprobabilityoftheoriginallypredictedclass.
+explanationsenablepeopletodo.
+Successfulmanipulationswouldleadtoanadversarialexam-
+Onesuggestiontoevaluatemodelunderstandingistouse
+ple.Duringthetraining(butnotthetest)phase,inputspans
+simulatability as a proxy for understanding—i.e., if a par-
+arehighlightedtocommunicatesalience.Throughourevalu-
+ation,weobservethatforalinearbag-of-wordsmodel,par- ticipant can accurately predict the output of the model on
+ticipantswithaccesstothefeaturecoefficientsduringtraining unseen examples (Doshi-Velez and Kim 2017). Following
+areabletocausealargerreductioninmodelconfidenceinthe this idea, a few prior studies examine if explanations help
+testingphasewhencomparedtotheno-explanationcontrol. humans predict model output (Chandrasekaran et al. 2018;
+FortheBERT-basedclassifier,popularlocalexplanationsdo Hase and Bansal 2020). Such studies are typically divided
+notimprovetheirabilitytoreducethemodelconfidenceover into a training and a test phase. In the training phase, par-
+the no-explanation case. Remarkably, when the explanation
+ticipantsseeafewinput,output,explanationstriples,andin
+fortheBERTmodelisgivenbythe(global)attributionsofa
+thetestphase,theyareaskedtoguessthemodeloutputfor
+linearmodeltrainedtoimitatetheBERTmodel,peoplecan
+unseenexamples.1 Manypriorstudiesonevaluatingmodel
+effectivelymanipulatethemodel.
+explanationshavereachednegativeresults,notingthatthey
+donotdefinitivelyaidhumansinpredictingmodelbehavior
+Introduction
+on visual question answering (Chandrasekaran et al. 2018)
+Owingtotheirremarkablepredictiveaccuracyonsupervised andtextclassificationtasks(HaseandBansal2020).
+learning problems, deep learning models are increasingly In this paper, we rethink the user design for evaluating
+deployedinconsequentialdomains,suchasmedicine(Kim modelexplanationsfortextclassificationtasks,andpropose
+et al. 2019; Aggarwal et al. 2021), and criminal jus- twokeychanges.First,weprovideparticipantswithquery
+tice (Kleinberg et al. 2017). Frustrated by the difficulty of accesstothemodel:theycanalterinputdocumentstoob-
+communicating what precisely these models have learned, servehowmodelpredictionsandexplanationschangeinreal
+a large body of research has sprung up proposing methods time. Second, we extend the simulation task by prompt-
+thatarepurportedtoexplaintheirpredictions(Doshi-Velez ing participants to edit examples to reduce the model
+and Kim 2017; Lipton 2018; Guidotti et al. 2018). Typi- confidence towards the predicted class. While prior work
+cally,theseso-calledexplanationstaketheformofsaliency (Kaushik, Hovy, and Lipton 2019) prompts humans to edit
+maps,attributingthepredictiontoasubsetoftheinputfea- examples for data augmentation, editing exercises haven’t
+tures,orassigningweightstothefeaturesaccordingtotheir beenexploredforevaluatingexplanations.Thiseditingexer-
+salience. To date, while hundreds of such attribution tech- ciseallowsustocapturedetailedmetrics,e.g.,averagecon-
+niques have been proposed (Ribeiro, Singh, and Guestrin
+1Chandrasekaranetal.(2018)presentmodelexplanationsdur-
+*denotesequalcontribution. ingthetestingphase,whereasHaseandBansal(2020)donotin-
+Copyright©2022,AssociationfortheAdvancementofArtificial cludeexplanationsattesttime,asexplanationscould“leak”model
+Intelligence(www.aaai.org).Allrightsreserved. output(seePruthietal.(2020);JacoviandGoldberg(2021).).
+5277
+a.
+Input Review
+b.
+Real-time
+feedback
+Highlighted
+explanations
+Editable Box
+Figure 1: Our user study, as shown to participants during the training phase: a) first, participants guess the model prediction;
+(b)next,theyeditthereviewtoreducethemodelconfidencetowardsthepredictedclass.Throughhighlights,weindicatethe
+attributionscoresproducedbydifferenttechniques.Participantsreceivefeedbackontheiredits,observingupdatedpredictions,
+confidenceandattributions,allinrealtime.Thetestphasedoesnotincludeattributionsbutisotherwisesimilartothetraining.
+fidencereduced,which,asweshalllatersee,canbeusedto dence?Fromtheevaluationmethodologystandpoint,weas-
+comparerelativeutilityofdifferentexplanationtechniques. sessiftheinteractiveenvironmentwithqueryaccesstothe
+We perform a crowdsourcing study using the proposed modelsmakesitpossibletodistinguishtherelativevalueof
+paradigmonadeceptiondetectiontask,withmachinelearn- differentattributions.Fortheseresearchquestions,wecom-
+ing models that are trained to detect whether hotel reviews parepopularattributiontechniques—LIME(Ribeiro,Singh,
+are genuine or fake (Ott et al. 2011). In this task, the hu- andGuestrin2016)andintegratedgradients(Sundararajan,
+manperformanceisonlyslightlybetterthanthatofrandom Taly,andYan2017),againstano-explanationcontrol.
+guessing, while machine learning models are significantly Our evaluation reveals that (i) for both a linear bag-of-
+more accurate, making it an interesting testbed for study- words model and a BERT-based classifier, none of the ex-
+ingwhetherattributionshelppeopletounderstandtheasso- planationmethodsdefinitivelyhelpparticipantstosimulate
+ciations employed by the models. In our study, the partic- the model’s output more accurately at test time (when ex-
+ipant first guesses whether the given hotel review is clas- planations are unavailable); (ii) however, access to feature
+sified as fake or genuine (see Figure 1). We then prompt coefficientsfromalinearmodelduringtrainingenablespar-
+the participant to edit the review such that the model con- ticipantstocausealargerreductioninthemodelconfidence
+fidence towards the predicted class is reduced. During the at test time; and (iii) most remarkably, feature coefficients
+training phase, we present attributions by highlighting in- andglobalcuewords2 fromalinear(student)modeltrained
+putspans.Forinstance,theattributioninFigure1suggests to mimic a (teacher) BERT model significantly help par-
+that the model associates tokens “My” and “family” with ticipants to manipulate BERT. Additionally, we notice that
+the fake class, perhaps indicating that fake reviews tend to participants respond to the highlighted spans, as over 40%
+mention external factors instead of details about the hotel. of all the edits are performed on these spans. Our compar-
+Inoursetup,aparticipantcouldtestanysuchhypotheses,by isonsleadtoquantitativedifferencesamongevaluatedattri-
+editingtheexampleandobservingtheupdatedpredictions, butions,underscoringtheefficacyofourparadigm.3
+outputs,andattributionsimmediately.
+We seek to answer the question: Which (if any) attribu- 2Wordsthatcorrespondtothelargestfeaturecoefficients.
+tiontechniquesimprovehumans’abilitytoguessthemodel 3Thecodeusedforourstudyisavailableat:https://github.com/
+output,oredittheinputexamplestolowerthemodelconfi- siddhu001/Evaluating-Explanations.
+5278
+RelatedWork uinereviewsfromfakereviews(LaiandTan2019;Lai,Liu,
+We briefly discuss past attempts to evaluate explanation andTan2020). LertvittayakumjornandToni(2019)evalu-
+methods,bothviauserstudiesandautomatedmetrics. ateifexplanationshelpinidentifyingthebetterperforming
+Modelsimulatabilitymeasureshumanabilitytopredict model.Lastly,arecentstudyexaminessaliencymapsforan
+themodeloutputonfreshexamples.Itisaprominentmetric age-predictionmodel,andconcludesthatnoneoftheexpla-
+toevaluateexplanationmethods,andistreatedasaproxyfor nations impact human’s trust in the model (Chu, Roy, and
+model understanding (Doshi-Velez and Kim 2017). Using Andreas2020).
+simulatability, a recent study evaluates five different expla- A variety of automated metrics to measure explanation
+nationgenerationschemesfortextandtabularclassification quality have been proposed in the past. However, many of
+tasks (Hase and Bansal 2020). Their study runs two differ- themcanbeeasilygamed(Hookeretal.2019;Trevisoand
+ent types of tests: (i) forward simulation which measures Martins2020;Haseetal.2020)(see(Pruthietal.2020)for
+simulatabilityonunseenexampleswithoutexplanations,af- adetaileddiscussiononthispoint).Apopularwaytoeval-
+terpresentingparticipants16trainingexampleswithexpla- uate explanations is to compare the produced explanations
+nations; and (ii) counterfactual simulation which captures with expert-collected rationales (Mullenbach et al. 2018;
+participants’ ability to guess the model output of perturbed DeYoung et al. 2020). Such metrics only capture whether
+inputexampleswhileobservingthetruelabels,predictions, the produced explanations are plausible, but do not com-
+and explanation for the original examples. The study con- ment upon the faithfulness of explanations to the process
+cludes that for the text classification task, none of the five throughwhichpredictionsareobtained.Arecentlyproposed
+evaluated explanations definitively help participants better approach quantifies the value of explanations via the accu-
+simulate the model in the forward simulation task (when racy gains that they confer on a student model trained to
+explanationswereprovidedonlyattrainingtime).Thepar- simulateateachermodel(Pruthietal.2020).Designingau-
+ticipants in their study report found it difficult to retain the tomated evaluation metrics is an ongoing area of research,
+insights learned from the training phase during the testing and to the best of our knowledge, none of the automated
+phase.Anotherstudyexaminestheextenttowhichexplana- metricshavebeendemonstratedtocorrelatewithanyhuman
+tionsfromaVQAmodelhelphumanspredictitsresponses measureofexplanationquality.
+and failures (Chandrasekaran et al. 2018). In their setup,
+visual saliency maps were provided both during the train- EvaluationthroughIterativeEditing
+ing and the testing phase. This study too leads to a simi-
+Thissectionfirstdescribesourevaluationparadigmanddis-
+larconclusion:visualattributionsdonothelpinsimulating
+cusses how it is different from prior efforts. We then intro-
+the VQA model. Another recent study measures simulata-
+duceseveralmetricsforevaluatingmodelexplanations.
+bility of several regression models that estimate the value
+ofreal-estatelistings(Poursabzi-Sangdehetal.2021).They
+ExperimentalProcedure
+observethatparticipantscouldsimulatealinearmodelwith
+2featuresbutfailtosimulateonewith8features.Theyalso Wedivideourevaluationintotwoalternatingphases:atrain-
+note that participants could not correct model mistakes for ing phase and a test phase. During the training phase, par-
+any of the given models. Another paper investigates if hu- ticipantsfirstreadtheinputexample,andarechallengedto
+mans could predict model output using explanations alone, guess the model prediction. Once they submit their guess,
+and found erasure and attention-based explanations to be they see the model output, model confidence and an ex-
+useful(TrevisoandMartins2020). planation(explanationtypevariesacrosstreatmentgroups).
+Our work differs with the above studies in a number of Asnotedearlier,severalpriorstudiessolelyevaluatemodel
+ways:noneofthepriorstudiesallowparticipantstotestout simulatability(HaseandBansal2020;Chandrasekaranetal.
+models for inputs of their choice (query access). Addition- 2018; Treviso and Martins 2020; Poursabzi-Sangdeh et al.
+ally,weaskparticipantstoeditexampleswithagoaltore- 2021).Weextendthepastprotocolsandfurtherpromptpar-
+ducethemodelconfidence,inanattempttoidentifyadver- ticipantstoedittheinputtextwithagoaltolowertheconfi-
+sarialexamples.Thisexerciseallowsustocapturedetailed denceofthemodelprediction.Asparticipantsedittheinput,
+metrics,includingtheaverageamountofconfidencereduced they see the updated predictions, confidence and explana-
+andnumberofexamplessuccessfullyflipped.Furthermore, tionsinrealtime(seeFigure1).Therefore,theycanvalidate
+weinterleavethetrainingandtestphasetherebymitigating anyhypothesisabouttheinput-outputassociations(captured
+retentionissuesreportedin (HaseandBansal2020). bythemodel),bysimplyeditingthetextbasedontheirhy-
+There have been several other user studies that evalu- pothesis and observing if the model prediction changes ac-
+atedifferentaspectsofexplanations(Binnsetal.2018;Cai cordingly.Theeditingtaskconcludesiftheparticipantsare
+et al. 2019; Green and Chen 2019a,b; Yin, Vaughan, and abletoflipthemodelprediction,orrunoutoftheallocated
+Wallach2019;Kunkeletal.2019). Mohseni,Zarei,andRa- time (of three minutes). The instructions for the study pro-
+gan (2021) categorize these efforts based on the goals they hibitparticipantstoeditexamplesinamannerthatchanges
+aim to achieve, the intended audience, and the evaluation themeaningofthetext(moredetailsinthenextsection).
+metrics.Fewstudiesmeasureifexplanationsenablepartici- The test phase is similar to the training phase except for
+pantstobetterpredictthetaskoutput(i.e.,thegroundtruth) animportantdistinction:explanationsarenotavailabledur-
+instead of the model output—specifically, if explanations ing testing so that we can evaluate the insights participants
+helpparticipantsgainsufficientinsightstodistinguishgen- haveacquiredwithoutthesupportofexplanations.Holding
+5279
+back the explanations at test time eliminates concerns that Model Accuracy
+theexplanationsmighttriviallyleaktheoutput(see Pruthi
+HumanAccuracy (Ottetal.2011) (cid:25)60%
+et al. (2020) for a detailed discussions). In our study, after
+LogisticRegression 87.8%
+everytwoexamplesinthetrainingstage,participantscom-
+BERT 89.8%
+plete one test example. In contrast to past studies, where
+participantsfirstreviewallthetrainingexamplesbeforeat-
+Table1:Accuracyonthedeceptiondetectiontask.
+tempting the test examples, we show participants one test
+exampleaftereverytwotrainingexamples.IntheHaseand
+Bansal(2020)study,participantsreportthatitwasdifficult
+todriveprediction,providinganinterestingtestbedtoeval-
+toretaininsightsfromthetrainingphaseduringthelatertest
+uate whether attributions communicate such associations.
+round.Ourinterleavingprocedurealleviatessuchconcerns.
+Further, since human accuracy is low for this task, the par-
+ticipantsdonothavepreconceivednotionsthatcouldpoten-
+Metrics
+tiallyconflatewiththesimulationtask.Therefore,thistask
+While simulatability has been used as a proxy measure makes an interesting testbed to characterize how much ex-
+for model understanding (Hase and Bansal 2020; Chan- planations help humans in understanding the input-output
+drasekaranetal.2018),wearguethatsimulatingthemodel associations that deception detection models exploit. The
+isadifficulttaskforpeople,especiallyafterviewingonlya studycomprises20training,and10testingexamplesinto-
+fewexamples.Hence,weproposetocomputedetailedmet- tal,andlastsfor90minutesperparticipant.
+ricsthatarebasedonparticipants’abilitytoedittheexam-
+ple to lower the model confidence towards predicted class WhatArePermissibleEdits?
+andtopossiblyflipmodelpredictions.Webelievethatsuch
+Weaskparticipantsnottoalterthestayingexperiencecon-
+metrics are finer-grained indicators for participant’s under-
+veyedthroughthehotelreview.Ifthereviewispositive,neg-
+standingofthemodel,sinceparticipantsmightnotcompre-
+ativeormixed,thentheeditedversionshouldmaintainthat
+hend how different factors combine to produce the output,
+stance. They are allowed to paraphrase and can remove or
+buttheymayidentifyafewinput-outputassociations,which
+changeinformationnotrelevanttotheexperienceaboutthe
+theycaneffectivelyapplyinthemanipulationexercise.
+hotel. For instance, changing “My husband and I” to “We”
+Basedonthismotivation,wemeasurethreemetrics(a)the
+is valid edit. However, inventing details that influence the
+simulation accuracy, (b) average reduction in model confi-
+experience about the hotel are not permitted (e.g., adding
+dence, and (c) percentage of examples flipped. Following
+“Thestaffwasunfriendly”isnotallowed).Toenforcethese
+prior work (Chu, Roy, and Andreas 2020), we use mixed
+guidelines, we (1) discard submissions where the edit dis-
+effectsregressionmodelstoestimatethesethreequantities.
+tancesbetweentheoriginalandeditedversionislarge4 and
+Foreachexperiment,aparticipantisrandomlyplacedinone
+then(2)manuallyinspecttheeditstorejectsubmissionsthat
+ofthe5cohorts.Allparticipantsinthesamecohortseethe
+violateourinstructions.
+same training and test examples, irrespective of the experi-
+ment.Further,acrossdifferentcohorts,testexamplesdiffer
+MachineLearningModels
+(butweuseafixedsetofexamplesfortraining).Weusemul-
+tiplecohortssoastonotrelyonafewtestexamplesforour We consider two machine learning models for our experi-
+conclusions. The mixed effects models include fixed effect ments.Thefirstisalinearlogisticregressionmodelwithun-
+term (cid:12) for each treatment and a random effect inter- igramTF-IDFfeatures.ThesecondmodelisaBERT-based
+treatment
+cept (cid:11) to determine the impact of the cohort to which classification model (Devlin et al. 2019). We train, or fine-
+cohort
+a participant is assigned. Since mixture effect models can tune, these models using the deception review dataset (Ott
+effectivelyhandlerandomvariabilityintroducedduetodif- et al. 2011). We use the original train/validation/test splits,
+ferentdatasamplesanddifferentparticipantcohorts,itisan which are class balanced (i.e., exactly half of the reviews
+appropriatechoicetoisolatetheimpactofeachexplanation are genuine). For the logistic regression model, we select
+type.Thethreemixedeffectsmodelscanbedescribedas hyperparameters,i.e.regularizationstrengthandregulariza-
+tionpenalty,viaa10-foldcross-validation,whereasweuse
+y target =(cid:12) 0+(cid:12) treatment(cid:2)x treatment+(cid:11) cohort(cid:2)x cohort; the default parameters of the BERT model. The accuracy
+ofthetwomodelsissignificantlyhigherthantheestimated
+wherethetargetcorrespondstothreeevaluationmetricsdis-
+humanperformanceonthistask,whichisaround60%(Ta-
+cussedaboveand(cid:12) istheintercept.
+0 ble1).Wereferreadersto (Ottetal.2011)fordetailsonthe
+datasetandestimatinghumanperformanceforthistask.
+ACaseStudyofDeceptionDetection
+We choose a deception detection task—distinguishing be- Controls&Treatments
+tween fake and real hotel reviews (Ott et al. 2011)—as the Participants are randomly placed into different control and
+backdropforourcrowdsourcingstudy.Thisisbecauseprior treatment groups which vary based on the type of explana-
+studieshavenotedthathumansstrugglewiththistaskwhile tionsofferedandthechoiceofthemachinelearningmodel.
+machine learning models are significantly more accurate.
+Our motivation for using this setup is that models exploit 4Weremovesubmissionswherethewordeditdistance>0:9of
+subtle,unknownandpossiblycounter-intuitiveassociations thelengthofinputreview,orifhalfoforiginalwordsaredeleted.
+5280
+Simulation Examplesflipped Avg.Confidence
+Model Treatments Phase
+Accuracy (Percentage) Reduced
+Train 8.2[ 5.4,11.6] 8.0[ 7.0, 9.0]
+Control 54.5[51.0,58.0]
+Logistic Test 15.0[10.8,19.4] 5.9[ 4.3, 7.8]
+Regression Train 36.7[24.8,49.3] 21.3[19.5,23.1]
+Featurecoefficients 53.1[50.0,57.0]
+Test 16.0[10.8,21.6] 8.9[ 7.2,10.6]
+Train 15.0[11.6,18.8] 10.7[ 8.6,12.8]
+Control 57.1[54.0,61.0]
+Test 12.4[ 7.6,18.1] 9.2[ 6.6,11.9]
+Train 14.4[10.5,19.5] 10.2[ 8.2,12.3]
+LIME 56.4[53.0,60.0]
+Test 7.7[ 4.4,11.3] 6.1[ 4.1, 8.2]
+Train 23.6[19.4,28.0] 16.5[14.0,19.2]
+BERT Integratedgradients 56.6[54.0,60.0] Test 13.6[ 8.2,19.3] 10.4[ 7.7,13.3]
+Featurecoefficients Train 32.2[27.1,37.3] 22.6[19.7,25.6]
+60.5[57.0,64.0]
+(fromalinearstudent) Test 21.3[15.7,27.4] 14.9[11.6,18.4]
++globalcues Train 40.6[32.0,49.6] 29.9[26.8,33.0]
+55.7[51.0,60.0]
+(fromalinearstudent) Test 31.6[23.2,40.8] 23.6[19.7,27.6]
+Table2:Wereporthumanperformanceacrossdifferentexplanationsinourstudy.Noneoftheexplanationshelpparticipantsto
+simulatethemodels,whereasglobalexplanationsfortheBERTmodelandfeaturecoefficientsforthelogisticregressionmodel
+help to reduce model confidence. Bold values indicate statistically significant differences as compared to the no-explanation
+control(p-value<0:05).Squarebracketsindicatebootstrapped95%confidenceintervals.Thesimulationaccuracyiscomputed
+togetherasparticipantsseetheexplanationsonlyafterguessingthemodelpredictionsinboththetrainandtestphase.
+ForboththelinearlogisticregressionmodelandtheBERT Wethenusethetrainedstudentmodeltoidentifythewords
+model,werunacontrolstudywithoutexplanations.Forthe with the highest feature weights associated with both the
+linearmodel,weusefeaturecoefficientsofunigramfeatures classes. We present the top-20 words for each class to par-
+asexplanationsinthetreatmentgroup.FortheBERTmodel, ticipants during the training phase. Alongside these global
+weusethefollowingexplanation-basedtreatments. cuewords,wealsohighlightwordsintheinputaspertheir
+Localexplanationrefertotechniquesthatproduceexpla- featurecoefficientsofthestudentmodel.Inaseparateabla-
+nations by observing how the model’s predictions change tionstudy,weisolatetheeffectoftheseglobalcuewordsby
+upon perturbing the input slightly For the BERT classifier, removingthemandonlyhighlightinginputtokensusingthe
+we experiment with two widely-used local explanations: featurecoefficientsfromthestudent.
+LIME (Ribeiro, Singh, and Guestrin 2016) and integrated
+gradients (Sundararajan, Taly, and Yan 2017). LIME pro- ParticipantDetails
+ducesanexplanationusingthefeaturecoefficientsofalinear
+interpretable model that is trained to approximate the orig- We recruit study participants using Amazon Mechanical
+inalmodelinthelocalneighborhoodoftheinputexample. Turk platform. We use a lightweight recruitment study that
+Integrated gradients are computed by integrating gradients consistsof2examples(withoutexplanations)toselectpar-
+of the log-likelihood of the predicted label along the line ticipants.Weaskparticipantstoguessthemodelprediction
+joiningastartingreferencepointandthegiveninputexam- and edit the example to reduce the model confidence. Par-
+ple.Theseexplanationsarepresentedtoparticipantsthrough ticipants who guess the model prediction within 5 seconds
+highlights(seeFigure1). (whichwebelieveisinsufficienttoreadthereview)arefil-
+Besides local explanations, we experiment with global teredout.Wealsoremoveparticipantswhoskiptheediting
+explanations that indicate common input-output associa- exercisealtogether,orwhoseeditsareungrammaticaloral-
+tionsthatthemodelsexploit.Toobtainglobalexplanations terthestayingexperienceexpressedinthereview.Forallour
+for the BERT model, we take inspiration from prior work studies,weincludeworkerswhoareresidentsintheUnited
+on knowledge distillation (Liu, Wang, and Matwin 2018) States, and have completed over 500 HITs in the past and
+tofirsttrainalinearstudentmodelusingBERTpredictions with atleast 99% approval rate. Workers selected from the
+onunseenhotelreviews.SincetheoriginaldatasetfromOtt recruitment test are encouraged to participate in the main
+etal.(2011)containsonly1600reviews,wemineadditional study.Forthemainstudy,wepaytheworkers$20andaward
+13:7K hotel reviews from TripAdvisor.5 Note that we only a bonus of 10 cents for each correct guess and 20 cents
+requiretheBERTpredictionsforthesereviews,ratherthan for every successful prediction flip. On an average, work-
+thegroundtruthlabels.Thestudentmodelachievesasimu- ersmake7.5editsperreview,andthuseffectivelyseemodel
+lationaccuracyof88.2%onthedownloadedsetofreviews.
+predictionsfor225uniqueinputs.Intotal,wehad173par-
+ticipantsinourmainstudy,with25ineachofthetreatment
+5Todownloadadditionalreviewswefollowaprotocolsimilar and control groups (except for one group, where 2 partici-
+tothedatacollectionprocessusedfortheoriginaldataset. pants were disqualified later for violating our instructions).
+5281
+Simulation Examplesflipped Avg.Confidence
+Model Treatments Phase
+Accuracy (Percentage) Reduced
+Logistic Train 29.3[16.5,42.1] 13.8[ 7.6,19.9]
+Featurecoefficients 2.3[-2.1,6.7]
+Regression Test 2.6[ -3.2, 8.4] 2.9[ -0.2, 6.0]*
+Train -0.5[ -8.6, 7.6] -0.3[ -6.4, 5.7]
+LIME -0.0[-5.5,5.4]
+Test -4.4[-12.5, 3.7] -2.9[ -8.6, 2.8]
+Train 8.8[ 0.6,16.9] 6.7[ 0.7,12.6]
+Integratedgradients -1.2[-9.9,3.1]
+Test 1.2[ -6.7, 9.1] 1.0[ -4.6, 6.6]
+BERT
+Featurecoefficients Train 17.1[ 8.8,25.4] 11.7[ 5.7,17.7]
+3.4[-2.0,8.8]
+(fromalinearstudent) Test 7.3[ -0.8,15.4]* 5.0[ -0.7,10.7]*
+Globalcues Train 25.6[17.5,33.7] 19.1[13.3,25.0]
+-1.7[-6.9,3.6]
+(fromalinearstudent) Test 18.7[10.8,26.6] 14.3[ 8.7,19.9]
+Table3:Wereportthefixedeffectterm(cid:12) relativetothecontrolforthe3targetmetrics.Bootstrapped95%confidence
+treatment
+intervalsareintheparentheses.Weobservethatnoneoftheexplanationshelpparticipantssimulatethemodels,whereasglobal
+explanationsfortheBERTmodelandfeaturecoefficientsforthelogisticregressionmodeldefinitivelyhelpparticipantsreduce
+modelconfidence.Boldvaluesindicatep-value<0:05comparedtothecontroland(cid:3)indicatesp-value<0:1.
+Thetotalcosttoconductourstudyisabout4000USD. guideparticipantstoeffectivelyeditthedocumenttolower
+model confidence. During the training phase, they are able
+Results&Analysis to statistically significantly flip more predictions, however,
+thisabilitydoesnottransfertothetestphase.
+DoExplanationsHelpHumansSimulateModels?
+FortheBERTmodel,neitherLIMEnorintegratedgradi-
+First,weinvestigateifthequeryaccesstothemodel’spre-
+entshelpparticipantsflipmorepredictionsatthetestphase.
+dictionsandexplanationsduringthetrainingphaseenables
+Integrated gradients-based explanations are effective only
+participants to understand the models sufficiently to simu-
+during the training phase. In contrast, the feature coeffi-
+late its output on unseen test examples. We do not find ev-
+cients,fromalinearstudentmodelhelpparticipantsreduce
+idenceofimprovedsimulatabilityinTables2and3,where
+themodelconfidenceoftheBERTmodel—bothattrainand
+the simulation accuracy of participants—which is slightly
+testtime,demonstratinghowassociationsfromasimplestu-
+better than random guessing—do not improve with access
+dentmodelcanleadtoactionableinsightsabouttheoriginal
+toexplanations.Whilepriorstudies(HaseandBansal2020;
+BERTmodel.Includingglobalcuewordsalongsidefeature
+Chandrasekaran et al. 2018) note similar findings, in our
+coefficients markedly improves participant’s ability to ma-
+opinion, this is a stronger negative result for two reasons:
+nipulate the BERT model. This fact that among all the in-
+first, in our study, participants can alter examples and ob-
+spected methods, attributions from a linear student model
+serve model predictions and their explanations during the
+arethemosteffectiveemphasizestheneedtoexplicitlyeval-
+training phase. This exercise allows participants more ac-
+uateexplanationswiththeirintendedusers,insteadofrely-
+cesstopredictionsandexplanationscomparedtopriorstud-
+ingonthequalitativeinspectionofafewexamples.
+ies.Second,evenforlinearmodels,whicharethoughttobe
+Anothernoteworthyresulthereisthatweareabletoquan-
+inherently“interpretable,”explanationsdonotimprovesim-
+titativelydifferentiatetheeffectivenessofdifferentexplana-
+ulation accuracy. The explanations of linear bag-of-words
+tions using the “percentage of examples flipped” and “av-
+modelhavenotbeenexaminedforsimulatabilityinthepast.
+erageconfidencereduced”metricsfromtheeditingexercise
+DoExplanationsHelpHumansPerformEditsThat proposedinthispaper.Thiscontrastswiththethepreviously
+usedsimulatabilitymetric,therefore,werecommendfuture
+ReduceTheModelConfidence?
+studies on evaluation of interpretability techniques to con-
+Next,weexamineifparticipantsgainsufficientunderstand-
+sider(similar)editingtasksandmetricsinstead.
+ingduringthetrainingphasetoperformeditsthatcausethe
+models to lower the confidence towards the originally pre-
+DoParticipantsEditTokensHighlightedAs
+dictedclass.Here,wefindthatlogisticregressioncoefficient
+Explanations?AreTheirEditsEffective?
+weightshelpparticipantsreducetheconfidenceofthelogis-
+tic regression model: the average confidence reduced dur- Oneotherbenefitofourframeworkisthat,incontrasttopre-
+ing the test phase, when they had access to explanations in viousstudies,itallowsustodirectlymonitorwhetherpartic-
+training, is 3.0 points higher than the no-explanation con- ipants are paying attention to the explanations, specifically
+trol.Thisdifferenceisstatisticallysignificantwithap-value bymeasuringhowtheyrespondtohighlightedwords.Todo
+< 0:05.Thebenefitsofsuchexplanationsduringthetrain- so, we record the fraction of times edits are performed on
+ingphasearelarge(over13points),whichisunsurprisingas a word that is among the top-20% of highlighted words in
+thefaithfulexplanationsshownduringthetrainingphasecan a given input text. If there is no preference towards high-
+5282
+FirstEdits AllEdits
+Model Treatments
+Deletion Substitution Deletion Substitution
+Logistic
+Featurecoefficients 48.5[42.5,54.6] 43.0[38.3,47.9] 40.4[37.0,43.8] 41.8[39.2,44.6]
+Regression
+LIME 56.8[49.8,63.7] 67.2[62.8,71.5] 39.2[35.2,43.2] 49.2[46.1,52.2]
+Integratedgradients 48.1[42.0,54.3] 50.8[46.2,55.4] 32.4[29.2,35.6] 45.9[43.2,48.6]
+BERT
+Featurecoefficients
+42.5[36.6,48.5] 47.1[42.3,52.0] 33.9[30.5,37.3] 42.4[40.0,44.8]
+(fromalinearstudent)
+Table 4: The table records the percentage of first, and all, edits performed on words that are among the top 20% highlighted
+wordsinthereview.Participantsprefereditinghighlightedwords,indicatingthattheyrespondtothepresentedexplanations.If
+participantsweretouniformlyeditthereviews,thetop-20%highlightedwordswouldreceiveabout20%offirstandalledits.
+DoPeopleUseGlobalCues?
+Forthetreatmentgroupwhereinwepresentparticipantsfea-
+turecoefficientsand40globalcuewordsfromalinearstu-
+dent model as explanations for the BERT classifier, we de-
+terminetheextenttowhichparticipantsusetheglobalcues.
+We report that around one in five edits utilizes global cues
+bothduringthetrainingandthetestingphase.Thefraction
+of insertions that contain global cue words are 17.1% and
+18.2%fortrainingandtestingrespectively.Further,theper-
+centageofdeletionsthatcontainthesecuewordsare21.2%
+intrainingand23.7%inthetestingphase.Theseresultsre-
+Figure 2: Percentage of edits on the top-20% highlighted
+veal that participants indeed incorporate global cue words
+words and their contribution towards the confidence reduc-
+whileediting,andasshowninTables2and3,theeditsper-
+tion.Thisplotindicatesthat(a)highlightedtokensreceivea
+formedwhenthesecuesarepresentareeffectiveinlowering
+bulkofedits(comparedtotheirquantity,whichforthepur-
+themodelconfidenceandflippingpredictions.
+posesofthisexperimentis20%);and(b)editsperformedon
+tokenshighlightedviaintegratedgradientsandfeaturecoef-
+ficientsareeffectiveinreducingconfidence. Conclusion
+Acommonargumentforprovidingexplanationsisthatthey
+(ought to) improve human’s understanding about a model;
+lighted words, this value would be close to 20%. From Ta- however, many prior studies note that they do not improve
+ble4,weseethattheparticipantseditthehighlightedwords theirabilitytosimulatethemodel(whichisprimarilyused
+significantlymoreoften,bothwithrespecttofirsteditsand as a proxy for model understanding). In this work, we ex-
+alledits.Forinstance,acrossallexplanations,forabout45- tendthepriorevaluationparadigmbyinsteadaskingpartic-
+55% of examples, the first deleted or substituted word is a ipantstoedittheinputexampleswithanobjectivetoreduce
+wordamongthetop-20%ofhighlightedwords. modelconfidencetowardsthepredictedclass.Thisexercise
+Wefurtheranalyzeiftheeditsonthetop-20%highlighted allows us to compute detailed metrics, namely, the average
+words are effective in reducing model confidence. In Fig- confidencereducedandthepercentageofexamplesflipped.
+ure2,weplotthefractionofeditsonhighlightedwordsand We evaluate several explanation techniques for both a lin-
+their contribution in reducing model confidence. We com- ear model and BERT-based classifier. Similar to past find-
+pute their contribution by aggregating the fractional reduc- ings, we first note that for both these models, none of the
+tioninmodelconfidencecausedduetothatedit.Weinspect considered explanations improve model simulatability. We
+iftheseeditsaremoreeffectivethanthoseperformedonthe alsofindthatparticipantswithaccesstofeaturecoefficients
+remainingwords.Wefindthattheeditsonhighlightedwords during training can force a larger drop in the model confi-
+are more effective, however, their effectiveness varies with dence during testing, when attributions are unavailable. In-
+different explanation types. Edits on words highlighted us- terestingly,forBERT-basedclassifier,globalcuewordsand
+ing integrated gradients and feature coefficients of the stu- feature coefficients, obtained using a linear student model
+dentmodelhavelargercontributiontowardsreducingmodel trainedtomimicitspredictions,provetobeeffective.These
+confidence than edits on the words highlighted via LIME. results reveal that associations from a linear student model
+This result corroborates our previous findings suggesting couldprovideinsightsforaBERT-basedmodel,andimpor-
+thatintegratedgradientsandfeaturecoefficientsfromastu- tantly,theeditingparadigmcouldbeusedtodifferentiatethe
+dentmodelarestatisticallysignificantlymorehelpfulinre- relativeutilityofexplanations.Werecommendfuturestud-
+ducingmodelconfidenceduringthetrainingphase iesonevaluatinginterpretationstoconsidersimilarmetrics.
+5283
+Acknowledgements Green, B.; and Chen, Y. 2019a. Disparate Interactions: An
+We thank Michael Collins, Mansi Gupta, Bhuwan Dhin- Algorithm-in-the-LoopAnalysisofFairnessinRiskAssess-
+gra and Nitish Kulkarni for their feedback. In addition, ments. In danah boyd; and Morgenstern, J. H., eds., Pro-
+ceedingsoftheConferenceonFairness,Accountability,and
+weacknowledge KhyathiChandu,AakankshaNaik, Alissa
+Transparency, FAT* 2019, Atlanta, GA, USA, January 29-
+Ostapenko, Vijay Viswanathan, Manasi Arora and Rishabh
+Joshiforpainstakinglytestingtheuserinterfaceofourstudy.
+31,2019,90–99.ACM.
+Green,B.;andChen,Y.2019b.ThePrinciplesandLimitsof
+References Algorithm-in-the-LoopDecisionMaking. Proc.ACMHum.
+Comput.Interact.,3(CSCW):50:1–50:24.
+Aggarwal,R.;Sounderajah,V.;Martin,G.;Ting,A.,Daniel
+S. W.and Karthikesalingam; King, D.; Ashrafian, H.; and Guidotti, R.; Monreale, A.; Ruggieri, S.; Turini, F.; Gian-
+Darzi, A. 2021. Diagnostic accuracy of deep learning in notti, F.; and Pedreschi, D. 2018. A survey of methods
+medical imaging: a systematic review and meta-analysis. for explaining black box models. ACM computing surveys
+NPJDigitalMedicine. (CSUR),51(5):1–42.
+Binns,R.;Kleek,M.V.;Veale,M.;Lyngs,U.;Zhao,J.;and Hase,P.;andBansal,M.2020. EvaluatingExplainableAI:
+Shadbolt,N.2018. ’It’sReducingaHumanBeingtoaPer- WhichAlgorithmicExplanationsHelpUsersPredictModel
+centage’: Perceptions of Justice in Algorithmic Decisions. Behavior? In Proceedings of the 58th Annual Meeting of
+InMandryk,R.L.;Hancock,M.;Perry,M.;andCox,A.L., theAssociationforComputationalLinguistics,5540–5552.
+eds., Proceedings of the 2018 CHI Conference on Human Online:AssociationforComputationalLinguistics.
+Factors in Computing Systems, CHI 2018, Montreal, QC,
+Hase,P.;Zhang,S.;Xie,H.;andBansal,M.2020. Leakage-
+Canada,April21-26,2018,377.ACM.
+AdjustedSimulatability:CanModelsGenerateNon-Trivial
+Cai,C.J.;Reif,E.;Hegde,N.;Hipp,J.D.;Kim,B.;Smilkov, Explanations of Their Behavior in Natural Language? In
+D.;Wattenberg,M.;Vie´gas,F.B.;Corrado,G.S.;Stumpe, Cohn, T.; He, Y.; and Liu, Y., eds., Findings of the Asso-
+M.C.;andTerry,M.2019. Human-CenteredToolsforCop- ciation for Computational Linguistics: EMNLP 2020, On-
+ing with Imperfect Algorithms During Medical Decision- line Event, 16-20 November 2020, volume EMNLP 2020
+Making. InBrewster,S.A.;Fitzpatrick,G.;Cox,A.L.;and of Findings of ACL, 4351–4367. Association for Computa-
+Kostakos,V.,eds.,Proceedingsofthe2019CHIConference tionalLinguistics.
+onHumanFactorsinComputingSystems,CHI2019,Glas-
+Hendricks, L. A.; Akata, Z.; Rohrbach, M.; Donahue, J.;
+gow,Scotland,UK,May04-09,2019,4.ACM.
+Schiele, B.; and Darrell, T. 2016. Generating Visual Ex-
+Chandrasekaran,A.;Prabhu,V.;Yadav,D.;Chattopadhyay, planations. In Leibe, B.; Matas, J.; Sebe, N.; and Welling,
+P.;andParikh,D.2018. DoexplanationsmakeVQAmod- M., eds., Computer Vision - ECCV 2016 - 14th European
+elsmorepredictabletoahuman? InRiloff,E.;Chiang,D.; Conference, Amsterdam, The Netherlands, October 11-14,
+Hockenmaier,J.;andTsujii,J.,eds.,Proceedingsofthe2018 2016, Proceedings, Part IV, volume 9908 of Lecture Notes
+Conference on Empirical Methods in Natural Language inComputerScience,3–19.Springer.
+Processing, Brussels, Belgium, October 31 - November 4,
+Hooker, S.; Erhan, D.; Kindermans, P.; and Kim, B. 2019.
+2018, 1036–1042. Association for Computational Linguis-
+A Benchmark for Interpretability Methods in Deep Neural
+tics.
+Networks. InWallach,H.M.;Larochelle,H.;Beygelzimer,
+Chu,E.;Roy,D.;andAndreas,J.2020. Arevisualexplana- A.; d’Alche´-Buc, F.; Fox, E. B.; and Garnett, R., eds., Ad-
+tions useful? a case study in model-in-the-loop prediction. vances in Neural Information Processing Systems 32: An-
+arXivpreprintarXiv:2007.12248. nualConferenceonNeuralInformationProcessingSystems
+Devlin,J.;Chang,M.-W.;Lee,K.;andToutanova,K.2019. 2019,NeurIPS2019,December8-14,2019,Vancouver,BC,
+BERT:Pre-trainingofDeepBidirectionalTransformersfor Canada,9734–9745.
+LanguageUnderstanding. InProceedingsofthe2019Con-
+Jacovi,A.;andGoldberg,Y.2021. AligningFaithfulInter-
+ference of the North American Chapter of the Association
+pretationswiththeirSocialAttribution. Trans.Assoc.Com-
+forComputationalLinguistics:HumanLanguageTechnolo-
+put.Linguistics,9:294–310.
+gies, Volume 1 (Long and Short Papers), 4171–4186. Min-
+Kaushik,D.;Hovy,E.;andLipton,Z.C.2019. Learningthe
+neapolis, Minnesota: Association for Computational Lin-
+Difference that Makes a Difference with Counterfactually-
+guistics.
+Augmented Data. International Conference on Learning
+DeYoung,J.;Jain,S.;Rajani,N.F.;Lehman,E.;Xiong,C.;
+Representations(ICLR).
+Socher, R.; and Wallace, B. C. 2020. ERASER: A Bench-
+Kim,M.;Yun,J.;Cho,Y.;Shin,K.;Jang,R.;Bae,H.J.;and
+mark to Evaluate Rationalized NLP Models. In Jurafsky,
+Kim, N. 2019. Deep Learning in Medical Imaging. Neu-
+D.;Chai,J.;Schluter,N.;andTetreault,J.R.,eds.,Proceed-
+rospine,657–668.
+ingsofthe58thAnnualMeetingoftheAssociationforCom-
+putational Linguistics, ACL 2020, Online, July 5-10, 2020, Kleinberg, J.; Lakkaraju, H.; Leskovec, J.; Ludwig, J.; and
+4443–4458.AssociationforComputationalLinguistics. Mullainathan,S.2017. Humandecisionsandmachinepre-
+dictions. TheQuarterlyJournalofEconomics,237–293.
+Doshi-Velez, F.; and Kim, B. 2017. Towards a rigorous
+science of interpretable machine learning. arXiv preprint Kunkel,J.;Donkers,T.;Michael,L.;Barbu,C.;andZiegler,
+arXiv:1702.08608. J.2019.LetMeExplain:ImpactofPersonalandImpersonal
+5284
+ExplanationsonTrustinRecommenderSystems. InBrew- Ribeiro, M. T.; Singh, S.; and Guestrin, C. 2016. ” Why
+ster, S. A.; Fitzpatrick, G.; Cox, A. L.; and Kostakos, V., shoulditrustyou?”Explainingthepredictionsofanyclas-
+eds., Proceedings of the 2019 CHI Conference on Human sifier. In Proceedings of the 22nd ACM SIGKDD interna-
+Factors in Computing Systems, CHI 2019, Glasgow, Scot- tionalconferenceonknowledgediscoveryanddatamining,
+land,UK,May04-09,2019,487.ACM. 1135–1144.
+Lai, V.; Liu, H.; and Tan, C. 2020. “Why is ‘Chicago’ de- Smilkov, D.; Thorat, N.; Kim, B.; Vie´gas, F.; and Watten-
+ceptive?”TowardsBuildingModel-DrivenTutorialsforHu- berg, M. 2017. Smoothgrad: removing noise by adding
+mans. InProceedingsofCHI2020,1–13.ACM. noise. arXivpreprintarXiv:1706.03825.
+Lai,V.;andTan,C.2019.Onhumanpredictionswithexpla- Sundararajan, M.; Taly, A.; and Yan, Q. 2017. Axiomatic
+nationsandpredictionsofmachinelearningmodels:Acase Attribution for Deep Networks. In Precup, D.; and Teh,
+studyondeceptiondetection. InProceedingsoftheConfer- Y. W., eds., Proceedings of the 34th International Confer-
+enceonFairness,Accountability,andTransparency,29–38. enceonMachineLearning,ICML2017,Sydney,NSW,Aus-
+ACM. tralia,6-11August2017,volume70ofProceedingsofMa-
+chineLearningResearch,3319–3328.PMLR.
+Lertvittayakumjorn,P.;andToni,F.2019.Human-grounded
+Treviso,M.V.;andMartins,A.F.T.2020. TheExplanation
+EvaluationsofExplanationMethodsforTextClassification.
+InInui,K.;Jiang,J.;Ng,V.;andWan,X.,eds.,Proceedings Game: Towards Prediction Explainability through Sparse
+of the 2019 Conference on Empirical Methods in Natural Communication.InAlishahi,A.;Belinkov,Y.;Chrupala,G.;
+Language Processing and the 9th International Joint Con-
+Hupkes,D.;Pinter,Y.;andSajjad,H.,eds.,Proceedingsof
+the Third BlackboxNLP Workshop on Analyzing and Inter-
+ferenceonNaturalLanguageProcessing,EMNLP-IJCNLP
+preting Neural Networks for NLP, BlackboxNLP@EMNLP
+2019,HongKong,China,November3-7,2019,5194–5204.
+2020, Online, November 2020, 107–118. Association for
+AssociationforComputationalLinguistics.
+ComputationalLinguistics.
+Lipton, Z. C. 2018. The mythos of model interpretability.
+Yin,M.;Vaughan,J.W.;andWallach,H.M.2019. Under-
+Queue,16(3):31–57.
+standingtheEffectofAccuracyonTrustinMachineLearn-
+Liu,X.;Wang,X.;andMatwin,S.2018. Improvingthein-
+ingModels. InBrewster,S.A.;Fitzpatrick,G.;Cox,A.L.;
+terpretability of deep neural networks with knowledge dis-
+andKostakos,V.,eds.,Proceedingsofthe2019CHIConfer-
+tillation. In 2018 IEEE International Conference on Data
+ence on Human Factors in Computing Systems, CHI 2019,
+MiningWorkshops(ICDMW),905–912.IEEE.
+Glasgow,Scotland,UK,May04-09,2019,279.ACM.
+Mohseni,S.;Zarei,N.;andRagan,E.D.2021. Amultidis-
+ciplinarysurveyandframeworkfordesignandevaluationof
+explainable AI systems. ACM Transactions on Interactive
+IntelligentSystems(TiiS),11(3-4):1–45.
+Mullenbach,J.;Wiegreffe,S.;Duke,J.;Sun,J.;andEisen-
+stein, J. 2018. Explainable Prediction of Medical Codes
+fromClinicalText. InWalker,M.A.;Ji,H.;andStent,A.,
+eds.,Proceedingsofthe2018ConferenceoftheNorthAmer-
+icanChapteroftheAssociationforComputationalLinguis-
+tics: Human Language Technologies, NAACL-HLT 2018,
+New Orleans, Louisiana, USA, June 1-6, 2018, Volume 1
+(Long Papers), 1101–1111. Association for Computational
+Linguistics.
+Ott,M.;Choi,Y.;Cardie,C.;andHancock,J.T.2011.Find-
+ingDeceptiveOpinionSpambyAnyStretchoftheImagina-
+tion. InLin,D.;Matsumoto,Y.;andMihalcea,R.,eds.,The
+49th Annual Meeting of the Association for Computational
+Linguistics:HumanLanguageTechnologies,Proceedingsof
+the Conference, 19-24 June, 2011, Portland, Oregon, USA,
+309–319.TheAssociationforComputerLinguistics.
+Poursabzi-Sangdeh, F.; Goldstein, D. G.; Hofman, J. M.;
+WortmanVaughan,J.W.;andWallach,H.2021. Manipulat-
+ingandmeasuringmodelinterpretability. InProceedingsof
+the2021CHIConferenceonHumanFactorsinComputing
+Systems,1–52.
+Pruthi, D.; Bansal, R.; Dhingra, B.; Soares, L. B.; Collins,
+M.;Lipton,Z.C.;Neubig,G.;andCohen,W.W.2020.Eval-
+uating Explanations: How much do explanations from the
+teacheraidstudents? arXivpreprintarXiv:2012.00893.
+5285

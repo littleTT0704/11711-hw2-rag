@@ -1,0 +1,539 @@
+TOWARDS IMPROVING HARMONIC SENSITIVITY AND PREDICTION
+STABILITY FOR SINGING MELODY EXTRACTION
+KerenShao* KeChen* TaylorBerg-Kirkpatrick ShlomoDubnov
+UniversityofCaliforniaSanDiego
+{k5shao, knutchen, tberg, sdubnov}@ucsd.edu
+ABSTRACT convolutionalneuralnetworks(CNN)[7]. Inmorerecent
+models,musicalandstructuralpriorswereincorporatedto
+In deep learning research, many melody extraction mod- improve performance. These include MSNet [8] with a
+elsrelyonredesigningneuralnetworkarchitecturestoim- vocal detection component at the encoder-decoder bottle-
+prove performance. In this paper, we propose an input neck,jointdetectionmodel[9]settingupanauxiliarynet-
+feature modification and a training objective modification work, and TONet [10] with tone-octave predictions. Ad-
+basedontwoassumptions. First,harmonicsinthespectro- ditionally,modelscancapturefrequencyrelationshipsbet-
+gramsofaudiodatadecayrapidlyalongthefrequencyaxis. terwithmulti-dilation[11],cross-attentionnetworks[12],
+Toenhancethemodel’ssensitivityonthetrailingharmon- graph-basedneuralnetworks[13],orharmonicconstant-Q
+ics, we modify the Combined Frequency and Periodicity transform(HCQT)[14].
+(CFP) representation using discrete z-transform. Second, Oneofourobservationsrelatestotheinputrepresenta-
+thevocalandnon-vocalsegmentswithextremelyshortdu- tionsofthemodels,whichplayanimportantroleinaffect-
+ration are uncommon. To ensure a more stable melody ing the extraction performance. Timbre, which is closely
+contour, we design a differentiable loss function that pre- related to harmonics, is one of the key components that
+ventsthemodelfrompredictingsuchsegments. Weapply helpsmodelsdistinguishthevocalfromotherinstruments.
+these modifications to several models, including MSNet, When the CFP representation [15] is chosen as the in-
+FTANet, andanewlyintroduced model, PianoNet, modi- putrepresentation,itssecondfeature,thegeneralizedcep-
+fied from a piano transcription network. Our experimen- strum,allowsthemodeltolearnthestrengthofharmonics
+talresultsdemonstratethattheproposedmodificationsare of any given fundamental frequency in a localized man-
+empiricallyeffectiveforsingingmelodyextraction. ner. However, in music, the harmonics of a single sound
+usually decays rapidly along the frequency axis (detail in
+section 2.1), which can pose a challenge for the model to
+1. INTRODUCTION
+distinguishsoundsthatonlydiffersignificantlyatthetrail-
+Singing melody extraction is a challenging task that aims ingharmonics.
+to detect and identify the fundamental frequency (F0) of
+The transformation from the spectrum to the general-
+singing voice in polyphonic music recordings. This task
+ized cepstrum in CFP is a Fourier transform, and hence
+is morecomplicated than the monophonic pitchdetection
+mostlycapturesthefirstfewpeakswithlargemagnitudes.
+taskduetothepresenceofvariousinstrumentalaccompa-
+Asaresult,thisrepresentationisnothelpfulinsensingthe
+niments and background noises, making it more difficult
+trailing harmonics. This motivates us to apply a different
+to accuratelyextract thesinging melody. Singingmelody
+transformation function that produces a generalized cep-
+extraction is not only crucial for music analysis by itself,
+strumwithbetterharmonicssensitivity.
+butalsohasmanydownstreamapplications,suchascover
+Anotherobservationrelatestothevocaldetectioncom-
+song identification [1], singing evaluation [2], and music
+ponent. Extremely short vocal segments surrounded by
+recommendation[3].
+non-vocal regions, and vice versa, rarely occur since vo-
+Deepneuralnetworkshavebeenwidelyadoptedinthe
+caliststypicallysingamelodyforatleasthalfasecondor
+singing melody extraction task to produce promising per-
+rest for at least a few hundred milliseconds. Threshold-
+formance in terms of extraction accuracy. Early models
+basedremoval[16],meanormedianfiltering[17,18]and
+[4–6] simply leveraged deep neural networks (DNN) and
+Viterbi-based smoothing [19,20] are frequently used to
+address the problem. When they are implemented along-
+*Thefirsttwoauthorshaveequalcontribution.
+Code:https://github.com/SmoothKen/KKNet sideanetwork-basedalgorithm, however, thenetworkre-
+mainsunawareofoursmoothingintentionandconfigura-
+tion. To investigate whether such awareness can increase
+©K.Shao,K.Chen,T.Berg-Kirkpatrick,S.Dubnov. Li- thepredictionperformance,wederiveadifferentiableloss
+censedunderaCreativeCommonsAttribution4.0InternationalLicense
+component that specifically penalizes spurious short-term
+(CCBY4.0). Attribution: K.Shao,K.Chen,T.Berg-Kirkpatrick,S.
+predictionsofthesekindsduringtraining,thuspotentially
+Dubnov,“TowardsImprovingHarmonicSensitivityandPredictionSta-
+bilityforSingingMelodyExtraction”,inProc. ofthe24thInt. Society guiding the model to produce consistently stable predic-
+forMusicInformationRetrievalConf.,Milan,Italy,2023. tions.
+3202
+guA
+4
+]DS.sc[
+1v32720.8032:viXra
+2.1 z-CFPRepresentationforHarmonicSensitivity
+modification + STFT
+Our input representation of audio data is a modified ver-
+sion of the CFP representation. A CFP representation
+X ∈R3×T×F containsthreefeatures,withT thelengthof
+modification + z-transform
+timeframesandF thenumberoffrequencybins. Ateach
+k=0.0007 time slice, it contains: (1) a power spectrum S ∈ R1×F;
+k=0.0006 (2)ageneralizedcepstrumGC ∈ R1×F;and(3)agener-
+k=0.0002 alizedcepstrumofspectrumGCoS ∈R1×F,
+k=0
+AsillustratedintheupperpartofFigure1,thestandard
+CFP generation process begins by computing the frame-
+wise spectrum of an input audio waveform using short-
+timeFouriertransform(STFT).Wethenobtainthemagni-
+tudeofeachspectrum,whichservesasthefirstfeatureof
+CFP,denotedasS. Toderivethesecondfeature,wecom-
+Frequency (Hz) pute the generalized cepstrum using the following equa-
+tion:
+Figure1. Top: thetransformationpipelineoftheoriginal
+CFP representation, and our proposed z-CFP representa-
+tion.Bottom:modifiedSpectrumS˜withdifferentgrowing GC =|F−1(s γ(S))|=|F(s γ(S))| (1)
+ratesk applied. NotethattheoriginalCFPcorrespondsto whereF andF−1denotestheFouriertransformanditsin-
+thecaseofk =0. verse,s : R → Risanelement-wiseapplied,logarithm-
+γ
+like modification function as described in [15], and the
+In this paper, we propose two techniques that attempt absolute value sign represents an element-wise complex
+toimprovethetwoconcernsmentionedabove,namelythe normoperation. Thesecondequalitycomesdirectlyfrom
+harmonicsensitivityandthepredictionstabilityofsinging thefactthatnormofacomplexnumberequalstothatofits
+melody extraction models. Our contributions are as fol- conjugate.
+lows: As mentioned in the introduction, GC is not sensi-
+tive to the trailing harmonic dynamics, as it mostly cap-
+• Weproposetouseexponentiallygrowingsinusoids turesthefirstfewpeakswithlargemagnitudes. Sincethe
+along the frequency axis to transform the spectrum harmonics decay rapidly along with the frequency axis,
+into the generalized cepstrum of the CFP represen- we shall revert the decay to better preserve such dynam-
+tation. This approach is equivalent to taking a z- ics. In other words, instead of applying complex sinu-
+transform instead of Fourier transform, which in- soids(cid:80) s (S[n])e−iwn asinFouriertransform(nisthe
+n γ
+creasestheharmonicsensitivityoftheinput. entry of frequency bins in S), we apply growing com-
+plex sinusoids (cid:80) s (S[n])e(k−iw)n, where k ∈ R and
+n γ
+• Wedesignadifferentiablelossfunctionaspartofthe k > 0. Thisisequivalenttotakingadiscretez-transform
+trainingobjectivetoteachthenetworktoavoidpre- (cid:80) ns γ(S[n])z−n,wherez =eiw−k.
+dicting unrealistically short sequences of vocal and In the actual implementation, k is manually assigned
+non-vocalatthevoicedetectionbin. and fixed across different w. Therefore, as illustrated in
+Figure1,wecanseparatethecomputationofkpartandw
+• We evaluate our techniques by applying them on partasfollows:
+severalmelodyextractionmodels. Additionally,we
+S˜[n]=ekns (S[n])for∀n (2)
+adaptPianoNet[21],originallydevelopedforpiano γ
+transcription, into the melody extraction task. Ex- G˜C =|F−1(S˜)|=|F(S˜)| (3)
+perimental results demonstrate state-of-the-art per-
+InthelowerpartofFigure1,wepresentS˜ofanaudio
+formanceofourimprovedmodels.
+waveformwithdifferentvaluesofk. Wecanobservethat
+theharmonicsofS˜atthetailgetsamplifiedsothatthesub-
+sequentFouriertransformcanbettercapturetheirdynam-
+ics.Whileweobservesomeamplificationsofharmonicsat
+2. METHODOLOGY
+frequencies other than the fundamental frequencies, their
+In this section, we introduce three main parts of our magnitudes are always smaller than those of nearby fun-
+methodology. First, we propose a modified CFP repre- damental frequencies. Therefore, they pose no sufficient
+sentation, z-CFP, to enhance the harmonic sensitivity of distractionfortheextractionmodel,aslongasthechosen
+the network input. Second, we introduce extraction mod- kisnottoolarge. Inourexperiments,wesetk =0.0006.
+els used for evaluating our techniques, namely MSNet, Wethengeneratethegeneralizedcepstrumofspectrum
+FTANet,andPianoNet.Third,weproposeanewlossfunc- GC˜oS fromcepstrumG˜C thesamewayasintheoriginal
+tionaspartoftrainingobjectivetoimprovetheprediction CFP. Finally, each time slice of our modified CFP repre-
+stabilityofmodels. sentationX˜ ∈ R3×T×F consistsof{S,G˜C,GC˜oS}with
+edutingaM
+1.0
+0.5
+Extraction Models
+0.0
+PianoNet MSNet Time Frame
+Subsequence Processing
+2 × Conv2D (3,5,48) 3 × Conv2D (5,5,3 → 128)
+2 × Conv2D (3,5,96) 3 × Conv2D (5,5,128 → 1)
+2 × Conv2D (3,5,128) Softmax
+2 × Conv2D (3,5,128)
+FTA-Module
+Dense SF-Module
+accept such segments
+Bi-GRU FTA-Module reject such segments
+SF-Module
+Dense + Softmax Figure3.Theillustrationofhowweperformthelossfunc-
+Softmax FTANet
+tionsL andL onthesubsequencesofthevoicedetec-
+v nv
+downsampling-block (kernel, kernel, channel) tion prediction. Each loss components L are used to give
+upsampling-block (kernel, kernel, channel) largepenalties(i.e.,✗)tocertaintypesofsubsequences.
+beforetheBi-GRU.
+Figure2illustratesamoredetailedstructureofthethree
+extractionmodels. Followingthepipeline,wefirstprocess
+theaudiowaveformintoz-CFPrepresentations. Thenwe
+feed them into the extraction model, which produces out-
+putfeaturemapsY˜ ∈ RT×(F+1). Theadditionalonefea-
+Figure 2. The model architecture. Note that we choose
+ture along the frequency axis denotes the voice detection
+onlyoneofthethreeextractionmodelsatatime.
+bin output. It is then compared against the ground truth
+log-scaled frequency axis. For the rest of the paper, we labelY ∈RT×(F+1),throughthelossfunctionintroduced
+denoteitz-CFP. inthefollowingsection.
+2.2 ModelArchitecture 2.3 LossFunctionforPredictionStability
+Our extraction models are referred from three state-of- Weaddtwodifferentiabletrainingobjectives,L v andL nv,
+the-art (SoTA) models, MSNet [8], FTANet [12], and Pi- to the conventional binary cross entropy loss L BCE to
+anoNet [21]. Different from MSNet and FTANet, Pi- teach the extraction model to avoid unrealistically short
+anoNetistheSoTAmodelofpianotranscription.Givenits vocalandnon-vocalsequencesatthevocaldetectionbin.
+superior performance on piano transcription, we incorpo- Sincethedesignforthesetwocasesaresymmetric,wefirst
+rateasub-networkofPianoNetintosingingmelodyextrac- introducethelossobjectL v,forthevocalcase.
+tion,aswehypothesizethatitmayalsoyieldgoodresults AsshownonthetopofFigure3,thepredictionsatthe
+formelodyextraction. vocaldetectionbinisatimeseries{a 1,a 2,...,a T}. First,
+MSNet contains a 3-layer encoder, a 3-layer decoder, sinceourtrainingobjectivesaredealingwithcertaintypes
+and a bottleneck module. The channel size is shifted as ofshortburstsegmentsofvocalandnon-vocal,weextract
+3 → 32 → 64 → 128 → 64 → 32 → 1. Thebottleneck allpossiblesubsequences,withstride1. Forexample,for
+modulemapstheencoderoutputtoa1-channelfeaturemap 3-length subsequences we have {a 1:3,a 2:4,...,a T−2:T},
+forvoicedetection.All2D-convolutionallayerscomewith and similarly {a 1:4,a 2:5,...,a T−3:T} for subsequences of
+(5×5)kernelsize. FTANetcontainsa4-layerencoder,a length4,etc.
+3-layerdecoder,anda4-layerbottleneckmodule.Bothen- Second,tosimplifytheproblemabitatthebeginning,
+coderanddecodercontainFTA-modulesandSF-modules we assume that the voice detection output is binary val-
+to process the audio latent features. The channel size is ued a ∈ {0,1}. Formally, we do not want “sharp-burst"
+shiftedfrom3to128,thenbackto1. Morespecifications sequencesinsidethefollowingset:
+ofMSNetandFTANetcanbefoundintheirpapers[8,12].
+The PianoNet we use for this task is modified from M (cid:91)v
+B = {a ...a |a =a =0,a =1for∀i̸=1,m} (4)
+a sub-network of [21]. It starts with four convolutional v 1 m 1 m i
+m=3
+blocks,eachblockcontainingtwo2D-convolutionallayers
+withkernelsizes(3,5)and(3,3)respectively,abatchnor- whereM isahyperparameterthreshold,abovewhichthe
+v
+malizationlayerandaReLUactivation.Thenitisfollowed durationofvocalsegmentsbecomesreasonable. Figure3
+bybidirectional-GRUandsoftmaxlayers,withdenselay- illustratesexamplesof“sharp-burst"sequencesinB (and
+v
+ersastransitions. Thelayerbiasisturnedoffforalllayers B )asredsegmentsinsideblack-borderboxes.
+nv
+borP
+D-V
+Suppose m = 3, all possible binary sequences are where r ∈ R and r > 1. It will amplify those sequences
+{000,001,010,011,100,101,110,111} and 010 ∈ B . that receive loss values closer to 1 and suppress those se-
+v
+To make the model avoid predicting the short burst vocal quenceswithlossvaluescloserto0.
+segment,i.e.,010,weconstructapolynomialobjectivethat Finally, foreachm ∈ [3,M ], wecomputeLm across
+v v
+canfulfillthegoalbysatisfyingthefollowing: allm-lengthsubsequencesinthemodel’soutput. Theag-
+(cid:26) gregatedlossfunctionL isthencomputedbyconcatenat-
+1 wherea a a =010 v
+L3 v(a 1a 2a 3)= 0 oth1 er2 wi3 se (5) ingalltheseLm v arraysandtakingtheaverage.
+Now analogously, assuming non-vocal sequences be-
+Adecentchoicewillthenbe
+yondlengthM becomereasonable,wecanperformthe
+nv
+L3(a a a )=(1−a )a (1−a ) (6) sameanalysisonthefollowingsetofsequences:
+v 1 2 3 1 2 3
+which can be easily extended to sequences with longer B
+=M (cid:91)nv
+{a ...a |a =a =1,a =0for∀i̸=1,m}
+nv 1 m 1 m i
+lengthm.
+m=3
+L4(a a a a )=(1−a )a a (1−a ) (10)
+v 1 2 3 4 1 2 3 4
+. . . andconsequentlyobtainL nv. Practically,Lm nv ofanyse-
+quencea ...a canbecomputedasLm oftheflippedse-
+1 m v
+m−1
+Lm(a ...a )=(1−a )(1−a ) (cid:89) a (7) quenceb 1...b m,whereb i =1−a iforalli∈{1..m}. Our
+v 1 m 1 m i
+finallossfunctionwillthenbe:
+i=2
+However,thereisasmallcaveatinthisextensionwhen L=L +L +L (11)
+BCE v nv
+we move back from binary values to probability values
+a ∈ [0,1]. For example, our loss component will be
+3. EXPERIMENTS
+havingtroublecapturingsequenceslike{0.1,0.4,0.6,0.1}
+and {0.1,0.6,0.4,0.1} as both L3 v and L4 v result in rela- 3.1 DatasetsandExperimentSetup
+tivelysmallvalues.However,weobservethatpolynomials
+For the training data, we complied with the setting of
+(1−a )(1−a )a (1−a )and(1−a )a (1−a )(1−a )
+1 2 3 4 1 2 3 4
+respectivelyworksbetterthanouroriginalL4,butstillin- [10,12]andchoseall1000ChinesepopsongsfromMIR-
+v 1K1 and 35 vocal tracks from MedleyDB [22]. For the
+sufficienttoworkstandalone.
+testingdata,wechose12tracksinADC2004and9tracks
+Sincenoneofthepolynomialsabovegiveshighvalues
+in MIREX052. We also selected 12 tracks from Med-
+to sequences outside of B in 4-length, a simple solution
+v
+wouldbetoredefineL4 tobethesumofallsuchpolyno- leyDB that are disjoint from those already used for train-
+v
+ing.
+mials:
+For the signal processing part, we used 8000Hz sam-
+L4 =(1−a )(1−a )(a a +a (1−a )+(1−a )a )
+v 1 4 2 3 2 3 2 3 pling rate to process audio tracks. We use a window size
+.
+. of 768, a hop size of 80 to compute the STFT of audio
+.
+tracks. Note that the time resolution of our labels is 0.01
+m−1
+Lm =(1−a )(1−a ) (cid:88) (cid:89) aci(1−a )1−ci seconds,andthishopsizewaschosentomatchthat. Then,
+v 1 m i i
+c1...cm∈{0,1}m i=2 when creating z-CFP representations, we set the time di-
+atleastoneci̸=0 mensionoftherepresentationtobeT = 128,or1.28sec-
+m (cid:89)−1 onds, and the number of frequency bins F = 360, or 60
+=(1−a )(1−a )(1− (1−a )) (8)
+1 m i bins per octave across 6 octaves. The start and stop fre-
+i=2
+quenciesare32.5Hzand2050Hz. Hence,theinputshape
+This redefined loss L v allows better recognition of the becomesX ∈ R3×128×360 andtheoutput/labelshapebe-
+badsequencesmentionedabovewhilenotfalselyflagging comesY ∈R128×361.
+sequencesoutsideofB . Furthermore,whendealingwith
+v Within the extra loss component, we set the duration
+longersequences,forexample{0.1,0.9,...,0.9,0.1}with
+threshold of vocal segments M = 30 (0.3 seconds), the
+v
+increasinglymany0.9sinthemiddle,theoriginalL ’sout-
+v durationthresholdofnon-vocalsegmentsM = 7(0.07
+nv
+putquicklydiminisheswhiletheredefinedL doesnot.
+v seconds),andtheS-curveexponentparameterr =5.
+This redefined objective does come with a small side
+For the training hyperparameters, we use a batch size
+effect,asitover-countstheshorterbadsequences. Forex-
+of 10, the Adam optimizer [23] with a fixed learning rate
+ample, (0.1,0.9,0.1,0.1) now gets a high loss value not of 1×10−4. The maximum training epoch is 500. Dur-
+onlyinL3, butalsoinL4. However, webelievethisside
+v v ing the evaluation, we use the standard metrics of the
+effectdoesnothavesignificantimpactasitdoesnotmatter
+singingmelodyextractiontask,namely,voicerecall(VR),
+whetherneuralnetworkdecidestostopproducingshorter
+voicing false alarm (VFA), raw pitch accuracy (RPA),
+badsequencesorlongerbadsequencesfirst.
+raw chroma accuracy (RCA), and overall accuracy (OA)
+A further improvement is to pass the value of Lm into
+v from the mir_eval library [24]. Following the conven-
+theS-curvefunction:
+tion of this task, overall accuracy (OA) is regarded as the
+(Lm)r
+Lm ← v (9) 1http://mirlab.org/dataset/public/MIR-1K.zip
+v (Lm)r+(1−Lm)r
+v v 2https://labrosa.ee.columbia.edu/projects/melody/
+Dataset ADC2004 MIREX05 MEDLEYDB
+Metrics VR VFA↓ RPA RCA OA VR VFA↓ RPA RCA OA VR VFA↓ RPA RCA OA
+PianoNet 87.21 14.62 84.28 84.30 84.48 91.98 6.14 86.54 86.55 89.19 69.38 13.74 61.81 62.80 73.70
+PianoNet+z-CFP 88.25 7.58 84.87 84.93 86.27 93.44 6.21 86.78 86.79 89.33 68.76 11.91 62.22 63.10 74.80
+PianoNet+3pointmedian 87.33 14.58 84.35 84.38 84.55 92.08 6.15 86.60 86.62 89.23 69.49 13.77 61.86 62.86 73.71
+PianoNet+7pointmedian 87.58 14.53 84.46 84.48 84.65 92.47 6.14 86.78 86.8 89.35 69.71 13.83 61.92 62.91 73.71
+PianoNet+15pointmedian 89.13 14.21 84.89 84.91 85.06 93.27 6.58 86.82 86.84 89.21 70.31 14.43 61.91 62.90 73.42
+PianoNet+{L ,L } 90.92 13.58 86.06 86.12 86.13 91.87 5.79 87.50 87.50 89.94 71.16 15.77 63.66 64.81 73.66
+v nv
+PianoNet+z-CFP+{L ,L } 90.50 7.99 85.76 85.82 86.92 92.84 6.39 87.57 87.59 89.76 68.88 12.29 62.05 62.91 74.53
+v nv
+MSNet 89.78 23.12 80.83 81.60 80.10 84.85 11.44 77.76 78.09 81.68 53.49 9.41 46.90 48.24 68.15
+MSNet+z-CFP+{L ,L } 90.61 14.62 81.96 82.57 82.59 88.38 14.85 80.83 81.01 82.39 62.95 14.60 53.60 55.31 69.07
+v nv
+FTANet 81.26 2.70 77.17 77.36 80.89 87.34 5.11 81.56 81.61 86.40 62.44 10.41 55.94 56.58 72.30
+FTANet+z-CFP+{L ,L } 90.29 10.83 85.06 85.19 85.82 90.50 6.63 83.94 83.99 87.36 63.71 9.35 56.32 57.29 73.02
+v nv
+Table1. AblationstudiesonADC2004,MIREX05andMedleyDBtestsets. BaselinesuseCFPastheinputrepresentation
+and L as the loss function. {L ,L } denotes the use of our proposed loss function in section 2.3. Among median
+BCE v nv
+filtersizesintherange[3,100] ⊂ Z, 3pointworksbestforMedleyDB,7pointworksbestforMIREX05, and15point
+works best for ADC 2004. But they neither significantly outperform our proposed loss component in any single dataset,
+noruniformlyoutperforminallthreedatasets.
+most important metric. All models are trained and tested model can distinguish different sounds better and conse-
+in NVIDIA RTX 2080Ti GPUs and implemented in Py- quently improve the extraction performance. Also, note
+Torch3. that unlike TONet [10] and JDC [9], which achieved this
+through model design or music inductive bias, this tech-
+nique relies solely on the inherent characteristics of the
+3.2 AblationStudy
+data.
+We choose three extraction models, namely MSNet [8], When we incorporate both techniques into the extrac-
+FTANet [12], and PianoNet [21], to evaluate our z- tionmodels,weobserveapromisingincreaseineachmet-
+transformandlossfunctions. Weconductedablationstud- ric compared to the original models. However, we notice
+iesandpresentedtheresultsinTable1.Were-trainedthese thatsomemodelswithbothtechniquescarrieddonotyield
+models from scratch, and the results are largely consis- better performance than the models carrying only one of
+tent with the original reports of [8,10,12]. The option z- the techniques. These models appear to be an averaging
+transformdenotestheuseofz-CFPrepresentations. Note weightingoranensembleofmodelsimprovedwitheither
+that{L v,L nv}inthetabledenotetheuseoflossfunctions technique,implyingbettergeneralization.
+to address short burst segments of vocal and non-vocal.
+Due to the page limitation, we present a detailed ablation
+3.3 ComprehensivePerformanceComparison
+study on PianoNet while ablating MSNet and FTANet in
+anall-or-nothingfashion. Table2presentstheresultsaswecompareourbestmodel,
+From Table 1 we can clearly observe decent perfor- i.e.,PianoNetwithz-transformand{L v,L nv},withother
+mance of both z-CFP and {L ,L } when added to the SoTAmodels. AmongtheseSoTAs,therearetwomodels
+v nv
+PianoNet,MSNet,andFTANet. Amongtheseresults,the with“*",indicatingthattheseareonlypartialcomparisons.
+additionoflossfunctions{L ,L }increasestheoverall For SpecTNT [25], since there is no official open-source
+v nv
+accuracy while improving the VR, RPA, and RCA. The implementation,wereportitsresultsbasedonourownre-
+medianfilterpostprocessing[18]isusedasacomparison. implementation. For H-GNN [13], we directly copied its
+Since our loss component focuses on the vocal detection, reportedperformancefromtheoriginalpaper.
+wetookthepitchespredictedbymedianfiltersonlywhen FromTable2,ourimprovedPianoNetwithz-transform
+the original predictions are non-vocal. Further, to ensure and {L v,L nv} yield the best OA performance over all
+fairness, we optimized the filter size against each single datasets,thebestRPAandRCAonADC2004andMIREX
+datasetwithintherange[3,100] ⊂ Zandlistedtheevalu- 05 datasets. We do note, despite the use of the extra loss
+ationresultsofthoseoptimalones. AswecanseeinTable component, that our model’s VFA is not necessarily the
+1, noneofthesemedianfiltersoutperformsourlosscom- smallest. This is because the extra loss component only
+ponentinaconsistentmanner, nordotheyobtainconsid- targetsaparticulartypeoffalsepositive,andisnotmeant
+erablemarginsinanysingledataset. to minimize the false positive rate in general. For exam-
+Thez-CFPalsoincreasesseveralmetrics,especiallyei- ple,sometimesthenetwork’svocaltonon-vocaltransition
+happenslaterthanthereferencelabels. Inthiscase,since
+ther VR or VFA, on each dataset. This indicates that by
+the vocal sequence itself lasts long enough, the extra loss
+preservingmoredynamicsinthehighfrequencybins,the
+componentwillnotmarkthistypeoffalsepositives. Ad-
+3https://pytorch.org/ dressingthistypeoferrorsispotentiallyafuturework.
+Dataset ADC2004
+Original MSNet Improved MSNet
+Metrics VR VFA↓ RPA RCA OA
+MCDNN[4] 65.0 10.5 61.6 63.1 66.4
+DSM[14] 89.2 51.3 75.4 77.6 69.8 Time (second)
+MSNet[8] 89.8 23.1 80.8 81.6 80.1 Original FTANet Improved FTANet
+FTANet[12] 81.3 2.7 77.2 77.4 80.9
+TONet[10] 91.8 17.1 82.6 82.9 82.6
+Time (second)
+SpecTNT*[25] 85.4 8.2 83.5 83.6 85.0
+Original PianoNet Improved PianoNet
+H-GNN*[13] 89.2 21.3 84.8 86.1 83.9
+Ours 90.5 8.0 85.7 85.8 86.9
+Dataset MIREX05 Time (second)
+Metrics VR VFA↓ RPA RCA OA Original PianoNet Improved PianoNet Groudtruth Label
+1000 1000
+MCDNN[4] 66.5 4.6 64.1 64.4 75.4
+DSM[14] 91.4 45.3 75.7 77.0 68.4
+0 0
+MSNet[8] 84.8 11.4 77.8 78.1 81.7 Time (second)
+FTANet[12] 87.3 5.1 81.6 81.6 86.4
+Figure 4. The effect of applying the loss L and L .
+TONet[10] 91.6 8.5 83.8 84.0 86.6 v nv
+The top three plots are values of L30 across the entire
+SpecTNT*[25] 82.2 8.7 77.4 77.5 82.5 v
+MIREX05 dataset. The bottom two plots are one 5-sec
+H-GNN*[13] 93.2 21.7 85.2 86.4 81.3
+MIREX05predictions.
+Ours 92.8 6.4 87.6 87.6 89.8
+Dataset MEDLEYDB L ,acrosstheentireMIREX05dataset(i.e.,weconcate-
+nv
+Metrics VR VFA↓ RPA RCA OA nate all tracks in the dataset). We see that cases in which
+MCDNN[4] 37.4 5.3 34.2 35.3 62.3 theimprovedmodels’predictionreceivelossvaluesclose
+DSM[14] 86.6 44.3 70.2 72.4 64.8 to 1 diminishes comparing to those of the original mod-
+MSNet[8] 53.5 9.4 46.9 48.2 68.1 els. This phenomenon implies that after applying L and
+v
+FTANet[12] 62.4 10.4 55.9 56.6 72.3 L ,thechanceofmodelstopredictshortburstsegments
+nv
+TONet[10] 64.2 12.5 56.6 58.0 71.6 significantlyreduces.
+SpecTNT*[25] 62.7 18.8 54.7 56.4 63.9 Thepairofplotsinthelastrowcomparestheprediction
+H-GNN*[13] 71.7 21.6 61.2 65.8 67.9 performanceofPianoNets,trainedwithoutandwiththeex-
+Ours 68.9 12.3 62.1 62.9 74.5 tralosscomponents,onazoomed-insectionofMIREX05.
+NotethattheoriginalPianoNethasashortburstnon-vocal
+Table 2. The comprehensive performance comparison segmentinbetweenthe10thsecondand11thsecond. Fur-
+amongourimprovedmodelsandcurrentbaselines. ther,ithasaconsiderablenumberofshortburstvocalseg-
+mentsaroundthe12thsecond. Oncetrainedwiththeextra
+AnotherthingwefoundisthatthePianoNet,asoneof losscomponents,theseissuesareresolved. Alsonotethat
+SoTAs in the piano transcription task and ported by us to both the original version and the improved version make
+themelodyextractiontaskinthispaper,hasalreadyyields a mistake in between the 13th and the 14th second. This
+very high performance on MIREX 05 dataset. This indi- isbecausethelengthofthatnon-vocaltransitionisgreater
+catesthattheremayexistmorepowerfulnetworkarchitec- thanourthresholdM ,whichendsupnottriggeringL .
+nv nv
+tures for this task yet to be explored. Additionally, it is All these observations further verify the effectiveness of
+noteworthythatourproposedPianoNetarchitecturehasa ourproposedlosscomponents.
+small number of parameters (5.5 million), which is com-
+parablewithMCDNN(5.6million),FTANet(3.4million) 4. CONCLUSION
+andfarlessthanTONet(152million). Thisdemonstrates
+itspotentialinpracticalapplicationswherecomputational Weproposetwotechniquestorespectivelyutilizethetwo
+resources are limited. Again, as demonstrated in Table assumptions for improving the singing melody extraction
+1, our techniques could help models other than PianoNet performance. The use of z-transform in generating cep-
+achievehigherperformancethantheiroriginalversions. strum allows the network to better recognize the strength
+ofharmonicsofanyfundamentalfrequencies.Empirically,
+while the trailing harmonics of those frequencies that do
+3.4 LossValueandExtractionVisualization
+notactuallyappearintheaudioalsogetelevated,theben-
+Toempiricallyverifyifapplyingthepolynomiallossfunc- efit of the technique is greater than its setback. Our ex-
+tionsL andL couldreducethevoicedetectionerrors, tra loss components make the network less prone to pre-
+v nv
+i.e.,shortburstsegmentsofvocalandnon-vocal,wevisu- dictvocalandnon-vocalsequencesareunreasonablyshort,
+alize two types of plots in Figure 4. The top three plots while not affecting the network’s overall accuracy due to
+demonstrate the loss values of L30 between the original itsdifferentiability. Weregardthesetwotechniquesasde-
+v
+extraction models and the improved models with L and centimprovementsonsingingmelodyextractionmodels.
+v
+)zH(
+.qerF
+5. ACKNOWLEDGMENTS [13] S.Yu, X.Chen, andW.Li, “Hierarchicalgraph-based
+neuralnetworkforsingingmelodyextraction,”inProc.
+WewouldliketothanktheInstituteforResearchandCo-
+ICASSP,2022,pp.626–630.
+ordination in Acoustics and Music (IRCAM) and Project
+REACH: Raising Co-creativity in Cyber-Human Musi- [14] R. M. Bittner, B. McFee, J. Salamon, P. Li, and J. P.
+cianship for supporting this project. This project has Bello,“Deepsaliencerepresentationsforf0estimation
+received funding from the European Research Council in polyphonic music.” in Proc. ISMIR, 2017, pp. 63–
+(ERCREACH)undertheEuropeanUnion’sHorizon2020 70.
+research and innovation programme (Grant Agreement
+#883313). [15] L. Su and Y.-H. Yang, “Combining spectral and tem-
+poralrepresentationsformultipitchestimationofpoly-
+phonicmusic,”IEEETrans.Audio,Speech,Lang.Pro-
+6. REFERENCES
+cess.,vol.23,no.10,pp.1600–1612,2015.
+[1] X.Du, K.Chen, Z.Wang, B.Zhu, andZ.Ma, “Byte-
+[16] R.M.Bittner,J.Salamon,J.J.Bosch,andJ.P.Bello,
+cover2: Towards dimensionality reduction of latent
+“Pitchcontoursasamid-levelrepresentationformusic
+embedding for efficient cover song identification,” in
+informatics,”inAudioengineeringsocietyconference:
+Proc.ICASSP,2022,pp.616–620.
+2017AESinternationalconferenceonsemanticaudio,
+[2] N. Zhang, T. Jiang, F. Deng, and Y. Li, “Automatic 2017.
+singingevaluationwithoutreferencemelodyusingbi-
+dense neural network,” in Proc. ICASSP, 2019, pp. [17] J. Salamon and E. Gómez, “Melody extraction from
+466–470. polyphonic music signals using pitch contour charac-
+teristics,” IEEETrans.Audio, Speech, Lang.Process.,
+[3] K.Chen,B.Liang,X.Ma,andM.Gu,“Learningaudio vol.20,no.6,pp.1759–1770,2012.
+embeddingswithuserlisteningdataforcontent-based
+music recommendation,” in Proc. ICASSP, 2021, pp. [18] S. Rosenzweig, F. Scherbaum, and M. Müller, “De-
+3015–3019. tectingstableregionsinfrequencytrajectoriesfortonal
+analysisoftraditionalgeorgianvocalmusic.”inProc.
+[4] S. Kum, C. Oh, and J. Nam, “Melody extraction on ISMIR,2019,pp.352–359.
+vocal segments using multi-column deep neural net-
+works,”inProc.ISMIR,2016,pp.819–825. [19] M. Mauch and S. Dixon, “pyin: A fundamental fre-
+quency estimator using probabilistic threshold distri-
+[5] S. Li, “Vocal melody extraction using patch-based butions,”inProc.ICASSP. IEEE,2014,pp.659–663.
+cnn,”inProc.ICASSP,2018,pp.371–375.
+[20] J. J. Bosch and E. Gómez Gutiérrez, “Melody extrac-
+[6] J. W. Kim, J. Salamon, P. Li, and J. P. Bello, “Crepe:
+tionbasedonasource-filtermodelusingpitchcontour
+Aconvolutionalrepresentationforpitchestimation,”in
+selection,”inProceedingsSMC2016.13thSoundand
+Proc.ICASSP. IEEE,2018,pp.161–165.
+MusicComputingConference,2016.
+[7] Y. LeCun, L. Bottou, Y. Bengio, and P. Haffner,
+[21] Q.Kong,B.Li,X.Song,Y.Wan,andY.Wang,“High-
+“Gradient-based learning applied to document recog-
+resolution piano transcription with pedals by regress-
+nition,”Proc.IEEE,1998.
+ingonsetandoffsettimes,”IEEETrans.Audio,Speech,
+Lang.Process.,vol.29,pp.3707–3717,2021.
+[8] T.-H.Hsieh,L.Su,andY.-H.Yang,“Astreamlineden-
+coder/decoder architecture for melody extraction,” in
+[22] R. M. Bittner, J. Salamon, M. Tierney, M. Mauch,
+Proc.ICASSP,2019,pp.156–160.
+C.Cannam, andJ.P.Bello, “Medleydb: Amultitrack
+[9] S.KumandJ.Nam,“Jointdetectionandclassification datasetforannotation-intensivemirresearch.”inProc.
+ofsingingvoicemelodyusingconvolutionalrecurrent ISMIR,2014,pp.155–160.
+neuralnetworks,”AppliedSciences,2019.
+[23] D.P.KingmaandJ.Ba,“Adam:Amethodforstochas-
+[10] K.Chen, S.Yu, C.Wang, W.Li, T.Berg-Kirkpatrick, ticoptimization,”Proc.ICLR,2014.
+and S. Dubnov, “Tonet: Tone-octave network for
+[24] C. Raffel, B. McFee, E. J. Humphrey, J. Salamon,
+singingmelodyextractionfrompolyphonicmusic,”in
+O. Nieto, L. Dawen, D. P. Ellis, and C. C. Raffel,
+Proc.ICASSP,2022,pp.626–630.
+“mir_eval: A transparent implementation of common
+[11] P.Gao,C.You,andT.Chi,“Amulti-dilationandmulti- mirmetrics,”inProc.ISMIR,2014,pp.367–372.
+resolution fully convolutional network for singing
+[25] W. T. Lu, J. Wang, M. Won, K. Choi, and X. Song,
+melody extraction,” in Proc. ICASSP, 2020, pp. 551–
+“Spectnt: a time-frequency transformer for music au-
+555.
+dio,”inProc.ISMIR,2021,pp.396–403.
+[12] S.Yu,X.Sun,Y.Yu,andW.Li,“Frequency-temporal
+attention network for singing melody extraction,” in
+Proc.ICASSP,2021,pp.251–255.

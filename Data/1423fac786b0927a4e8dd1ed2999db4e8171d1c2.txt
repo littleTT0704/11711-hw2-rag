@@ -1,0 +1,650 @@
+Open Domain Web Keyphrase Extraction
+Beyond Language Modeling
+LeeXiong ChuanHu ChenyanXiong DanielCampos ArnoldOverwijk
+MicrosoftAIandResearch
+Redmond,WA98052,USA
+{lexion, chuah, cxiong, dacamp, arnoldo}@microsoft.com
+Abstract signing keyphrases to their publications. In real-
+world scenarios, most potential applications of
+This paper studies keyphrase extraction in KPEdealwithdiversedocumentsoriginatingfrom
+real-world scenarios where documents are
+sparsesourcesthatareratherdifferentfromscien-
+from diverse domains and have variant con-
+tific papers. They often include a much diverse
+tentquality. WecurateandreleaseOpenKP,a
+documentstructure andreside invarious domains
+large scale open domain keyphrase extraction
+whose contents target much wider audiences than
+dataset with near one hundred thousand web
+documents and expert keyphrase annotations. scientists. It is unclear how well the neural meth-
+To handle the variations of domain and con- ods trained in the scientific domain generalize to
+tent quality, we develop BLING-KPE, a neu- otherdomainsandinreal-worldscenarios.
+ral keyphrase extraction model that goes be-
+This paper focuses on the task of open domain
+yondlanguageunderstandingusingvisualpre-
+web keyphrase extraction, which targets KPE for
+sentationsofdocumentsandweaksupervision
+web documents without any restriction of the
+from search queries. Experimental results on
+domain, quality, nor content of the documents.
+OpenKPconfirmtheeffectivenessofBLING-
+KPEandthecontributionsofitsneuralarchi- We curate and release a large scale open do-
+tecture, visual features, and search log weak mainKPEdataset,OpenKP,whichincludesabout
+supervision. Zero-shot evaluations on DUC- one hundred thousand web documents with ex-
+2001demonstratetheimprovedgeneralization pert keyphrase annotations.1 The web documents
+abilityoflearningfromtheopendomaindata
+are randomly sampled from the English fraction
+comparedtoaspecificdomain.
+of a large web corpus and reflect the characteris-
+tics of typical web pages, with large variation in
+1 Introduction
+theirdomainsandcontentqualities. Tothebestof
+Automatically extracting keyphrases that are ourknowledge,thiswillbethefirstpubliclyavail-
+salient to the document meanings is an essential able open domain manually annotated keyphrase
+step to semantic document understanding. An extractiondatasetatthisscale.
+effective keyphrase extraction (KPE) system can This paper develops BLING-KPE, Beyond
+benefit a wide range of natural language process- LanguageUnderstandINGKeyPhraseExtraction,
+ingandinformationretrievaltasks(Turney,2001; that tackles the challenges of KPE in docu-
+Hasan and Ng, 2014). Recent neural methods mentsfromvariantdomainsandcontentqualities.
+formulate the task as a document-to-keyphrase BLING-KPEusesaconvolutionaltransformerar-
+sequence-to-sequence task. These neural KPE chitecture to model the language properties in the
+modelshaveshownpromisingresultscomparedto document, while also goes beyond by introduc-
+previous systems (Chen et al., 2018; Meng et al., ing the visual representation of the document and
+2017;YeandWang,2018). weaksupervisionfromsearchuserclicks.
+Noticeably, the recent progress in neural KPE The visual presentations of the document, in-
+ismostlyobservedindocumentsoriginatingfrom cluding the location, size, font, and HTML struc-
+the scientific domain (Meng et al., 2017; Augen- ture of each text piece in the document, are inte-
+stein et al., 2017). Perhaps because the scientific grated as visual features to the word embeddings
+domain has sufficient training data for these neu-
+1Thedataset, resources, andfutureupdatesareavailable
+ral methods: Authors are in the practice of as- ataka.ms/BLING.
+inBLING-KPE.BLING-KPElearnstomodelthe ument(MihalceaandTarau,2004;WanandXiao,
+visualrepresentationstogetherwiththedocument 2008a,b), and topic information from topic mod-
+languageinitsnetwork. eling (Grineva et al., 2009; Liu et al., 2009b,
+The weak supervision from search clicksis for- 2010). The supervised keyphrase selection meth-
+mulated as a pre-training task: Query Prediction. ods formulate a classification or ranking task and
+It trains the model to predict which phrase in the combine features from phrase frequencies (Wit-
+document has been used as a “click query”, a tenetal.,2005),documentstructures(Chenetal.,
+querythatauserissuedtosearchandclickonthe 2005; Yih et al., 2006), and external resources
+document. The click queries on a document re- such as Wikipedia (Medelyan et al., 2009) and
+flect the user’s perceptions of the relatedness and querylog(Yihetal.,2006).
+importancewhensearchingthedocumentandcan
+be considered as pseudo keyphrases. Pre-training Recently, neural techniques have been applied
+onthisweaksupervisionbringsintrainingsignals to keyphrase tasks. Meng et al. formulate a
+availableatscaleincommercialsearchsystems. seq2seq learning task that learns to extract and
+Our experiments on OpenKP demonstrate the generate the keyphrase sequence from the docu-
+effectivenessofBLING-KPE.Itoutperformsstan- ment sequence; they incorporate a copy mecha-
+dardKPEbaselines,recentneuralapproachesand nism to the seq2seq RNN to extract phrases in
+a highly optimized commercial KPE system by the generation process (CopyRNN) (Meng et al.,
+large margins. Ablation studies show the contri- 2017). Improving this seq2seq setup has been the
+butions of the neural architecture, visual features, focus of recent research, for example, adding di-
+and search weak supervision to BLING-KPE; re- verseconstraintstoreducetheduplicationofpro-
+movinganyofthemsignificantlyreducesitsaccu- duced keyphrases (Yuan et al., 2018; Chen et al.,
+racy. 2018),bringingauxiliarytaskstoreducetheneeds
+Another advantage of learning from real-world of training data (Ye and Wang, 2018), and adding
+open domain documents is improved generaliza- titleinformationtoimprovemodelaccuracy(Chen
+tion ability. We conduct zero-shot evaluations on etal.,2019).
+theDUC-2001newsKPEdatasets(WanandXiao,
+The recent neural KPE methods have shown
+2008b), where neural KPE systems are evaluated
+strong performances on the scientific domain,
+withoutseeinganylabelsfromtheirnewsarticles.
+where large scale training data is available from
+BLING-KPE trained on OpenKP is the only neu-
+the author assigned keyphrases on papers (Meng
+ralmethodthatoutperformstraditionalnon-neural
+et al., 2017). Such specific domain training data
+KPE methods, while neural KPE systems trained
+limits the model generalization ability. Chen et
+onthescientificdocumentsdonotgeneralizewell
+al. show the seq2seq keyphrase generation mod-
+tothenewsdomainduetothedomaindifferences.
+els trained on scientific papers do not generalize
+2 RelatedWork welltoanotherdomain(Chenetal.,2018).
+Theclassickeyphraseextractionsystemstypically In general, previous research finds automatic
+include two components: candidate keyphrase keyphrase extraction a challenging task: its state-
+extraction and keyphrase importance estima- of-the-art accuracy is much lower than other lan-
+tion (Hasan and Ng, 2014). The candidate guage processing tasks, while supervised meth-
+keyphrases are often extracted by heuristic rules, odsdonotnecessarilyoutperformsimpleunsuper-
+for example, finding phrases following certain vised ones. Hasan and Ng (2014) pointed out po-
+POS tag sequences (Wan and Xiao, 2008b; Liu tential ways to improve automatic keyphrase ex-
+et al., 2009a; Mihalcea and Tarau, 2004), pre- traction, including better incorporation of back-
+defined lexical patterns (Nguyen and Phan, 2009; ground knowledge, better handling long docu-
+Medelyan et al., 2009), or using entities as candi- ments, and better evaluation schemes. BLING-
+datephrases(Grinevaetal.,2009). KPEaimstoaddressthesechallengesbyincorpo-
+The importance of the candidate keyphrases ratingpre-trainingasaformofbackgroundknowl-
+can be estimated by unsupervised or supervised edge, visual information to improve long docu-
+methods. The unsupervised methods leverage mentmodeling,andOpenKPasalargescaleopen
+the graph structures between phrases in the doc- domainevaluationbenchmark.
+3 OpenDomainKeyphraseBenchmark Table 1: The agreements between pairs of expert
+judges at different annotation depth. Exact and
+This section describes the curation of OpenKP
+Unigramshowthepercentageofjudgeagreement
+anditsnotablecharacteristics.
+onexactkeyphrasesandoverlappedunigrams.
+3.1 DataCuration
+JudgeDepth ExactMatch UnigramMatch
+Documents in OpenKP include about seventy Keyphrase@1 64.74% 64.74%
+thousand web pages sampled from the index of Keyphrase@2 48.30% 63.12%
+Keyphrase@3 43.51% 57.66%
+Bing search engine.2 The sampling is conducted
+on the pool of pages seen by United State users
+betweenNov2018andFeb2019.
+Theresultsconfirmthatopendomainkeyphrase
+Thereisnorestrictiononthedomainortypeof
+extraction is not an easy task. When measur-
+documents. They can be content-oriented pages
+ing agreement for the top 3 keyphrases, our ex-
+like news articles, multi-media pages from video pert judges completely agree on about 43% of
+sites, or indexing pages with many hyperlinks.
+keyphrase pairs. Compared to the previous small
+OpenKP is designed to reflect the diverse prop-
+scale annotations, for example, on DUC-2001’s
+ertiesofwebdocumentsintheinternet.
+news articles (Wan and Xiao, 2008b), annotating
+Keyphrase Labels are generated by our ex-
+web pages with diverse contents and domains are
+pert annotators. For each document, they exam-
+harder.
+inetherenderedwebpageandmanuallylabel1-3
+We manually examined these annotations and
+keyphrasesfollowingthesedefinitions:
+found two sources of disagreement: Chunking
+VariancesandKPChoices.
+• Salience: A keyphrase captures the essential
+Chunking Variances we define as two judges
+meaningofthepagewithnoambiguity.
+pickdifferentboundariesofthesameconcept. For
+• Extraction: The keyphrase has to appear in
+example, one judge may select “Protein Synthe-
+thedocument.
+sis”asthekeyphrase,andothersmayselect“Pro-
+• Fine-Grained: Thekeyphrasecannotbegen- tein”and“Synthesis”astwoseparatekeyphrases.
+eraltopics,suchas“Sports”and“Politics”. We found Chunking Variances consist of about
+20% of disagreements. As shown in Table 1, the
+• Correct & Succinct: The keyphrase has to
+judge agreements is substantially higher on Uni-
+form a correct English noun phrase, while
+gram overlaps than on Exact matches, indicating
+alsocannotbeclausesorsentences.
+thattheymayselectchunksthatoverlapwitheach
+We use the extraction setting to ensure label- otherbutnotexactlythesame.
+ing consistency and to increase annotation speed, KP Choices we define as two judges pick dif-
+whichisaround42pagesperhour. ferentkeyphrases. Thejudgesagreemostly(64%)
+Expert Agreements. Our annotation experts onthefirstenteredkeyphrase,asshowninTable1.
+aretrainedemployeesdedicatedtoprovidinghigh- Thevariationsonthesecondandthirdkeyphrases
+quality annotations on web documents. We fol- are larger. However, we found the variations are
+lowstandardpracticeingeneratingannotationsfor more about which keyphrases they choose to en-
+productionsystems,whichincludedregulartouch- ter, not about whether a phrase is a keyphrase
+points to understand the confusion, as well as up- or not. The variations on judge labels mostly re-
+datesonthejudgmentguidelinestoresolveambi- flectthemissingpositivesinOpenKP;mostofthe
+guities. keyphrases annotated by judges are correct. We
+To study the task difficulty, we had five judges can reduce the missing positives by a deeper an-
+each annotate the same 50 random URLs. We notation, i.e. ten keyphrases per document, or by
+measurethepairwiseagreementsbetweenexperts labeling all candidate phrases with classification
+at different depths by Exact Match on the whole labels (Liu et al., 2018). However, that will sig-
+keyphrase, as well as the overlap between select nificantlyreducethenumberoftotaldocumentsin
+keyphrases’ unigrams. The agreement between OpenKP, as each document costs much more to
+judgesislistedinTable1. annotate. We chose the current design choice of
+OpenKP to favor a larger amount of training la-
+2AnewOpenKPversionwith150Kdocumentsisavail-
+ableatmsmarco.org. bels,which,inourexperience,ismoreeffectivein
+Open KP Document Topics (Top 15) …
+healthcare 3.7%
+𝑠11 𝑠21 𝑠31 … 𝑠12 𝑠22 … Up to N-Gram Prediction
+automobiles 3.4%
+food 2.3%
+music 1.9% Feed Forward Feed Forward … shared weight
+movies 1.5%
+video games 1.5%
+real estate 1.5%
+programt mra iv ne gl 11 .. 22 %% B Ti r- aD nir se foct ri mon ea
+r
+l B Ti r- aD nir se foct ri mon ea
+r
+l … shared weight
+careers 1.1%
+education 1.1%
+e U-c .o S t.m vp m o sele i r ltr aiic ec we ss 00 .70 .8 %.91 %%.0% 1 𝑐- 1G 1ram 𝑐21 CN 𝑐N 31 … 2- 𝑐G 12ram 𝑐22 CNN … … Up to N-Gram CNN
+Figure1: ThemostpopulartopicsinOpenKP. 𝑣1 𝑣2 𝑣3 𝑣𝑛 Visual Feature
+𝑝1 𝑝2 𝑝3 … 𝑝𝑛 Positional Encoding
+ℎ1 ℎ2 ℎ3 ℎ𝑛
+Table 2: Statistics of OpenKP used in our experi-
+ments. The new version on MSMARCO include ELMO
+150Kdocuments.
+𝑤1 𝑤2 𝑤3 … 𝑤𝑛
+Statistics Mean STD
+DocLength 900.4 1494.4 Figure2: TheBLING-KPEmodelarchitecture
+#ofKPsperDoc 1.8 0.8
+KeyphraseLength 2.0 0.96
+DocVocabularySize 1.5M n.a. 4.1 NetworkArchitecture
+KPVocabularySize 62K n.a.
+#ofDocuments 68K n.a. AsshowninFigure2,BLING-KPEisakeyphrase
+#ofUniqueKPs 99.6K n.a.
+extraction model. It takes the word sequence of
+thedocument, d = {w ,...w ,...w }, andassigns
+1 i n
+keyphrasescorestoitsn-gram: f(w ,d). This
+i:i+k
+trainingdeepneuralmodels.
+process includes two main components: Hybrid
+WordEmbeddingandConvolutionalTransformer.
+3.2 DataCharacteristics
+Hybrid Word Embedding. BLING-KPE rep-
+resents each word by its ELMo embedding, posi-
+Table 2 lists the statistics of OpenKP. The docu-
+tionembedding,andvisualfeatures.
+ment length is the length of the text parsed from
+The ELMo embedding brings the local contex-
+the HTML of the web page, using a production
+tualinformation:
+HTML parser. The parsed texts will be released
+with the dataset. These statistics reflect the large (cid:126)h = ELMo(w ). (1)
+i i
+variations in the document contents; their length
+varies a lot and share little common keyphrases, The standard pre-trained ELMo is used (Peters
+asshownbyalargenumberofuniquekeyphrases. etal.,2018).
+The position embedding models the location
+Wealsoleverageaproductionclassifiertoclas-
+the word in the document content. It uses the
+sify OpenKP documents into 5K predefined do-
+standard sinusoidal position embedding (Vaswani
+mains. The top 15 most popular classes and their
+etal.,2017):
+distributions are shown in Figure 1. As expected,
+these documents have a large variation in their p(cid:126)os (2p) = sin(i/100002p/P), (2)
+i
+topicdomains. Themostpopulardomain,“health-
+p(cid:126)os (2p+1) = cos(i/100002p/P). (3)
+care”, only covers 3.7% documents; the tenth i
+mostpopulartopiconlycovers1%ofdocuments.
+Thep-thdimensionofthepositionembeddingisa
+Moreover, the top 15 classes make up less than
+functionofitsposition(i)anddimension(p).
+25%oftheentiredatasetwhichshowcaseswhata
+The visual features represent the visual presen-
+domaindiversedatasetOpenKPis.
+tation of each word. We denote the visual feature
+as(cid:126)v andwilldescribeitsdetailsin§4.2.
+i
+4 KeyphraseExtractionModel The hybrid word embedding is the concatena-
+tionofthethree:
+Thissectiondescribesthearchitecture,visualfea-
+w(cid:126) =(cid:126)h (cid:95) p(cid:126)os (cid:95)(cid:126)v . (4)
+tures,andweaksupervisionofBLING-KPE. i i i i
+Convolutional Transformer. BLING-KPE Table3: VisualFeatures. Allfeaturesareextracted
+uses a convolutional transformer architecture to at per word level and the parent block level (the
+modeln-gramsandtheirinteractions. parentnodeofthewordintheHTMLDOMtree).
+Itfirstcomposesthehybridwordembeddingsto
+n-gramembeddingsusingCNNs. Theembedding
+Name Dimension
+ofi-thk-gramiscalculatedas
+FontSize 1×2
+TextBlockSize 2×2
+(cid:126)gk = CNNk(w(cid:126) ), (5)
+i i:i+k LocationinRenderedPage 2×2
+IsBoldFont 1×2
+where k is the length of the n-gram, 1 ≤ k ≤ K. AppearInInline 1×2
+K isthemaximumlengthofallowedcandidaten- AppearInBlock 1×2
+AppearInDOMTreeLeaf 1×2
+grams. Eachk-gramhasitsownsetofconvolution
+filtersCNNk withwindowsizek andstride1.
+Itthenmodelstheinteractionsbetweenk-grams • Locationfeaturesincludethe2-dlocationof
+usingTransformer(Vaswanietal.,2017).
+thewordintherenderedwebpage.
+(cid:126)tk = Transformer (G(cid:126)k), (6) • Font feature includes the font size and
+i i
+whetherthewordisinBold.
+G(cid:126)k =(cid:126)gk (cid:95) ... (cid:95)(cid:126)gk... (cid:95)(cid:126)gk . (7)
+1 i n−k+1
+• DOM features include whether the word ap-
+The sequence G(cid:126)k is the concatenations of all k- pearsin“inline”or“block”HTMLtags,also
+gram embeddings. The Transformer models the whetheritisinaleafnodeoftheDOMtree.
+self-attentionsbetweenk-gramsandfusesthemto
+globalcontextualizedembeddings. ThefullfeaturesetislistedinTable3. Wedouble
+The Transformer is convolutional on all length the features by including the same features from
+kofn-grams;thesameparametersareusedmodel the word’s parent block in the DOM tree. The vi-
+theinteractionsbetweenn-gramsateachlength,to sualfeaturesareincludedintheOpenKPreleases.
+reducetheparametersize. Theintuitionisthatthe
+4.3 WeakSupervisionsfromSearch
+interactions between bi-grams and that between
+tri-gramsarenotsignificantlydifferent. An application of keyphrases is information re-
+The final score of an n-gram is calculated by trieval. The extracted keyphrases are expected
+a feedforward layer upon the Transformer. Like to capture the main topic of the document,
+theTransformer,thesamefeedforwardlayerisap- thus can provide high quality document index-
+plied(convolutional)onalln-grams. ing terms (Gutwin et al., 1999) or new semantic
+ranking features (Xiong et al., 2018). Reversely,
+f(w i:i+k,d) = softmax i,k(sk i), (8) user clicks bring the user’s perception of the doc-
+sk = Feedforward((cid:126)tk). (9) umentduringthesearchandprovidealargenum-
+i i
+ber of feedback signals for document understand-
+The softmax is taken over all possible n-grams at ing(Croftetal.,2010).
+each position i and each length k. The model de- BLING-KPE leverages the user feedback sig-
+cidesthespanlocationandlengthjointly. nals as weak supervision, in the task of Query
+Learning. Thewholemodelistrainedasaclas- Prediction. Given the document d, BLING-
+sificationproblemusingcross-entropyloss: KPE learns to predict its click queries Q =
+{q ,...,q }.
+l = Cross-Entropy(yk,f(w ,d)), (10) 1 m
+i i:i+k This pre-training step uses the same cross en-
+whereyk isthelabelofwhetherthephrasew tropyloss:
+i i:i+k
+isakeyphraseofthedocument.
+l = Cross-Entropy(y(cid:48),f(q ,d)), (11)
+pre i i
+4.2 VisualFeatures
+where y(cid:48) indicates whether the query q is a click
+We extract four groups of visual features for each i i
+query and also appears as an n-gram in the docu-
+wordinthedocument.
+mentd. TheQueryPredictionlabelsexistatscale
+• Sizefeaturesincludetheheightandwidthof in commercial search logs and provide a large
+thetextblockawordappearsin. numberofpre-trainingsignals.
+Table 4: Statistics of Query Prediction Dataset. Table5: ParameterstolearninBLING-KPE.
+The data is from a sample of Bing search log in
+onweek. Component Dimensions
+ELMo pre-trainedandfrozen
+PositionEmbedding 256
+Statistics Mean STD VisualFeature 18
+DocLength 1211.8 1872.6 N-gramCNN 512filter,1-5windowsize(ngram)
+#ofQueryperDoc 1.32 0.76 Transformer 8head,512hiddendimension
+QueryLength 2.4 1.07 Feedforward 512-relu-512-relu-1
+DocVocabularySize 15M n.a
+QueryVocabularySize 383K n.a
+#ofDocuments 1.6M n.a. baseline.
+#ofUniqueQueries 1.5M n.a.
+TraditionalKPEbaselinesincludethefollows.
+• TFIDF is the unsupervised frequency based
+5 ExperimentalMethodology
+KPE system. The IDF scores are calculated
+onthecorrespondingcorpus.
+Datasets used in our experiments include
+OpenKP, as described in §3, Query Prediction, • TextRank is the popular graph-based unsu-
+andDUC-2001(WanandXiao,2008b). pervised KPE model (Mihalcea and Tarau,
+The Query Prediction data is sampled from the 2004). Ourin-houseimplementationisused.
+Bing search log with navigational and offensive
+• LeToR is the feature-based KPE model. It
+queriesfilteredout. Wekeeponlytheclickqueries
+use LambdaMart (Burges, 2010) and stan-
+that are included as an n-gram in the document
+dardKPEfeatures,i.e. thoseinKEA(Witten
+tobeconsistentwithOpenKP’sextractivesetting.
+etal.,2005).
+ThestatisticsofthesampleislistedinTable4.
+DUC-2001 is the KPE extraction dataset on
+Theproductionbaselinesincludetwoversions.
+DUC news articles (Wan and Xiao, 2008b). It
+includes 309 news articles and on average 8 • PROD is our current feature-based produc-
+keyphraseperarticle. tion KPE system. It uses many carefully en-
+We use random 80%-20% train-test splits on gineeredfeaturesandLambdaMart.
+OpenKP and Query Prediction. On OpenKP,
+• PROD (Body) is the same system but only
+BLING-KPE is first pre-trained on Query Predic-
+usesthebodytext,i.e. thetitleisnotused.
+tion and then further trained on its manual labels.
+There is no overlap between the documents in Alltheseunsupervisedandfeature-basedmeth-
+QueryPredictionandOpenKP. ods use the same keyphrase candidate selection
+DUC-2001usesthezero-shotevaluationsetting systemwithPROD.
+frompriorresearch(Mengetal.,2017;Chenetal., The neural baseline is CopyRNN (Meng et al.,
+2018);nolabelsinDUC-2001areusedtotrainnor 2017). We use their open-source implementation
+validatetheneuralmodels. Ittestsneuralmodels’ andfocusontheOpenKPdatasetwhichispublicly
+generalization ability from the training domain to available.
+adifferenttestingdomain. ImplementationDetails. Table5listsBLING-
+Evaluation Metrics. OpenKP and Query Pre- KPE parameters. The training uses Adam opti-
+diction use Precision and Recall@{1, 3, 5}. mizer, learning rate 0.3 with logarithmic decreas-
+DUC-2001 uses F1@10, the same as prior re- ingto0.001,batchsize16,and0.2dropoutproba-
+search(Mengetal.,2017;Chenetal.,2018). bility in n-gram CNN, Transformer and feedfor-
+Statistically,significantimprovementsareeval- ward layers. Learning takes about 2.5 hours (2
+uatedbypermutationtestwithp<0.05onOpenKP epochs) to converge on OpenKPE and about 13
+and Query Prediction. The baselines on DUC- hours (3 epochs) on Query Prediction, based on
+2001 reuse scores from previous results; the sta- validation loss. In BLING-KPE, the maximum
+tisticalsignificanttestisnotapplicableasperdoc- document length is 256 and documents are zero-
+umentresultsarenotshared. padded or truncated to this length. Baselines use
+Baselines. OpenKP and Query Prediction ex- the original documents, except CopyRNN which
+perimentscompareBLING-KPEwith: traditional works better with 256. The maximum n-gram
+KPE methods, production systems, and a neural lengthissettofive(K=5).
+Table 6: Keyphrase Extraction Accuracy. Bold marks statistically significant improvements over all
+baselines.
+OpenKP QueryPrediction
+Method P@1 R@1 P@3 R@3 P@5 R@5 P@1 R@1 P@3 R@3 P@5 R@5
+TFIDF 0.283 0.150 0.184 0.284 0.137 0.347 0.403 0.332 0.204 0.491 0.133 0.526
+TextRank 0.077 0.041 0.062 0.098 0.055 0.142 0.132 0.111 0.089 0.218 0.073 0.295
+LeToR 0.301 0.158 0.173 0.268 0.127 0.324 0.328 0.271 0.169 0.406 0.119 0.471
+PROD 0.353 0.188 0.195 0.299 0.131 0.331 0.376 0.308 0.197 0.468 0.129 0.505
+PROD(Body) 0.214 0.094 0.130 0.196 0.094 0.234 0.353 0.287 0.191 0.454 0.125 0.492
+CopyRNN 0.288 0.174 0.185 0.331 0.141 0.413 – – – – – –
+BLING-KPE 0.404 0.220 0.248 0.390 0.188 0.481 0.540 0.449 0.275 0.654 0.188 0.729
+Table7: PerformanceofBLING-KPEablations. Italicmarksstatisticallysignificantworseperformances
+thanFullModel.
+OpenKP QueryPrediction
+Method P@1 R@1 P@3 R@3 P@5 R@5 P@1 R@1 P@3 R@3 P@5 R@5
+NoELMo 0.270 0.145 0.172 0.271 0.132 0.347 0.323 0.274 0.189 0.450 0.136 0.527
+NoTransformer 0.389 0.211 0.247 0.385 0.189 0.481 0.489 0.407 0.258 0.618 0.178 0.698
+NoPosition 0.394 0.213 0.247 0.386 0.187 0.475 0.543 0.452 0.281 0.666 0.191 0.742
+NoVisual 0.370 0.201 0.230 0.362 0.176 0.450 0.492 0.409 0.258 0.615 0.178 0.695
+NoPretraining 0.369 0.198 0.236 0.367 0.181 0.460 – – – – – –
+FullModel 0.404 0.220 0.248 0.390 0.188 0.481 0.540 0.449 0.275 0.654 0.188 0.729
+6 EvaluationResults antcontentsontheweb. Real-worldwebpagesare
+not cohesive nor well-written articles but include
+Three experiments are conducted to evaluate the
+various structures such as lists, media captions,
+accuracy of BLING-KPE, the source of its effec-
+and text fragments. Modeling them as a word
+tiveness,anditsgeneralizationability.
+sequence is not ideal. The other differences are
+not as significant: The vocabulary size and train-
+6.1 OverallAccuracy
+ing data size on Query Prediction are similar to
+The overall extraction accuracy on OpenKP and CopyRNN’sKP40Kdataset;CopyRNNperforms
+QueryPredictionisshowninTable6. better on keyphrase extraction than generation in
+TFIDF works well on both tasks. Frequency- KP20k(Mengetal.,2017).
+based methods are often strong baselines in doc- BLING-KPE outperforms all other methods by
+ument representation tasks. LeToR performs bet- large margins. The improvements are robust and
+ter than its frequency feature TFIDF in OpenKP significant on both tasks, both metrics, and on all
+butworseonQueryPrediction. Supervisedmeth- depths. Itachieves0.404P@1onOpenKPandre-
+odsarenotnecessarilystrongerthanunsupervised covers72%ofclickedqueriesatdepth5onQuery
+ones in KPE (Hasan and Ng, 2014). TextRank Prediction. The sources of this effectiveness is
+does not work well in our dataset; its word graph studiedinthenextexperiment.
+islikelymisguidedbythenoisycontents.
+6.2 AblationStudy
+PROD, our feature-based production system,
+outperforms all other baselines by large margins Table 7 shows ablation results on BLING-KPE’s
+onOpenKP.Itisexpectedasitishighlyoptimized variations. Each variation removes a component
+with a lot of engineering efforts. Nonetheless, andkeepsallothersunchanged.
+adaptingacomplexfeature-basedsystemtoanew ELMo Embedding. We first verify the effec-
+task/domain requires extra engineering work; di- tiveness of using ELMo embedding by replacing
+rectlyapplyingittotheQueryPredictiontaskdoes ELMo with the WordPiece token embedding (Wu
+not work well. The feature-based Production sys- et al., 2016). The accuracy of this variation is
+temalsoneedsthetitleinformation;PROD(Body) much lower than the accuracy of the full model
+performsmuchworsethanPROD. and others. The result is shown in the first row of
+CopyRNNperformsrelativelywellonOpenKP, Table 7. The context-aware word embedding is a
+especiallyonlaterkeyphases. Themainchallenge necessarycomponentofBLING-KPE.
+for CopyRNN is the low-quality and highly vari- Network Architecture. The second part of
+Table8: PerformanceonDUC-2001. Neuralmod-
+els are evaluated directly on DUC-2001 without
+fine-tuning on DUC labels. Results better than
+TFIDFaremarkedBold.
+Method F1@10 Method F1@10
+TFIDF 0.270 TopicRank 0.154
+TextRank 0.097 KeyCluster 0.140
+SingleRank 0.256 ExpandRank 0.269
+TrainedbyScientificPapers
+CopyRNN 0.164 CorrRNN 0.173
+BLING-KPE(NoVisual,NoPretraining) 0.267
+TrainedbyOpenDomainDocuments
+BLING-KPE(NoVisual,NoPretraining) 0.282
+Figure 3: An example of visual feature contribu-
+tions in BLING-KPE. The big green blocks are
+Table 7 studies the contribution of Transformer thekeyphrasesextractedwithvisualfeatures. The
+and position embedding. Transformer contributes small read blocks are those extracted without vi-
+significantly to Query Prediction; with a lot of sualinformation.
+training data, the self-attention layers capture the
+globalcontextsbetweenn-grams. ButonOpenKP,
+and merge the extracted keyphrases using simple
+itseffectivenessismostlyobservedonthefirstpo-
+heuristics:
+sition. Thepositionembeddingbarelyhelps,since
+real-world web pages are often not one text se-
+• WeightedSum: Scoresofthesamekeyphrase
+quence.
+from different chunks are summed with
+Beyond Language Understanding. As shown
+weights0.9p. Pistheindexofthechunk.
+in the second part of Table 7, both visual features
+and search pretraining contribute significantly to • Deduplication: Akeyphraseisdiscardedifit
+BLING-KPE’s effectiveness. Without either of isasub-stringofatop1/4rankedkeyphrase.
+them,theaccuracydropssignificantly. Visualfea-
+turesevenhelponQueryPrediction,thoughusers TheresultsareshowninTable8. BLING-KPE,
+issued the click queries and clicked on the docu- when trained with OpenKP, is the only neu-
+mentsbeforeseeingitsfullpage. ral method that outperforms TFIDF in this zero-
+The crucial role of ELMo embeddings confirm shot evaluation. It outperforms previous neu-
+the benefits of bringing background knowledge ral methods by more than 60%, and itself when
+andgenerallanguageunderstanding,intheformat trained on KP20k, confirming the strong gener-
+ofpre-trainedcontextualembedding,inkeyphrase alization ability of BLING-KPE and the training
+extraction. The importance of visual features and withOpenKP.
+search weak supervisions confirms the benefits of
+6.4 Discussion
+goingbeyondlanguageunderstandinginmodeling
+real-worldwebdocuments. Our manual case studies found many interesting
+examplesthatillustratetheadvantageofmodeling
+6.3 GeneralizationAbility
+documentswithvisualinformation.
+This experiment studies the generalization ability For example, in Figure 3, the page is anno-
+of BLING-KPE using the zero-shot evaluation on tated with “Bostitch 651S5”, the product name,
+DUC-2001(Mengetal.,2017;Chenetal.,2018). and “Stapler”, the product type. Their salience
+For fair comparisons, we use KP20K or OpenKP, is highlighted by larger and bold fonts, which are
+the two public datasets, to train the No Visual & picked up by BLING-KPE. However, without the
+No Pretraining version of BLING-KPE, and eval- visual information, the product ontology names
+uateonDUC-2001directly. NolabelsinDUCare are extracted as keyphrases: they are meaningful
+usedtofine-tunetheneuralmodels. concepts,correlatedwiththepagecontent,andpo-
+To adjust to DUC’s larger number of sitioned at the beginning of the document—only
+keyphrases, we apply the trained BLING- thattheyappearlessimportantinthewebpageby
+KPE on the 256-length chunks of DUC articles design.
+7 Conclusion Carl Gutwin, Gordon W. Paynter, Ian H. Wit-
+ten, Craig G. Nevill-Manning, and Eibe Frank.
+This paper curates OpenKP, the first public large 1999. Improving browsing in digital libraries with
+scale open domain keyphrase extraction bench- keyphrase indexes. Decision Support Systems,
+27:81–104.
+marktofacilitatefutureresearchkeyphraseextrac-
+tion research in real-world scenarios. It also de-
+Kazi Saidul Hasan and Vincent Ng. 2014. Automatic
+velops BLING-KPE, which leverages visual rep-
+keyphrase extraction: A survey of the state of the
+resentation and search-based weak supervision to art. In Proceedings of the 52nd Annual Meeting of
+model real-world documents with variant con- theAssociationforComputationalLinguistics,ACL
+2014,pages1262–1273.
+tents,appearances,anddiversedomains.
+Our experiments demonstrate the robust im-
+Feifan Liu, Deana Pennell, Fei Liu, and Yang Liu.
+provementsofBLING-KPEcomparedtoprevious 2009a. Unsupervisedapproachesforautomatickey-
+approaches. Our studies showcase how BLING- word extraction using meeting transcripts. In Hu-
+man Language Technologies: Conference of the
+KPE’s language understanding, visual features
+NorthAmericanChapteroftheAssociationofCom-
+andsearchweaksupervisionjointlydeliverthisef-
+putational Linguistics, Proceedings, HLT-NAACL
+fective performance, as well as its generalization 2009,pages620–628.
+abilitytoanunseendomaininzero-shotsetting.
+In the future, we plan to extend OpenKP with Zhengzhong Liu, Chenyan Xiong, Teruko Mitamura,
+and Eduard Hovy. 2018. Automatic event salience
+more annotated documents and connect it with
+identification. In Proceedings of the 2018 Confer-
+downstreamapplications.
+ence on Empirical Methods in Natural Language
+Processing,EMNLP2018s,pages1226–1236.
+References Zhiyuan Liu, Wenyi Huang, Yabin Zheng, and
+Maosong Sun. 2010. Automatic keyphrase extrac-
+Isabelle Augenstein, Mrinal Das, Sebastian Riedel,
+tionviatopicdecomposition. InProceedingsofthe
+Lakshmi Vikraman, and Andrew McCallum. 2017.
+2010 Conference on Empirical Methods in Natural
+SemEval 2017 task 10: ScienceIE - extracting
+Language Processing, EMNLP 2010, pages 366–
+keyphrases and relations from scientific publica-
+376.
+tions. InSemEval@ACL.
+Chris J.C. Burges. 2010. From RankNet to Lamb- Zhiyuan Liu, Peng Li, Yabin Zheng, and Maosong
+daRanktoLambdaMART:Anoverview. MSR-TR- Sun. 2009b. Clustering to find exemplar terms for
+2010-82. keyphrase extraction. In Proceedings of the 2009
+Conference on Empirical Methods in Natural Lan-
+Jun Chen, Xiaoming Zhang, Yu Wu, Zhao Yan, and guageProcessing,EMNLP2009,pages257–266.
+ZhoujunLi.2018. Keyphrasegenerationwithcorre-
+lationconstraints. InProceedingsofthe2018Con- Olena Medelyan, Eibe Frank, and Ian H. Witten.
+ferenceonEmpiricalMethodsinNaturalLanguage 2009. Human-competitive tagging using automatic
+Processing,EMNLP2018,pages4057–4066. keyphrase extraction. In Proceedings of the 2009
+Conference on Empirical Methods in Natural Lan-
+MoChen,Jian-TaoSun,Hua-JunZeng,andKwok-Yan guageProcessing,EMNLP2009,pages1318–1327.
+Lam.2005. Apracticalsystemofkeyphraseextrac-
+tionforwebpages. InProceedingsofthe14thACM
+Rui Meng, Sanqiang Zhao, Shuguang Han, Daqing
+internationalconferenceonInformationandknowl-
+He, Peter Brusilovsky, and Yu Chi. 2017. Deep
+edgemanagement,pages277–278.ACM.
+keyphrase generation. In Proceedings of the 55th
+Annual Meeting of the Association for Computa-
+Wang Chen, Yifan Gao, Jiani Zhang, Irwin King, and
+tionalLinguistics,ACL2017,pages582–592.
+Michael R. Lyu. 2019. Title-guided encoding for
+keyphrase generation. In The Thirty-Third AAAI
+Rada Mihalcea and Paul Tarau. 2004. TextRank:
+Conference on Artificial Intelligence 2019, pages
+Bringingorderintotext. InProceedingsofthe2004
+6268–6275.
+Conference on Empirical Methods in Natural Lan-
+WBruceCroft,DonaldMetzler,andTrevorStrohman.
+guageProcessing,EMNLP2004,pages404–411.
+2010. Search Engines: Information Retrieval in
+Practice. Addison-WesleyReading. ChauQ.NguyenandTuoiT.Phan.2009. Anontology-
+based approach for key phrase extraction. In ACL
+Maria P. Grineva, Maxim N. Grinev, and Dmitry Li- 2009,Proceedingsofthe47thAnnualMeetingofthe
+zorkin. 2009. Extracting key terms from noisy Association for Computational Linguistics and the
+and multitheme documents. In Proceedings of the 4thInternationalJointConferenceonNaturalLan-
+18th International Conference on World Wide Web, guageProcessingoftheAFNLP,ACL/IJCNLP2009,
+WWW2009,pages661–670. pages181–184.
+MatthewE.Peters,MarkNeumann,MohitIyyer,Matt and Usability of Digital Libraries: Case Studies in
+Gardner, Christopher Clark, Kenton Lee, and Luke theAsiaPacific,pages129–152.IGIGlobal.
+Zettlemoyer.2018. Deepcontextualizedwordrepre-
+sentations. In Proceedings of the 2018 Conference Yonghui Wu, Mike Schuster, Zhifeng Chen, Quoc V.
+of the North American Chapter of the Association Le, Mohammad Norouzi, Wolfgang Macherey,
+for Computational Linguistics: Human Language Maxim Krikun, Yuan Cao, Qin Gao, Klaus
+Technologies,NAACL-HLT2018,pages2227–2237. Macherey, Jeff Klingner, Apurva Shah, Melvin
+Johnson, Xiaobing Liu, Lukasz Kaiser, Stephan
+PeterD.Turney.2001. Miningthewebforsynonyms: Gouws, Yoshikiyo Kato, Taku Kudo, Hideto
+PMI-IRversusLSAonTOEFL. InMachineLearn- Kazawa, Keith Stevens, George Kurian, Nishant
+ing: EMCL 2001, 12th European Conference on Patil, Wei Wang, Cliff Young, Jason Smith, Jason
+Machine Learning, 2001, Proceedings, pages 491– Riesa, Alex Rudnick, Oriol Vinyals, Greg Corrado,
+502. MacduffHughes,andJeffreyDean.2016. Google’s
+neuralmachinetranslationsystem:Bridgingthegap
+Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob
+between human and machine translation. CoRR,
+Uszkoreit, Llion Jones, Aidan N. Gomez, Lukasz
+abs/1609.08144.
+Kaiser, and Illia Polosukhin. 2017. Attention is all
+you need. In Advances in Neural Information Pro-
+Chenyan Xiong, Zhengzhong Liu, Jamie Callan, and
+cessing Systems 30: Annual Conference on Neural
+Tie-YanLiu.2018. Towardsbettertextunderstand-
+Information Processing Systems, NIPS 2017, pages
+ingandretrievalthroughkernelentitysaliencemod-
+5998–6008.
+eling. In The 41st International ACM SIGIR Con-
+ferenceonResearch&DevelopmentinInformation
+Xiaojun Wan and Jianguo Xiao. 2008a. Col-
+Retrieval,SIGIR2018,pages575–584.
+labRank: Towards a collaborative approach to
+single-document keyphrase extraction. In 22nd In-
+HaiYeandLuWang.2018. Semi-supervisedlearning
+ternational Conference on Computational Linguis-
+for neural keyphrase generation. In Proceedings of
+tics,ProceedingsoftheConference,COLING2008,
+the2018ConferenceonEmpiricalMethodsinNat-
+pages969–976.
+uralLanguageProcessing,pages4142–4153.
+Xiaojun Wan and Jianguo Xiao. 2008b. Single Wen-tauYih,JoshuaGoodman,andVitorR.Carvalho.
+documentkeyphraseextractionusingneighborhood 2006. Findingadvertisingkeywordsonwebpages.
+knowledge. In Proceedings of the Twenty-Third InProceedingsofthe15thinternationalconference
+AAAI Conference on Artificial Intelligence, AAAI onWorldWideWeb,WWW2006,pages213–222.
+2008,pages855–860.
+Xingdi Yuan, Tong Wang, Rui Meng, Khushboo
+Ian H Witten, Gordon W Paynter, Eibe Frank, Carl Thaker, Daqing He, and Adam Trischler. 2018.
+Gutwin,andCraigGNevill-Manning.2005. KEA: Generating diverse numbers of diverse keyphrases.
+Practicalautomatedkeyphraseextraction. InDesign CoRR,abs/1810.05241.

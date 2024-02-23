@@ -1,0 +1,757 @@
+COMETKIWI:
+IST-Unbabel 2022 Submission for the Quality Estimation Shared Task
+RicardoRei∗1,2,4,MarcosTreviso∗3,4,NunoM.Guerreiro∗3,4,ChrysoulaZerva∗3,4,
+AnaC.Farinha1,ChristineMaroti1,JoséG.C.deSouza1,TaisiyaGlushkova3,4,
+DuarteM.Alves1,4,AlonLavie1,LuisaCoheur2,4,AndréF.T.Martins1,3,4
+1Unbabel,Lisbon,Portugal, 2INESC-ID,Lisbon,Portugal
+3InstitutodeTelecomunicações,Lisbon,Portugal
+4InstitutoSuperiorTécnico,UniversityofLisbon,Portugal
+Abstract developed for word-level and sentence-level QE.
+Namely, we implement some of the features of
+We present the joint contribution of IST and
+the latter, as well as other new features, into the
+Unbabel to the WMT 2022 Shared Task on
+COMET framework. The result is COMETKIWI,
+Quality Estimation (QE). Our team partici-
+which links the predictor-estimator architecture
+pated on all three subtasks: (i) Sentence and
+Word-level Quality Prediction; (ii) Explain- with COMETtraining-style,andincorporatesword-
+able QE; and (iii) Critical Error Detection. levelsequencetagging.
+For all tasks we build on top of the COMET Giventhatsomelanguagepairs(LPs)inthetest
+framework, connecting it with the predictor-
+setwerenotpresentinthetrainingdata,weaimed
+estimator architecture of OPENKIWI, and
+atdevelopingQEsystemsthatachievegoodmulti-
+equippingitwithaword-levelsequencetagger
+lingualgeneralizationandthatareflexibleenough
+and an explanation extractor. Our results sug-
+toaccountforunseenlanguagesthroughfew-shot
+gest that incorporating references during pre-
+training improves performance across several training. Todoso,westartbypretrainingourQE
+language pairs on downstream tasks, and that modelsonDirectAssessments(DAs)annotations
+jointly training with sentence and word-level fromthepreviousyear’sMetricssharedtaskasit
+objectivesyieldsafurtherboost. Furthermore, wasshowntobebeneficialinourprevioussubmis-
+combining attention and gradient information
+sion (Zerva et al., 2021). Then we fine-tune our
+proved to be the top strategy for extracting
+modelswiththedatamadeavailablebytheshared
+good explanations of sentence-level QE mod-
+task.2 Weexperimentedwithdifferentpretrained
+els.Overall,oursubmissionsachievedthebest
+multilingualtransformersasthebackbonesofour
+results for all three tasks for almost all lan-
+guagepairsbyaconsiderablemargin.1 models,andwedevelopednewexplainabilitymeth-
+odstointerpretthem. Wedescribeoursystemsand
+1 Introduction
+theirtrainingstrategiesinSection3. Overall,our
+maincontributionsare:
+Quality Estimation (QE) is the task of automati-
+callyassigningaqualityscoretoamachinetrans-
+• We combine the strengths of COMET and
+lationoutputwithoutdependingonreferencetrans-
+OPENKIWI, leading to COMETKIWI, a model
+lations(Speciaetal.,2018). Inthispaper,wede-
+that adopts COMET training features useful
+scribe the joint contribution of Instituto Superior
+for multilingual generalization along with the
+Técnico(IST)andUnbabeltotheWMT22Quality
+predictor-estimatorarchitectureof OPENKIWI.
+Estimation shared task, where systems were sub-
+mittedtothreetasks: (i)SentenceandWord-level • Followingourpreviouswork(Zervaetal.,2021),
+Quality Prediction; (ii) Explainable QE; and (iii) weshowtheimportanceofpretrainingQEmod-
+CriticalErrorDetection. elsonannotationsfromtheMetricssharedtask.
+Thisyear,weleveragethesimilaritybetweenthe
+tasksofMTevaluationandQEandbringtogether • We show that we can improve results for new
+the strengths of two frameworks, COMET (Rei LPs with only 500 examples without harming
+et al., 2020), which has been originally devel- correlationsforotherLPs.
+oped for reference-based MT evaluation, and
+• We propose a new interpretability method that
+OPENKIWI (Kepleretal.,2019),whichhasbeen
+uses attention and gradient information along
+∗Equalcontribution.(cid:0) ricardo.rei@unbabel.com
+1https://github.com/Unbabel/COMET 2Forzero-shotLPsweuseonlythe500trainingexamples.
+2202
+peS
+31
+]LC.sc[
+1v34260.9022:viXra
+withahead-levelscalarmixmodulethatfurther Sentencescore Wordlabels
+refinestherelevanceofattentionheads.
+yˆ ∈ R yˆ
+i
+∈ {OK,BAD}
+Oursubmittedsystemsachieve thebestmul- FeedForward FeedForward
+tilingual results on all tracks by a consider-
+able margin: for sentence-level DA our system [cls] FirstPieceSelect.
+achieveda0.572Spearmancorrelation(+7%than
+the second best system); for word-level our sys- ScalarMix
+temachieveda0.341MCCscore(+2.4%thanthe
+secondbestsystem);andforExplainableQEour Pre-trainedEncoder
+systemachieved0.486R@Kscore(+10%thanthe
+secondbestsystem). TheofficialresultsforallLPs [cls] target [sep] source [eos]
+arepresentedinTable7intheappendix.
+Figure 1: General architecture of COMETKIWI for
+2 Background sentence-level (left part) and word-level QE (right
+part).
+QualityEstimation. QEsystemsareusuallyde-
+signed according to the granularity in which pre-
+dictionsaremade,suchassentenceandword-level. allh (cid:96),1,...,h (cid:96),H headsinthatlayerfollowedbya
+Insentence-levelQE,thegoalistopredictasingle
+learnablelineartransformationWO:
+quality score yˆ ∈ R given the whole source and
+its translation as input. Word-level QE works in H (cid:96) = concat(h (cid:96),1,...,h (cid:96),H)WO.
+alowergranularitylevel,withthegoalofpredict-
+The hidden states are further refined through
+ing binary quality labels yˆ
+i
+∈ {OK,BAD} for all
+position-wisefeed-forwardblocksandresidualcon-
+1 ≤ i ≤ n machine-translated words, indicating
+nections to obtain a final representation: H =
+whetherthatwordisatranslationerrorornot. (cid:96)
+FFN(H )+H . Transformerswithonlyencoder-
+(cid:96) (cid:96)
+Transformers. The multi-head attention mech- blocks, such as BERT (Devlin et al., 2019) and
+anism is the key component in transformers, be- XLM(Conneauetal.,2020),haveonlytheencoder
+ing responsible for contextualizing the informa- self-attention,andthusm = n.
+tion within and across input sentences (Vaswani
+et al., 2017). Concretely, given as input a matrix 3 ImplementedSystems
+Q ∈ Rn×d containing d-dimensional representa-
+tions for n queries, and matrices K,V ∈ Rm×d The overall architecture of our models is shown
+inFigure1. Themachinetranslatedsentencet =
+formkeysandvalues, thescaleddot-productat-
+(cid:104)t ,...,t (cid:105)anditssourcesentencecounterparts =
+tentionatasingleheadiscomputedas: 1 n
+(cid:104)s ,...,s (cid:105)areconcatenatedandpassedasinputto
+1 m
+(cid:32) QK(cid:62)(cid:33) theencoder,whichproducesd-dimensionalhidden
+att(Q,K,V) = π √ V ∈ Rn×d. (1) statevectorsH ,...,H foreachlayer0 ≤ (cid:96) ≤ L,
+d 0 L
+whereH ∈ R(n+m)×d,where(cid:96) = 0corresponds
+(cid:124) (cid:123)(cid:122) (cid:125) i
+Z∈Rn×m totheembeddinglayer. Next,allhiddenstatesare
+fedtoascalarmixmodule(Petersetal.,2018)that
+The π transformation maps rows to distributions,
+learnsaweightedsumofthehiddenstatesofeach
+with softmax being the most common choice,
+layeroftheencoder,producinganewsequenceof
+π(Z) = softmax(z ) . Multi-head attention is
+ij i j aggregatedhiddenstatesH asfollows:
+mix
+computed by evoking Eq. 1 in parallel for each
+headh:
+L
+(cid:88)
+H = λ β H , (2)
+mix (cid:96) (cid:96)
+head (Q,K,V) = att(QWQ,KWK,VWV),
+h h h h (cid:96)=0
+whereWQ ,WK,WV arelearnablelineartrans- where λ is a scalar trainable parameter, β ∈ (cid:52)L,
+h h h
+formations. Finally, the output of the multi-head is given by β = sparsemax(φ) using a sparse
+attentionmoduleatthe(cid:96)-thlayerisasetofhidden transformation(MartinsandAstudillo,2016),with
+statesH ∈ Rn×d formedviatheconcatenationof φ ∈ RL aslearnableparametersand(cid:52)L := {β ∈
+(cid:96)
+RL : 1(cid:62)β = 1,β ≥ 0}3. 3.1.1 Sentence-levelqualityprediction
+For sentence-level models, the hidden state of
+Forthesentence-levelQEtaskweconsideramulti-
+the first token (<cls>) is used as sentence repre-
+task setting (using sentence scores alongside su-
+sentation H ∈ Rd, which, in turn, is passed
+mix,0 pervision from OK/BAD tags) and the sentence-
+toa2-layeredfeed-forwardmoduleinordertoget
+levelonlysetting,withsupervisiononlyfromthe
+asentencescorepredictionyˆ∈ R. Forword-level sentence-level quality assessment y. We found
+models, we first retrieve the hidden state vectors
+thataddingtheword-levelsupervisionwasbenefi-
+associated with the first word piece of each ma-
+cial for models built on top of InfoXLM. For the
+chine translated token, and then pass them to a
+sentence-level supervision we used both DA and
+linearprojectiontogetword-levelpredictionsyˆ ∈
+i MQM scores. In this multi-task setting we use a
+{OK,BAD}, ∀ 1≤i≤n. Moreover,attentionmatrices
+combinedlossasdescribedinEq. 5:
+A ,...,A foralllayersandheadsarealsore-
+1,1 L,H
+coveredasaby-productoftheforwardpropagation. 1
+L (θ) = (y−yˆ(θ))2 (3)
+sent
+2
+Pretraining on Metrics Data. Every year, the
+n
+1 (cid:88)
+WMTNewsTranslationsharedtaskorganizerscol- L (θ) = − w logp (y ) (4)
+word
+n
+yi θ i
+lecthumanjudgmentsintheformofDAs. Thecol- i=1
+lectivecorporaof2017,2018,and2019contain24 L(θ) = λ L (θ)+λ L (θ), (5)
+s sent w word
+LPsandatotalof657ksampleswithsource,target,
+reference, and DA score. We follow our experi- wherew ∈ R2 representstheclassweightsgiven
+mentsfromlastyear(Zervaetal.,2021)andstart forOKandBADtags,andλ s,λ
+w
+areusedtoweigh
+bypretrainingourQEmodelsonthisdatausingthe the combination of the sentence and word-level
+learningobjectiveproposedbyUniTE(Wanetal., losses,respectively. Notethatλ = 1andλ = 0
+s w
+2022), which incorporates reference translations yieldsafullysentence-levelmodel.
+intotrainingandthusactsasdataaugmentation.
+Few-shot language adaptation. Since in this
+Setting pretrained transformers as encoders. shared task submissions are tested on 5 LPs for
+We follow the recent trend (Kepler et al., 2019; whichthereisnoofficialtrainingdata(km-en,ps-
+Ranasinghe et al., 2020) and experiment with en,en-ja,en-cs,en-yo),weexperimentedwithfew-
+three different pretrained multilingual transform- shot adaptation using half of the data released in
+ers as the encoder layer of our models: XLM- theofficialdevelopmentset. Theofficialdevelop-
+R Large (Conneau et al., 2020),4 InfoXLM mentsethas1Kexamplesforeachlanguagepair
+Large(Chietal.,2021),5 andRemBERT(Chung (excepten-yoforwhichthereisnoavailabledata).
+et al., 2021).6 XLM-R and InfoXLM consist of Toperformfew-shotlanguageadaptationwesplit
+24 encoder blocks with 16 attention heads each, the data into two halves: one for fine-tuning and
+whereasRemBERThas32encoderblockswith18 anotherforvalidation.
+attentionheadseach.
+Ensembling models. For our final submission
+3.1 Task1: Qualityprediction for Direct Assessments we combine six multilin-
+Afterthepretrainingphase,weadaptourmodelsto gual systems using different hyperparameters by
+thereleasedQEdatausingsourceandtranslation computing an weighted average of their outputs,
+(i.e.,inthisphasewedonotincludereferences)to where the weights for each language pair were
+thedifferenttypeofqualityassessmentsprovided, tunedwithOptuna(Akibaetal.,2019). Themajor
+namely,DAandHTER7 fromtheMLQE-PEcor- differencebetweentheensembledmodelscomes
+pus(Fomichevaetal.,2022)andMQMannotations from the underlying encoder and whether or not
+fromWMT2020and2021(Freitagetal.,2021a,b). they used word-level supervision. Three models
+of our final ensemble use word-level supervision
+3Asithasbeenshownin(Reietal.,2022)notalllayersare
+whiletheotherthreeuseonlysentence-levelsuper-
+relevantandthus,usingsparsemaxwelearntoignorelayers
+thatdonothelpinthetaskathands vision. Regarding the encoder, three models use
+4https://huggingface.co/xlm-roberta-large InfoXLM,twomodelsuseRemBERTandasingle
+5https://huggingface.co/microsoft/
+modelusesXLM-R.
+infoxlm-large
+6https://huggingface.co/google/rembert OurfinalsubmissionforMQMpredictionswas
+7HTERsareavailableonlyforword-levelsubtasks. anensembleofelevenmultilingualsystems,which
+combinedthesixsystemsusedintheDAensemble 1. Anaive“best-only”approach: weidentifythe
+as well as five additional systems. For these ad- bestmodelforeachLPanduseitspredictions.
+ditionalsystems,wemadetwomajoradjustments
+2. Weensemblethelogitsofeachmodel: foreach
+to the fine-tuning process. First, we filtered the
+inputsegmentwecomputeanensemblesoflog-
+DAdatatothelanguagesthatwereincludedinthe
+(cid:80)
+itsas w v ,whereMisthesetofmod-
+MQMLPs, namelyru-en, en-zh, anden-de. Sec- i∈M i i
+els, w is the weight of each model and v the
+ond,weincorporatedtheMQMdataintothefine- i i
+model logit vector. We use Optuna to find the
+tuningprocess,eitherasanadditionalfine-tuning
+optimalweightw foreachmodelineachLP.
+stepafterfine-tuningonthelanguage-filteredDA i
+data,orbyconcatenatingtheDAandMQMdata
+3. Weensemblethepredictedtagsofeachmodel:
+together. All additional systems used word-level
+foreachinputsegmentwecomputeanensem-
+supervisioninadditiontosentence-levelandused (cid:80)
+bles of tags as α w c , where c is the
+i∈M i i i
+InfoXLMasencoder.
+predictedclassandαistheweightgivenforthe
+BAD class. WeuseOptunatofindtheoptimal
+3.1.2 Word-levelqualityprediction
+weightsw
+i
+foreachmodelandtheoptimalBAD
+Similarly, fortheword-levelQEtasksweexperi- weightαforeachLP.
+mentedwithboththemulti-tasksettingandword-
+In the final submission we combine five mod-
+labels only (λ = 0 and λ = 1). Overall, we
+s w
+elsforthepost-editoriginatedLPs: aRemBERT
+found that adding the sentence-level supervision
+basedmodel,anInfoXLMbasedmodelpretrained
+was beneficial, especially for the languages pairs
+onAPEQuestandQT21,andthreecheckpointsthat
+includedinthetest-set. Nonetheless,forsomeLPs,
+arebasedonInfoXLMbutusedifferentparameters
+ignoringsentence-levelsupervisionshowedsupe-
+riorperformance. Duetothemixofhigh-,mid-and
+fortheBAD/OKweightsandlearningratethatwere
+found via Optuna. For MQM we also combine
+low-resourcelanguagesinthedata,thedistribution
+fivemodels,butthistimeinsteadofchoosingthree
+ofOKandBADtagsdifferssubstantiallybetween
+checkpointsbasedonoptimisingweightsandlearn-
+LPsleadingtoinconsistentperformanceinterms
+ing rate, we use three different checkpoints with
+ofMCC(seeTable5intheappendix). Tomitigate
+differenttrainingdatamixontherelevantDALPs,
+this,fortheword-levelsubtask,weprependalan-
+asthisseemedtoimpacttheperformanceonMQM
+guageprefixtokentothebeginningofthesource
+word-levelmorethantheweightratios. Referto§4
+andtargetsegmentsduringtrainingandtesting.
+andTable3formoredetails.
+Pretraining on post-edit corpora. Extending
+3.2 Task2: ExplainableQE
+the pretraining on Metrics data, we pretrain the
+word-level models on two corpora that include The goal of the Explainable QE task is to iden-
+bothword-levellabelsandsentence(HTER)scores, tifymachinetranslationerrorswithoutrelyingon
+namelyQT21(Speciaetal.,2017)andAPEQuest word-levellabelinformation. Inotherwords,itcan
+(Iveetal.,2020). Wecomputethesentence-level becastasanunsupervisedword-levelqualityesti-
+score, using translation edit rate (TER) (Snover mation problem, where explanations can be seen
+etal.,2006)betweenthetargetandthecorrespond- as highlights, representing the relevance of input
+ingpost-editedsentence. wordsw.r.t. themodel’spredictionviacontinuous
+scores,aimingatidentifyingtokensthatwerenot
+Ensembling models. For word-level we fol- properlytranslated.
+lowed a similar ensembling technique used for Severalexplainabilitymethodscanbeusedtoex-
+sentence-level, namelywecombinemultiplesys- tracthighlightsfromasentence-levelmodel,such
+tems trained with different hyperparameters, en- aspost-hoc(Ribeiroetal.,2016;Arrasetal.,2016)
+codersandpre-trainingsetups. Inthecaseofword- or inherently interpretable methods (Lei et al.,
+levelpredictionshowever,weneedtoresolvehow 2016;GuerreiroandMartins,2021). Inoursubmis-
+to aggregate multiple predictions into OK/BAD sion, weoptedtouseattention-basedmethodsas
+tags. WeuseOptuna(Akibaetal.,2019)tochoose theyachievedthebestresultsinthepreviouscon-
+howtoweightandcombinethemodelsbasedon strained track of the Explainable QE shared task
+performanceforeachlanguagepaironourinternal (Fomicheva et al., 2021). Concretely, we take in-
+test-setandwecomparethreedifferentapproaches: spirationinthemethoddevelopedbyTrevisoetal.
+DirectAssessment
+Encoder km-en ps-en en-ja en-cs en-mr ru-en ro-en en-zh en-de et-en si-en ne-en avg.
+Baseline(Zervaetal.,2021)
+XLM-R 0.615 0.601 0.295 0.535 0.419 0.703 0.828 0.513 0.500 0.806 0.565 0.793 0.598
+Pretrainedmodels
+InfoXLM 0.619 0.603 0.328 0.510 0.462 0.731 0.829 0.554 0.516 0.803 0.561 0.777 0.608
+RemBERT 0.600 0.621 0.338 0.525 0.447 0.680 0.818 0.487 0.491 0.810 0.525 0.747 0.591
+XLM-R 0.610 0.579 0.325 0.503 0.405 0.715 0.832 0.541 0.514 0.782 0.540 0.740 0.591
+Sentence-levelonly
+XLM-R 0.628 0.591 0.350 0.531 0.551 0.761 0.859 0.577 0.568 0.800 0.565 0.796 0.631
+InfoXLM 0.629 0.623 0.348 0.515 0.574 0.747 0.858 0.586 0.551 0.828 0.568 0.790 0.635
+RemBERT 0.634 0.631 0.346 0.570 0.564 0.754 0.862 0.534 0.531 0.822 0.550 0.782 0.632
+Few-shotLanguageAdaptation
+XLM-R 0.650 0.619 0.352 0.551 0.546 0.753 0.852 0.571 0.554 0.813 0.562 0.798 0.635
+InfoXLM 0.641 0.650 0.367 0.549 0.549 0.751 0.855 0.591 0.565 0.824 0.563 0.803 0.642
+RemBERT 0.625 0.641 0.367 0.568 0.563 0.756 0.857 0.540 0.527 0.824 0.568 0.796 0.636
+Sentence+word-leveltraining
+InfoXLM 0.617 0.586 0.344 0.532 0.572 0.761 0.865 0.586 0.579 0.829 0.576 0.804 0.637
+RemBERT 0.634 0.628 0.356 0.564 0.571 0.762 0.860 0.541 0.553 0.826 0.564 0.799 0.638
+Few-shotLanguageAdaptation
+InfoXLM 0.643 0.632 0.335 0.557 0.560 0.766 0.860 0.575 0.582 0.833 0.578 0.809 0.644
+RemBERT 0.644 0.645 0.356 0.567 0.568 0.759 0.856 0.545 0.552 0.835 0.561 0.804 0.641
+FinalEnsemble
+Ensemble6x 0.664 0.669 0.380 0.591 0.593 0.782 0.871 0.597 0.593 0.845 0.588 0.820 0.666
+Table1: Resultsforsentence-levelQEintermsofSpearmancorrelationforDA.
+(2021),whichconsistsofscalingattentionweights andAstudillo2016)transformations. Aftertrain-
+bythe(cid:96) -normofvaluevectors(Kobayashietal., ing, the Head Mix coefficients can help to find
+2
+2020)andfindingtheattentionheadswiththebest attentionheadswithhighvalidationperformance,
+performanceonthedevset,andproposetwonew whichishelpfulforexplainingzero-shotLPs.
+modifications:
+Furthermore,sinceallofoursentence-levelmod-
+• Attention × GradNorm: Following the find- elsusesubwordtokenization,togetexplanations
+ingsofChrysostomouandAletras(2022),wede- foranentirewordwefollowTrevisoetal.(2021)
+cidedtoextractexplanationsthatconsiderboth andsumthescoresofitswordpieces.
+attention and gradient information. More pre-
+Ensembling explanations. In our final submis-
+cisely,wescaletheattentionweightsbythe(cid:96) -
+2
+sionsweaveragetheexplanationscoresofdifferent
+normofthegradientofvaluevectors:
+attentionheadsandlayerstocreateafinalexplainer.
+(cid:13) (cid:13)
+A (cid:96),h(cid:13)∇ V (cid:96),h(cid:13) 2. (6) We decided which heads and layers to aggregate
+togetherbylookingattheirperformanceonthedev
+• HeadMix: Wereformulatethescalarmixmod- set,selectingthetop-5withthehighestexplainabil-
+ule(Eq.2)toconsiderdifferentweightsforrepre- ityscore.
+sentationscomingfromdifferentattentionheads
+3.3 Task3: CriticalErrorDetection
+asfollows:
+Critical translations are defined as translations
+L H
+(cid:88) (cid:88) with strongly semantic deviations from the orig-
+H = λ β γ h , (7)
+mix (cid:96) (cid:96),h (cid:96),h
+inal source sentence, with the potential to lead
+(cid:96)=0 h=1
+to negative impacts in critical applications. The
+where the layer mix coefficients β ∈ (cid:52)L are goalofthistaskistopredictsentence-levelscores
+given by β = π(φ), and the head mix coeffi- indicating whether a translation contains a criti-
+cientsγ ∈ (cid:52)H aregivenbyγ = π(θ ). λ ∈ R, cal error. Since the evaluation metrics automati-
+(cid:96) (cid:96) (cid:96)
+φ ∈ RL and θ ∈ RL×H are learnable parame- callyaccountfordifferentbinarizationthresholds
+ters. We experimented both with dense (π as toseparategoodtranslationsfrombadones,forthis
+softmax) and sparse (π as sparsemax, Martins taskweemployedasinglesentence-levelInfoXLM
+model from Task 1 that was trained on DA data. MQM
+Moreover,weparticipatedonlyintheconstrained
+System(fine-tunedon) en-de en-ru zh-en avg.
+setting, meaning that we did not trained our sys-
+Sentence-levelonly
+temsspecificallyforthistask. Therefore,ourgoal DA 0.529 0.534 0.215 0.426
+forthistaskwastovalidatewhetherourQEsystem DA+MQM 0.531 0.552 0.250 0.444
+DA(3LPs)+MQM 0.538 0.550 0.262 0.450
+from Task 1 was able to detect and differentiate
+Sentence+word-leveltraining
+translationswithcriticalerrors.
+DA 0.525 0.557 0.217 0.433
+DA(3LPs) 0.560 0.561 0.222 0.448
+4 ExperimentalResults
+DA+MQM 0.540 0.568 0.262 0.457
+DA(3LPs)+MQM 0.553 0.569 0.268 0.463
+AswehaveseeninSection3,forourexperiments DA(3LPs)concat.MQM 0.578 0.547 0.278 0.468
+we split the provided development sets into two
+FinalEnsemble
+equalsizehalvescreatinganewinternaldevsetand Ensemble11x 0.568 0.556 0.223 0.449
+aninternaltestset. Theresultingsetscontain≈500
+Table 2: Results for sentence-level QE in terms of
+segmentsperlanguagepairforbothDAandMQM,
+SpearmancorrelationforMQM.
+wordandsentence-level. Asforbaselinesweused
+oursubmittedsystemsfromprevioussharedtasks:
+forTask1weusedthe M1M-ADAPT(Zervaetal., InfoXLM. In contrast, RemBERT does not seem
+2021), and for Task 2 we used the Attn×Norm to benefit from this signal. We suspect that, for
+explainer(Trevisoetal.,2021). Theofficialresults this task, the benefit of word-level supervision is
+forTask1andTask2areshowninTable7. not higher because the word-level information is
+comingfrompost-editions,whichareconceptually
+4.1 QualityEstimation
+differentfromDAannotations.
+Sentence-levelsubmissionswereevaluatedusing
+theSpearman’srankcorrelation. Pearson’scorrela- MQM. Resultsforsentence-levelMQMsystems
+tion,MAE,andRMSEwerealsousedassecondary areshowninTable2. Theresultsshowthatthetwo
+metrics, butherewereportonlySpearmancorre- maintechniquesusedforadaptingtoMQMdata,
+lationsinceitwastheprimarymetricusedtorank filteringDAdatatothethreeMQMLPsandusing
+systems. Word-level submission were evaluated MQMdataforfine-tuning,improvedSpearmancor-
+using MCC, F -OK, and F -BAD, but we report relationsforallLPsoverthepureDAbaseline,for
+1 1
+only MCC as it was considered the main metric. bothsentence-levelandmulti-tasksystems. How-
+The submitted systems were independently eval- ever,thesetechniquesimprovedcertainLPsmore
+uated on in-domain and zero-shot LPs for direct thanothers,socombiningthemtogetherimproved
+assessmentsandMQM. multilingual scores even further. Overall, we no-
+ticed that our results for MQM data have a high
+Direct Assessments. Results for sentence-level
+variance. To mitigate this, we concatenated the
+DAscanbeseeninTable1. Theresultsshowthat
+DAandMQM datasetstogetherfor asinglefine-
+thetrainingstrategiesemployedin COMETKIWI,
+tuning,resultinginourbestindividualsystemon
+namely(i)pretrainingmodelsusingMetricsdata
+our internal test set. Due to these peculiarities in
+and(ii)incorporatingreferencesintotraining,lead
+the MQM LPs, we decided to ensemble systems
+toacorrelationclosetoourbestsystemfromlast
+tunedonbothDAandMQMdata. Ourfinalensem-
+yearwhiledisregardingthedatafromtheMLQE-
+bledidnothaveasstrongresultsastheindividual
+PEcorpus. Whenfine-tuningonMLQE-PEdata,
+systemsonourinternaltestset,yet,itshowedsu-
+we get overall improvements of ∼ 4%, and fur-
+perior performance upon submission to codalab
+ther fine-tuning on new LPs gives ∼ 1% overall
+leader-board.
+improvement. Still,fortheunseenLPs(km-en,ps-
+en, en-ja, en-cs), we got improvements between Word-level. For the word-level task we tuned
+2-3% with just 500 samples. Among the three modelsseparatelyfortheLPsthatconsistedofpost-
+backbonetransformers,wenoticedthatInfoXLM edit-derivedwordtagsandtheonesconsistingof
+is the one that leads to a higher Spearman corre- MQM-derivedwordtags;wereporttheMatthew’s
+lation(+1.7%thanXLM-RandRemBERT).Fur- correlation coefficient (MCC) in Table 3. We ex-
+thermore,includingword-levelsupervisionalways perimentedwithmulti-taskingbyaddingsentence-
+maintains or improves the results, especially for levelsupervisiontotheword-leveltaskandfound
+Post-edit MQM
+Method en-cs en-ja en-mr km-en ps-en avg. en-de en-ru zh-en avg.
+Baseline(Zervaetal.,2021) 0.272 0.154 0.326 0.427 0.348 0.305 0.176 0.177 0.065 0.139
+InfoXLMasencoder
+Word-level 0.351 0.183 0.337 0.443 0.372 0.337 - - - -
++Sentence-level 0.410 0.230 0.368 0.436 0.369 0.363 0.294 0.256 0.399 0.316
++LPprefix 0.371 0.202 0.391 0.512 0.411 0.377 0.259 0.440 0.211 0.303
++APEQuest&QT21 0.414 0.245 0.372 0.494 0.389 0.383 0.246 0.382 0.209 0.279
++tunedclass-weights 0.389 0.218 0.421 0.499 0.391 0.384 0.285 0.404 0.172 0.287
+DA(3LPs)+MQM - - - - - - 0.265 0.367 0.360 0.331
+RemBERTasencoder
+Word+sentence-level 0.353 0.163 0.303 0.443 0.369 0.326 0.262 0.309 0.147 0.240
++LPprefix 0.384 0.257 0.375 0.460 0.370 0.369 0.288 0.356 0.297 0.313
+Ensemble“best-only” 0.414 0.245 0.421 0.512 0.411 0.401 0.300 0.382 0.360 0.347
+Ensemblelogits 0.438 0.257 0.445 0.547 0.430 0.423 0.325 0.443 0.296 0.355
+Ensembletags 0.432 0.253 0.429 0.537 0.423 0.415 0.313 0.446 0.408 0.389
+Table3: Resultsforword-levelQEintermsofMCCforthepost-editandMQMLPs. Notethatineachrow,we
+usemodelstrainedseparatelyontheMQMandnon-MQMLPs.
+that it boosts performance especially for the out- Discussion. The results highlight several con-
+of-Englishtranslations. Forthenon-MQMLPswe trasts between explanations for DA and MQM
+usedtheHTERscoresassentenceleveltargetsas data: (i)whileRemBERTisusefulasanencoder
+we found they lead to significantly higher corre- forDAdata(outperformsInfoXLMin3outof5
+lations. We can also see that using the sentence- LPs),itisoutperformedbyInfoXLMforallMQM
+mix and the language prefix boosted the perfor- LPs; (ii) the Head Mix component improves per-
+manceforallLPs,bothintheMQMandpost-edit formance for DA, but it does not impact signifi-
+originated LPs. Overall, the results show further cantly the scores for MQM; and (iii) the Sparse
+improvements when we use the HTER scores of Head Mix generally outperforms the Soft Head
+APEQuestandQT21asadditionalpretrainingdata, Mix for DA, but the trend flips for MQM. On
+butonlyforspecificLPs. Thesefindingsmeritfur- whatcomestotheexplainabilitymethods,thebase-
+ther investigation, since the directionality of the linemethod(Attn×Norm–scalingtheattention
+LPsseemstohaveimpactedourexperiments. Fi- weightsbythe(cid:96) -normofvaluevectors),whichob-
+2
+nally, ensembling led to better results across all tainedthebestresultsinlastyear’sExplainableQE
+languages. Ensemblingthelogitsledtobetterre- shared task, is outperformed by our new method
+sultsforthepost-editoriginatedLPs,whileword- (Attn×GradNorm) for both DA and MQM data.
+levelensemblinghelpedmoretheMQM-originated Moreover, ensembling explanations from differ-
+LPs. Yet,inthesubmittedversionswefoundthat entheadsbringsfurtherconsistentimprovements
+thedifferenceinperformancebetweenthethreeen- acrosstheboardforallLPs. Forthezero-shotset-
+semblingmethodsyieldedsimilarresults,withonly ting(en-yo),webuildanensembleofexplanations
+1-2%difference,whileintheaveragedmultilingual byusingtheheadsthatweremorecommonamong
+versionsthesedifferenceswereevensmaller,vary- the ensembles for all other LPs. This approach
+inglessthan0.1%. mightbeworthresearchingfurther,sinceitispos-
+sibletostudytheHeadMixcoefficientstoselect
+4.2 ExplainableQE
+good-performingattentionheads.
+Since the explanations are given as continuous
+scores,theyareevaluatedagainsttheground-truth 5 OfficialResults
+word-level labels in terms of the Area Under the
+Curve(AUC),AveragePrecision(AP),andRecall Wepresenttheofficialresultsofoursubmissions
+at Top-K (R@K) metrics only on the subset of alongsidetheresultsfromothercompetitorsinSec-
+translations that contain errors. Although R@K tion B for all three tasks. For sentence-level, our
+was considered the main metric for this task, we submissionsachievedthebestresultsfor6/9LPs.
+optimized internally for the average of all three Forword-level,weobtainedthebestresultsfor5/9
+metrics. TheresultsareshowninTable4. LPs. FortheexplainableQEtrack,weobtainedthe
+DirectAssessment MQM
+Method en-cs en-ja en-mr km-en ps-en avg. en-de en-ru zh-en avg.
+Baseline(Trevisoetal.,2021)† 0.602 0.510 0.428 0.636 0.633 0.562 0.529 0.552 0.450 0.510
+InfoXLMasencoder
+Attn×GradNorm 0.602 0.495 0.417 0.653 0.648 0.563 0.539 0.559 0.474 0.524
++SoftHeadMix 0.600 0.495 0.426 0.656 0.653 0.566 0.532 0.563 0.467 0.521
++SparseHeadMix 0.604 0.503 0.421 0.658 0.660 0.569 0.541 0.551 0.454 0.515
+Ensemble 0.641 0.521 0.440 0.669 0.667 0.588 0.580 0.603 0.505 0.563
++SoftHeadMix 0.621 0.501 0.432 0.681 0.661 0.579 0.567 0.588 0.504 0.553
++SparseHeadMix 0.645 0.519 0.450 0.688 0.675 0.595 0.574 0.582 0.484 0.547
+RemBERTasencoder
+Attn×GradNorm 0.596 0.511 0.427 0.675 0.676 0.577 0.474 0.532 0.448 0.485
++SoftHeadMix 0.588 0.538 0.430 0.658 0.654 0.574 0.473 0.529 0.455 0.486
++SparseHeadMix 0.588 0.534 0.428 0.658 0.652 0.572 0.470 0.530 0.443 0.481
+Ensemble 0.609 0.551 0.443 0.702 0.685 0.598 0.516 0.554 0.506 0.525
++SoftHeadMix 0.613 0.561 0.448 0.699 0.692 0.603 0.521 0.558 0.498 0.526
++SparseHeadMix 0.620 0.557 0.447 0.702 0.691 0.604 0.511 0.551 0.503 0.522
+Table4:ExplainableQEtaskresultsintermsoftheaverageofAUC,APandR@K.†WeusedInfoXLMtocompute
+theresultsforthebaseline.
+bestresultsforallbuttwoLPs(km-enandps-en). Oneofthechallengesofleveragingbigensem-
+Although the critical error detection task had no blesistheburdensomeweightofparametersand
+other competitor for the constrained setting, our inferencetime. Forfutureworkwewillextendour
+submissionvastlysurpassedtheorganizers’base- recent work, COMETINHO (Rei et al., 2022) and
+line. Wealsoobtainedthebestresultsforthemul- explorehowtoeffectivelydistilllargeensembles
+tilingualsettings(includingandexcludingen-yo) intosmallandmorepracticalQEsystems.
+foralltasks. Finally,whenaveragingtheresultsfor
+allLPs,oursubmissionsplaceontopforalltasks. Acknowledgements
+This work was supported by the P2020 program
+6 ConclusionsandFutureWork
+MAIA (contract 045909), by the European Re-
+search Council (ERC StG DeepSPIN 758969),
+WepresentedthejointcontributionofISTandUn-
+andbytheFundaçãoparaaCiênciaeTecnologia
+babeltotheWMT2022QEsharedtask. Wefound
+throughcontractUIDB/50008/2020.
+thatincorporatingreferencesduringpretrainingim-
+proves performance across several LPs on down-
+streamtasks,andthatjointlytrainingwithsentence References
+and word-level objectives yields a further boost.
+Takuya Akiba, Shotaro Sano, Toshihiko Yanase,
+ForTask1,ourfinalsubmissionswereensembles
+Takeru Ohta, and Masanori Koyama. 2019. Op-
+ofmodelsfinetunedwithdifferentpretrainedlan-
+tuna: A next-generation hyperparameter optimiza-
+guage models as encoders, boosting the results tion framework. In Proceedings of the 25rd ACM
+when compared to the previous year submission. SIGKDD International Conference on Knowledge
+DiscoveryandDataMining.
+For Task 2, we take inspiration on the literature
+ofexplainabilityandproposetousegradientinfor-
+Leila Arras, Franziska Horn, Grégoire Montavon,
+mation in tandem with attention weights, and to Klaus-Robert Müller, and Wojciech Samek. 2016.
+furtherrefinetheimpactofattentionheadstowards Explaining predictions of non-linear classifiers in
+NLP. InProceedingsofthe1stWorkshoponRepre-
+the prediction via the Head Mix component. Be-
+sentationLearningforNLP,pages1–7,Berlin,Ger-
+sidesleadingtobetterexplainabilityperformance
+many.AssociationforComputationalLinguistics.
+for some LPs, this strategy is potentially useful
+toidentifygoodattentionheadsatinferencetime Zewen Chi, Li Dong, Furu Wei, Nan Yang, Saksham
+forzero-shotLPs,anddeservesmoreinvestigation. Singhal, Wenhui Wang, Xia Song, Xian-Ling Mao,
+HeyanHuang,andMingZhou.2021. InfoXLM:An
+Overall,oursubmissionsachievedthebestresults
+information-theoretic framework for cross-lingual
+foralltasks(includingTask3)foralmostallLPs
+languagemodelpre-training. InProceedingsofthe
+byaconsiderablemargin. 2021ConferenceoftheNorthAmericanChapterof
+the Association for Computational Linguistics: Hu- Ondˇrej Bojar. 2021b. Results of the WMT21 met-
+manLanguageTechnologies,pages3576–3588,On- rics shared task: Evaluating metrics with expert-
+line.AssociationforComputationalLinguistics. basedhumanevaluationsonTEDandnewsdomain.
+InProceedingsoftheSixthConferenceonMachine
+GeorgeChrysostomouandNikolaosAletras.2022. An Translation,pages733–774,Online.Associationfor
+empirical study on explanations in out-of-domain ComputationalLinguistics.
+settings. In Proceedings of the 60th Annual Meet-
+ingoftheAssociationforComputationalLinguistics Nuno M. Guerreiro and André F. T. Martins. 2021.
+(Volume1:LongPapers),pages6920–6938,Dublin, SPECTRA:Sparsestructuredtextrationalization. In
+Ireland.AssociationforComputationalLinguistics. Proceedings of the 2021 Conference on Empirical
+Methods in Natural Language Processing, pages
+Hyung Won Chung, Thibault Fevry, Henry Tsai, 6534–6550,OnlineandPuntaCana,DominicanRe-
+Melvin Johnson, and Sebastian Ruder. 2021. Re- public.AssociationforComputationalLinguistics.
+thinking Embedding Coupling in Pre-trained Lan-
+guage Models. In International Conference on Julia Ive, Lucia Specia, Sara Szoc, Tom Vanalle-
+LearningRepresentations. meersch, Joachim Van den Bogaert, Eduardo
+Farah, ChristineMaroti, ArturVentura, andMaxim
+AlexisConneau, KartikayKhandelwal, NamanGoyal, Khalilov. 2020. A post-editing dataset in the legal
+Vishrav Chaudhary, Guillaume Wenzek, Francisco domain: Doweunderestimateneuralmachinetrans-
+Guzmán, Edouard Grave, Myle Ott, Luke Zettle- lation quality? In Proceedings of the 12th Lan-
+moyer, and Veselin Stoyanov. 2020. Unsupervised guageResourcesandEvaluationConference,pages
+cross-lingual representation learning at scale. In 3692–3697, Marseille, France. European Language
+Proceedingsofthe58thAnnualMeetingoftheAsso- ResourcesAssociation.
+ciation for Computational Linguistics, pages 8440–
+8451, Online. Association for Computational Lin- FabioKepler, JonayTrénous, MarcosTreviso, Miguel
+guistics. Vera, and André F. T. Martins. 2019. OpenKiwi:
+An open source framework for quality estimation.
+Jacob Devlin, Ming-Wei Chang, Kenton Lee, and In Proceedings of the 57th Annual Meeting of the
+Kristina Toutanova. 2019. BERT: Pre-training of Association for Computational Linguistics: System
+deep bidirectional transformers for language under- Demonstrations,pages117–122,Florence,Italy.As-
+standing. In Proceedings of the 2019 Conference sociationforComputationalLinguistics.
+of the North American Chapter of the Association
+for Computational Linguistics: Human Language GoroKobayashi,TatsukiKuribayashi,ShoYokoi,and
+Technologies, Volume 1 (Long and Short Papers), Kentaro Inui. 2020. Attention is not only a weight:
+pages4171–4186,Minneapolis,Minnesota.Associ- Analyzing transformers with vector norms. In
+ationforComputationalLinguistics. Proceedings of the 2020 Conference on Empirical
+MethodsinNaturalLanguageProcessing(EMNLP),
+Marina Fomicheva, Piyawat Lertvittayakumjorn, Wei pages7057–7075,Online.AssociationforComputa-
+Zhao, Steffen Eger, and Yang Gao. 2021. The tionalLinguistics.
+Eval4NLP shared task on explainable quality esti-
+mation: Overview and results. In Proceedings of Tao Lei, Regina Barzilay, and Tommi Jaakkola. 2016.
+the2ndWorkshoponEvaluationandComparisonof Rationalizingneuralpredictions. InProceedingsof
+NLPSystems,pages165–178,PuntaCana,Domini- the 2016 Conference on Empirical Methods in Nat-
+can Republic. Association for Computational Lin- ural Language Processing, pages 107–117, Austin,
+guistics. Texas.AssociationforComputationalLinguistics.
+MarinaFomicheva,ShuoSun,ErickFonseca,Frédéric AndreMartinsandRamonAstudillo.2016. Fromsoft-
+Blain,VishravChaudhary,FranciscoGuzmán,Nina maxtosparsemax: Asparsemodelofattentionand
+Lopatina, Lucia Specia, and André F. T. Martins. multi-label classification. In International Confer-
+2022. MLQE-PE: A Multilingual Quality Estima- enceonMachineLearning,pages1614–1623.
+tion and Post-Editing Dataset. In Proceedings of
+theLanguageResourcesandEvaluationConference, MatthewE.Peters,MarkNeumann,MohitIyyer,Matt
+pages4963–4974,Marseille,France.EuropeanLan- Gardner, Christopher Clark, Kenton Lee, and Luke
+guageResourcesAssociation. Zettlemoyer. 2018. Deep contextualized word rep-
+resentations. In Proceedings of the 2018 Confer-
+MarkusFreitag,GeorgeFoster,DavidGrangier,Viresh ence of the North American Chapter of the Associ-
+Ratnakar, Qijun Tan, and Wolfgang Macherey. ation for Computational Linguistics: Human Lan-
+2021a. Experts, errors, and context: A large-scale guageTechnologies,Volume1(LongPapers),pages
+study of human evaluation for machine translation. 2227–2237, New Orleans, Louisiana. Association
+Transactions of the Association for Computational forComputationalLinguistics.
+Linguistics,9:1460–1474.
+Tharindu Ranasinghe, Constantin Orasan, and Ruslan
+Markus Freitag, Ricardo Rei, Nitika Mathur, Chi-kiu Mitkov.2020. TransQuestatWMT2020: Sentence-
+Lo, Craig Stewart, George Foster, Alon Lavie, and leveldirectassessment. InProceedingsoftheFifth
+Conference on Machine Translation, pages 1049– ChrysoulaZerva, DaanvanStigt, RicardoRei, AnaC
+1055, Online. Association for Computational Lin- Farinha,PedroRamos,JoséG.C.deSouza,Taisiya
+guistics. Glushkova, Miguel Vera, Fabio Kepler, and André
+F. T. Martins. 2021. IST-unbabel 2021 submission
+Ricardo Rei, Ana C Farinha, José G.C. de Souza, Pe- for the quality estimation shared task. In Proceed-
+dro G. Ramos, André F.T. Martins, Luisa Coheur, ings of the Sixth Conference on Machine Transla-
+and Alon Lavie. 2022. Searching for COMET- tion, pages 961–972, Online. Association for Com-
+INHO: The little metric that could. In Proceed- putationalLinguistics.
+ingsofthe23rdAnnualConferenceoftheEuropean
+Association for Machine Translation, pages 61–70,
+A DataInformation
+Ghent,Belgium.EuropeanAssociationforMachine
+Translation.
+The data used for finetuning our QE systems is
+Ricardo Rei, Craig Stewart, Ana C Farinha, and Alon showninTable5. ForDAdata,wesplittheorig-
+Lavie.2020. COMET:AneuralframeworkforMT
+inal development set to generate a new dev/test
+evaluation. In Proceedings of the 2020 Conference
+split, therefore the reported numbers in the table
+onEmpiricalMethodsinNaturalLanguageProcess-
+ing (EMNLP), pages 2685–2702, Online. Associa- correspondtothis“internal”devsplit.
+tionforComputationalLinguistics.
+Source Target Target
+Marco Tulio Ribeiro, Sameer Singh, and Carlos
+LP Samples Tokens Tokens OK/BAD
+Guestrin. 2016. Why should i trust you?: Explain-
+ing the predictions of any classifier. In Proc. ACM TRAIN
+SIGKDD,pages1135–1144.ACM. en-de 9000 147870 153656 0.84/0.16
+en-mr 26000 690516 561371 0.90/0.10
+MatthewSnover,BonnieDorr,RichardSchwartz,Lin- en-zh 9000 148657 163308 0.65/0.35
+nea Micciulla, and John Makhoul. 2006. A study et-en 9000 126877 185491 0.75/0.25
+ne-en 9000 135205 181707 0.41/0.59
+of translation edit rate with targeted human annota-
+ro-en 9000 154538 167471 0.71/0.29
+tion. InInProceedingsofAssociationforMachine
+ru-en 9000 104423 132006 0.85/0.15
+TranslationintheAmericas,pages223–231.
+si-en 9000 141283 166914 0.42/0.58
+en-de† 54681 1571090 1926444 0.90/0.10
+Lucia Specia, Kim Harris, Frédéric Blain, Aljoscha
+en-ru† 15628 312185 354871 0.95/0.05
+Burchardt,VivivenMacketanz,IngunaSkadin,Mat-
+zh-en† 75327 134165 2789907 0.87/0.13
+teo Negri, and Marco Turchi. 2017. Translation
+quality and productivity: A study on rich morphol- DEV
+ogy languages. In Proceedings of Machine Trans- en-de 500 8262 8555 0.84/0.16
+lation Summit XVI: Research Track, pages 55–71, en-mr 500 13803 11216 0.91/0.09
+NagoyaJapan. en-zh 500 8422 9302 0.75/0.25
+et-en 500 7081 10257 0.73/0.27
+LuciaSpecia,CarolinaScarton,andGustavoHenrique ne-en 500 7542 10247 0.38/0.62
+Paetzold. 2018. Quality estimation for machine ro-en 500 8550 9202 0.78/0.22
+ru-en 500 5984 7511 0.84/0.16
+translation. SynthesisLecturesonHumanLanguage
+si-en 500 7866 9415 0.41/0.59
+Technologies,11(1):1–162.
+en-cs 500 10302 9302 0.75/0.25
+en-ja 500 10354 13287 0.73/0.27
+MarcosTreviso,NunoM.Guerreiro,RicardoRei,and
+km-en 495 9015 8843 0.45/0.55
+André F. T. Martins. 2021. IST-unbabel 2021 sub-
+ps-en 500 13463 12160 0.51/0.49
+missionfortheexplainablequalityestimationshared
+en-de† 503 10535 12454 0.96/0.04
+task. InProceedingsofthe2ndWorkshoponEvalu-
+en-ru† 503 10767 11911 0.91/0.09
+ation and Comparison of NLP Systems, pages 133–
+zh-en† 509 980 19192 0.98/0.02
+145, PuntaCana, DominicanRepublic.Association
+forComputationalLinguistics.
+Table5: DAandMQM(†)dataforallLPs.
+Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob
+Uszkoreit, Llion Jones, Aidan N Gomez, Ł ukasz
+Kaiser,andIlliaPolosukhin.2017. AttentionisAll
+B OfficialResults
+you Need. In Advances in Neural Information Pro-
+cessingSystems(NeurIPS),volume30,pages5998–
+Critical Error Detection. Submissions for this
+6008.CurranAssociates,Inc.
+taskwereevaluatedintermsofrankingusingR@K
+Yu Wan, Dayiheng Liu, Baosong Yang, Haibo Zhang, and MCC as metrics. In Table 6, we report only
+Boxing Chen, Derek Wong, and Lidia Chao. 2022.
+MCCscoresasitwasthemainmetricforthistask.
+UniTE: Unified translation evaluation. In Proceed-
+ings of the 60th Annual Meeting of the Association
+QEandExplainableQE. Table7showstheof-
+forComputationalLinguistics(Volume1: LongPa-
+ficialresultsforsentence-levelQE(top)interms
+pers), pages 8117–8127, Dublin, Ireland. Associa-
+tionforComputationalLinguistics. ofSpearman’scorrelation,word-levelQE(middle)
+Method en-de pt-en
+Baseline 0.0738 -0.0013
+InfoXLMfinetunedonDAs 0.5641 0.7209
+Table6: OfficialresultsfortheCriticalErrorDetection
+taskintermsofMCC.
+intermsofMCC,andexplainableQE(bottom)in
+termsofR@K.
+DirectAssessment MQM
+Team en-cs en-ja en-mr en-yo km-en ps-en all all/yo en-ru en-de zh-en
+Sentence-levelQE
+Baseline 0.560 0.272 0.436 0.002 0.579 0.641 0.415 0.497 0.333 0.455 0.164
+Alibaba - - - - - - - - 0.505 0.550 0.347
+NJUQE - - 0.585 - - - - - 0.474 0.635 0.296
+Welocalize 0.563 0.276 0.444 - 0.623 - 0.448 0.506 - - -
+joanne.wjy 0.635 0.348 0.597 - 0.657 0.697 - 0.587 - - -
+HW-TSC 0.626 0.341 0.567 - 0.509 0.661 - - 0.433 0.494 0.369
+Papago 0.636 0.327 0.604 0.121 0.653 0.671 0.502 0.571 0.496 0.582 0.325
+IST-Unbabel 0.655 0.385 0.592 0.409 0.669 0.722 0.572 0.605 0.519 0.561 0.348
+Word-levelQE
+Baseline 0.325 0.175 0.306 0.000 0.402 0.359 0.235 0.257 0.203 0.182 0.104
+NJUQE - - 0.412 - 0.421 - - - 0.390 0.352 0.308
+HW-TSC 0.424 0.258 0.351 - 0.353 0.358 - 0.218 0.343 0.274 0.246
+Papago 0.396 0.257 0.418 0.028 0.429 0.374 0.317 0.343 0.421 0.319 0.351
+IST-Unbabel 0.436 0.238 0.392 0.131 0.425 0.424 0.341 0.361 0.427 0.303 0.360
+ExplainableQE
+Baseline 0.417 0.367 0.194 0.111 0.580 0.615 0.381 0.435 0.148 0.074 0.048
+f.azadi - - - - 0.622 0.668 - - - - -
+HW-TSC 0.536 0.462 0.280 - 0.686 0.715 - 0.535 0.313 0.252 0.220
+IST-Unbabel 0.561 0.466 0.317 0.234 0.665 0.672 0.486 0.536 0.390 0.365 0.379
+Table7: Officialresultsforsentence-levelQE(top)intermsofSpearman’scorrelation,word-levelQE(middle)in
+termsofMCC,andexplainableQE(bottom)intermsofR@K.Weestimatedthenumbersofen-yoforteamsthat
+didnotsubmittoen-yodirectlybutstillsubmittedtoallotherLPsandtothemultilingual(all)category.

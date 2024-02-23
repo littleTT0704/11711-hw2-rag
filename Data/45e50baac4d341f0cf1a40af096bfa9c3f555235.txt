@@ -1,0 +1,704 @@
+Understanding the Effect of Model Compression on
+Social Bias in Large Language Models
+GustavoGonçalves1,2 and EmmaStrubell1,3
+1LanguageTechnologiesInstitute,CarnegieMellonUniversity,Pittsburgh,PA,USA
+2NOVALINCS,UniversidadeNOVAdeLisboa,Lisbon,Portugal
+3AllenInstituteforArtificialIntelligence,Seattle,WA,USA
+{ggoncalv, estrubel}@cs.cmu.edu
+Abstract prohibitivelyexpensivebothfinanciallyandenvi-
+ronmentally (Hessenthaler et al., 2022). At the
+LargeLanguageModels(LLMs)trainedwith
+same time, the compression of LLMs has been
+self-supervision on vast corpora of web text
+intensely studied. Pruning, quantization, and dis-
+fit to the social biases of that text. Without
+tillationareamongthemostcommonstrategiesto
+intervention,thesesocialbiasespersistinthe
+model’spredictionsindownstreamtasks,lead- compressLLMs. Pruningreducestheparameters
+ingtorepresentationalharm. Manystrategies of a trained model by removing redundant con-
+havebeenproposedtomitigatetheeffectsof nectionswhilepreservingequivalentperformance
+inappropriatesocialbiaseslearnedduringpre- to their original counterparts (Liebenwein et al.,
+training. Simultaneously, methodsformodel
+2021; Ahia et al., 2021). Quantization reduces
+compression have become increasingly pop-
+theprecisionofmodelweightsandactivationsto
+ular to reduce the computational burden of
+improveefficiencywhilepreservingperformance
+LLMs. Despite the popularity and need for
+(Ahmadianetal.,2023). Finally,knowledgedistil-
+bothapproaches,littleworkhasbeendoneto
+explore the interplaybetween thesetwo. We lation (Hinton et al., 2015) trains a smaller more
+performacarefullycontrolledstudyoftheim- efficientmodelbasedonalargerpre-trainedmodel.
+pactofmodelcompressionviaquantizationand While much research has been done on mea-
+knowledge distillation on measures of social
+suring and mitigating social bias in LLMs, and
+bias in LLMs. Longer pretraining and larger
+makingLLMssmallerandmoreefficient,byusing
+modelsledtohighersocialbias,andquantiza-
+oneoracombinationofmanycompressionmeth-
+tion showed a regularizer effect with its best
+trade-offaround20%oftheoriginalpretraining ods(Xuetal.,2021),littleresearchhasbeendone
+time.1 regardingtheinterplaybetweensocialbiasesand
+LLMcompression. Existingworkhasshownthat
+1 Introduction pruning disproportionately impacts classification
+accuracyonlow-frequencycategoriesincomputer
+Large Language Models (LLMs) are trained on
+visionmodels(Hookeretal.,2021),butthatprun-
+largecorporausingself-supervision,whichallows
+ingtransformermodelscanhaveabeneficialeffect
+models to consider vast amounts of unlabelled
+with respect to bias when modeling multilingual
+data, and learn language patterns through mask-
+text(Hookeretal.,2020;Oguejietal.,2022). Fur-
+ingtasks(Devlinetal.,2019;Radfordetal.,2019).
+ther,XuandHu(2022)haveshownthatcompress-
+However, self-supervision allows LLMs to pick
+ingpretrainedmodelsimprovesmodelfairnessby
+up social biases contained in the training data.
+workingasaregularizeragainsttoxicity.
+Which is amplified by larger models, more data,
+Unlikepreviouswork,ourworkfocusesonthe
+andlongertraining(Kanekoetal.,2022;Kaneko
+impacts of widely used quantization and distilla-
+andBollegala,2022;Kuritaetal.,2019;Delobelle
+tiononthesocialbiasesexhibitedbyavarietyof
+andBerendt,2022).
+both encoder- and decoder-only LLMs. We fo-
+Social biases in LLMs are an ongoing prob-
+cusontheeffectsofsocialbiasoverBERT(Devlin
+lemthatispropagatedfrompretrainingtofinetun-
+etal.,2019),RoBERTa(Liuetal.,2019)andPythia
+ing(Ladhaketal.,2023;Giraetal.,2022). Biased
+LLMs(Bidermanetal.,2023). Weevaluatethese
+pretrained models are hard to fix, as retraining is
+modelsagainstBiasBench(Meadeetal.,2022),a
+1https://github.com/gsgoncalves/
+compilationofthreesocialbiasdatasets.
+EMNLP2023_llm_compression_and_social_
+bias Inourexperimentalresultswedemonstrateacor-
+2663
+Proceedingsofthe2023ConferenceonEmpiricalMethodsinNaturalLanguageProcessing,pages2663–2675
+December6-10,2023©2023AssociationforComputationalLinguistics
+relationbetweenlongerpretraining,largermodels, model will pick an equal ratio of both stereotypi-
+andincreasedsocialbias,andshowthatquantiza- calandanti-stereotypicalchoices,thusanoptimal
+tionanddistillationcanreducebias,demonstrating scoreforthisdatasetisaratioof50%.
+the potential for compression as a pragmatic ap-
+proachforreducingsocialbiasinLLMs. StereoSet iscomposedofcrowdsourcedsamples.
+Each sample is composed of a masked context
+sentence, and a set of three candidate answers:
+2 Methodology
+1) stereotypical, 2) anti-stereotypical, and 3) un-
+Wewereinterestedinunderstandinghowdynamic related. Under the SS formulation, an unbiased
+Post-TrainingQuantization(PTQ)anddistillation modelwouldgiveabalancednumberofclassifica-
+influencesocialbiascontainedinLLMsofdifferent tionsoftypes1)and2),thustheoptimalscoreis
+sizes,andalongtheirpretraining. IndynamicPTQ, also50%. TheSSdatasetalsomeasuresifweare
+full-precisionfloatingpointmodelweightsarestat- changingthelanguagemodelingpropertiesofour
+ically mapped to lower precisions after training, model. Thatis,ifourmodelpicksahighpercent-
+with activations dynamically mapped from high ageofunrelatedchoices3)itcanbeinterpretedas
+tolowprecisionduringinference. Tothisend,in losingitslanguagecapabilities. Thisisdefinedas
+Section 2.1 we present the datasets of the Bias theLanguageModel(LM)Score.
+Benchbenchmark(Meadeetal.,2022)thatenable
+us to evaluate three different language modeling SEAT evaluates biases in sentences. A SEAT
+tasks across the three social bias categories. In task is defined by two sets of attribute sentences,
+Section2.2welayoutthemodelswestudied. We andtwoothersetsoftargetsentences. Theobjec-
+expand on the Bias Bench original evaluation by tive of the task is to measure the distance of the
+looking at the Large versions of the BERT and sentenceembeddingsbetweentheattributeandtar-
+RoBERTa models, and the Pythia family of au- get sets to assess a preference between attributes
+toregressive models. The chosen models cover andtargets(bias). Weprovidemoredetailofthis
+differentlanguagemodelingtasksandspanacross formulationinAppendixA.1.
+a wide range of parameter sizes, thus providing
+2.2 Models
+a comprehensive view of the variations of social
+bias. In this work, we focus on two popular methods
+formodelcompression: knowledgedistillationand
+2.1 MeasuringBias quantization. Wechoosethesetwomethodsgiven
+their competitive performance, wide deployment
+WeusetheBiasBenchbenchmarkforevaluating
+giventheavailabilityofdistributionsundertheHug-
+markersofsocialbiasinLLMs. BiasBenchcom-
+gingFace and Pytorch libraries, and the lack of
+piles three datasets, CrowS-Pairs (Nangia et al.,
+understanding of the impact of these methods on
+2020),StereoSet(SS)(Nadeemetal.,2021),and
+socialbiases. Weleavethestudyofmoreelaborate
+SEAT(KanekoandBollegala,2021),formeasur-
+methods for improving model efficiency such as
+ingintrinsicbiasacrossthreedifferentidentitycate-
+pruning (Chen et al., 2020), mixtures of experts
+gories: GENDER,RACE,andRELIGION. Whilethe
+(Kuduguntaetal.,2021),andadaptivecomputation
+setofidentitiescoveredbythisdatasetisfarfrom
+(Elbayadetal.,2020)tofuturework.
+complete, it serves as a useful indicator as these
+modelsareencodingcommonsocialbiases;how- Sincemodelcompressionaffectsmodelsize,we
+ever,thelackofbiasindicatedbythisbenchmark are particularly interested in understanding how
+doesnotimplyanoveralllackofinappropriatebias pretrainedmodelsizeimpactsmeasuresofsocial
+in the model, for example with respect to other bias, and how that changes as a function of how
+groups. We briefly describe each dataset below; well the model fits the data. We are also inter-
+refertotheoriginalworksformoredetail. ested in investigating how the number of tokens
+observedduringtrainingimpactsalloftheabove.
+CrowS-Pairs iscomposedofpairsofminimally We experiment with three different base LLMs:
+distantsentencesthathavebeencrowdsourced. A BERT(Devlinetal.,2019),RoBERTa(Liuetal.,
+minimally distant sentence is defined as a small 2019), and Pythia (Biderman et al., 2023), with
+number of token swaps in a sentence, that carry uncompressedmodelsizesrangingfrom70Mpa-
+differentsocialbiasinterpretations. Anunbiased rametersto6.9Bparameters. BERTandRoBERTa
+2664
+Model Params Size(MB) GENDER RACE RELIGION
+BERTBase 110M 438 57.25 62.33 62.86
++ DYNAMIC PTQ int8 110M 181 57.25 0.19 62.14 9.53 46.67
+↓ ↓
++ CDA (Websteretal.,2020) 110M 1.14 56.11 5.63 56.70 2.86 60.00
+↓ ↓ ↓
++ DROPOUT(Websteretal.,2020) 110M 1.91 55.34 3.30 59.03 7.62 55.24
+↓ ↓ ↓
++ INLP (Ravfogeletal.,2020) 110M 6.10 51.15 5.63 67.96 1.91 60.95
+↓ ↑ ↓
++ SELF-DEBIAS(Schicketal.,2021) 110M 4.96 52.29 5.63 56.70 6.67 56.19
+↓ ↓ ↓
++ SENTDEBIAS(Liangetal.,2020) 110M 4.96 52.29 0.39 62.72 0.95 63.81
+↓ ↑ ↑
+BERTLarge 345M 1341 1.52 55.73 1.94 60.39 4.76 67.62
+↓ ↓ ↑
++ DYNAMIC PTQ int8 345M 432 6.87 50.38 0.78 63.11 7.62 55.24
+↓ ↑ ↓
+DistilBERT 66M 268 6.10 51.15 9.32 46.99 4.76 58.10
+↓ ↓ ↓
+RoBERTaBase 123M 498 60.15 63.57 60.95
++ DYNAMIC PTQ int8 123M 242 6.51 53.64 5.04 58.53 10.47 49.52
+↓ ↓ ↓
++ CDA (Websteretal.,2020) 110M 3.83 56.32 0.19 63.76 0.95 59.05
+↓ ↑ ↓
++ DROPOUT(Websteretal.,2020) 110M 0.76 59.39 1.17 62.40 2.86 57.14
+↓ ↓ ↓
++ INLP (Ravfogeletal.,2020) 110M 4.98 55.17 1.75 61.82 1.91 62.86
+↓ ↓ ↑
++ SELF-DEBIAS(Schicketal.,2021) 110M 3.06 57.09 1.17 62.40 9.52 51.43
+↓ ↓ ↓
++ SENTDEBIAS(Liangetal.,2020) 110M 8.04 52.11 1.55 65.12 1.9 40.95
+↓ ↑ ↓
+RoBERTaLarge 354M 1422 60.15 0.58 64.15 0.95 61.90
+↑ ↑
++ DYNAMIC PTQ int8 354M 513 2.68 57.47 0.20 63.37 0.95 60.00
+↓ ↓ ↓
+DistilRoBERTa 82M 329 7.28 52.87 3.49 60.08 2.86 63.81
+↓ ↓ ↑
+Table 1: CrowS-Pairs stereotype scores for GENDER, RACE, and RELIGION for BERT and RoBERTa models.
+Stereotypescorescloserto50%indicatelessbiasedmodelbehavior. Boldvaluesindicatethebestmethodperbias
+category. ResultsontheotherdatasetsdisplayedsimilartrendsandwereincludedinAppendixBforspace.
+representtwosimilarsetsofwidelyusedandstud- theteachermodel(soft-targets)andthetruelabels
+ied pretrained architectures, trained on different (hard-targets)tobettergeneralizetounseendata.
+data with a small overlap. RoBERTa pretraining
+Quantization compresses models by reducing
+wasdoneover161GBoftext,whichcontainedthe
+theprecisionoftheirweightsandactivationsduring
+16GBusedtotrainBERT,approximatelyaten-fold
+inference. WeusethestandardPyTorchimplemen-
+increase. RoBERTa also trained for longer, with
+tation3toapplydynamicPTQoverthelinearlayers
+larger batch sizes which have shown to decrease
+ofthetransformerstack,fromfp32full-precision
+theperplexityoftheLLM(Liuetal.,2019).
+to quantized int8 precision. This work analyzes
+The set of checkpoints released for the Pythia
+quantizedBERT,RoBERTa,andPythiamodelsof
+model family allows us to assess an even wider
+acomprehensiverangeofsizes.
+variety of model sizes and number of training to-
+kens,includingintermediatecheckpointssaveddur-
+3 Results
+ing pretraining, so that we can observe how bias
+varies throughout pretraining. We used the mod- DynamicPTQanddistillationlowersocialbias.
+elspretrainedonthededuplicatedversionofThe InTable1weanalyzetheeffectsofdynamicPTQ
+Pile(Gaoetal.,2021)containing768GBoftext. anddistillationintheCrowSdataset,whereBERT
+Base and RoBERTa Base are our baselines. To
+Knowledgedistillation (Hintonetal.,2015)isa
+comparequantizationanddistillation,weaddthree
+populartechniqueforcompressingtheknowledge
+debiasingbaselinesalsoreferencedbyMeadeetal.
+encoded in a larger teacher model into a smaller
+(2022)thatarecompetitivestrategiestoreducebias.
+student model. In this work, we analyze Distil-
+TheINLP(Ravfogeletal.,2020)baselineconsists
+BERT (Sanh et al., 2019) and DistilRoBERTa2
+ofalinearclassifierthatlearnstopredictthetarget
+distilledLMs. Duringtrainingthestudentmodel
+bias group given a set of context words, such as
+minimizesthelossaccordingtothepredictionsof
+3https://pytorch.org/tutorials/recipes/recipes/
+2https://huggingface.co/distilroberta-base dynamic_quantization.html
+2665
+Figure1: LMscorevs. GENDER,RACE,andRELIGIONbiasontheSSdatasetacrossallPythiamodels. Darker
+datapointsshowlaterpretrainingsteps,andmoretransparentpointstoearliersteps. Theincludedtableshowsthe
+KendallTauC,forthecorrelationacross"All"modelsizes,full-precision"Original",and"int8"modelsizes.
+Model Best Step Bias Model Best Step Bias
+Size LMScore Nr. G. / RA. /RE. Size LMScore Nr. G. / RA. / RE.
+70M 89.2 21K 59.8/58.4/58.6 70M 87.7 29K 57.5/54.8/58.0
+160M 90.2 36K 61.4/57.6/59.4 160M 89.0 21K 61.1/56.3/57.7
+410M 91.6 114K 65.2/60.7/64.5 410M 90.5 50K 64.2/58.4/63.6
+1.4B 92.6 129K 66.6/63.2/66.2 1.4B 91.4 29K 66.1/59.7/63.3
+2.8B 92.9 114K 67.1/63.7/66.8 2.8B 91.6 50K 64.1/60.2/61.9
+6.9B 92.7 129K 69.0/64.0/68.4 6.9B 91.4 21K 67.3/60.1/67.3
+Table2: BiasmeasuredusingSSforthefull-precision Table 3: Bias measured using SS for int8 quantized
+PythiamodelshavingthebestLMscorepermodelsize. PythiamodelshavingthebestLMscorepermodelsize.
+’he/she’. TheSelf-Debiasbaselinewasproposedby afunctionofthepretrainingofthePythiamodelsin
+Schicketal.(2021),andusespromptstoencourage Figures2to7,9,10and11. TheBERT/RoBERTa
+modelstogeneratetoxictextandlearnstogiveless BaseandLargeversionsareroughlycomparable
+weight to the generate toxic tokens. Self-Debias withthe160Mand410MPythiamodels. Forthe
+doesnotchangethemodel’sinternalrepresentation, SS dataset, the 160M model is consistently less
+thusitcannotbeevaluatedontheSEATdataset. biased than the 410M model. However, this is
+Notable trends in Table 1 are the reduction of not the case for the other two datasets where the
+socialbiaseswhenapplyingdynamicPTQanddis- 160Mstrugglesinthe RACEcategorywhileassess-
+tillation, which can compete on average with the ingthedistanceofsentenceembeddings(SEAT);
+specificallydesigneddebiasmethods. Additional andintheRELIGIONcategorywhileswappingmin-
+resultsininAppendixBalsodisplaysimilartrends. imally distant pairs (CrowS). This illustrates the
+On the SS dataset in Table 4 we are also able to difficulty of distinguishing between semantically
+observethattheapplicationofdistillationprovides closewords,andshowstheneedforlargermodels
+remarkabledecreasesinsocialbiases,atthegreat pretrainedforlongerandonmoredata.
+expense of LM score. However, dynamic PTQ
+Longer pretraining and larger models lead to
+shows a better trade-off in providing social bias
+more socially biased models. We study the ef-
+reductions,whilepreservingLMscore.
+fects of longer pretraining and larger models on
+Onemodelsizedoesnotfitallsocialbiases. In socialbias,byestablishingthecorrelationofthese
+Table 1 and the equivalent Tables in Appendix B variables in Figure 1. Here we can observe that
+wecanseethatsocialbiascategoriesresponddif- asthemodelsizeincreasessodoestheLMmodel
+ferentlytomodelsize,acrossthedifferentdatasets. scoreandsocialbiasacrosstheSSdataset. More-
+WhileBERTBase/LargeoutperformsRoBERTain over,laterstagesofpretraininghaveahigherLM
+GENDER,thebestmodelforRACEandRELIGION modelscore, wherethesocialbiasscoretendsto
+variesacrossdatasets. Thiscanbeexplainedbythe be high. The application of dynamic PTQ shows
+differentdatasettasksandthepretraining. aregularizereffectonallmodels.TheKendallTau
+InAppendixBweshowthesocialbiasscoresas Cacrossthemodelsandcategoriesshowsastrong
+2666
+correlationbetweenLMscoreandsocialbias. Sta- days. ACPUimplementationwasusedgiventhe
+tistical significant tests were performed using a quantizationbackendsavailableinPyTorch. Exper-
+one-sidedt-testtoevaluatethepositivecorrelation. imentsthatdidnotrequirequantizationranusing
+Tables 2 and 3 show at what step, out of the an NVIDIA A100 40GB GPU and took approxi-
+21wetested,thebestLMscoresoccurontheSS mately5hourstorun.
+dataset. In Table 2 the best LM score increases
+monotonicallywithmodelsizeandsodothesocial EthicsStatement
+biases. Interestingly, as the model size increases
+WereiteratethatthisworkprovidesalimitedWest-
+the best LM score appears after around 80% of
+ernviewofSocialbiasfocusingonlyonthreemain
+the pretraining. In opposition, in Table 3, with
+categories: GENDER, RACE, and RELIGION. Our
+dynamic PTQ the best LM score occurs around
+work is further limited to a binary definition of
+20%ofthepretrainingandmaintainsthetrendof
+GENDER,whichweacknowledgethatdoesnotre-
+higher LM score and social bias, albeit at lower
+flect the current society’s needs. Moreover, we
+scores than the original models. This shows an
+mustalsoreiteratethatthesemodelsneedtobefur-
+interestingpossibilityofearlystoppingdepending
+therstudiedandarenotreadyforproduction. The
+onthedeploymenttaskoftheLLM.
+effectsofquantizationalongpretrainingshouldbe
+consideredaspreliminaryresults.
+4 Limitations
+Whilethisworkprovidesthreedifferentdatasets, 5 Acknowledgments
+whichhavedifferentviewsonsocialbiasandallow
+This work has been partially funded by the FCT
+for an indicative view of LLMs, they share some
+project NOVA LINCS Ref. UIDP/04516/2020,
+limitationsthatshouldbeconsidered. Thedatasets
+by the Amazon Science - TaskBot Prize Chal-
+SS and CrowS define an unbiased model as one
+lenge and the CMU|Portugal projects iFetch
+that makes an equal amount of stereotypical and
+Ref. LISBOA-01-0247-FEDER-045920 and
+anti-stereotypicalchoices. Whileweagreethatthis
+GoLocal Ref. CMUP-ERI/TIC/0046/2014, and
+makesagooddefinitionofanimpartialmodelitis
+by the FCT Ph.D. scholarship grant Ref.
+alimiteddefinitionofanunbiasedmodel. Thishas
+SFRH/BD/140924/2018. We would like to ac-
+alsobeennotedbyBlodgettetal.(2021),showing
+knowledgetheNOVASearchgroupforproviding
+thatCrowSisslightlymorerobustthanSSbytak-
+compute resources for this work. Any opinions,
+ing"extrastepstocontrolforvaryingbaseratesbe-
+findings,andconclusionsinthispaperaretheau-
+tweengroups."(Blodgettetal.,2021). Weshould
+thors’ and do not necessarily reflect those of the
+considerthatthesedatasetsdepictmostlyWestern
+sponsors.
+biases,andthedatasetconstructionsinceitisbased
+onassessorsitisdependentontheassessor’sviews.
+Moreover, Blodgett et al. (2021) has also noted
+References
+theexistenceofunbalancedstereotypepairsinSS
+andCrowS,andthefactthatsomesamplesinthe Orevaoghene Ahia, Julia Kreutzer, and Sara Hooker.
+datasetarenotconsensualstereotypes. 2021. TheLow-ResourceDoubleBind: AnEmpir-
+ical Study of Pruning for Low-Resource Machine
+Alldatasetsonlyexplorethreegroupsofbiases:
+Translation. In EMNLP (Findings), pages 3316–
+GENDER,RACE,andRELIGION,whicharenotby
+3333.AssociationforComputationalLinguistics.
+anymeansexhaustiverepresentationsofsocialbias.
+Theexperimentsinthispapershouldbeconsidered ArashAhmadian,SaurabhDash,HongyuChen,Bharat
+indicativeofsocialbiasandneedtobefurtherstud- Venkitesh, Stephen Gou, Phil Blunsom, Ahmet
+Üstün,andSaraHooker.2023. IntriguingProperties
+ied. Additionally,the GENDER categoryisdefined
+ofQuantizationatScale. CoRR,abs/2305.19268.
+as binary, which we acknowledge that does not
+reflect the timely social needs of LLMs, but can
+StellaBiderman,HaileySchoelkopf,QuentinAnthony,
+be extended to include non-binary examples by Herbie Bradley, Kyle O’Brien, Eric Hallahan, Mo-
+improvingonexistingdatasets. hammadAflahKhan,ShivanshuPurohit,USVSNSai
+Prashanth, Edward Raff, Aviya Skowron, Lintang
+Webenefitedfromaccesstoaclusterwithtwo
+Sutawika,andOskarvanderWal.2023. Pythia: A
+AMD EPYC 7 662 64-Core Processors, where
+SuiteforAnalyzingLargeLanguageModelsAcross
+thequantizedexperimentsranforapproximately4 TrainingandScaling. CoRR,abs/2304.01373.
+2667
+Su Lin Blodgett, Gilsinia Lopez, Alexandra Olteanu, MasahiroKanekoandDanushkaBollegala.2022. Un-
+RobertSim,andHannaM.Wallach.2021. Stereo- masking the Mask - Evaluating Social Biases in
+typingNorwegianSalmon: AnInventoryofPitfalls MaskedLanguageModels. InAAAI,pages11954–
+in Fairness Benchmark Datasets. In ACL/IJCNLP 11962.AAAIPress.
+(1),pages1004–1015.AssociationforComputational
+Linguistics. Masahiro Kaneko, Danushka Bollegala, and Naoaki
+Okazaki. 2022. Debiasing Isn’t Enough! - on the
+TianlongChen,JonathanFrankle,ShiyuChang,Sijia EffectivenessofDebiasingMLMsandTheirSocial
+Liu, Yang Zhang, Zhangyang Wang, and Michael Biases in Downstream Tasks. In COLING, pages
+Carbin. 2020. The Lottery Ticket Hypothesis for 1299–1310. International Committee on Computa-
+Pre-trainedBERTNetworks. InNeurIPS. tionalLinguistics.
+PieterDelobelleandBettinaBerendt.2022. FairDistil-
+Sneha Kudugunta, Yanping Huang, Ankur Bapna,
+lation: MitigatingStereotypinginLanguageModels.
+MaximKrikun,DmitryLepikhin,Minh-ThangLu-
+InECML/PKDD(2),volume13714ofLectureNotes
+ong, and Orhan Firat. 2021. Beyond Distillation:
+inComputerScience,pages638–654.Springer.
+Task-levelMixture-of-ExpertsforEfficientInference.
+In EMNLP (Findings), pages 3577–3599. Associa-
+Jacob Devlin, Ming-Wei Chang, Kenton Lee, and
+tionforComputationalLinguistics.
+Kristina Toutanova. 2019. BERT: Pre-training of
+DeepBidirectionalTransformersforLanguageUn-
+Keita Kurita, Nidhi Vyas, Ayush Pareek, Alan W.
+derstanding. InProceedingsofthe2019Conference
+Black, and Yulia Tsvetkov. 2019. Measuring Bias
+oftheNorthAmericanChapteroftheAssociationfor
+in Contextualized Word Representations. CoRR,
+ComputationalLinguistics: HumanLanguageTech-
+abs/1906.07337.
+nologies,NAACL-HLT2019,Minneapolis,MN,USA,
+June2-7,2019,Volume1(LongandShortPapers),
+Faisal Ladhak, Esin Durmus, Mirac Suzgun, Tianyi
+pages 4171–4186. Association for Computational
+Zhang, Dan Jurafsky, Kathleen R. McKeown, and
+Linguistics.
+TatsunoriHashimoto.2023. WhenDoPre-Training
+Biases Propagate to Downstream Tasks? A Case
+MahaElbayad,JiataoGu,EdouardGrave,andMichael
+Auli.2020. Depth-AdaptiveTransformer. InICLR. StudyinTextSummarization. InEACL,pages3198–
+3211.AssociationforComputationalLinguistics.
+OpenReview.net.
+LeoGao,StellaBiderman,SidBlack,LaurenceGold- Paul Pu Liang, Irene Mengze Li, Emily Zheng,
+ing, Travis Hoppe, Charles Foster, Jason Phang, YaoChongLim,RuslanSalakhutdinov,andLouis-
+Horace He, Anish Thite, Noa Nabeshima, Shawn Philippe Morency. 2020. Towards Debiasing Sen-
+Presser, and Connor Leahy. 2021. The Pile: An tence Representations. In ACL, pages 5502–5515.
+800GBDatasetofDiverseTextforLanguageModel- AssociationforComputationalLinguistics.
+ing. CoRR,abs/2101.00027.
+LucasLiebenwein,CenkBaykal,BrandonCarter,David
+MichaelGira,RuisuZhang,andKangwookLee.2022. Gifford, and Daniela Rus. 2021. Lost in Pruning:
+Debiasing Pre-Trained Language Models via Effi- TheEffectsofPruningNeuralNetworksbeyondTest
+cientFine-Tuning. InLT-EDI,pages59–69.Associa- Accuracy. InMLSys.mlsys.org.
+tionforComputationalLinguistics.
+YinhanLiu,MyleOtt,NamanGoyal,JingfeiDu,Man-
+MariusHessenthaler,EmmaStrubell,DirkHovy,and dar Joshi, Danqi Chen, Omer Levy, Mike Lewis,
+AnneLauscher.2022. BridgingFairnessandEnvi- Luke Zettlemoyer, and Veselin Stoyanov. 2019.
+ronmental Sustainability in Natural Language Pro- RoBERTa: A Robustly Optimized BERT Pretrain-
+cessing. InEMNLP,pages7817–7836.Association ingApproach. CoRR,abs/1907.11692.
+forComputationalLinguistics.
+NicholasMeade,ElinorPoole-Dayan,andSivaReddy.
+Geoffrey E. Hinton, Oriol Vinyals, and Jeffrey Dean.
+2022. AnEmpiricalSurveyoftheEffectivenessof
+2015. Distillingtheknowledgeinaneuralnetwork.
+DebiasingTechniquesforPre-trainedLanguageMod-
+InNIPSWorkshoponDeepLearning.
+els. InACL(1),pages1878–1898.Associationfor
+ComputationalLinguistics.
+Sara Hooker, Aaron Courville, Gregory Clark, Yann
+Dauphin,andAndreaFrome.2021. WhatDoCom-
+Moin Nadeem, Anna Bethke, and Siva Reddy. 2021.
+pressedDeepNeuralNetworksForget?
+StereoSet: Measuringstereotypicalbiasinpretrained
+SaraHooker,NyallengMoorosi,GregoryClark,Samy languagemodels. InACL/IJCNLP(1),pages5356–
+Bengio, and Emily Denton. 2020. Characterising 5371.AssociationforComputationalLinguistics.
+BiasinCompressedModels. CoRR,abs/2010.03058.
+Nikita Nangia, Clara Vania, Rasika Bhalerao, and
+MasahiroKanekoandDanushkaBollegala.2021. De- Samuel R. Bowman. 2020. CrowS-Pairs: A Chal-
+biasingPre-trainedContextualisedEmbeddings. In lengeDatasetforMeasuringSocialBiasesinMasked
+EACL,pages1256–1266.AssociationforComputa- LanguageModels. InEMNLP(1),pages1953–1967.
+tionalLinguistics. AssociationforComputationalLinguistics.
+2668
+KelechiOgueji,OrevaogheneAhia,GbemilekeOnilude, WhereAandB representtheattributesets,and
+Sebastian Gehrmann, Sara Hooker, and Julia X andY arethetargetsetsofwords. Thesfunc-
+Kreutzer. 2022. Intriguing Properties of Compres-
+tioninEquation(1)denotesmeancosinesimilarity
+sion on Multilingual Models. In EMNLP, pages
+between the target word embeddings and the at-
+9092–9110.AssociationforComputationalLinguis-
+tics. tributewordembeddings:
+Alec Radford, Jeff Wu, Rewon Child, David Luan,
+DarioAmodei,andIlyaSutskever.2019. Language 1 1
+modelsareunsupervisedmultitasklearners. s(w,A,B)= cos(w,a) cos(w,b).
+A − B
+| |a A | |b B
+Shauli Ravfogel, Yanai Elazar, Hila Gonen, Michael
+X∈ X∈
+(2)
+Twiton, and Yoav Goldberg. 2020. Null It Out:
+Thereportedscoreofthebenchmark(effectsize)
+GuardingProtectedAttributesbyIterativeNullspace
+isgivenby:
+Projection. InACL,pages7237–7256.Association
+forComputationalLinguistics.
+µ( s(x,A,B) ) µ( s(y,A,B) )
+x X y Y
+d = { } ∈ − { } ∈
+Victor Sanh, Lysandre Debut, Julien Chaumond, and σ( s(t,X,Y) )
+t A B
+ThomasWolf.2019. DistilBERT,adistilledversion { } ∈ ∪ (3)
+ofBERT:Smaller,faster,cheaperandlighter. CoRR,
+Where µ and σ are the mean and standard de-
+abs/1910.01108.
+viation respectively. Equation (3) is designed so
+TimoSchick,SahanaUdupa,andHinrichSchütze.2021. thatscoresclosertozeroindicatethesmallestpos-
+Self-DiagnosisandSelf-Debiasing: AProposalfor
+sible degree of bias. SEAT extends the previous
+ReducingCorpus-BasedBiasinNLP. Trans.Assoc.
+formulationbyconsideringthedistancesentence
+Comput.Linguistics,9:1408–1424.
+embeddingsinsteadofwordembeddings.
+KellieWebster, XuezhiWang, IanTenney, AlexBeu-
+tel, Emily Pitler, Ellie Pavlick, Jilin Chen, and
+B AdditionalPlotsandTables
+Slav Petrov. 2020. Measuring and Reducing Gen-
+dered Correlations in Pre-trained Models. CoRR,
+abs/2010.06032.
+CanwenXu,WangchunshuZhou,TaoGe,KeXu,Ju-
+lianJ.McAuley,andFuruWei.2021. BeyondPre-
+servedAccuracy:EvaluatingLoyaltyandRobustness
+ofBERTCompression. InEMNLP(1),pages10653–
+10659.AssociationforComputationalLinguistics.
+Guangxuan Xu and Qingyuan Hu. 2022. Can
+ModelCompressionImproveNLPFairness. CoRR,
+abs/2201.08542.
+A DetailsofMetricCalculation
+A.1 SEAT
+TheSEATtasksharesthesametaskasWEATtask,
+which is defined by four word sets, two attribute
+sets, and two target sets. For example, to decide
+the presence of gender bias the two attribute sets
+are disjoint sets given by: 1) a masculine set of
+words, such as {’man’, ’boy’, ’he’, ...}, and 2) a
+setoffemininewords{’woman’,’girl’,’her’,...}.
+Thetargetsetswillcharacterizeconceptssuchas
+’sports’and’culinary’.
+WEATevaluateshowclosearetheattributesets
+fromthetargetsetstodeterminetheexistenceof
+bias. Mathematicallythisisgivenby:
+s(A,B,X,Y) = s(x,A,B) s(y,A,B)
+−
+x X y Y
+X∈ X∈
+(1)
+2669
+Figure2: CrowsGENDERbiaswithQuantizedResults
+Figure3: CrowsRACEbiaswithQuantizedResults
+Figure4: CrowsRELIGIONbiaswithQuantizedResults
+2670
+Figure5: StereosetGENDERbiaswithQuantizedResults
+Figure6: StereosetRACEbiaswithQuantizedResults
+Figure7: StereosetRELIGIONbiaswithQuantizedResults
+2671
+Figure8: StereosetLMScorewithQuantizedResults
+Table 4: SS stereotype scores and language modeling scores (LM Score) for BERT, and RoBERTa models.
+Stereotypescorescloserto50%indicatelessbiasedmodelbehavior. Boldvaluesindicatethebestmethodper
+biasandLMScore. ResultsareontheSStestset. Arandommodel(whichchoosesthestereotypicalcandidate
+andtheanti-stereotypicalcandidateforeachexamplewithequalprobability)obtainsastereotypescoreof50%in
+expectation.
+Model GENDERbias RACEbias RELIGIONbias LMScore
+BERTBase 60.28 57.03 59.70 84.17
++ DYNAMIC PTQ int8 3.29 56.99 2.36 54.67 2.87 56.83 2.94 81.23
+↓ ↓ ↓ ↓
++ CDA (Websteretal.,2020) 0.67 59.61 0.30 56.73 1.33 58.37 1.09 83.08
+↓ ↓ ↓ ↓
++ DROPOUT(Websteretal.,2020) 0.38 60.66 0.04 57.07 0.57 59.13 1.14 83.04
+↑ ↑ ↓ ↓
++ INLP (Ravfogeletal.,2020) 3.03 57.25 0.26 57.29 2.44 57.26 3.54 80.63
+↓ ↑ ↓ ↓
++ SELF-DEBIAS(Schicketal.,2021) 0.94 59.34 2.73 54.30 2.44 57.26 0.08 84.09
+↓ ↓ ↓ ↓
++SENTENCEDEBIAS(Liangetal.,2020) 0.91 59.37 0.75 57.78 0.97 58.73 0.03 84.20
+↓ ↑ ↓ ↑
+BERTLarge 2.96 63.24 0.04 57.07 0.24 59.94 0.24 84.41
+↑ ↑ ↑ ↑
++ DYNAMIC PTQ int8 0.82 59.46 1.86 55.17 3.74 55.96 3.12 81.05
+↓ ↓ ↓ ↓
+DistilBERTBase 8.73 51.55 6.40 50.63 9.57 49.87 30.30 53.87
+↓ ↓ ↓ ↓
+RoBERTaBase 66.32 61.67 64.28 88.95
++ DYNAMIC PTQ int8 3.92 62.40 3.15 58.52 0.03 64.25 5.75 83.20
+↓ ↓ ↓ ↓
++ CDA (Websteretal.,2020) 1.89 64.43 0.73 60.95 0.23 64.51 0.10 83.83
+↓ ↓ ↓ ↓
++ DROPOUT(Websteretal.,2020) 0.06 66.26 1.27 60.41 2.20 62.08 0.11 88.81
+↓ ↓ ↓ ↓
++ INLP (Ravfogeletal.,2020) 9.06 60.82 3.41 58.26 3.94 60.34 0.70 88.23
+↓ ↓ ↓ ↓
++ SELF-DEBIAS(Schicketal.,2021) 1.28 65.04 2.89 58.78 1.44 62.84 0.67 88.26
+↓ ↓ ↓ ↓
++SENTENCEDEBIAS(Liangetal.,2020) 3.55 62.77 1.05 62.72 0.37 63.91 0.01 88.94
+↓ ↑ ↓ ↑
+RoBERTaLarge 0.51 66.83 1.37 60.30 0.21 64.49 0.14 89.09
+↑ ↓ ↑ ↑
++ DYNAMIC PTQ int8 2.72 63.60 2.10 59.57 0.40 63.88 0.68 88.27
+↓ ↓ ↓ ↓
+DistilRoBERTaBase 2.04 64.28 0.36 61.31 1.16 65.44 0.24 89.19
+↓ ↓ ↑ ↑
+2672
+Table5: LMScoresvs. BiasesontheSSdatasetofthe Table6: LMScoresvs. BiasesontheSSdatasetofthe
+int8models,atthesamestepswiththebestLMScore original(full-precision)models,atthesamestepswith
+fortheoriginal(full-precision)models(Table2) thebestLMScorefortheint8models(Table3)
+Model Step Bias Model Step Bias
+Size LMScore Nr. G. / RA. /RE. Size LMScore Nr. G. /RA. / RE.
+70M 87.7 21K 55.4/56.8/58.8 70M 88.4 29K 58.9/55.4/58.0
+160M 88.3 36K 59.4/54.7/57.3 160M 89.8 21K 62.7/57.7/57.0
+. .
+410M 88.7 114K 63.3/57.8/60.9 410M 91.5 50K 67.2/60.5/63.3
+1.4B 90.1 129K 65.5/60.0/62.5 1.4B 91.8 29K 65.9/61.2/64.9
+2.8B 90.5 114K 64.3/58.3/62.0 2.8B 92.4 50K 65.3/63.5/63.8
+6.9B 90.5 129K 66.6/62.2/64.7 6.9B 92.2 21K 67.0/61.0/64.9
+Figure9: SeatGENDERbiaswithQuantizedResults
+Figure10: SeatRACEbiaswithQuantizedResults
+2673
+Figure11: SeatRELIGIONbiaswithQuantizedResults
+Table7: GENDERbiasonSEATdataset. Effectsizescloserto0areindicativeoflessbiasedmodelrepresentations.
+Boldvaluesindicatethebestmethodpertest. Statisticallysignificanteffectsizesatp<0.01aredenotedby*. The
+finalcolumnreportstheaverageabsoluteeffectsizeacrossallsixgenderSEATtestsforeachmodel.
+Model weat6 weat6b weat7 weat7b weat8 weat8b Avg. Effect
+BERTBase 0.931 0.090 -0.124 0.937 0.783 0.858 0.620
+∗ ∗ ∗ ∗
++ DYNAMIC PTQ int8 0.614 ∗ 0.000 -0.496 0.711 ∗ 0.401 0.549 ∗ 0.158 0.462
+↓
++ CDA 0.846 ∗ 0.186 -0.278 1.342 ∗ 0.831 ∗ 0.849 ∗ 0.102 0.722
+↑
++ DROPOUT 1.136 ∗ 0.317 0.138 1.179 ∗ 0.879 ∗ 0.939 ∗ 0.144 0.765
+↑
++ INLP 0.317 -0.354 -0.258 0.105 0.187 -0.004 0.416 0.204
+↓
++ SENTENCEDEBIAS 0.350 -0.298 -0.626 0.458 ∗ 0.413 0.462 ∗ 0.186 0.434
+↓
+BERTLarge 0.370 -0.015 0.418 ∗ 0.221 -0.259 0.710 ∗ 0.288 0.332
+↓
++ DYNAMIC PTQ int8 0.905 ∗ 0.273 1.097 ∗ 0.894 ∗ 0.728 ∗ 1.180 ∗ 0.226 0.846
+↑
+DistilBERT 0.061 -0.222 0.093 -0.120 0.222 0.112 0.482 0.138
+↓
+RoBERTaBase 0.922 0.208 0.979 1.460 0.810 1.261 0.940
+∗ ∗ ∗ ∗ ∗
++ DYNAMIC PTQ int8 0.350 0.177 0.389 ∗ 1.038 ∗ 0.349 0.897 ∗ 0.406 0.533
+↓
++ CDA 0.976 ∗ 0.013 0.848 ∗ 1.288 ∗ 0.994 ∗ 1.160 ∗ 0.060 0.880
+↓
++ DROPOUT 1.134 ∗ 0.209 1.161 ∗ 1.482 ∗ 1.136 ∗ 1.321 ∗ 0.134 1.074
+↑
++ INLP 0.812 ∗ 0.059 0.604 ∗ 1.407 ∗ 0.812 ∗ 1.246 ∗ 0.117 0.823
+↓
++ SENTENCEDEBIAS 0.755 ∗ 0.068 0.869 ∗ 1.372 ∗ 0.774 ∗ 1.239 ∗ 0.094 0.846
+↓
+RoBERTalarge 0.849 ∗ 0.170 -0.237 0.900 ∗ 0.510 ∗ 1.102 ∗ 0.312 0.628
+↓
++ DYNAMIC PTQ int8 0.446 ∗ 0.218 -0.368 0.423 ∗ -0.040 0.303 0.640 0.300
+↓
+DistilRoBERTa 1.229 ∗ 0.192 0.859 ∗ 1.504 ∗ 0.748 ∗ 1.462 ∗ 0.059 0.999
+↑
+2674
+Table8: RACEbiasonSEATdataset. ABWS:angry-black-woman-stereotype. Effectsizescloserto0areindicative
+oflessbiasedmodelrepresentations. Boldvaluesindicatethebestmethodpertest. Statisticallysignificanteffect
+sizesatp<0.01aredenotedby*. Thefinalcolumnreportstheaverageabsoluteeffectsizeacrossallsevenrace
+SEATtestsforeachmodel.
+Avg.
+Model ABWS ABWS-b weat3 weat3b weat4 weat5 weat5b
+Effect
+BERTBase -0.079 0.690 0.778 0.469 0.901 0.887 0.539 0.620
+∗ ∗ ∗ ∗ ∗ ∗
++DYN. PTQint8 0.772 ∗ 0.425 0.835 ∗ 0.548 ∗ 0.970 ∗ 1.076 ∗ 0.517 ∗ 0.115 0.735
+↑
++CDA 0.231 0.619 ∗ 0.824 ∗ 0.510 ∗ 0.896 ∗ 0.418 ∗ 0.486 ∗ 0.051 0.569
+↓
++DROPOUT 0.415 ∗ 0.690 ∗ 0.698 ∗ 0.476 ∗ 0.683 ∗ 0.417 ∗ 0.495 ∗ 0.067 0.554
+↓
++INLP 0.295 0.565 ∗ 0.799 ∗ 0.370 ∗ 0.976 ∗ 1.039 ∗ 0.432 ∗ 0.019 0.639
+↑
++SENTDEBIAS -0.067 0.684 ∗ 0.776 ∗ 0.451 ∗ 0.902 ∗ 0.891 ∗ 0.513 ∗ 0.008 0.612
+↓
+BERTLarge -0.219 0.953 ∗ 0.420 ∗ -0.375 0.415 ∗ 0.890 ∗ -0.345 0.104 0.517
+↓
++DYN. PTQint8 0.660 ∗ -0.118 -0.173 0.093 -0.318 0.337∗ 0.364 ∗ 0.305 0.295
+↓
+DistilBERT 1.081 ∗ -0.927 0.441 ∗ 0.202 0.358 ∗ 0.726 ∗ -0.076 0.076 0.544
+↓
+RoBERTaBase 0.395 ∗ 0.159 -0.114 -0.003 -0.315 0.780 ∗ 0.386 ∗ 0.307
++DYN. PTQint8 0.660 ∗ -0.118 -0.173 0.093 -0.318 0.337∗ 0.364 ∗ 0.012 0.295
+↓
++CDA 0.455 ∗ 0.300 -0.080 0.024 -0.308 0.716 ∗ 0.371 ∗ 0.015 0.322
+↑
++DROPOUT 0.499 ∗ 0.392 -0.162 0.044 -0.367 0.841 ∗ 0.379 ∗ 0.076 0.383
+↑
++INLP 0.222 0.445 0.354 ∗ 0.130 0.125 0.636 ∗ 0.301 ∗ 0.009 0.316
+↑
++SENTDEBIAS 0.407 ∗ 0.084 -0.103 0.015 -0.300 0.728 ∗ 0.274 ∗ 0.034 0.273
+↓
+RoBERTaLarge -0.090 0.274 0.869 ∗ -0.021 0.943 ∗ 0.767 ∗ 0.061 0.125 0.432
+↑
++DYN. PTQint8 -0.065 -0.014 0.587 ∗ -0.190 0.572 ∗ 0.580 ∗ -0.173 0.004 0.312
+↑
+DistilRoBERTa 0.774 ∗ 0.112 -0.062 -0.012 -0.410 0.843 ∗ 0.456 ∗ 0.074 0.381
+↑
+Table9: RELIGIONbiasonSEATdataset. Effectsizescloserto0areindicativeoflessbiasedmodelrepresentations.
+Boldvaluesindicatethebestmethodpertest. Statisticallysignificanteffectsizesatp<0.01aredenotedby*. The
+finalcolumnreportstheaverageabsoluteeffectsizeacrossallfourreligionSEATtestsforeachmodel.
+Model religion1 religion1b religion2 religion2b Avg. Abs. Effect.
+BERTBase 0.744 -0.067 1.009 -0.147 0.492
+∗ ∗
++ DYNAMIC PTQ int8 0.524 ∗ -0.171 0.689 ∗ -0.205 0.095 0.397
+↓
++ CDA 0.355 -0.104 0.424 ∗ -0.474 0.152 0.339
+↓
++ DROPOUT 0.535 ∗ 0.109 0.436 ∗ -0.428 0.115 0.377
+↓
++ INLP 0.473 ∗ -0.301 0.787 ∗ -0.280 0.031 0.460
+↓
++ SENTENCEDEBIAS 0.728 ∗ 0.003 0.985 ∗ 0.038 0.053 0.439
+↓
+BERTLarge 0.011 0.144 -0.160 -0.426 0.306 0.186
+↓
++ DYNAMIC PTQ int8 0.524 ∗ -0.171 0.689 ∗ -0.205 0.095 0.397
+↓
+DistilBERT 0.172 0.529 ∗ 0.318 0.076 0.218 0.274
+↓
+RoBERTaBase 0.132 0.018 -0.191 -0.166 0.127
++ DYNAMIC PTQ int8 0.527 ∗ 0.567 ∗ 0.079 0.020 0.172 0.298
+↑
++ CDA 0.341 0.148 -0.222 -0.269 0.119 0.245
+↑
++ DROPOUT 0.243 0.152 -0.115 -0.159 0.041 0.167
+↑
++ INLP -0.309 -0.347 -0.191 -0.135 0.119 0.246
+↑
++ SENTENCEDEBIAS 0.002 -0.088 -0.516 -0.477 0.144 0.271
+↑
+RoBERTaLarge -0.163 -0.685 -0.158 -0.542 0.260 0.387
+↑
++ DYNAMIC PTQ int8 0.117 -0.292 0.293 0.015 0.052 0.179
+↑
+DistilRoBERTa 0.490 ∗ 0.019 0.291 -0.131 0.106 0.232
+↑
+2675

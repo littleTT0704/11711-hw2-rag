@@ -1,0 +1,582 @@
+Summarizing Text on Any Aspects:
+A Knowledge-Informed Weakly-Supervised Approach
+BowenTan1, LianhuiQin2, EricP.Xing1,3, ZhitingHu1,4
+1CarnegieMellonUniversity, 2UniversityofWashington, 3PetuumInc., 4UCSanDiego
+{btan2,epxing}@andrew.cmu.edu, lianhuiq@cs.washington.edu, zhitinghu@gmail.com
+Abstract news summarization corpora which have a small
+setofaspects(e.g.,“sports”,“health”andother4
+Given a document and a target aspect (e.g.,
+aspectsin (FrermannandKlementiev,2019)). As
+a topic of interest), aspect-based abstractive
+a result, models trained on these data tend to be
+summarization attempts to generate a sum-
+restricted to the pre-defined set and fall short of
+marywithrespecttotheaspect. Previousstud-
+ies usually assume a small pre-defined set of summarizingonotherdiverseaspects.
+aspectsandfallshortofsummarizingonother Thispaperaimstogobeyondpre-definedaspects
+diversetopics. Inthiswork,westudysumma- andenablesummarizationonarbitraryaspectsrel-
+rizingonarbitraryaspectsrelevanttothedoc-
+evant to the document. The arbitrary aspect may
+ument, which significantly expands the appli-
+notbeexplicitlymentionedbutonlyimplicitlyre-
+cation of the task in practice. Due to the lack
+latedtoportionsofthedocument,anditcanbea
+of supervision data, we develop a new weak
+new aspect not seen during training. To this end,
+supervisionconstructionmethodandanaspect
+modelingscheme,bothofwhichintegraterich we develop a new approach that integrates rich
+external knowledge sources such as Concept- external knowledge in both aspect modeling and
+NetandWikipedia. Experimentsshowourap- weak supervision construction. Specifically, we
+proach achieves performance boosts on sum- derive weak supervisions from a generic summa-
+marizing both real and synthetic documents
+rizationcorpus,wheretheConceptNetknowledge
+givenpre-definedorarbitraryaspects.1
+graph(Speeretal.,2017)isusedtosubstantiallyex-
+pandtheaspectscopeandenrichthesupervisions.
+1 Introduction
+Toassistsummarizationmodeltobetterunderstand
+Remarkableprogresseshavebeenmadeingener- anaspect,especiallyapreviouslyunseenone,we
+atinggenericsummariesofdocuments(Nallapati augmentthemodelinputswithrichaspect-related
+etal.,2016;Seeetal.,2017;Narayanetal.,2018), informationextractedfromWikipedia.
+partially due to the large amount of supervision Our approach is compatible with any neural
+dataavailable. Inpractice,adocument,suchasa encoder-decoder architectures. In this work, we
+newsarticleoramedicalreport,canspanmultiple usethelargepre-trainedBARTmodel(Lewisetal.,
+topics or aspects. To meet more specific infor- 2019)andfine-tunewiththeproposedmethod. Ex-
+mation need inapplications such as personalized perimentsonrealnewsarticlesshowourapproach
+intelligent assistants, it is often useful to summa- achievesperformanceboostsoverexistingmethods.
+rizeadocumentwithregardtoagivenaspect,i.e., When adapting to the previous synthetic domain,
+aspect-based summarization. the BART model after fine-tuning with our weak
+Recent research has explored the problem of supervisions becomes substantially more data ef-
+aspect-basedabstractivesummarization(Krishna ficient,andoutperformspreviousbest-performing
+and Srinivasan, 2018; Frermann and Klementiev, systemsgreatlyusingonly0.4%trainingexamples.
+2019). Akeychallengeofthetaskisthelackofdi-
+2 RelatedWork
+rectsupervisiondatacontainingdocumentspaired
+with multiple aspect-based summaries. Previous Aspect-basedsummarizationasaninstanceofcon-
+studies have created synthetic data from generic trollabletextgeneration(Huetal.,2017;Ficlerand
+Goldberg, 2017) offers extra controllability com-
+1Codeanddataavailableathttps://github.com/
+tanyuqian/aspect-based-summarization paredtogenericsummarizationtoensureconcise
+Document NER Extracted aspects ConceptNet Aspect: U.S. 3 Document
+{bees, Australia, U.S.}
+{insect, fly, colonoy, flower, TF-IDF ranking
+country, Great Barrier Reef,
+Oceania, koala, …} {…, dollar, Texas,
+Generic summary 1 technology, agriculture,…}
+C mo il lo lin ony sc o ol fl a bp es ee s .d Sis co ier nd te ir s th sa ss u k si pll ee cd t a ConceptNet 2 {r …ela , t de od l lw aro , r d tes c: hnology, …}
+virus may combine with other factors
+to collapse colonies. Disorder first Aspect: U.S. 4
+cropped up in 2004, as bees were [U.S.]:[…, dollar, …]<s>[ ]
+imported from Australia. $15 billion Input $15 billion in U.S. crops each
+in U.S. crops each year dependent on Summary: $15 billion in U.S. crops each year Output year dependent on bees for
+bees for pollination. dependent on bees for pollination. Summarization model pollination.
+Figure 1: Illustration of our approach. Left: Constructing weak supervisions using ConceptNet, including (1)
+extractingaspectsand(2)synthesizingaspect-basedsummaries.Right:Augmentingaspectinformation,including
+(3)identifyingaspectrelatedwordsinthedocumentusingWikipediaand(4)feedingbothaspectandrelatedwords
+intosummarizationmodel.
+summariesofinterest. Earlyworkhasstudiedtopic- ationsetting. Automaticcreationofdatasupervi-
+aware summarization in the multi-document set- sionsalsolinksourworktotextdataaugmentation
+ting,with(typicallysmall)datasetscontainingmul- in either heuristic-based (Wei and Zou, 2019) or
+tipledocumentstaggedwitharelevanttopic(Dang, automatedmanner(Sennrichetal.,2016;Huetal.,
+2005; Conroy et al., 2006). For single-document 2019b). Thisworkembedsrichstructuredknowl-
+aspect-based summarization, extractive methods edgeinthedatasynthesisprocess.
+were used to extract related key sentences/words
+3 Approach
+from the document (Lin and Hovy, 2000). Our
+workstudiesabstractiveaspect-basedsummariza- Given a document and an aspect which can be a
+tionthatgeneratessummaries. DeutschandRoth wordoraphrase,thetaskaimstogenerateasum-
+(2019) studied a sub-task of learning to select in- mary that concisely describes information in the
+formationindocumentsthatshouldbeincludedin documentthatisrelevanttotheaspect. Wepresent
+thesummary. Recentwork(FrermannandKlemen- ourapproachthatenablesaneuralsummarization
+tiev, 2019; Krishna and Srinivasan, 2018) on the modeltosummarizeonanyaspects. Theaspectcan
+problem synthesized training data that use news beanywordsrelevantto(butnotnecessarilyoccur-
+categories as the aspects and thus have a small ringin)thedocument. Ourapproachincorporates
+pre-definedsetofaspectsavailable. Weaimtoen- rich external knowledge sources, including Con-
+able summarization on any aspects, and develop ceptNetforenrichingweaksupervisionsintraining
+newweaksupervisionsbyintegratingrichexternal (sec3.1)andWikipediaforadvisingthedocument-
+knowledge. aspectrelationtoimprovecomprehension(sec3.2).
+Aspect-based summarization has also been ex- Figure1showsanoverviewofourapproach.
+plored in the customer reviews domain (Hu and Anadvantageofourapproachisthatitiscompat-
+Liu,2004),whereproductaspects,customersen- iblewithanyneuralsummarizationarchitectures,
+timent, and sometimes textual summaries are ex- suchasthepopularencoder-decoders. Thisenables
+tracted(PopescuandEtzioni,2007;WangandLing, us to make use of the large pre-trained network
+2016;AngelidisandLapata,2018). Query-based BART(Lewisetal.,2019),onwhichweapplyour
+summarization produces a summary in response approachforfine-tuningandimprovedinference.
+to a natural language query/question (Daumé III
+3.1 Knowledge-enrichedWeakSupervisions
+andMarcu,2006;Liuetal.,2012;Xieetal.,2020)
+whichdiffersfromabstractaspects. Usuallynodirectsupervisiondataisavailable. We
+Incorporatingknowledgethroughweaksupervi- startwithagenericsummarizationcorpus. Specif-
+sionhasprimarilybeenstudiedinclassificationor ically, in this work we use the CNN/DailyMail
+extraction problems (Hu et al., 2016; Peng et al., (Hermann et al., 2015) which consists of a set of
+2016;Ratneretal.,2017). Forexample,(Huetal., (document, summary) pairs. Our approach con-
+2016) creates soft labels from a logical-rule en- structs weakly supervised examples by automati-
+hanced teacher model to train neural classifiers. callyextractingpotentialaspectsandsynthesizing
+Thisworkexploresweaksupervisionsinthegener- aspect-basedsummariesfromthegenericsummary.
+Eachresultingaspectanditsaspect-basedsummary toselectonlysalientwordsinthedocumentfora
+arethenpairedwiththedocumentfortraining. concise summary. Thus, we first rank all words
+Extracting Aspects Given a generic summary, inthedocumentbyTF-IDFscores,andselecttop
+wewanttoextractasmanyaspectsaspossibleso
+wordsthatoccurintheaspect’sWikipediapage3.
+that the summarization model can see sufficient 4 Experiments
+examplesduringtraining. Ontheotherhand, the
+Setup We construct weak supervisions from
+aspects must be relevant to the generic summary
+100K out of 280K (doc, summary) pairs in the
+tofacilitatesynthesizingappropriatesummaryin
+training set of the CNN/DailyMail dataset (Her-
+thenextstep. Tothisend,wefirstapplyanamed
+mann et al., 2015). We use the CNN/DailyMail-
+entityrecognition(NER)model2 toextractasetof
+pretrainedBART(Lewisetal.,2019)providedby
+entitiesmentionedinthegenericsummary. These
+Fairseq (Ott et al., 2019) as our base summariza-
+entities serve as a seed set of aspects. We then
+tion model, and fine-tune with our approach im-
+augment the seed set by collecting each entity’s
+plementedusingTexar(Huetal.,2019a). Weuse
+neighborconceptsontheConceptNetknowledge
+Adamoptimizerwithaninitiallearningrateof3e-5,
+graph, as these concepts are semantically closely
+andbeamsearchdecodingwithawidthof4.
+relatedtotheentity(andthusthegenericsummary).
+Forexample,inFigure1(1),“insect”isanewas- 4.1 StudiesonSyntheticDomain
+pectfromConceptNetgiventheseedentity“bees”. We first study on the synthetic data, MA-News,
+Synthesizing Aspect-based Summaries For introduced in (Frermann and Klementiev, 2019).
+eachaspect,wesynthesizeaspecificsummaryby Althoughitsaspectsarerestrictedtoonly6coarse-
+extractingandconcatenatingallrelevantsentences grainedtopics,thesyntheticdomainfacilitatesau-
+fromthegenericsummary. WemakeuseofCon- tomaticevaluation,providingatestbedfor(1)com-
+ceptNetinasimilarwayasabove. Specifically,a parisonwiththepreviousmodelsand(2)studying
+sentence is considered relevant if it mentions the thegeneralizationabilityofourweak-supervision
+aspectoranyofitsneighborsonConceptNet. approachwhenadaptingtothenewdomain.
+The use of ConceptNet greatly augments the Specifically, MA-News is synthesized from
+supervisionsintermsofboththerichnessofaspects CNN/DailyMailbyinterleavingparagraphsoforig-
+andtheinformativenessofrespectivesummaries. inaldocumentsbelongingtodifferentaspects. The
+assembled document is paired with each compo-
+3.2 Knowledge-aidedAspectComprehension
+nent’s aspect and generic summary to form an
+Thesummarizationmodelisrequiredtoprecisely
+aspect-based summary instance. The dataset has
+locate information in the document that matches
+280K/10K/10Kexamplesintrain/dev/testsets,re-
+thedesiredaspect. Suchcomprehensionandmatch-
+spectively, and contains 6 pre-defined aspects in-
+ingcanbechallenging,especiallywithonlynoisy
+cluding{“sport",“health",“travel",“news",“sci-
+weaksupervisionsduringtraining. Ourapproach
+encetechnology",“tvshowbiz"}.
+facilitates the inference by informing the model
+Comparisons with previous methods We first
+withpre-computeddocument-aspectrelations.
+compare our approach with the previous summa-
+Concretely,weextractwordsfromthedocument
+rization models, as shown in Table 1. (1) In the
+whicharemostrelated totheaspect(moredetails
+firstblock,SFisthebestmodelin(Frermannand
+below), and feed those words into the model to-
+Klementiev, 2019) with a customized neural ar-
+getherwiththeaspectanddocument. Inthisway,
+chitecture and is trained with the full MA-News
+themodelisadvisedwhichpartsofthedocument
+training set. (2) In the second block, we also
+arelikelytobeaspect-related. FortheBARTarchi-
+train the large BART model with the MA-News
+tecture,weuseaninputformatas:
+training set, either using the full 280K instances
+[aspect]:[related words]<s>[doc]
+or only 1K instances. BART trained with the
+where<s>isaspecialtokenforseparation.
+full set unsurprisingly shows much better results
+Todeterminetherelatedwords,theintuitionis than SF, yet the one with the 1K subset falls be-
+thatthewordsshouldbedescribingorbeassociated hindSF.(3)Thethirdblockevaluatesourmethod.
+withtheaspect. WeusetheWikipediapageofthe BART Weak-Sup is fine-tuned only with our
+aspect for filtering the words. Besides, we want
+3Weselect≤ 10words. IftheWikipediaAPIdoesnot
+2https://spacy.io/models/xx findanypageoftheaspect,therelatedwordissettoempty.
+Models R-1 R-2 R-L
+Lead-3(2019) 21.50 6.90 14.10 40
+PG-Net(2017) 17.57 4.72 15.94
+SF(2019) 28.02 10.46 25.36
+35
+BARTMA-News-Sup280K 41.90 20.46 39.06
+BARTMA-News-Sup1K 24.58 8.82 22.74
+BARTWeak-Sup(Ours) 28.56 10.53 25.93 30
++MA-News-Sup1K(Ours) 35.62 15.80 33.01 MA-News-Sup 280K
+MA-News-Sup
+Table 1: Results (ROUGE) on the MA-News test set. 25 + Weak-Sup
+TheresultsofLead-3,PG-NetandSFarefrom(Fr- 1K 3K 10K
+Size of Supervised Training Data
+ermannandKlementiev,2019),whereSFistheprevi-
+Figure2: VisualizingtheROUGE-1resultsinTable2.
+ous best model. Our approach trains with only weak
+ThegreendashedlinemarkstheperformanceofBART
+supervisions(sec3.1)orwithadditional1KMA-News
+fine-tunedonthewholeMA-Newstrainingset.
+supervisedtrainingdata.
+Models Accu. Info. Fluency
+Models R-1 R-2 R-L
+MA-News-Sup280K 2.19 3.44 4.44
+Weak-Suponly 28.56 10.53 25.93
+Weak-Sup(Ours) 4.59 4.36 4.87
+MA-News-Sup1K 24.58 8.82 22.74 +MA-News3K(Ours) 4.14 4.07 4.80
++Weak-Sup 35.62 15.80 33.01
+Table 3: Human evaluation using 5-point Likert scale.
+MA-News-Sup3K 29.13 11.89 27.02
+MA-News 280K trains BART with the whole MA-
++Weak-Sup 37.17 16.84 34.40
+News set. Weak-Sup trains with our weak supervi-
+MA-News-Sup10K 39.49 18.71 36.67
+sions. +MA-News 3Kfurtherfine-tuneswith3KMA-
++Weak-Sup 39.82 18.81 36.92
+Newsinstances.
+Table 2: Fine-tuning BART on the synthetic domain, 4.2 SummarizingRealNewsonAnyAspects
+evaluated on MA-News test set. Weak-Sup only
+We next study summarization of a document on
+trains BART only with our weak supervisions.
+MA-News-Sup 1K trains with 1K MA-News super- arbitrary aspects. To evaluate the generalization
+visedexamples. +Weak-Suptrainsfirstwithweaksu- ofthemethods,wetestonrealnewsarticlesfrom
+pervisionsandthensupervisedlyonMA-News. theAllTheNewscorpus(Kaggle,2020)wherewe
+randomly extract 50 articles from different pub-
+weak supervisions (sec 3). Even without using
+lications other than CNN (so that no articles are
+anydirectsupervisionexamplesinMA-News,the
+includedintheweaksupervision). Weaskhuman
+model performs slightly better than SF. More in-
+annotatorstolabelanarbitraryrelevantaspectfor
+terestingly, by further using only 1K MA-News
+each article. We then collect aspect-based sum-
+instances to continue fine-tuning the model, we
+mariesbythemodels,andpresenteachto3anno-
+achieveperformanceboostscomparedtobothSF
+tatorstorate.
+and BART MA-News-Sup 1K. This shows our
+proposed knowledge-informed method provides MA-News-Sup 280K
+Weak-Sup (ours)
+richinformationthathelpswiththetask.
+Weak-Sup + MA-News 3K (ours)
+Efficiency of adapting to the domain We con- 1.0
+tinuetostudyhowourweaklysupervisedmethod
+0.8
+can help with efficient adaptation of BART to
+the synthetic domain. As shown in Table 2, by 0.6
+fine-tuningBARTusingmoreMA-Newstraining
+data(i.e.,MA-News-Sup 1K,3K,and10K),the 0.4
+test performance improves reasonably, as is also
+0.2
+shown by the blue curve in Figure 2. However,
+if we add our proposed weak supervisions (i.e., 0.0
+Accuracy Informativeness Fluency
++Weak-Sup), the performance improves much Figure 3: Proportions ofMmetoridcel outputs that get a hu-
+faster,asisalsoshownbytheorangecurveinthe man score ≥ 4. For example, around 95% of sum-
+figure. Theenhanceddataefficiencyvalidatesthe maries by Weak-Sup (ours) are scored 4 or 5 in
+effectivenessoftheweaklysupervisedmethod. termsofaccuracy.
+noitroporP
+1-EGUOR
+DocumentInanexclusiveinterviewwithBreitbartNews,RepublicanpresidentialnomineeDonaldTrumpblastedBill
+Clinton’ssuggestionthattheUnitedStatesuseSyrianrefugeestorebuildDetroit. Thepopulistbillionairedenounced
+Clinton’ssuggestedproposalas“crazy”and“unfair”toAmericanworkerswhoarealreadylivingthereandareinneedof
+jobs. “It’sveryunfairtothepeoplethatarelivingthere. Ithinkit’scrazy,”TrumptoldBreitbartonThursday. “Imean,
+thesepeople......“ThereareplentyofpeopleinDetroitwhoyoucouldalmostlookatasrefugees,”Carsonsaid.“Imean,
+weneedtotakecareofourownpeople.Weneedtocreatejobsforthem.” Clinton’ssuggestionthattheU.S.oughttogive
+DetroitjobstoforeignrefugeescameduringaFebruarydiscussionattheClintonGlobalInitiativewithChobanibillionaire
+andmassmigrationenthusiast,HamdiUlukaya. “Thetruthisthatthebigloserinthisoverthelongrunis... ... apretty
+gooddeal.” Duringthediscussion,ClintonpraisedUlukayaforhiseffortstofillhisyogurtplantswithimportedforeign
+refugees.UlukayasuggestedthattheU.S.oughttobetakinginmorerefugeesandsaidthathewas“proud”ofTurkey’s
+decisiontoaccept2millionSyrianrefugees.UlukayatoldClintonthatSyrianrefugees“bringflavorstothecommunity
+justlikein... TwinFalls,[Idaho]”whereUlukaya’syogurtfactoryisbased. Clinton’scontroversialsuggestionthat......
+millionsofmoreillegalimmigrants,thousandsofmoreviolentcrimes,andtotalchaosandlawlessness. AccordingtoPew
+pollingdata,HillaryClinton’splantoexpandimmigrationisopposedbyatleast83percentoftheAmericanelectorate
+—voterswhomClintonhassuggestedareracistforopposingimmigration.AccordingtoaSeptember2015Rasmussen
+survey,85percentblackvotersopposeClinton’srefugeeagendatoadmitmorethan100,000MiddleEasternrefugees—
+withlessthanonepercentofblackvoters(.56percent)infavorofherrefugeeplan.
+Aspect: DonaldTrump
+Summary:PresidentialnomineeDonaldTrumpcallssuggestionthattheu.s.useSyrianrefugeestorebuildDetroit"crazy"
+and"unfair"toAmericanworkerswhoarealreadylivingthereandinneedofjobs.
+Aspect:HamdiUlukaya
+Summary:Chobanibillionaireandmassmigrationenthusiast,HamdiUlukaya,suggestedthattheU.S.shouldtakeinmore
+refugeestofilljobslikeinhisyogurtplantinTwinFalls,Idaho,wherehisfactoryisbased.
+Aspect:vote
+Summary: Pollsshowthatatleast83percentoftheU.S.electorateisopposedtoexpandingimmigrationandthat85
+percentofblackvotersopposetheplantoadmitmorethan100,000middleeasternrefugeestothecountry.
+Table4: Generatedsummariesofadocumentondifferentaspects. Documentcontentrelevanttospecificaspects
+ishighlightedinrespectivecolors. “Relatedwords”identifiedthroughWikipedia(sec3.2)arehighlightedinbold.
+Asinpreviouswork(Kryscinskietal.,2019;Fr- arelevantshortsummary. Itisalsonoticeablethat
+ermannandKlementiev,2019),thecriteriainclude ourapproachidentifiesmeaningful“relatedwords”
+accuracy (coherence between the aspect and the usingWikipediaasdescribedinsec3.2,whichhelp
+summary ), informativeness (factual correctness withprecisesummarization.
+and relevance of the summary with regard to the
+5 Conclusions
+document),andfluency(languagequalityofindi-
+Thispaperstudiesthenewproblemofsummarizing
+vidual sentences and the whole summary). The
+adocumentonarbitraryrelevantaspects. Totackle
+Pearson correlation coefficient of human scores
+thechallengeoflackingsuperviseddata,wehave
+is 0.51, showing moderate inter-rater agreement.
+developedanewknowledge-informedweaklysu-
+Table 3 shows the averaged scores, and Figure 3
+pervisedmethodthatleveragesexternalknowledge
+showstheproportionsofmodeloutputsreceiving
+bases. The promising empirical results motivate
+highscoresintermsofthethreecriteria. Wecan
+ustoexplorefurthertheintegrationofmoreexter-
+seeourweaklysupervisedmethodperformsbest.
+nalknowledgeandotherrichformsofsupervisions
+Themodeltrainedonthe280KMA-Newsexam-
+(e.g.,constraints,interactions,auxiliarymodels,ad-
+ples,thoughperformswellontheMA-Newstest
+versaries)(HuandXing,2020;Ziegleretal.,2019)
+set(Table1),failstogeneralizetothebroaderset
+inlearning. Wearealsointerestedinextendingthe
+of diverse aspects, showing the importance of in-
+aspect-based summarization in more application
+troducing rich knowledge in supervisions and in-
+scenarios(e.g.,summarizingadocumentcorpus).
+ference process for generalization. Interestingly,
+References
+fine-tuningourmodelwith3KMA-Newsinstances
+results in inferior performance, showing the pre- StefanosAngelidisandMirellaLapata.2018. Summa-
+vioussyntheticdatawithlimitedaspectscouldre- rizing opinions: Aspect extraction meets sentiment
+strictgeneralizationtootheraspects. prediction and they are both weakly supervised. In
+EMNLP.
+Table 4 shows example summaries by our
+John M Conroy, Judith D Schlesinger, and Dianne P
+Weak-Supmodel. Givenanarbitraryaspect(e.g.,
+O’Leary.2006. Topic-focusedmulti-documentsum-
+anentityoraword),themodelcorrectlyidentifies
+marization using an approximate oracle score. In
+therelatedportionsinthedocumentandgenerates COLING/ACL,pages152–159.
+Hoa Trang Dang. 2005. Overview of duc 2005. In Chin-YewLinandEduardHovy.2000. Theautomated
+DUC,volume2005,pages1–12. acquisition of topic signatures for text summariza-
+tion. InCOLING,pages495–501.
+Hal Daumé III and Daniel Marcu. 2006. Bayesian
+query-focused summarization. In COLING/ACL, Yan Liu, Sheng-hua Zhong, and Wenjie Li. 2012.
+pages305–312. Query-oriented multi-document summarization via
+unsuperviseddeeplearning. InAAAI.
+DanielDeutschandDanRoth.2019. Summarycloze:
+A new task for content selection in topic-focused Ramesh Nallapati, Bowen Zhou, Caglar Gulcehre,
+summarization. InEMNLP,pages3711–3720. BingXiang,etal.2016. Abstractivetextsummariza-
+tion using sequence-to-sequence rnns and beyond.
+Jessica Ficler and Yoav Goldberg. 2017. Controlling
+InCoNLL.
+linguistic style aspects in neural language genera-
+tion. arXivpreprintarXiv:1707.02633. Shashi Narayan, Shay B Cohen, and Mirella Lapata.
+2018. Don’tgivemethedetails, justthesummary!
+Lea Frermann and Alexandre Klementiev. 2019. In-
+topic-aware convolutional neural networks for ex-
+ducingdocumentstructureforaspect-basedsumma-
+tremesummarization. InEMNLP.
+rization. InACL,pages6263–6273, Florence, Italy.
+ACL. Myle Ott, Sergey Edunov, Alexei Baevski, Angela
+Fan, Sam Gross, Nathan Ng, David Grangier, and
+KarlMoritzHermann,TomasKocisky,EdwardGrefen-
+Michael Auli. 2019. fairseq: A fast, extensible
+stette,LasseEspeholt,WillKay,MustafaSuleyman,
+toolkitforsequencemodeling. InNAACL.
+andPhilBlunsom.2015. Teachingmachinestoread
+andcomprehend. InNeurIPS,pages1693–1701.
+Haoruo Peng, Yangqiu Song, and Dan Roth. 2016.
+Event detection and co-reference with minimal su-
+MinqingHuandBingLiu.2004. Miningandsumma-
+pervision. InEMNLP,pages392–402.
+rizingcustomerreviews. InKDD,pages168–177.
+Ana-MariaPopescuandOrenaEtzioni.2007. Extract-
+Zhiting Hu, Xuezhe Ma, Zhengzhong Liu, Eduard
+ing product features and opinions from reviews. In
+Hovy, and Eric Xing. 2016. Harnessing deep neu-
+Naturallanguageprocessingandtextmining,pages
+ralnetworkswithlogicrules. InACL.
+9–28.Springer.
+Zhiting Hu, Haoran Shi, Bowen Tan, Wentao Wang,
+Alexander Ratner, Stephen H Bach, Henry Ehrenberg,
+ZichaoYang,TianchengZhao,JunxianHe,Lianhui
+Jason Fries, Sen Wu, and Christopher Ré. 2017.
+Qin, DiWang, etal.2019a. Texar: Amodularized,
+Snorkel: Rapidtrainingdatacreationwithweaksu-
+versatile, and extensible toolkit for text generation.
+pervision. InVLDB.
+InACL2019,SystemDemonstrations.
+Abigail See, Peter J Liu, and Christopher D Manning.
+ZhitingHu,BowenTan,RussRSalakhutdinov,TomM
+2017. Gettothepoint: Summarizationwithpointer-
+Mitchell, and Eric P Xing. 2019b. Learning data
+generatornetworks.
+manipulation for augmentation and weighting. In
+NeurIPS.
+Rico Sennrich, Barry Haddow, and Alexandra Birch.
+Zhiting Hu and Eric P Xing. 2020. Learning from all 2016. Improvingneuralmachinetranslationmodels
+types of experiences: A unifying machine learning withmonolingualdata. InACL,pages86–96.
+perspective. InKDD.
+RobynSpeer,JoshuaChin,andCatherineHavasi.2017.
+Zhiting Hu, Zichao Yang, Xiaodan Liang, Ruslan Conceptnet5.5: Anopenmultilingualgraphofgen-
+Salakhutdinov,andEricPXing.2017. Towardcon- eralknowledge. InAAAI.
+trolledgenerationoftext. InICML.
+LuWangandWangLing.2016. Neuralnetwork-based
+Kaggle. 2020. All the news 2.0: 2.7 million news abstract generation for opinions and arguments. In
+articles. https://components.one/datasets/ NAACL.
+all-the-news-2-news-articles-dataset/.
+Jason Wei and Kai Zou. 2019. EDA: Easy data aug-
+Kundan Krishna and Balaji Vasan Srinivasan. 2018. mentation techniques for boosting performance on
+Generating topic-oriented summaries using neural text classification tasks. In EMNLP, pages 6383–
+attention. InNAACL,pages1697–1705. 6389.
+WojciechKryscinski,NitishShirishKeskar,BryanMc- Yujia Xie, Tianyi Zhou, Yi Mao, and Weizhu Chen.
+Cann, Caiming Xiong, and Richard Socher. 2019. 2020. Conditional self-attention for query-based
+Neuraltextsummarization: Acriticalevaluation. In summarization. arXivpreprintarXiv:2002.07338.
+EMNLP.
+DanielMZiegler,NisanStiennon,JeffreyWu,TomB
+Mike Lewis, Yinhan Liu, Naman Goyal, Mar- Brown, Alec Radford, Dario Amodei, Paul Chris-
+jan Ghazvininejad, Abdelrahman Mohamed, Omer tiano, and Geoffrey Irving. 2019. Fine-tuning lan-
+Levy, Ves Stoyanov, and Luke Zettlemoyer. 2019. guage models from human preferences. arXiv
+Bart: Denoising sequence-to-sequence pre-training preprintarXiv:1909.08593.
+for natural language generation, translation, and
+comprehension. arXivpreprintarXiv:1910.13461.
+A MoreExperimentalDetails
+WeuseAdamoptimizerwithβ = (0.9,0.999),(cid:15) = 10−8,aweightdecayof0.01,andaninitiallearning
+rateof3e-5. Forgeneration,weusebeamsearchdecodingwithawidthof4andalengthpenaltyof2. All
+experimentsareconductedon4GTX1080TiGPUs.
+B MoreGenerationExamples
+Weprovidemoregeneratedsummariesfromourweaklysupervisedmodel.
+DocumentInanexclusiveinterviewwithBreitbartNews, RepublicanpresidentialnomineeDonaldTrumpblastedBillClinton’s
+suggestionthattheUnitedStatesuseSyrianrefugeestorebuildDetroit.ThepopulistbillionairedenouncedClinton’ssuggested
+proposalas“crazy”and“unfair”toAmericanworkerswhoarealreadylivingthereandareinneedofjobs.“It’sveryunfairto
+thepeoplethatarelivingthere.Ithinkit’scrazy,”TrumptoldBreitbartonThursday.“Imean,thesepeoplearegettingstarted—
+Ithinkit’savery,veryhardplacetogetyourstart.”“Weshouldn’thavethem[i.e.Syrianrefugees]inthecountry,”Trump
+added.“Wedon’tknowwhothesepeopleare.Wehavenoidea.ThiscouldbethealltimegreatTrojanhorse.Wehavenoidea
+whotheyare. Thewholethingisridiculous. Numberone: weshouldbuildsafezonesoverinSyria,that’swhatweshould
+have,andweshouldhavetheGulfstatesfundthem.It’sjustcrazy.WeoughttobebuildingsafezonesinSyriaandnottaking
+thesepeoplein—whetherit’sDetroitoranywhereelse.”andformerGOPpresidentialcontenderBenCarsonechoedTrump’s
+sentimentinaFridayinterviewonBreitbartNewsDailyonSiriusXMPatriotChannel125.Carsonexplainedthat“weneedto
+takecareofourownpeople”andnotedthatthepoliciesofDemocratpoliticianshaveturnedmanyAmericanslivinginDetroit
+intorefugeesintheirowncountry.“ThereareplentyofpeopleinDetroitwhoyoucouldalmostlookatasrefugees,”Carson
+said.“Imean,weneedtotakecareofourownpeople.Weneedtocreatejobsforthem.” Clinton’ssuggestionthattheU.S.
+oughttogiveDetroitjobstoforeignrefugeescameduringaFebruarydiscussionattheClintonGlobalInitiativewithChobani
+billionaireandmassmigrationenthusiast,HamdiUlukaya.“Thetruthisthatthebigloserinthisoverthelongrunisgoingtobe
+Syria.This[i.e.theSyrianmigrantcrisis]isanenormousopportunityforAmericans,”ClintonsaidinFebruary.“Detroithas10,
+000empty,structurallysoundhouses—10,000.Andlotofjobsaretobehadrepairingthosehouses.Detroitjustcameout
+ofbankruptcyandthemayor’stryingtodoaninnovativesortofurbanhomesteadingprogramthere.Butitjustgivesyouan
+exampleofwhatcouldbedone.AndIthinkanyofuswhohaveeverhadanypersonalexperiencewitheitherSyrianAmericans
+orSyrianrefugeesthinkit’saprettygooddeal.”Duringthediscussion, ClintonpraisedUlukayaforhiseffortstofillhisyogurt
+plantswithimportedforeignrefugees.UlukayasuggestedthattheU.S.oughttobetakinginmorerefugeesandsaidthathewas
+“proud”ofTurkey’sdecisiontoaccept2millionSyrianrefugees.UlukayatoldClintonthatSyrianrefugees“bringflavorstothe
+communityjustlikein... TwinFalls,[Idaho]”whereUlukaya’syogurtfactoryisbased. Clinton’scontroversialsuggestion
+thatU.S.giveDetroitjobstoimportedforeignrefugeeshasreceivedvirtuallynomediacoverageoutsideofBreitbartNews.
+DuringhisWednesdayimmigrationpolicyaddress,TrumpchallengedthemediatobeginaskingHillaryClintontoexplainher
+“radical”immigrationplatform. ThemedianeedstobegindemandingtohearHillaryClinton’sansweronhowherpolicies
+willaffectAmericansandtheirsecurity... Thesearemattersofforourcountryanditspeople,andwedeserveanswersfrom
+HillaryClinton... Whatwedoknow,despitethetotallackofmediacuriosity,isthatHillaryClintonpromisesaradicalamnesty
+combinedwitharadicalreductioninimmigrationenforcement.Theresultwillbemillionsofmoreillegalimmigrants,thousands
+ofmoreviolentcrimes,andtotalchaosandlawlessness. AccordingtoPewpollingdata,HillaryClinton’splantoexpand
+immigrationisopposedbyatleast83percentoftheAmericanelectorate—voterswhomClintonhassuggestedareracistfor
+opposingimmigration.AccordingtoaSeptember2015Rasmussensurvey,85percentblackvotersopposeClinton’srefugee
+agendatoadmitmorethan100,000MiddleEasternrefugees—withlessthanonepercentofblackvoters(.56percent)infavor
+ofherrefugeeplan.
+Aspect: DonaldTrump
+Summary:PresidentialnomineeDonaldTrumpcallssuggestionthattheu.s.useSyrianrefugeestorebuildDetroit"crazy"and
+"unfair"toAmericanworkerswhoarealreadylivingthereandinneedofjobs.
+Aspect:HamdiUlukaya
+Summary:Chobanibillionaireandmassmigrationenthusiast,HamdiUlukaya,suggestedthattheU.S.shouldtakeinmore
+refugeestofilljobslikeinhisyogurtplantinTwinFalls,Idaho,wherehisfactoryisbased.
+Aspect:vote
+Summary:Pollsshowthatatleast83percentoftheU.S.electorateisopposedtoexpandingimmigrationandthat85percentof
+blackvotersopposetheplantoadmitmorethan100,000middleeasternrefugeestothecountry.
+Document thepalestinianauthorityofficiallybecamethe123rdmemberoftheinternationalcriminalcourtonwednesday,astep
+thatgivesthecourtjurisdictionoverallegedcrimesinpalestinianterritories.theformalaccessionwasmarkedwithaceremony
+atthehague,inthenetherlands,wherethecourtisbased.thepalestinianssignedtheicc’sfoundingromestatuteinjanuary,when
+theyalsoaccepteditsjurisdictionoverallegedcrimescommitted"intheoccupiedpalestinianterritory,includingeastjerusalem,
+sincejune13,2014."laterthatmonth,theiccopenedapreliminaryexaminationintothesituationinpalestinianterritories,
+pavingthewayforpossiblewarcrimesinvestigationsagainstisraelis.asmembersofthecourt,palestiniansmaybesubjectto
+counter-chargesaswell.israelandtheunitedstates,neitherofwhichisaniccmember,opposedthepalestinians’effortstojoin
+thebody.butpalestinianforeignministerriadal-malki,speakingatwednesday’sceremony,saiditwasamovetowardgreater
+justice."aspalestineformallybecomesastatepartytotheromestatutetoday,theworldisalsoastepclosertoendingalong
+eraofimpunityandinjustice,"hesaid,accordingtoaniccnewsrelease."indeed,todaybringsusclosertooursharedgoals
+ofjusticeandpeace."judgekunikoozaki,avicepresidentoftheicc,saidaccedingtothetreatywasjustthefirststepforthe
+palestinians. "astheromestatutetodayentersintoforceforthestateofpalestine,palestineacquiresalltherightsaswellas
+responsibilitiesthatcomewithbeingastatepartytothestatute. thesearesubstantivecommitments,whichcannotbetaken
+lightly,"shesaid.rightsgrouphumanrightswatchwelcomedthedevelopment."governmentsseekingtopenalizepalestinefor
+joiningtheiccshouldimmediatelyendtheirpressure,andcountriesthatsupportuniversalacceptanceofthecourt’streatyshould
+speakouttowelcomeitsmembership,"saidbalkeesjarrah,internationaljusticecounselforthegroup."what’sobjectionableis
+theattemptstoundermineinternationaljustice,notpalestine’sdecisiontojoinatreatytowhichover100countriesaroundthe
+worldaremembers."injanuary,whenthepreliminaryiccexaminationwasopened,israeliprimeministerbenjaminnetanyahu
+describeditasanoutrage,sayingthecourtwasoversteppingitsboundaries.theunitedstatesalsosaidit"strongly"disagreed
+withthecourt’sdecision."aswehavesaidrepeatedly,wedonotbelievethatpalestineisastateandthereforewedonotbelieve
+thatitiseligibletojointheicc,"thestatedepartmentsaidinastatement.iturgedthewarringsidestoresolvetheirdifferences
+throughdirectnegotiations."wewillcontinuetoopposeactionsagainstisraelattheiccascounterproductivetothecauseof
+peace,"itsaid.buttheiccbegstodifferwiththedefinitionofastateforitspurposesandreferstotheterritoriesas"palestine."
+whileapreliminaryexaminationisnotaformalinvestigation,itallowsthecourttoreviewevidenceanddeterminewhetherto
+investigatesuspectsonbothsides.prosecutorfatoubensoudasaidherofficewould"conductitsanalysisinfullindependence
+andimpartiality."thewarbetweenisraelandhamasmilitantsingazalastsummerleftmorethan2,000peopledead.theinquiry
+willincludeallegedwarcrimescommittedsincejune.theinternationalcriminalcourtwassetupin2002toprosecutegenocide,
+crimesagainsthumanityandwarcrimes.cnn’svascocotovio,kareemkhadderandfaithkarimicontributedtothisreport.
+Aspect:palestinian
+Summary: palestinianforeignminister: "theworldisalsoastepclosertoendingalongeraofimpunityandinjustice". the
+palestinianauthoritybecomesthe123rdmemberoftheinternationalcriminalcourt.themovegivesthecourtjurisdictionover
+allegedcrimescommittedinpalestinesincejune.
+Aspect:israel
+Summary:israelandtheu.s.opposedthepalestinians’effortstojointhecourt,whichisbasedinthenetherlands.palestinian
+foreignminister:"todaybringsusclosertooursharedgoalsofjusticeandpeace"thecourthasjurisdictionoverallegedcrimes
+committedintheoccupiedterritoriessincejune.
+DocumentAround1980,BillGatesgaveMicrosoft,thecompanyhefounded,a:”Acomputeroneverydeskandineveryhome.
+”’”ButMicrosoftCEOSatyaNadella,whoin1992androsetothetopjobin2014,thinksGates’famousmissionhadabigflaw.”
+’”WhenIjoinedthecompanyin1992,weusedtotalkaboutourmissionasputtingaPCineveryhome,andbytheendofthe
+decadewehavedonethat,atleastinthedevelopedworld,”NadellatoldpublishedonMonday.”Italwaysbotheredmethatwe
+confusedanenduringmissionwithatemporalgoal.”’”Inotherwords,NadellaissayingthatGates’visionforthefutureof
+Microsofthadalogicalstoppingpointanddidnotconsiderwhatthecompany’sdirectionwouldbeoncethegoalwasachieved.
+Inthe2000s,underformerCEOSteveBallmer,Microsoftbecamebetterknownforitseffortstothanforinnovating.”’Nadella
+believesinmakingMicrosoftmoredrivenbyasenseofpurpose—in2015,hesaidwas”toempowereverypersonandevery
+organizationontheplanettoachievemore.”Andhehasencouragedthecompany.’”UnderNadella,Microsofthastakenthe
+focusoffWindowsandthePCandpinneditshopestotheriseofitsAzureandOffice365products,asthecompany’solder
+businessesstagnate. Whilethisapproachhasn’ttranslatedtohugerevenuegrowth,ithasrevitalizedthecompany’simage.”
+”GatestoldUSATodaythatheenjoysworkingwithNadella,servinghissuccessorasaspecialadviserandhelpingguidethe
+company’sinvestmentsintechnologyasitcompeteswithApple,Google,andAmazon.”
+Aspect: innovation
+Summary:Inthe2000s,underformerCEOSteveBallmer,Microsoftbecamebetterknownforitseffortstothanforinnovating.
+underNadella,MicrosofthastakenthefocusoffWindowsandthePCandpinneditshopestotheriseofitsAzureandOffice
+365products.
+Aspect: apple
+Summary:GatessaysheenjoysworkingwithNadella,servingasaspecialadviserandhelpingguidethecompany’sinvestments
+intechnologyasitcompeteswithApple,Google,andAmazon.‘italwaysbotheredmethatweconfusedanenduringmission
+withatemporalgoal,’hesaid.
+DocumentOfficialshavediscoveredthatIslamicStatejihadishavebeenusingachemistrylaboratoryatMosulUniversityto
+makebombsusedbyISISjihadiststhroughouttheregion.“TheUniversityofMosulisthebestDaeshresearchcenterinthe
+world,”Gen.HatemMagsosi,Iraq’smainexplosivesofficer,toldTheWallStreetJournal.“TraineesgotoRaqqa,[Syria]thento
+Mosuluniversitytousetheexistingfacilities.”ISIShijackeduniversitychemistrylabinMosulformakingbombs:https:.by
+@MargaretWSJ@BKeslingpic.twitter.—WSJThinkTank(@WSJThinkTank)April1,2016, Theyhavefound“chemical
+bombsandsuicidebombvestsliketheonesusedintheBrusselsattacksandbyatleastsomeoftheParisattackers.” Thelab
+alsocontained“explosivesandchemicalweapons.”However,officialstoldtheoutlettheydonotknowhowmuchofthefacility
+remainsintactcurrently.TheUnitedcoalitionbombedtheuniversityinMarch.Alumnisaidtheuniversityboasted“astrong
+reputationaroundIraqforitssciencedepartments.”Ayearago,theIslamicStateestablished“aresearchhubinthechemistry
+lab.”Theterroristgroupkeptthestaffattheuniversity,manywho“specializedinorganic,industrialandanalyticalchemistry.
+”AraidinSyriainMarchkilledIslamicState’sAbdMustafaalsoknownasHajiImam.HetaughtphysicsinIraqbeforehe
+joinedin2004.Officialsputhiminprison,butreleasedhimin2012.ThenhetraveledtoSyria,whereheeventuallyjoinedthe
+IslamicState.Gen.MagsosisaidthegroupplacesImamas“thetopexpertattheMosulbomblab.”ThesourcestoldtheJournal
+thattheIslamicStateusedonepartoftheuniversityforexplosivesandanotherforsuicidebombs. TheWallStreetJournal
+reports:Duringthesametimeframe,therehasbeenasurgeinIslamicState’suseofbombsthatmixchemicalprecursorsintoan
+explosivepowderysubstanceknownastriacetonetriperoxide,orTATP,bothinIraqandEurope.Itisn’tclearhowmanyofthese
+weapons,ifany,canbetracedtoresearchortrainingconductedinMosul.Gen.Magsosisaysthathisunitscalledexplosivesthe
+“SatanRecipe”becausetheyareveryhardtodetectandtheyareusuallysolethal. TheIslamicStatecapturedMosul,Iraq’s
+secondlargestcity,inJune2014.Sincethen,theyhavedestroyedlibrariesandbuildingsattheuniversity.KurdishoutletRudaw
+reportedlastOctoberthatthegroupdestroyedtheuniversity’sFacultyofAgriculturebuildings. InDecember2014,ISISraided
+theCentralLibraryofMosultodestroyallbooks.‘ThesebookspromoteinfidelityandcallfordisobeyingAllah,”announceda
+militanttotheresidents.“Sotheywillbeburned.”Thelibrarywas“thebiggestrepositoryoflearningthenorthernIraqitown.”
+Theterroristsdestroyed“Iraqnewspapersdatingtotheearly20thcentury,mapsandbooksfromtheOttomanEmpire,andbook
+collectionscontributedbyabout100ofMosul’sestablishmentfamilies.”Afterthatraid,theISISmilitantstargetedthelibraryat
+theUniversityofMosul.Theyburnedscienceandculturetextbooksinfrontofthestudents.AccordingtotheBostonGlobe:A
+UniversityofMosulhistoryprofessor,whospokeonconditionhenotbenamedbecauseofhisfearoftheIslamicState,saidthe
+extremistsstartedwreckingthecollectionsofotherpubliclibrarieslastmonth. Hereportedparticularlyheavydamagetothe
+archivesofaSunniMuslimlibrary,thelibraryoftheLatinChurchandMonasteryoftheDominicanFathers,andtheMosul
+MuseumLibrarywithworksdatingbackto5000BC.Citingreportsbythelocalswholiveneartheselibraries,theprofessor
+addedthatthemilitantsusedtocomeduringthenightandcarrythematerialsinrefrigeratedtruckswithlicenseplates.Militants
+alsotargetedthepubliclibrary,whichwashometomorethan8,000rarebooksandmanuscripts.Elderlyresidentsbeggedthe
+mennottoburnthebuilding.
+Aspect: chemistry
+Summary:ChemistrylabatMosulUniversityusedtomakebombsusedbyISISjihadiststhroughouttheregion,officialssay.
+OfficialssaytheydonotknowhowmuchofthefacilityremainsintactcurrentlyaftercoalitionbombedtheuniversityinMarch.
+ISISusedonepartoftheuniversityforexplosivesandanotherforsuicidebombs,sourcessay.
+Aspect: europe
+Summary:OfficialshavefoundchemicalbombsandsuicidebombvestsliketheonesusedintheBrusselsattacksandbyat
+leastsomeoftheParisattackers.thelabalsocontained“explosivesandchemicalweapons.Itisnotclearhowmanyofthese
+weapons,ifany,canbetracedtoresearchortrainingconductedintheuniversity.
+Aspect: book
+Summary:BookcollectionsdestroyedinfrontofstudentsatuniversitylibraryinMosul,Iraq.ISIShasdestroyedlibrariesand
+buildingsattheuniversitysinceitcapturedthecityinJune2014,includingonewithworksdatingbackto5000BC.Officialssay
+theydonotknowhowmuchofthefacilityremainsintactcurrently.

@@ -1,0 +1,692 @@
+data
+DataDescriptor
+Antibody Exchange: Information Extraction
+of Biological Antibody Donation
+and a Web-Portal to Find Donors and Seekers
+SandeepSubramanian1andMadhaviK.Ganapathiraju1,2,* ID
+1 LanguageTechnologiesInstitute,CarnegieMellonUniversity,Pittsburgh,PA15213,USA;
+sandeep.subramanian@gmail.com
+2 DepartmentofBiomedicalInformatics,andIntelligentSystemsProgram,UniversityofPittsburgh,
+Pittsburgh,PA15260,USA
+* Correspondence:madhavi@pitt.eduormadhavicmu@gmail.com;Tel.:+1-412-624-5100
+Received:18October2017;Accepted:17November2017;Published:21November2017
+Abstract: Bio-molecular reagents, like antibodies that are required in experimental biology are
+expensiveandtheireffectiveness,amongotherthings,iscriticaltothesuccessoftheexperiment.
+Althoughsuchresourcesaresometimesdonatedbyoneinvestigatortoanotherthroughpersonal
+communicationbetweenthetwo,thereisnopreviousstudytoourknowledgeontheextentofsuch
+donations,noracentralplatformthatdirectsresourceseekerstodonors. Inthispaper,wedescribe,
+toourknowledge,afirstattemptatbuildingaweb-portaltitledAntibodyExchange(ormoregeneral
+‘Bio-ResourceExchange’)thatattemptstobridgethisgapbetweenresourceseekersanddonorsinthe
+domainofexperimentalbiology. Usersonthisportalcanrequestforordonateantibodies,cell-lines,
+and DNA Constructs. This resource could also serve as a crowd-sourced database of resources
+forexperimentalbiology. Further,wealsostudiedtheextentofantibodydonationsbyminingthe
+acknowledgement sections of scientific articles. Specifically, we extracted the name of the donor,
+his/heraffiliation,andthenameoftheantibodyforeverydonationbyparsingtheacknowledgements
+sectionsofarticles. Toextractannotationsatthislevel,weadoptedtwoapproaches—arulebased
+algorithmandabootstrappedpatternlearningalgorithm. Thealgorithmsextracteddonornames,
+affiliations, and antibody names with average accuracies of 57% and 62%, respectively. We also
+createdadatasetof50expert-annotatedacknowledgementssectionsthatwillserveasagoldstandard
+datasettoevaluateextractionalgorithmsinthefuture.
+DataSet: WillbepublishedasasupplementtothispaperinthejournalData: http://www.mdpi.
+com/2306-5729/2/4/38/s1.
+DataSetLicense: CC-BY-NC-SA
+Keywords: dataexchange;resourcedonations;textmining
+1. Introduction
+Antibodies and other such wet-lab reagents are vital resources in a variety of experiments in
+molecularbiology. Theseresourcesareexpensiveandtheirqualityiscrucialforthesuccessofthe
+experiment. For those conducting these experiments, it would be extremely valuable when these
+reagentsbecomeavailableinsparequantitiesinonelab,thattheyarethendonatedtootherswhen
+required. This donation will be even more useful if the donor lab has already tested the quality
+oftheresource. Forexample,aresearchgroupthatstudiestheproteinHMGB1extensively,might
+haveareliableandwell-testedantibodyforit,andcouldpotentiallydonatesomeofittocolleagues
+Data2017,2,38;doi:10.3390/data2040038 www.mdpi.com/journal/data
+Data2017,2,38 2of13
+or collaborators who may need it. Such donations, where possible, could help unfunded junior
+investigators to carry out experiments that they otherwise could not afford. Further, such acts of
+generosity could spark collaborations between research groups and serve as a means to connect
+researcherswithsimilarexpertise.
+Eveninthestronglyconnectedworldthatweareintoday,researchers,unawareofagroupthat
+mayhavethereagentsincloseproximitywithintheirorganization,typicallyturntovendorswhose
+informationisreadilyavailableonline. Increasingly,therehasbeenatrendtowardsopenresource
+sharing. For example, open source software, open data sharing, and open access of manuscript
+publishinghavebecomepervasiveandhaveacceleratedtheadvancementofscience.
+Intheseopensharingenvironments,whatarethefactorsthatdrivepeopletodosocialgood?
+Whilesomeindividualshavealtruisticmotives,suchascontributingtotheadvancementofscience
+andencouragingjuniorinvestigators,thereareotherswhobuildareputationforbeinghighlyvisible
+donorsorbuildgoodwillforfuturereciprocations.Howfeasibleisittosharematerialresourcesamong
+researchgroups,giventhattheycannotbesharedsimplyovertheInternet?
+Inthiswork,westudiedtheextenttowhichresearcherssharebiologicalreagents,specifically
+antibodies,byparsingtheacknowledgementssectionsofpapersthatareavailableinPubMedCentral.
+Encouragedbywhatwefound,wedevelopedawebportaltoconnectdonorswithseekersofreagents
+tofacilitateandpromotethesharingofsuchresources. Thisportalcanserveasameansforpeopleto
+findlocallyavailableresourcesfortheirexperiments.
+Theamountofbio-medicallyrelevantcontentisincreasingatanunprecedentedrate;twonew
+articles are published on PubMed every minute [1]. Therefore, information extraction from text
+documentshasseenseveraladvancementsoverthepastdecade[2–4]. TheBioCreativeandBioNLP
+workshop initiatives were created to evaluate text mining and information extraction approaches.
+Tasksrangingfromnamedentityrecognition(NER)ongenes,drugs,andchemicalcompoundsto
+protein-proteininteractionextractionfromPubMedhavebeenapartoftheseinitiatives[5,6]. Further,
+GENIA[7]isadatasetpertinenttotextminingofbioliteratureandhasplayedanimportantrolein
+theadvancementofBiomedicalNaturalLanguageProcessing.
+RiloffandJones[8]pioneeredaninformationextractionalgorithmthatiterativelylearnsrulesfor
+extractingrelevantinformationandinturnusestheinformationtolearnnewrules. Thisapproach
+to learning is often referred to as bootstrapping, and is in practice to-date [9–11]. Some of the
+biggestandmostsuccessfulinformationextractionsystems,likeNeverEndingLanguageLearner
+(NELL) [12], have used bootstrapping effectively even in the biomedical domain [13]. We adopt
+thisasoneofourmethodstoextractinformationfromliterature. TheNLPresearchcommunityhas
+largely stuck to machine learning approaches for information extraction until very recently when
+rulebasedsystemshaveseensomeresurfacing,whiletheindustryhasalwaysstucktothelatter[14].
+Rule based information extraction systems have the advantage of being interpretable and can be
+fine-tunedeasily[11]. Inthiswork,weexperimentwithusingapurelyhand-engineeredrulebased
+extractionsystemandcompareitsperformancewithbootstrappedpatternlearningsystem. Recently,
+bio-literaturehasbeenminedtoindexandcuratebioinformaticsandbiomedicalresources[15–17].
+Severalexamplesarepresentedinourpriorwork[18]. Ducketal.[19]presentaliteraturemining
+approachtoquantifyingtheuseofresourceincomputationalbiology,whiledelaCalleetal.[17]do
+thesameforresourcesinbioinformatics. Incontrast,wefocusonwet-labresources. Ozyurtetal.[15]
+develop a holistic resource that has software, databases, and tissue banks, but does not contain
+antibodiesorattempttounderstandthephenomenonofbioresourcedonationinliterature.
+2. DataDescriptionandMethods
+Researchersacknowledgedonationsfromothersbythankingthemintheacknowledgements
+sectionoftheirpublishedwork. Inthisparticularwork,wefocusedonstudyingacknowledgements
+pertaining to antibody donations. We mined full-text articles from PubMed Central to extract
+informationatcoarseandfinegranularities.Atthecoarselevel,weextractedtheentireacknowledgement
+Data2017,2,38 3of13
+sectionifacase-insensitivesearchontheentireacknowledgementsectioncontainstheword“antibody”
+or “antibodies”. Authors, however, tend to acknowledge multiple things in this section such as
+manuscriptreading,instrumentusage,andtheirfundingsources. Forexample,theacknowledgement
+“WethankPeterMerrifieldandStefanoSchiaffinoforprovidingantibodies. Thisworkwassupported
+bygrantsfromtheMedicalResearchCouncilofCanada. K.E.M.HisaKillamScholaroftheMontreal
+NeurologicalInstitute”containsinformationextraneoustothetaskthatwearefocusedon.Wetherefore
+hadtodevelopextractionalgorithmsthatcancarefullyextractoutdonornames,donoraffiliations,
+andantibodynamesfromentireacknowledgementsections.
+2.1. DataAcquisition
+PubMedCentral(PMC)providesfull-textaccesstoallofitsopenaccesspapershttps://www.
+ncbi.nlm.nih.gov/pmc/. As of April 2015, according to our statistics, it consisted of a total of
+1,000,148openaccesspapers. Thesepapersareavailablefordownload,freeofcostandformattedin
+XML.Weparsedthesetoextracttheacknowledgementssectionofeverypaperandsearchedfora
+referencetoanantibodydonationwithinit. SincegeneratingtheentireXMLparsetreeofeverypaper
+wascomputationallyexpensive,weranashallowparseusingregularexpressionstoparseoutjustthe
+acknowledgementssection.
+Acrudeextractionapproachforthistaskwasdoneusingacaseinsensitivesearchfortheword
+“antibody”and“antibodies”intheacknowledgementssection,whichreturned6533instancesacross
+allofthepapersinallofthejournals. Onlyaverysmallfractionofthesedidnotcontainareference
+toanantibodydonation. Forexample,thesentence“We’dliketothankDorisThelianforherexpert
+adviceonantibodycocktailsandflowcytometrydataanalysis”hasabsolutelynoreferencetodonation
+ofanantibody.
+Wethenanalyzedtheextractedparagraphsusinginformationextractionalgorithmsthatwewill
+describeindetailinthesubsequentsectionstodeterminetheantibodydonorname,affiliation,andthe
+nameoftheantibody.
+2.2. RuleBasedExtraction
+Rule based systems can easily exploit the formal and consistent nature of writing in the
+acknowledgements section of scientific articles. Rule based information extraction systems that
+searchkey-wordcontextwindowshavebeenemployedwithsuccessinthepast. Thecontextinwhich
+awordoccurs(i.e.),andthewordssurroundingit,hasbeenstudiedextensively[20–23]. Weformulate
+heuristicallydeterminedsearchrulesforinformationextractionwithinthesewordcontexts.
+Weobservethattheantibodynamesweremostlywrittenin“TARGETantibody”form(TARGET
+isthenameofaproteinorotherbiomoleculethattheantibodybindsto)(Figure1),butalsooccasionally
+as“antibodyof/toTARGET”;forexample: “Dr. Y.NishiyamaisthankedfortheantibodytoUL7”is
+writteninpassivevoice,whichwouldrequiresearchingtherightcontextinstead. Weassertthatthe
+firstwordwithintheleftcontextwindowoftheword“antibody”thatisnotintheEnglishdictionary
+oranamedentity,isthenameoftheantibodythatwasdonated. Ifnosuchwordisfoundintheleft
+context,wethenproceedtosearchtheright-context. Thesizeoftheleftandrightcontextwindowsis
+setatfourwords,whicharedeterminedafterexaminingtheparagraphsfromthehigh-levelextraction
+step. Further,wealsosearchtheleftcontextwindowforanytags(primary,secondary,monoclonal,
+polyclonal)thatmayassociatedwiththeantibody. WhileanNERsystemforantibodieswouldhave
+beenideal,biomedicalNERsystemssuchasBANNER[24]areincapableoftaggingantibodiesnoris
+thereacorpusfromwhichasupervisedonecanbetrained.
+Data2017,2,38 4of13
+Data 2017, 2, 38 4 of 13
+Figure1.Rulebasedextraction.
+Figure 1. Rule based extraction.
+WWhhiillee eexxttrraaccttiinngg tthhee nnaammee ooff tthhee ddoonnoorr,, wwee ddoo nnoott fifixx tthhee ssiizzee ooff tthhee ccoonntteexxtt wwiinnddooww iinn wwhhiicchh
+wwee sseeaarrcchh.. IInnssteteaadd, ,wwee kekeepep sesaeracrhcihnign gthteh leeflte cftoncotenxtte xotf tohfet hanetaibnotidbyo dnaymnea munetiul nat nilaamneadm enedtiteyn tthitayt
+tish alatbiesleladb aesle ad paesrsaopn eirss eonncoisuenntecroeudn. tWeree dfo.uWnde tfhoautn tdhet hnaatmthe eofn aa mdoenoofr aisd tyopniocralilsyt lyopciactaeldly falro caawteady
+ffarormaw thaey afnrotimbotdhye. Wanet iubsoeddy M. WITe’su IsnefdorMmaITti’osnI nEfxotrrmacatitoionn LEibxrtarrayc t(ihotntpLsi:/b/rgairthyu(bh.tctopms://m/igti-tnhlupb/M.coITmIE/)
+m(MitI-TnIlEp)/ MfoIrT INEE)R(M tIhTaItE )idfoernNtifEieRs tnhaamt iedde netinfiteitsiensa manedd epnrtoivtiiedseasn dlabperlosv ifdoer stlhaebmel,s floikret h‘epmer,sloink’e,
+‘‘poerrgsaonni’z,a‘otirogna’n, izaantdio n‘l’o,caantdio‘nlo’.c aAtionno’t.hAern ootbhseerrovbastieornv ataiboonuatb othuet thneatnuarteu roefo faacckknnoowwleleddggeemmeennttss iinn
+bbiioommeeddiiccaall lliitteerraattuurree wwaass tthhaatt aa ppeerrssoonn’’ss aafffifilliiaattiioonn aallmmoosstt aallwwaayyss ooccccuurrrreeddi immmmeeddiiaatteelylya afftteerrh hiiss//hheerr
+nnaammee wwiitthhiinn bbrraacckkeettss. .WWee uusesded thtihsi tsot loablaebl ethleth deodnoonr’os ra’fsfialifafitliioanti oasn tahse tchloescelsots oersgtaonrigzaantiiozna ttihoant twhaast
+wexatsraecxtterda cbteyd obuyr oNuErRN EinR hinish/hise/r hreigrhrti gchotnctoenxtt,e xwt,hwileh isletilslt ibllebinegin gono nthteh elelfetf tccoonntetexxt tooff tthhee wwoorrdd
+““aannttiibbooddyy”” oorr ““aannttiibbooddiieess””..
+2.3. BootstrappedPatternLearning
+2.3. Bootstrapped Pattern Learning
+Whilerule-basedextractionsystemsarecapableofextractingentitieswithhighprecision,they
+While rule-based extraction systems are capable of extracting entities with high precision, they
+require rules to be explicitly defined. This also prevents them from being easily adapted to new
+require rules to be explicitly defined. This also prevents them from being easily adapted to new
+domains. Bootstrapping alleviates this problem by automatically learning phrases/patterns that
+domains. Bootstrapping alleviates this problem by automatically learning phrases/patterns that
+identifyentitiesofinterestfromseededground-truthannotations. Thefollowingsubsectiondescribes
+identify entities of interest from seeded ground-truth annotations. The following subsection describes
+thebootstrappingalgorithmthatweusedtolearnextractionrules.
+the bootstrapping algorithm that we used to learn extraction rules.
+Weusedbootstrappingtoidentifyantibodynamesonly,usingthecontext-basedapproachas
+We used bootstrapping to identify antibody names only, using the context-based approach as
+describedintheRuleBasedExtractiontoidentifythedonornames,affiliations,andantibodynames.
+described in the Rule Based Extraction to identify the donor names, affiliations, and antibody names.
+Thealgorithmisasfollows:
+The algorithm is as follows:
+• SSeeeedd aann iinniittiiaall sseett ooff aannttiibbooddyy nnaammeess..
+• FFoorr eevveerryy sseenntteennccee tthhaatt ccoonnttaaiinnss aannyy ooff tthhee sseeeeddeedd aannttiibbooddyy nnaammeess,, rruunn aa ccoonnssttiittuueennccyy ppaarrssee ttoo
+eexxttrraacctt tthhee lleeaavveess ooff iimmmmeeddiiaattee ppaarreenntt nnoouunn pphhrraassee,, aass sshhoowwnn iinn FFiigguurree 22,, aanndd rreeppllaaccee tthhee sseeeeddeedd
+aannttiibbooddyy wwiitthh aa wwiillddccaarrdd ‘‘TTAARRGGEETT’’..
+• TThheessee pphhrraasseess ccoonnssttiittuuttee tthhee lleeaarrnneedd ppaatttteerrnnss.. ((FFiigguurree 33))..
+• EExxttrraacctt nneeww aannttiibbooddyy nnaammeess uussiinngg tthheessee lleeaarrnneedd ppaatttteerrnnss bbyy ppaatttteerrnn mmaattcchhiinngg aannyy ooff tthheessee
+ppaatttteerrnnss wwiitthh eevveerryy sseenntteennccee..
+• RReeppeeaatt aannttiibbooddyy--nnaammee eexxttrraaccttiioonn aanndd rruullee--lleeaarrnniinngg sstteeppss iitteerraattiivveellyy..
+Data2017,2,38 5of13
+DDaattaa 22001177,, 22,, 3388 55 ooff 1133
+FFFiiiggguuurrreee 222... CCCooonnnssstttiiitttuuueeennncccyyy pppaaarrrssseee ooofff aaa ssseeennnttteeennnccceee tttooo fiffiinnnddd aaannn eeexxxtttrrraaaccctttiiiooonnn rrruuullleee...
+FFFiiiggguuurrreee 333... EEExxxaaammmpppllleee eeexxxtttrrraaaccctttiiiooonnn rrruuullleee...
+BBoooottssttrraappppiinngg aallggoorriitthhmmss lleeaarrnn nneeww ppaatttteerrnnss aanndd ggrroouunndd--ttrruutthh iitteerraattiivveellyy [[22,,2255,,2266]].. TThhee
+Bootstrappingalgorithmslearnnewpatternsandground-truthiteratively[2,25,26].Thealgorithm
+aallggoorriitthhmm ccoonnssttiittuutteess eexxttrraaccttiinngg aannttiibbooddyy nnaammeess eeiitthheerr ffrroomm tthhee iinniittiiaall sseeeedd oorr ffrroomm tthhee ppaatttteerrnnss
+constitutesextractingantibodynameseitherfromtheinitialseedorfromthepatternslearnedthus
+lleeaarrnneedd tthhuuss ffaarr,, aanndd tthheenn uuppddaattiinngg ppaatttteerrnnss ffrroomm tthhee ccuurrrreenntt sseett ooff aannttiibbooddyy nnaammeess eexxttrraacctteedd.. WWee
+far, and then updating patterns from the current set of antibody names extracted. We observed
+oobbsseerrvveedd tthhaatt bbeesstt ppeerrffoorrmmaannccee wwaass aacchhiieevveedd aafftteerr ttwwoo iitteerraattiioonnss,, wwhheerreeaass mmoorree iitteerraattiioonnss
+thatbestperformancewasachievedaftertwoiterations,whereasmoreiterationsintroducednoisy
+iinnttrroodduucceedd nnooiissyy eexxttrraaccttiioonn rruulleess..
+extractionrules.
+SSoommee ooff tthhee ppaatttteerrnnss lleeaarrnneedd bbyy tthhiiss aallggoorriitthhmm ssttaarrttiinngg wwiitthh 4400 aannttiibbooddyy nnaammeess aass sseeeeddss aarree::
+Someofthepatternslearnedbythisalgorithmstartingwith40antibodynamesasseedsare:
+ tthhee mmoouussee TTAARRGGEETT aannttiibbooddyy
+• themouseTARGETantibody
+ rraabbbbiitt TTAARRGGEETT aannttiibbooddiieess
+• rabbitTARGETantibodies
+ TTAARRGGEETT mmoonnoocclloonnaall aannttiibbooddiieess
+• TARGETmonoclonalantibodies
+ TTAARRGGEETT aannttiibbooddyy
+• TARGETantibody
+ aannttiibbooddyy ttoo TTAARRGGEETT
+• antibodytoTARGET
+22..44.. HHuummaann AAnnnnoottaattiioonnss
+2.4. HumanAnnotations
+TThheerree iiss nnoo ddaattaasseett wwiitthh ggrroouunndd--ttrruutthh aannnnoottaattiioonnss ffoorr eevvaalluuaattiinngg tthheessee aallggoorriitthhmmss.. SSoo,, wwee
+Thereisnodatasetwithground-truthannotationsforevaluatingthesealgorithms.So,weundertook
+uunnddeerrttooookk tthhee ccoolllleeccttiioonn ooff hhuummaann aannnnoottaattiioonnss ffoorr 5500 rraannddoommllyy ssaammpplleedd aacckknnoowwlleeddggeemmeenntt sseeccttiioonnss..
+thecollectionofhumanannotationsfor50randomlysampledacknowledgementsections. Biologists
+BBiioollooggiissttss tthhaatt aarree ffaammiilliiaarr wwiitthh tthhiiss ddoommaaiinn wweerree aasskkeedd ttoo mmaannuuaallllyy aannnnoottaattee ddoonnoorr nnaammeess,, hhiiss//hheerr
+aaffffiilliiaattiioonn,, tthhee nnaammee ooff tthhee aannttiibbooddyy,, aanndd aannyy ooff iittss aattttrriibbuutteess.. WWee aallssoo aasskkeedd tthhee aannnnoottaattoorrss ttoo iiddeennttiiffyy
+Data2017,2,38 6of13
+Data 2017, 2, 38 6 of 13
+DDaattaa 22001177,, 22,, 3388 66 ooff 1133
+otherth baitoa-rreesfaomurilciaers w(ei.tgh.,t hcieslld-loimneasin) twhaerte thasekye dcotuolmd afninuda lilny athnen oatcaktendoownloerdngaemmeesn,htsis a/nhder aanffinloiatatitoen t,hem
+ootthheerr bbiioo--rreessoouurrcceess ((ee..gg..,, cceellll--lliinneess)) tthhaatt tthheeyy ccoouulldd ffiinndd iinn tthhee aacckknnoowwlleeddggeemmeennttss aanndd aannnnoottaattee tthheemm
+thenameoftheantibody, andanyofitsattributes. Wealsoaskedtheannotatorstoidentifyother
+with labels describing the resource and the resource name for future work along this line. Further,
+wwiitthh llaabbeellss ddeessccrriibbiinngg tthhee rreessoouurrccee aanndd tthhee rreessoouurrccee nnaammee ffoorr ffuuttuurree wwoorrkk aalloonngg tthhiiss lliinnee.. FFuurrtthheerr,,
+bio-resources(e.g.,cell-lines)thattheycouldfindintheacknowledgementsandannotatethemwith
+we also asked them to annotate people or organizations in the acknowledgements that were not a
+wwee aa lll ass boo
+e
+laa sss dkk eee sdd
+cr
+itt bhh iee nmm
+gt
+httoo
+e
+raa enn snon uoo rtt caa ettee
+a
+npp deeoto hpp ellee
+re
+oso orr
+u
+oo rcrrgegaa nnn aimizzaeatt fii ooo rnn fss
+u
+tii unn
+r
+etthh wee
+o
+aa rkcckk ann looo nww gll tee hdd isgg lee inmm ee.enn Futtss
+r
+ttt hhh eaa r,tt www eee arr lee
+s
+onnoott aa
+part of a donation of a bio-resource for potential application in NER tasks.
+ppaarrtt aoo sff
+k
+aa
+e
+ddd too hnn eaa mttiioo tonn
+a
+oo nff
+n
+aa
+o
+tbb aii too e-- prree ess ooo puu lerrcc oee
+r
+fofoo rrgr app noo itztee ann titt oiianalsl aa inpppp thllieicc aaa cttikioo nnn
+o
+wiinn
+l
+eNN dgEE eRR
+m
+tt eaa nss tkk sss t..
+h atwerenotapartofa
+Example annotations of sentences describing only antibody donations are shown in Figures 4
+dEEoxxnaaammtioppnlleeo faaannnnbiooott-aartetiisooonnussr c ooefff ossreennptoteetnennccteeisas l ddaepesspcclrriciibabtiiinnoggn ioonnnNllyyE aRanntttaiisbbkoosdd. yy ddoonnaattiioonnss aarree sshhoowwnn iinn FFiigguurreess 44
+and 5, and annotations of sentences that are containing other bio-resources are shown in Figure 6.
+aanndd 55,, aannEddx aaamnnnnpoolettaaattniioonnnossta ootiffo ssneesnnottefennseccneetsse tnthhcaaetst aadrreees cccrooibnnittnaagiinnoiinnnlggy ooatnthhtieebrro bbdiiyoo-d-rroeenssoaotuuiorrcnceesssa aarerrees hssohhwoowwnnnin iinFni gFFuiiggreuusrree4 66..
+and5,andannotationsofsentencesthatarecontainingotherbio-resourcesareshowninFigure6.
+FF Fii iggFgi uu ug rr ru ee er e 44 4.. .4 EE E.E xx xaaxaa mm mm pp pp ll leelee aa aa nn nn nn nn oooot tt ta aa at tt ti ii io oo on nn no oo of ff fa aa an nn na n aa at nn nib tt tii io bb bd oo oy dd dd yy yo dd dn oo oat nn nio aa an tt tii i. oo onn n
+Figure 5. Example annotation of an antibody donation.
+FFiiggF uuig rru eer 55e .. 5 EE. xxEaaxmmamppplleele aaannnnnnoootttaaatttiiiooonnn ooofffa aannna aannntittbiiobbdooyddydy o ddnooanntiaaottnii.oonn..
+Figure6.Exampleannotationofaflystockdonation.
+Figure 6. Example annotation of a fly stock donation.
+FFiigguurree 66.. EExxaammppllee aannnnoottaattiioonn ooff aa ffllyy ssttoocckk ddoonnaattiioonn..
+FiveF bivioelboigoilsotgsi sptsarptaicrtiipcaipteadte dini nththee aannnnoottaattiioonn pprroocceessss..F Fifitfytya basbtrsatrcatsctws ewreearne naontnatoetdatoevde roavlle,roafll, of
+FFiivvee bbiioollooggiissttss ppaarrttiicciippaatteedd iinn tthhee aannnnoottaattiioonn pprroocceessss.. FFiiffttyy aabbssttrraaccttss wweerree aannnnoottaatteedd oovveerraallll,, ooff
+which18wereannotatedbyatleasttwoindividuals. Inter-annotatoragreementwas75%. Weforesee
+which 18 were annotated by at least two individuals. Inter-annotator agreement was 75%. We foresee
+wwhhiicc thh
+h e
+11 s88
+e
+ww anee nrr oee
+t
+aaa tnn ionn noo sttabatetee indd
+g
+bb uyy
+s
+eaa dtt ll aee saa gss rtt
+o
+tt uww noo
+d
+-ii tnn rudd tii hvvii fdd oruu oaa tll hss.e. rIInn rettee serr-a-aa rcnn hnn eoo rsttaa ttotoo err
+v
+aa agg lurr aee tee emm thee enn irtt waw lgaa oss
+r
+77 it55 h%% m..
+s
+WW onee
+t
+ff hoo erreesseeee
+these annotations being used as ground-truth for other researchers to evaluate their algorithms on
+tthheessee
+s a
+aa mnn enn too att saa ktt .iioo Mnn oss
+r
+ebb gee eiinn ngeg
+r
+auu lss lyee ,dd
+th
+aa ess
+s e
+gg arr noo nuu onn tadd t-i- ottrr nuu stt chh
+o
+uffoo ldrr boo etthh uee srer
+d
+rree tossee tara arr icc nhh iee nrr fss
+o
+rtt moo aee tviv oaa nlluu eaxa ttt ree
+a
+ctthth ioee niirr
+a
+aa nll dggoo nrr aii mtthh emm dss oonn
+the same task. More generally, these annotations could be used to train information extraction and
+tthhee ss eaa nmm titee
+y
+tt raa ess ckk o..
+g
+MnM itoo iorrene sgg yee snn teee mrraa sll .llyy T,,
+h
+tt ehh aee nss nee
+o
+aa tann tnn iooo ntt saatt aii roo enn fss
+o
+rcc moouu atll tdd
+e d
+bb iee
+n
+uu Xss Meedd
+L
+,tt aoo stt nrr iaa pii pnn
+e
+ii tnn off foo wrrmm hiaa cthtiioo cnan
+n
+ee bxx ettrr saa ecc ett niioo innn aanndd
+named entity recognition systems. The annotations are formatted in XML, a snippet of which can be
+nnaammFeedidg ueernnettii7tt.yy rreeccooggnniittiioonn ssyysstteemmss.. TThhee aannnnoottaattiioonnss aarree ffoorrmmaatttteedd iinn XXMMLL,, aa ssnniippppeett ooff wwhhiicchh ccaann bbee
+seen in Figure 7.
+sseeeenn iinn FFTiigghuuerrdeea 77ta.. setofannotatedacknowledgementsisprovidedinSupplementaryMaterialsFile1.
+The dataset of annotated acknowledgements is provided in Supplementary Materials File 1.
+TThhee ddaattaasseett ooff aannnnoottaatteedd aacckknnoowwlleeddggeemmeennttss iiss pprroovviiddeedd iinn SSuupppplleemmeennttaarryy MMaatteerriiaallss FFiillee 11..
+Figure 7. Human annotations formatted in XML.
+FFiigguurree 77.. HHuummaann aannnnoottaattiioonnss ffoorrmmaatttteedd iinn XXMMLL..
+Data 2017, 2, 38 6 of 13
+other bio-resources (e.g., cell-lines) that they could find in the acknowledgements and annotate them
+with labels describing the resource and the resource name for future work along this line. Further,
+we also asked them to annotate people or organizations in the acknowledgements that were not a
+part of a donation of a bio-resource for potential application in NER tasks.
+Example annotations of sentences describing only antibody donations are shown in Figures 4
+and 5, and annotations of sentences that are containing other bio-resources are shown in Figure 6.
+Figure 4. Example annotation of an antibody donation
+Figure 5. Example annotation of an antibody donation.
+Figure 6. Example annotation of a fly stock donation.
+Five biologists participated in the annotation process. Fifty abstracts were annotated overall, of
+which 18 were annotated by at least two individuals. Inter-annotator agreement was 75%. We foresee
+these annotations being used as ground-truth for other researchers to evaluate their algorithms on
+the same task. More generally, these annotations could be used to train information extraction and
+named entity recognition systems. The annotations are formatted in XML, a snippet of which can be
+seen in Figure 7.
+Data2017,2,38 7of13
+The dataset of annotated acknowledgements is provided in Supplementary Materials File 1.
+Figure 7. Human annotations formatted in XML.
+Figure7.HumanannotationsformattedinXML.
+3. ResultsandDiscussion
+Westudiedfrequentdonors(people&organizations),frequentlydonatedantibodies,anddonation
+trendsacrossjournals,andtrendsovertime.Theseresultsarepresentedforbothapproaches.
+3.1. RuleBasedApproach
+Therule-basedapproachextractedatotalof7589antibodydonations. Thenumberofextracted
+donations exceeds the number of acknowledgement sections because the algorithm is capable of
+extractingmultipledonationswithinthesameacknowledgementsection. Table1containsthetopfive
+donornamesirrespectiveoftheiraffiliation.
+Table1.Topdonorsbyname.
+Donor NumberofDonations
+KeithGull 32
+AlbertEinsteinCollegeofMedicine 15
+PeterDavies 12
+K.Gull 10
+HugoBellen 10
+Table2containsthetopfivedonor-affiliationpairs.
+Ourapproachsuffersfromsomeweaknesses—theNERsystemtagged“AlbertEinsteinCollege
+ofMedicine”asaperson. Also,itisincapableofidentifyingdifferentwaysofwritingadonorname
+(KeithGullvs. K.Gullvs. Gull,K)oraffiliation(UniversityofOxfordvs. OxfordUniversity).
+Table2.Topdonorsbydonor-affiliationpairs.
+Donor Affiliation NumberofDonations
+KeithGull UniversityofOxford 6
+KeithGull OxfordUniversity 5
+GaryWard UniversityofVermont 4
+K.Mackie IndianaUniversity 3
+YoshihikoFunae OosakaCityUniversity 3
+Table3containstheorganizationsthatdonatedthemostantibodies.
+Data2017,2,38 8of13
+Table3.Topdonorsbyorganization.
+Donor NumberofDonations
+UniversityofCalifornia 24
+NIH 19
+RockefellerUniversity 15
+HarvardMedicalSchool 15
+UniversityofPennsylvania 12
+Table4containsthemostfrequentlydonatedantibodies.
+Table4.Mostfrequentlydonatedantibodies.
+AntibodyName NumberofDonations
+plasmids 111
+autoantibody 31
+DSHB 28
+anti-tubulin 14
+anti-GFP 14
+Table5containsthejournalsthathadthemostreferencestoanantibodydonation. Notethatthese
+journalsarecompletelyopenaccess,howeveralltheirarticlesareavailableinthedataweprocessed.
+Table5.Journalswiththemostdonations.
+Journal NumberofDonations
+PLoSOne 2894
+PLoSGenetics 667
+PLoSPathology 536
+PLoSONE 294
+PLoSBiology 286
+Figure8showsaplotofthenumberofantibodydonationsextractedpaperspublishedduring
+the years 2000 to 2014. The data the nature of open-access publications and their deposition in
+PubMedCentralhaveseenincreasingadoptionduringthisperiodbecauseofwhichthenumberof
+publicationsperyeargrewinPMC,fromaround40thousandin2000toabout400,000thousandin2014.
+Tonormalizeforthiseffect,wealsoshow‘donationsper1000PMCarticles’,withasecondaryaxison
+theright-sideofthefigure. Wecountedmultipledonationsthatwerementionedinthesamepaper
+(ofdifferentantibodiesorbydifferentdonors)asdistinctentities;however,thesearerareoccasions
+andwouldnotsignificantlyalternormalizedvalues. Wecanseethatthedonationsthemselves,orthe
+practiceofacknowledgementinthemanuscripts,haveincreasedovertheyears2000–2014.
+Data 2017, 2, 38 8 of 13
+Table 5 contains the journals that had the most references to an antibody donation. Note that
+these journals are completely open access, however all their articles are available in the data we
+processed.
+Table 5. Journals with the most donations.
+Journal Number of Donations
+PLoS One 2894
+PLoS Genetics 667
+PLoS Pathology 536
+PLoS ONE 294
+PLoS Biology 286
+Figure 8 shows a plot of the number of antibody donations extracted papers published during
+the years 2000 to 2014. The data the nature of open-access publications and their deposition in
+PubMed Central have seen increasing adoption during this period because of which the number of
+publications per year grew in PMC, from around 40 thousand in 2000 to about 400,000 thousand in
+2014. To normalize for this effect, we also show ‘donations per 1000 PMC articles’, with a secondary
+axis on the right-side of the figure. We counted multiple donations that were mentioned in the same
+paper (of different antibodies or by different donors) as distinct entities; however, these are rare
+occasions and would not significantly alter normalized values. We can see that the donations
+themselves, or the practice of acknowledgement in the manuscripts, have increased over the years
+Data2017,2,38 9of13
+2000–2014.
+FFiigguurree 88.. YYeeaarr vvss.. nnuummbbeerr ooff ddoonnaattiioonnss eexxttrraacctteedd iinn tthhaatt yyeeaarr..
+33..22.. BBoooottssttrraappppeedd PPaatttteerrnn LLeeaarrnniinngg
+TThhee bboooottssttrraappppeedd ppaatttteerrnn lleeaarrnniinngga allggoorritithhmme exxtrtraacctetedda at ototatallo off7 7886644a anntitbibooddyyd dononataitoinosn.sT. aTbalbele6
+6co cnotnatianisntsh tehteo tpopfi vfievde odnoonrosrisn idnedpeepnednednetnotf otfh tehireiarf fiaflfiialtiiaotnio.n.
+TTaabbllee 66.. TToopp ddoonnoorrss bbyy nnaammee..
+Donor Number of Donations
+Donor NumberofDonations
+Keith Gull 24
+KeithGull 24
+Albert Einstein College of Medicine 20
+AlbertEinsteinCollegeofMedicine 20
+EErriicchhB Buuchcnhenrer 1111
+CChhaarrlelessR Riciece 1111
+K.Gull 10
+K. Gull 10
+TTaabbllee 77 ccoonnttaaiinnss tthhee ttoopp fifivvee ddoonnoorr--aafffifilliiaattiioonn ppaaiirrss..
+Table7.Topdonorsbydonor-affiliationpair.
+Donor Affiliation NumberofDonations
+Dr.CharlesRice RockefellerUniversity 9
+StevenS.Gross WeillMedicalCollege 8
+HaroldGainer NIH 7
+KeithGull UniversityofOxford 7
+GaryWard UniversityofVermont 6
+Table8containstheorganizationsthatdonatedthemostantibodies.
+Table8.Topdonorsbyorganization.
+Donor NumberofDonations
+NIH 23
+HarvardMedicalSchool 22
+RockefellerUniversity 21
+UniversityofCalifornia 20
+UniversityofPennsylvania 20
+Table9belowcontainstheantibodynamesthatweredonatedthemostfrequently.
+Data2017,2,38 10of13
+Table9.Mostfrequentlydonatedantibodies.
+AntibodyName NumberofDonations
+plasmids 74
+anti-mouse 30
+anti-gfp 18
+anti-tubulin 12
+anti-actin 10
+Table10containsthejournalsthathadthemostreferencestoanantibodydonation.
+Table10.Mostfrequentlydonatedantibodies.
+Journal NumberofDonations
+PLoSOne 3174
+PLoSPathology 671
+PLoSGenetics 577
+PLoSBiology 306
+PLoSONE 301
+Theplotshowingthetemporaldonationtrendforthisapproachwasidenticaltotheprevious
+approachandisthereforenotincludedinthissection.
+4. ExtractionEvaluation
+Evaluation
+Weevaluatedtheperformanceofouralgorithms,bycomparingthemtoanyofthehumanlabeled
+annotations. WereporttheaccuraciesinTable11. Itisevidentthatweareabletoextractcharacteristics
+aboutanantibodyusingbothourproposedapproaches. Thebootstrappedpatternlearningalgorithm
+achievesabetterperformancethanthesimplerule-basedapproachatextractingdonorandantibody
+namesbutdoesnotdoaswellwithextractingaffiliations.
+Table11.Extractionresults.
+Accuracy
+Approach
+Donor Affiliation AntibodyName Mean
+RuleBased 50% 70% 50% 57%
+BootstrappedPatternLearning 57% 66% 64% 62%
+5. Bio-ResourceExchangeWebPortal
+Wedevelopedaresource-sharingweb-portal,calledBio-ResourceExchange(BRX)availableat
+http://tonks.dbmi.pitt.edu/brx. Itisbuiltmodularly,withtheabilitytobeagenericresource-sharing
+platform. Itallowsforuserstomakerequestsforordonateresourcesviaasimplecustomizableform
+foreachresource. Atpresent,resourcesonBRXincludeantibodies,DNAconstructs,andcell-lines.
+Themomentthataformisfilledinbyauser,itappearsonabulletinboard(analogoustoanewsfeed
+onsocialnetworkingwebsites)thatisvisibletoalloftheotherusersinthesystem(Figure9). Auser’s
+newsfeedmaybefilteredbasedonthetypeofresearchhe/sheislookingfor. Itallowsuserstosearch
+forspecificinformation,forexample,particularantibodiesorcell-lines,orpostsbyspecificindividuals.
+BRXalsoallowsuserstocommentonpostsandalsoputsthemintouchwiththeauthorviaemail.
+Data 2017, 2, 38 10 of 13
+Table 11. Extraction results.
+Accuracy
+Approach
+Donor Affiliation Antibody Name Mean
+Rule Based 50% 70% 50% 57%
+Bootstrapped Pattern Learning 57% 66% 64% 62%
+5. Bio-Resource Exchange Web Portal
+We developed a resource-sharing web-portal, called Bio-Resource Exchange (BRX) available at
+http://tonks.dbmi.pitt.edu/brx. It is built modularly, with the ability to be a generic resource-sharing
+platform. It allows for users to make requests for or donate resources via a simple customizable form
+for each resource. At present, resources on BRX include antibodies, DNA constructs, and cell-lines.
+The moment that a form is filled in by a user, it appears on a bulletin board (analogous to a news feed
+on social networking websites) that is visible to all of the other users in the system (Figure 9). A user’s
+news feed may be filtered based on the type of research he/she is looking for. It allows users to search
+for specific information, for example, particular antibodies or cell-lines, or posts by specific
+iDnadtaiv20id17u,2a,ls38. BRX also allows users to comment on posts and also puts them in touch with the a1u1tohfo1r3
+via email.
+Figure 9. Screenshot of the Web-Portal.
+Figure9.ScreenshotoftheWeb-Portal.
+BRX was developed using the Django web framework with a MySQL backend database.
+BRXwasdevelopedusingtheDjangowebframeworkwithaMySQLbackenddatabase. Separate
+Separate tables were created for each resource type to allow for each of them to have different
+tableswerecreatedforeachresourcetypetoallowforeachofthemtohavedifferentattributesusing
+attributes using Django’s ORM (Object-relation Mapping). Foreign keys to this table were made to
+Django’sORM(Object-relationMapping). Foreignkeystothistableweremadetostorecomments
+store comments and email correspondences. The rest of the backend elements are designed to make
+andemailcorrespondences. Therestofthebackendelementsaredesignedtomaketheadditionofa
+the addition of a new resource extremely simple. Third-party authentication elements on BRX were
+newresourceextremelysimple. Third-partyauthenticationelementsonBRXwerebuiltusinganopen
+built using an open source Oauth2 library (https://github.com/omab/python-social-auth). For
+sourceOauth2library(https://github.com/omab/python-social-auth). ForUniversityofPittsburgh
+University of Pittsburgh users exclusively, we used LDAP (Lightweight Directory Access Protocol)
+usersexclusively,weusedLDAP(LightweightDirectoryAccessProtocol)authenticationtoletusers
+authentication to let users sign in with their university email accounts. Front-end elements were built
+signinwiththeiruniversityemailaccounts. Front-endelementswerebuiltusingtwitter-bootstrap,
+using twitter-bootstrap, Vanilla JavaScript, and jQuery. In the future, the front-end could include
+VanillaJavaScript,andjQuery. Inthefuture,thefront-endcouldincludeleaderboardsofuniversities,
+leaderboards of universities, organizations, and people who have donated the most resources to
+organizations,andpeoplewhohavedonatedthemostresourcestopromotehealthycompetition.
+promote healthy competition.
+The results from mining literature have not been incorporated into the website, because the
+postsaretiedtoindividualprofiles,i.e.,ofdonorsandseekers. Unlessauserregistersandpoststhe
+informationthattheyareseeking/donatingantibodiesorotherresources,itdoesnotappearonthe
+webportal.
+6. Conclusions
+We carried out text-mining over acknowledgement sections of open-access articles to study
+theextentofantibodydonationsreportedsofar. Wefirstcreatedadatasetof50expert-annotated
+acknowledgementssectionsthatwillbeusefulforalgorithmdevelopmentandevaluationpurposes
+in studying such donations. Using NLP techniques, we extracted the name of the donor, his/her
+affiliation,andthenameoftheantibodyforeverydonationbyparsingthesentencesbyadoptingtwo
+approaches—arulebasedalgorithmandabootstrappedpatternlearningalgorithm,andachieved
+averageaccuraciesof57%and62%,respectively.
+Wealsodevelopedaweb-portal,Bio-ResourceExchange,whichattemptstoconnectbiologists
+seekingantibodies,cell-lines,orDNA-constructstopotentialdonors. Weexpectthatitwouldbridgea
+gapbetweenresourceseekersanddonorsinthedomainofexperimentalbiology. Usersonthisportal
+Data2017,2,38 12of13
+canpostinformationthattheyareeitherseekingaspecificantibody,cell-line,orDNAconstruct,orthat
+theyareinapositiontodonatethem. Itallowsforotherregistereduserstocommentonsuchposts.
+Thus,thisresourcecouldgrowintoacrowd-sourceddatabaseofresourcesforexperimentalbiology.
+7. Limitations
+A significant limitation of this work is that the text-mining methods that were adopted were
+extremelysimpleandinvolvedtheuseofseveralheuristicsowingtolimiteddataandtheabsenceofa
+labeledcorpusforsuchatask. Thereexistnocorporafromwhichnamedentitytaggerscanbelearned
+torecognizedantibodynamesinasupervisedmanner,andthereforemorecontemporarymethods,
+such as CRFs [27] or neural methods [28], could not be adopted. While integrating results from
+text-miningistrivialfromanimplementationperspective,somethoughthastobeputintocuratingthe
+datathatgoesontothewebpage. Forexample,attributinganantibodywithanincorrectdonorcould
+leadtoproblemswhencontactinghim/her. Further,wefounditdifficulttogetbiologiststoannotatea
+largecollectionofourdatasetandsohadtodistributeourdataacrossmanyofthem,therebyinducing
+aminimalamountofnoiseintheannotations. Softmatchingconstraintswhenevaluatingourmodels
+couldprovidedeeperinsightsintothemodel’sstrengthsandweaknesses. Atpresent,theXMLdataset
+doesnotcontainthecharacteroffsetsofeachannotationwithintheparagraph—thisisanextension
+thatweforeseeaddinginfuturereleasesofthisdataset.
+SupplementaryMaterials:Supplementarymaterialscanbefoundathttp://www.mdpi.com/2306-5729/2/4/
+38/s1.
+Acknowledgments: We thank Vishwajit L. Nimgaonkar and researchers in his group Chowdari Kodavali,
+LoraMcClain,JoelWood,TulsiMalavia,andSrilakshmiChaparalaforannotatingthesentenceswecollected.
+We thank Srilakshmi Chaparala and Adam Handen for also providing valuable inputs on the Bio-Resource
+Exchangedwebsite. WethankLucyCafeoforreadingtherevisedversionofthemanuscriptandproviding
+languageedits.ThisworkisfundedinpartbytheBRAINSgrantR01MH094564fromtheNationalInstituteof
+MentalHealthoftheNationalInstitutesofHealth(NIMH/NIH),USA.Wethankthereviewersfortheircomments
+whichhelpedimprovethepaper.
+Author Contributions: M.K.G. conceptualized and supervised the work, and designed the web-portal.
+S.S.proposedandimplementeddataacquisitionandtextminingalgorithms,anddevelopedthewebportal.
+Articlehasbeenwritten,editedandapprovedbyboththeauthors.
+ConflictsofInterest:Theauthorsdeclarenoconflictofinterest.
+References
+1. Nawaz,R.;Thompson,P.;Ananiadou,S.Negatedbio-events:Analysisandidentification.BMCBioinform.
+2013,14,14.[CrossRef][PubMed]
+2. Finkel, J.R.; Grenager, T.; Manning, C. Incorporating non-local information into information extraction
+systemsbygibbssampling.InProceedingsofthe43rdAnnualMeetingonAssociationforComputational
+Linguistics,AnnArbor,MI,USA,25–30June2005;pp.363–370.
+3. Banko,M.;Cafarella,M.J.;Soderland,S.;Broadhead,M.;Etzioni,O.Openinformationextractionforthe
+web.InProceedingsoftheIJCAI,Hyderabad,India,6–12January2007;pp.2670–2676.
+4. Soderland,S.Learninginformationextractionrulesforsemi-structuredandfreetext.Mach.Learn.1999,34,
+233–272.[CrossRef]
+5. Hirschman, L.; Yeh, A.; Blaschke, C.; Valencia, A. Overview of BioCreAtIvE: Critical assessment of
+informationextractionforbiology.BMCBioinform.2005,6,S1.[CrossRef][PubMed]
+6. Kim,J.-D.;Pyysalo,S.;Ohta,T.;Bossy,R.;Nguyen,N.;Tsujii,J.I.OverviewofBioNLPsharedtask2011.
+InProceedingsoftheBioNLPSharedTask2011Workshop,Portland,OR,USA,24June2011;pp.1–6.
+7. Kim,J.-D.;Ohta,T.;Tateisi,Y.;Tsujii,J.I.GENIAcorpus—Asemanticallyannotatedcorpusforbio-textmining.
+Bioinformatics2003,19,i180–i182.[CrossRef][PubMed]
+8. Riloff, E.; Jones, R. Learning dictionaries for information extraction by multi-level bootstrapping.
+InProceedingsoftheAAAI/IAAI,Orlando,FL,USA,18–22July1999;pp.474–479.
+9. Dempster,A.P.;Laird,N.M.;Rubin,D.B.MaximumlikelihoodfromincompletedataviatheEMalgorithm.
+J.R.Stat.Soc.Ser.BStat.Methodol.1977,39,1–38.
+Data2017,2,38 13of13
+10. Gupta, S.; Manning, C.D. SPIED: Stanford Pattern-Based Information Extraction and Diagnostics.
+InProceedingsoftheACL2014WorkshoponInteractiveLanguageLearning,Visualization,andInterfaces
+(ACL-ILLVI),SanFrancisco,CA,USA,27June2014;p.38.
+11. Gupta,S.;Manning,C.D.ImprovedPatternLearningforBootstrappedEntityExtraction.CoNLL-20142014,
+98.[CrossRef]
+12. Carlson,A.;Betteridge,J.;Kisiel,B.;Settles,B.;Hruschka,E.R.,Jr.;Mitchell,T.M.TowardanArchitecturefor
+Never-EndingLanguageLearning.InProceedingsoftheAAAI,Atlanta,GA,USA,11–15July2010;p.3.
+13. Movshovitz-Attias, D.; Cohen, W.W. Bootstrapping biomedical ontologies for scientific text using nell.
+InProceedingsofthe2012WorkshoponBiomedicalNaturalLanguageProcessing,Montreal,QC,Canada,
+3–8June2012;pp.11–19.
+14. Chiticariu,L.;Li,Y.;Reiss,F.R.Rule-BasedInformationExtractionisDead!LongLiveRule-BasedInformation
+ExtractionSystems!InProceedingsoftheEMNLP,Seattle,WA,USA,18–21October2013;pp.827–832.
+15. Ozyurt,I.B.;Grethe,J.S.;Martone,M.E.;Bandrowski,A.E.ResourceDisambiguatorfortheWeb:Extracting
+Biomedical Resources and Their Citations from the Scientific Literature. PLoS ONE 2016, 11, e0146300.
+[CrossRef][PubMed]
+16. Petersen,R.;Kempler,G.;Barklis,E.Astemcell-specificsilencerintheprimer-bindingsiteofaretrovirus.
+Mol.Cell.Biol.1991,11,1214–1221.[CrossRef][PubMed]
+17. de la Calle, G.; Garcia-Remesal, M.; Chiesa, S.; de la Iglesia, D.; Maojo, V. BIRI: A new approach for
+automatically discovering and indexing available public bioinformatics resources from the literature.
+BMCBioinform.2009,10,320.[CrossRef][PubMed]
+18. Roth,A.;Subramanian,S.;Ganapathiraju,M.K.Towardsextractingsupportinginformationaboutpredicted
+protein-proteininteractions.IEEE/ACMTrans.Comput.Biol.Bioinform.2015.[CrossRef][PubMed]
+19. Duck,G.;Nenadic,G.;Brass,A.;Robertson,D.L.;Stevens,R.bioNerDS:Exploringbioinformatics’database
+andsoftwareusethroughliteraturemining.BMCBioinform.2013,14,194.[CrossRef][PubMed]
+20. Mikolov,T.;Sutskever,I.;Chen,K.;Corrado,G.S.;Dean,J.Distributedrepresentationsofwordsandphrases
+andtheircompositionality. InProceedingsoftheAdvancesinNeuralInformationProcessingSystems,
+LakeTahoe,NV,USA,5–10December2013;pp.3111–3119.
+21. Pennington,J.;Socher,R.;Manning,C.D.Glove:Globalvectorsforwordrepresentation.InProceedingsof
+theEmpiricialMethodsinNaturalLanguageProcessing(EMNLP2014),Doha,Qatar,25–29October2014;
+Volume12,pp.1532–1543.
+22. Turian,J.;Ratinov,L.;Bengio,Y.Wordrepresentations:Asimpleandgeneralmethodforsemi-supervised
+learning. InProceedingsofthe48thAnnualMeetingoftheAssociationforComputationalLinguistics,
+Uppsala,Sweden,11–16July2010;pp.384–394.
+23. Tang,B.;Cao,H.;Wang,X.;Chen,Q.;Xu,H.Evaluatingwordrepresentationfeaturesinbiomedicalnamed
+entityrecognitiontasks.BioMedRes.Int.2014,2014,240403.[CrossRef][PubMed]
+24. Leaman,R.;Gonzalez,G.BANNER:Anexecutablesurveyofadvancesinbiomedicalnamedentityrecognition.
+In Proceedings of the Pacific Symposium on Biocomputing, Kohala Coast, HI, USA, 4–8 January 2008;
+pp.652–663.
+25. Wu,X.;Fan,J.;Subramanian,K.R.B-EM:Aclassifierincorporatingbootstrapwithemapproachfordata
+mining.InProceedingsoftheEighthACMSIGKDDInternationalConferenceonKnowledgeDiscoveryand
+DataMining,Edmonton,AB,Canada,23–26July2002;pp.670–675.
+26. McCallumz, A.; Nigam, K. Text Classification by Bootstrapping with Keywords, EM and Shrinkage.
+InProceedingsoftheWorkshopforUnsupervisedLearninginNaturalLanguageProcessing,AnnArbor,
+MI,USA,21June1999.
+27. Settles, B. Biomedical named entity recognition using conditional random fields and rich feature sets.
+InProceedingsoftheInternationalJointWorkshoponNaturalLanguageProcessinginBiomedicineandits
+Applications,Geneva,Switzerland,28–29August2004;pp.104–107.
+28. Lample,G.;Ballesteros,M.;Subramanian,S.;Kawakami,K.;Dyer,C.Neuralarchitecturesfornamedentity
+recognition.arXiv,2016.
+©2017bytheauthors.LicenseeMDPI,Basel,Switzerland.Thisarticleisanopenaccess
+articledistributedunderthetermsandconditionsoftheCreativeCommonsAttribution
+(CCBY)license(http://creativecommons.org/licenses/by/4.0/).
