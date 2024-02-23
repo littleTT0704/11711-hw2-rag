@@ -1,0 +1,1246 @@
+ATLAS: Automatically Detecting Discrepancies
+Between Privacy Policies and Privacy Labels
+Akshath Jain
+CMU-CS-23-105
+March 2023
+ComputerScienceDepartment
+SchoolofComputerScience
+CarnegieMellonUniversity
+Pittsburgh,PA15213
+ThesisCommittee:
+NormanSadeh,Chair
+EunsukKang
+Submittedinpartialfulfillmentoftherequirements
+forthedegreeofMasterofScience.
+Copyright©2023AkshathJain
+Keywords: Natural Language Processing, Machine Learning, Transformers, Privacy Poli-
+cies,PrivacyLabels,iOS
+Abstract
+Privacy policies are long, complex documents that end-users seldom read. Pri-
+vacylabelsaimtoamelioratetheseissuesbyprovidingsuccinctsummariesofsalient
+datapractices. InDecember2020,Applebeganrequiringthatappdeveloperssubmit
+privacy labels describing their apps’ data practices. Yet, research suggests that app
+developers often struggle to do so. In this paper, we automatically identify possible
+discrepancies between mobile app privacy policies and their privacy labels. Such
+discrepanciescouldbeindicatorsofpotentialprivacycomplianceissues.
+We introduce the Automated Privacy Label Analysis System (ATLAS). ATLAS
+includes three components: a pipeline to systematically retrieve iOS App Store list-
+ingsandprivacypolicies;anensemble-basedclassifiercapableofpredictingprivacy
+labels from the text of privacy policies with 91.3% accuracy using state-of-the-art
+NLP techniques; and a discrepancy analysis mechanism that enables a large-scale
+privacyanalysisoftheiOSAppStore.
+Our system has enabled us to analyze 354,725 iOS apps. We find several in-
+teresting trends. For example, only 40.3% of apps in the App Store provide easily
+accessible privacy policies, and only 29.6% of apps provide both accessible privacy
+policies and privacy labels. Among apps that provide both, 88.0% have at least one
+possiblediscrepancybetweenthetextoftheirprivacypolicyandtheirprivacylabel,
+which could be indicative of a potential compliance issue. We find that, on average,
+appshave5.32suchpotentialcomplianceissues.
+We hope that ATLAS will help app developers, researchers, regulators, and mo-
+bile app stores alike. For example, app developers could use our classifier to check
+for discrepancies between their privacy policies and privacy labels, and regulators
+coulduseoursystemtohelpreviewappsatscaleforpotentialcomplianceissues.
+iv
+Acknowledgments
+I would like to thank my advisor, Norman Sadeh, for providing guidance with
+this researchproject over the courseof the program. I have beena part of Norman’s
+lab since the spring semester of my first year at Carnegie Mellon (so a little over 4
+years now), and he has been a huge influence in helping me become a well-rounded
+researcher.
+I would also like to thank Yuanyuan Feng and Yaxing Yao for their invaluable
+mentorship over these past few years. Both of you have helped me greatly, and it
+wouldnothavebeenpossibleformetogetherewithoutyou.
+Additionally,IwouldliketothankEunsukKang,fortakingtimeoutofhissched-
+uletoserveonmythesiscommitteeandprovidefeedbackonthisthesis.
+Finally, thank you to my friends and family – you have all provided unwavering
+support,andIcouldnothavedoneitwithoutyou.
+vi
+Contents
+1 Introduction 1
+1.1 ResearchQuestions . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 1
+1.2 KeyContributions . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2
+1.3 Outline . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 2
+2 BackgroundandRelatedWork 5
+2.1 PrivacyLabels . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 5
+2.1.1 HistoryofPrivacyLabels . . . . . . . . . . . . . . . . . . . . . . . . . . 5
+2.1.2 iOSPrivacyLabels . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 5
+2.1.3 IssueswithiOSPrivacyLabels . . . . . . . . . . . . . . . . . . . . . . . 8
+2.1.4 GeneratingiOSPrivacyLabels . . . . . . . . . . . . . . . . . . . . . . . 9
+2.2 ApplicableLegislation . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9
+2.3 AutomatedMobileAppPrivacyAnalyses . . . . . . . . . . . . . . . . . . . . . 9
+2.4 NaturalLanguageProcessingTechniquesforDocumentClassification . . . . . . 10
+3 ADistributedPipelineforAutomatedAnalysis 13
+3.1 iOSAppSamplingStrategy . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 13
+3.2 IdentifyingPrivacyPolicies . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 13
+3.3 DesignofaDistributedInfrastructure . . . . . . . . . . . . . . . . . . . . . . . 14
+3.4 PrivacyPolicyandPrivacyLabelAdoption . . . . . . . . . . . . . . . . . . . . 16
+4 AutogeneratingPrivacyLabelsfromPrivacyPolicies 19
+4.1 DatasetConstruction . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 19
+4.2 SamplingProcedure . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 20
+4.3 ModelSelection . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 22
+4.3.1 LogisticRegression(Baseline) . . . . . . . . . . . . . . . . . . . . . . . 23
+4.3.2 MultilayerPerceptron . . . . . . . . . . . . . . . . . . . . . . . . . . . 24
+4.3.3 RegLSTM . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 25
+4.3.4 BERT . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 26
+4.3.5 RoBERTa . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 27
+4.3.6 Longformer . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 28
+4.3.7 Ensemble . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 29
+4.4 ModelPerformance . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 30
+vii
+5 ComplianceAnalysis 33
+5.1 CharacterizingPotentialComplianceIssues . . . . . . . . . . . . . . . . . . . . 33
+5.2 PotentialComplianceIssuesbyDataType . . . . . . . . . . . . . . . . . . . . . 35
+5.3 PotentialComplianceIssuesbyCategory . . . . . . . . . . . . . . . . . . . . . 36
+5.4 DistributionofPotentialComplianceIssues . . . . . . . . . . . . . . . . . . . . 37
+5.5 AppRatingvsNumberofPotentialComplianceIssues . . . . . . . . . . . . . . 38
+5.6 PotentialComplianceIssuesAmongPopularvsOtherApps . . . . . . . . . . . 39
+6 Discussion 41
+7 FutureWork 43
+7.1 ADetailedPrivacyPolicyAnalysis . . . . . . . . . . . . . . . . . . . . . . . . . 43
+7.2 PredictingDetailedPrivacyLabels . . . . . . . . . . . . . . . . . . . . . . . . . 43
+7.3 StaticandDynamicCodeAnalysis . . . . . . . . . . . . . . . . . . . . . . . . . 44
+7.4 Conclusion . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 44
+Bibliography 45
+viii
+List of Figures
+2.1 ExampleiOSPrivacyLabel . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 6
+3.1 ATLASDataCollectionPipeline . . . . . . . . . . . . . . . . . . . . . . . . . . 14
+3.2 ATLASDataProcessingRate . . . . . . . . . . . . . . . . . . . . . . . . . . . . 15
+3.3 iOSAppsCollectedperCategory . . . . . . . . . . . . . . . . . . . . . . . . . . 15
+3.4 ProportionofPrivacyPoliciesandPrivacyLabelsintheiOSAppStore . . . . . 16
+3.5 DataTypeDeclarationbyApp . . . . . . . . . . . . . . . . . . . . . . . . . . . 17
+4.1 RandomSampling . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 20
+4.2 RandomSamplingClusters . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 21
+4.3 ImportanceSampling . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 22
+4.4 LogisticRegressionValidationPerformance . . . . . . . . . . . . . . . . . . . . 23
+4.5 MLPValidationPerformance . . . . . . . . . . . . . . . . . . . . . . . . . . . . 24
+4.6 RegLSTMValidationPerformance . . . . . . . . . . . . . . . . . . . . . . . . . 25
+4.7 BERTValidationPerformance . . . . . . . . . . . . . . . . . . . . . . . . . . . 26
+4.8 RoBERTaValidationPerformance . . . . . . . . . . . . . . . . . . . . . . . . . 27
+4.9 LongformerValidationPerformance . . . . . . . . . . . . . . . . . . . . . . . . 28
+4.10 EnsembleValidationPerformance . . . . . . . . . . . . . . . . . . . . . . . . . 29
+4.11 EnsembleTestPerformance . . . . . . . . . . . . . . . . . . . . . . . . . . . . 30
+5.1 ProbabilityDistributionforNameandPreciseLocation . . . . . . . . . . . . . . 33
+5.2 PotentialComplianceIssuesbyDataType . . . . . . . . . . . . . . . . . . . . . 35
+5.3 ComplianceIssuesbyCategory . . . . . . . . . . . . . . . . . . . . . . . . . . . 36
+5.4 DistributionofComplianceIssues . . . . . . . . . . . . . . . . . . . . . . . . . 37
+5.5 AppRatingvsNumberofComplianceIssues . . . . . . . . . . . . . . . . . . . 38
+5.6 DiscrepanciesAmongPopularvsOtherApps . . . . . . . . . . . . . . . . . . . 39
+ix
+x
+List of Tables
+2.1 iOSDataTypes . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 7
+2.2 iOSDataUses . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 8
+4.1 EnsembleTestPerformance . . . . . . . . . . . . . . . . . . . . . . . . . . . . 31
+5.1 CumulativeDistributionofPotentialComplianceIssues . . . . . . . . . . . . . . 37
+5.2 DiscrepanciesAmongPopularvsOtherApps . . . . . . . . . . . . . . . . . . . 39
+xi
+xii
+Chapter 1
+Introduction
+Notice is a cornerstone of privacy: entities collecting information are expected to disclose the
+types of data collected, and how it is used. Privacy policies serve as the primary mechanism
+for notice, yet research has shown that privacy policies are long, complex documents that users
+seldomread[28][36][35].
+Privacy labels aim to ameliorate this issue by providing succinct descriptions of salient data
+practices in an easy to consume format. In December 2020, Apple began requiring that devel-
+opers include privacy labels for the apps they publish on the iOS App Store. However, recent
+researchsuggeststhatmobileappdevelopersoftenstruggletounderstandanddisclosetheirdata
+practices. [24][44].
+In this work, we provide a detailed analysis of privacy policies and privacy labels in the
+iOS App Store by analyzing 354,725 iOS apps. We explore the state of privacy in the App
+Store, develop an ensemble-based classifier to automatically generate privacy labels from the
+text of privacy policies, and we provide a thorough compliance analysis by comparing the text
+ofprivacypoliciestoprivacylabels.
+1.1 Research Questions
+In this paper, we pose three categories of research questions concerning privacy policies and
+privacy labels in the United States iOS App Store. These questions guide us in creating the
+Automated Privacy Label Analysis System (ATLAS). Details and capabilities of ATLAS are
+discussedinthenextsection.
+1. What is the state of privacy policy and privacy label adoption among iOS apps? Can app
+privacypoliciesbeeasilyaccessed–specifically,howmanyappshavedirectlinkstotheir
+privacy policies in the App Store? What percentage of apps have privacy labels? What
+percentagehaveboth?
+2. Is it possible to predict privacy labels from the text of privacy policies? Prior research
+indicatesthatdevelopersstruggletocreateaccuratelabels. Asaresult,privacylabelsmay
+not always reflect true data collection [24], [22]. So, despite privacy labels being noisy, is
+itpossibletotrainreliableclassifiers?
+1
+3. Finally, are privacy labels consistent with the text of privacy policies? What types of
+discrepancies occur between privacy policies and labels? How many discrepancies do
+apps have on average? Is there a correlation between these rates and the popularity of
+mobileapps?
+1.2 Key Contributions
+Toenableustoanswertheresearchquestionsposedinthepriorsection,wedevelopedtheAuto-
+matedPrivacyLabelAnalysisSystem(ATLAS).OursystemanalyzediOSappmetadata,privacy
+policies, and privacy labels. It then flagged instances where privacy labels were not consistent
+with the text of their privacy policies, which we characterized as potential compliance issues.
+This was done using state-of-the-art natural language processing techniques involving unsuper-
+vised and supervised machine learning. ATLAS was designed to be highly scalable, and has
+enabledustoanalyze354,725iOSapps. Thispapermakesseveralkeycontributions:
+1. A scalable pipeline that enables systematically scraping iOS metadata, including privacy
+policies URLs and privacy labels. We include a machine learning model that determines
+if the app’s privacy policy URL actually leads to an English-language privacy policy. We
+alsoincludetoolstodownloadthetextofthepolicy.
+2. An ensemble-based classifier that can effectively generate privacy labels from the text of
+privacy policies. We formulated this as a multi-class, multi-label document classification
+problem. Thisenabledourclassifiertoidentifyifaprivacypolicy“Collects”or“DoesNot
+Collect”adatatype,for32separatedatatypes.
+3. A privacy analysis of the iOS App Store. We provided an extensive analysis of data prac-
+tice disclosure discrepancies between the text of privacy policies and their corresponding
+privacylabelsintheiOSAppStore. Wealsoincludemetricssuchasprivacypolicyacces-
+sibility,privacylabeladoption,andpotentialcomplianceissueexistence.
+WehopethatATLASwillhelpappdevelopers,researchers,regulators,andmobileappstores
+alike. For example, app developers could use our classifier to check for discrepancies between
+their privacy policies and privacy labels. Meanwhile, app store operators and regulators could
+use our system to monitor discrepancy trends to effectively focus efforts on apps likely to have
+potentialcomplianceissues.
+1.3 Outline
+Chapter2providesadditionalbackgroundinformationonprivacylabels,aswellasacomprehen-
+sive overview of related literature. Chapter 3 discusses the data collection pipeline that ATLAS
+uses, which enabled us to answer the first set of research questions. Chapter 4 describes the
+methodologyusedfortrainingasetofclassifiersusedtogenerateprivacylabelsfromthetextof
+privacypolicies,enablingustoanswerthesecondsetofresearchquestions. Chapter5discusses
+theconsistencyofprivacypoliciesandtheirprivacylabels,enablingustoanswerthethirdsetof
+2
+research questions. Chapter 6 provides a detailed discussion of our results. Chapter 7 provides
+guidanceforfuturework. Andfinally,Chapter8concludesthisdocument.
+3
+4
+Chapter 2
+Background and Related Work
+2.1 Privacy Labels
+2.1.1 History of Privacy Labels
+Privacypoliciesarelong,complexdocumentsthatend-usersseldomread. Seminalworkin2008
+by McDonald et al demonstrated that reading every privacy policy a user encountered in a year
+would take approximately 244 hours – an impractical amount [28]. Attempts to make privacy
+policies more digestible included P3P – a method for websites to convey their privacy policies
+in a machine readable format – and P3P Expandable Grid – a user-agent program designed to
+assist users in viewing P3P compatible policies [9] [34]. However, the P3P standard was only
+looselyadopted,duetothelackoflimitedfunctionalityprovidedbywidelyavailableuser-agents
+and complexity of the standard [10]. Multilayered Privacy Policies, such as those proposed by
+the law firm Hunton & William LLP in conjunction with The Center for Information Policy
+Leadership, included summaries with standardized section headings; however, section content
+stillcontainedfree-formlegaltext[27].
+To address shortcomings of prior approaches, Kelley et al. developed the “Privacy Label”
+to succinctly describe privacy policies in 2009, akin to nutritional labels found on food in 2009
+[18]. The approach was largely successful, as research released the next year conducted a user
+study that found privacy labels had significant positive effects on accuracy, information retrieval
+speed,andreaderenjoymentwithprivacypolicies[19].
+WiththeburgeoningmobileapplicationmarketsoniOSandAndroidin2013,furtherworkby
+Kelley et al. proposed bringing privacy labels to mobile app stores [20]. The authors conducted
+auserstudywhereparticipantscouldviewa“PrivacyChecklist”foranappbeforedownloading
+it; they found that the inclusion of such a checklist affected user decisions in downloading apps,
+“especiallywhenchoosingbetweenotherwisesimilarapps”[20].
+2.1.2 iOS Privacy Labels
+InDecember2020,Applebeganrequiringalldevelopersinclude“AppPrivacyDetails”describ-
+ingtheirapps’datacollectionpracticeswhenuploadingnewversionsoftheirapps,arguablythe
+largest adoption of privacy labels to date [16]. App Privacy Details are included within an app’s
+5
+Figure2.1: AnexampleofaprivacylabelwithintheiOSAppStore. Theimageontheleftshows
+an overview of the app’s privacy label. The image on the right depicts a more detailed summary
+oftheapp’sdatacollection.
+listingintheiOSAppStore,enablinguserstoviewdatacollectionpracticesbeforedownloading
+anapp. Theimplementationislargelysimilartothemodelproposedbyresearchersin[20].
+Figure2.1showsanexampleofaniOSprivacylabelavailablewithintheiOSAppStore. Ap-
+ple takes a multilayered approach to privacy labels: users first encounter a summarized version,
+but can choose to “See Details,” which provides a more comprehensive overview of the app’s
+data collection. Developers are required to report data collected from the user, which refers to
+any data that is transmitted “off the device in a way that allows [developers] or third-party part-
+ners to access [the data] for a period longer than what is necessary to service the transmitted
+requestinrealtime”[16].
+The iOS privacy label consists of four parts. First, developers declare the data type(s) being
+collected by their app, as summarized in Table 2.1. Then, for each data type, developers are
+requiredtoreporthowthedatatypeisbeingused,assummarizedinTable2.2. Next,developers
+must specify if the data type is “Linked to You,” which indicates that it is being collected non-
+anonymously. Finally, if the developer declares that the data type is “Linked to You,” then they
+must declare if it is “Used to Track You,” which indicates linking collected data “from your app
+about a particular end-user or device, such as a user ID, device ID, or profile, with Third-Party
+Data for targeted advertising or advertising measurement purposes, or sharing data collected
+fromyourappaboutaparticularend-userordevicewithadatabroker”[16].
+6
+Table 2.1: The following table summarizes the data types that an app can collect and report on
+itsprivacylabel.
+DataType Description
+Name Suchasfirstorlastname
+EmailAddress Includingbutnotlimitedtoahashedemailaddress
+PhoneNumber Includingbutnotlimitedtoahashedphonenumber
+PhysicalAddress Suchashomeaddress,physicaladdress,ormailingaddress
+OtherUserContact InfoAnyotherinformationthatcanbeusedtocontacttheuseroutsidetheapp
+Health Health and medical data, including but not limited to data from the Clinical Health
+RecordsAPI,HealthKitAPI,MovementDisorderAPIs,orhealth-relatedhumansubject
+researchoranyotheruserprovidedhealthormedicaldata
+Fitness Fitnessandexercisedata,includingbutnotlimitedtotheMotionandFitnessAPI
+PaymentInfo Suchasformofpayment,paymentcardnumber,orbankaccountnumber. Ifyourapp
+usesapaymentservice,thepaymentinformationisenteredoutsideyourapp,andyou
+asthedeveloperneverhaveaccesstothepaymentinformation,itisnotcollectedand
+doesnotneedtobedisclosed.
+CreditInfo Suchascreditscore
+OtherFinancialInfo Suchassalary,income,assets,debts,oranyotherfinancialinformation
+PreciseLocation Information that describes the location of a user or device with the same or greater
+resolutionasalatitudeandlongitudewiththreeormoredecimalplaces
+CoarseLocation Informationthatdescribesthelocationofauserordevicewithlowerresolutionthana
+latitudeandlongitudewiththreeormoredecimalplaces,suchasApproximateLoca-
+tionServices
+SensitiveInfo Such as racial or ethnic data, sexual orientation, pregnancy or childbirth information,
+disability,religiousorphilosophicalbeliefs,tradeunionmembership,politicalopinion,
+geneticinformation,orbiometricdata
+Contacts Suchasalistofcontactsintheuser’sphone,addressbook,orsocialgraph
+EmailsorTextMessages Includingsubjectline,sender,recipients,andcontentsoftheemailormessage
+PhotosorVideos Theuser’sphotosorvideos
+AudioData Theuser’svoiceorsoundrecordings
+GameplayContent Suchassavedgames,multiplayermatchingorgameplaylogic,oruser-generatedcon-
+tentin-game
+CustomerSupport Datageneratedbytheuserduringacustomersupportrequest
+OtherUserContent Anyotheruser-generatedcontent
+BrowsingHistory Informationaboutcontenttheuserhasviewedthatisnotpartoftheapp,suchasweb-
+sites
+SearchHistory Informationaboutsearchesperformedintheapp
+UserID Suchasscreenname,handle,accountID,assigneduserID,customernumber,orother
+user-oraccount-levelIDthatcanbeusedtoidentifyaparticularuseroraccount
+7
+DeviceID Suchasthedevice’sadvertisingidentifier,orotherdevice-levelID
+PurchaseHistory Anaccount’sorindividual’spurchasesorpurchasetendencies
+ProductInteraction Such as app launches, taps, clicks, scrolling information, music listening data, video
+views,savedplaceinagame,video,orsong,orotherinformationabouthowtheuser
+interactswiththeapp
+AdvertisingData Suchasinformationabouttheadvertisementstheuserhasseen
+OtherUsageData Anyotherdataaboutuseractivityintheapp
+CrashData Suchascrashlogs
+PerformanceData Suchaslaunchtime,hangrate,orenergyuse
+OtherDiagnosticData Anyotherdatacollectedforthepurposesofmeasuringtechnicaldiagnosticsrelatedto
+theapp
+OtherDataTypes Anyotherdatatypesnotmentioned
+Table 2.2: Developers must also report how each data type is being used, by specifying one or
+morepurposes.
+Purpose Definition
+Third-PartyAdvertising Suchasdisplayingthird-partyadsinyourapp,orsharingdatawithentitieswhodisplay
+third-partyads
+Developer’s Advertising or Suchasdisplayingfirst-partyadsinyourapp,sendingmarketingcommunicationsdi-
+Marketing rectlytoyourusers,orsharingdatawithentitieswhowilldisplayyourads
+Analytics Using data to evaluate user behavior, including to understand the effectiveness of ex-
+istingproductfeatures,plannewfeatures,ormeasureaudiencesizeorcharacteristics
+ProductPersonalization Customizing what the user sees, such as a list of recommended products, posts, or
+suggestions
+AppFunctionality Such as to authenticate the user, enable features, prevent fraud, implement security
+measures, ensure server up-time, minimize app crashes, improve scalability and per-
+formance,orperformcustomersupport
+OtherPurposes Anyotherpurposesnotlisted
+2.1.3 Issues with iOS Privacy Labels
+While iOS privacy labels are intended to help inform end-users about apps’ data practices, they
+are not without issue. Recent research suggests that developers face challenges in creating ac-
+curate privacy labels [24] [15]. After conducting interviews with iOS developers, the authors
+found that misconceptions about privacy labels often resulted in under- or over-reporting data
+collection[24]. Kochetal. conductedan“exploratorystatisticalevaluation”of11,074iOSapps,
+and found that only a “small number of apps provide privacy labels” [22]. They also conducted
+a dynamic analysis of a small subset of 1,687 apps, finding that 276 (16%) violated their own
+privacy labels by transmitting data without declaration [22]. This work expands on Koch et al.
+by conducting a broader statistical evaluation on a much larger dataset, and by investigating to
+8
+whatextentprivacylabelsareinconsistentwiththetextoftheirprivacypolicies.
+2.1.4 Generating iOS Privacy Labels
+WhileiOSprivacylabelshaveseveralissues,Lietal. suggestthatauto-generatingprivacylabels
+mighthelpincreasetheiraccuracy[24]. ToolssuchasPrivacyFlashPro,anditssuccessorPrivacy
+Label Wiz, aid developers in creating privacy policies and privacy labels for iOS apps [47] [15].
+ThesetoolsstaticallyanalyzeiOSappsourcecodeforsignaturessuchasplistpermissionstrings,
+import statements, and class instantiations. These code signatures are then used as evidence of
+privacy practices, which are then converted into privacy policies and iOS privacy labels [50]
+[15]. Importantly, these tools can help developers comply with regulations, such as GDPR,
+whichrequireaccurateprivacynotices[48].
+Whereas Gardner et al. only focused on a small subset of iOS privacy labels (9 of 32), this
+work aims to analyze data collection disclosure for all 32 data types [15]. Moreover, while [50]
+and [15] used static code analysis, this work uses state-of-the-art natural language processing
+techniques to generate privacy labels directly from the text of privacy policies and compare the
+predictedlabelswiththosereportedwithintheAppStore.
+2.2 Applicable Legislation
+Regulatory requirements for privacy disclosures vary by jurisdiction. However, the state of Cal-
+ifornia and the European Union – two of the largest digital markets – have stringent privacy
+disclosure requirements. California requires compliance through the CCPA and the European
+UnionthroughGDPR.Failuretoprovideaccurateprivacydisclosuresinbothjurisdictionscould
+havesignificantlegalramifications.
+2.3 Automated Mobile App Privacy Analyses
+With millions of mobile apps, automation is the only way to analyze privacy practices at scale.
+Automating this type of analysis has been extensively studied. Early work by Enck et al. pro-
+posed TaintDroid, an instrumented version of Android that analyzes potential misuses of user
+data in realtime [13]. The researchers discovered 68 potential instances of user data being mis-
+ued across 20 of the 30 apps analyzed [13]. Dynamic analysis systems, such as TaintDroid,
+actively run apps and monitor their behavior [13] [33]. While this gives a true representation
+of an app’s behavior, it has significant overhead – limiting scale. Dynamic analysis on mobile
+platforms is also largely limited to Android, as the iOS operating system is closed-source and
+unabletobeinstrumented,thoughrecentsystemshavefocusedoniOSaswell[42].
+A larger analysis of 17,991 Android apps was conducted by Zimmeck et al. by comparing
+privacy policies to static analyses of apps [47]. Static analysis was done by first decompiling
+apps [47]. Then, the researchers looked at permissions and call graphs to determine what types
+of user data were accessed and used by those apps [47]. The researchers found, that on average,
+9
+apps exhibited 1.83 potential privacy requirement inconsistencies – that is, apps tended to not
+disclosesometypesofbehaviorsintheirpolicies[47].
+A later study by Zimmeck et al. drastically increased the number of analyzed Android apps
+tooveronemillion[49]. Intheirstudy,theauthorsfoundthat49.1%ofappsdonothaveprivacy
+policies; however, statically analyzing decompiled app binaries indicated that 88.6% of apps
+engage in behaviors requiring policies. Moreover, the researchers found an average of 2.89
+potentialcomplianceissuesperapp.
+While the majority of studies have focused on the Android operating system, more recent
+research has been conducted on iOS. Kollnig et al. found that Apple’s recent change to require
+user permission for apps to access device identifiers (i.e. the IDFA), combined with increased
+transparencythroughtheuseofprivacylabels,makestrackingmoredifficult[23]. However,apps
+stillengageintrackingusingothermethods,suchasfingerprinting,wherebyindividualusersare
+identified probabilistically [23]. Balash et al. conducted a large-scale longitudinal analysis of
+the App Store [4]. Over the course of 36 weeks, the researchers analyzed weekly snapshots of
+1.6 million apps and their associated privacy labels [4]. They found that only 60.5% of apps
+provided privacy labels, and that 42.1% of apps with labels indicated they did not collect any
+data. However, the researchers concluded that since many apps that reported no data collection
+were likely to do so, the privacy labels were likely inaccurate [4]. Xiao et al. conducted a small
+scale privacy analysis by comparing the privacy labels and binaries of 5,102 iOS apps, finding
+manyinstancesofnon-compliance[42].
+2.4 Natural Language Processing Techniques for Document
+Classification
+Natural Language Processing (NLP) has been a cornerstone in semantically understanding and
+parsing privacy policies. Automated compliance systems, such as MAPS and ATLAS, require
+the use of NLP to analyze hundreds of thousands of privacy policies that would otherwise take
+humanannotatorsyearstoaccomplish. PastresearchhasdetailedtheeffectivenessofusingNLP
+techniques to analyze privacy policies. In particular, Story et al. explores how using established
+techniques for processing privacy policies – such a TF-IDF vectorization and logistic regres-
+sion – can achieve state-of-the-art results when used for compliance analysis [38]. The authors
+formulate the identification of privacy practice statements as a classification problem using an
+ensemble of classifiers (i.e. one classifier per privacy practice) [38]. Specifically, the authors fo-
+cusonassigningannotationlabelstopolicysegments(whichroughlycorrespondtoparagraphs)
+–withlabeleddatabeingpulledfromtheAPP-350corpus[38].
+This paper replicates the approach, with several key differences. First, instead of focusing
+on policy segments, this work formulates identification of data collection as a document clas-
+sification problem. Second, instead of using annotator labeled data (such as from the APP-350
+corpus), we use developer reported iOS privacy labels to describe the text of privacy policies.
+Unlikeannotatorlabeleddata,privacylabelsmaynotbeconsistentwiththetextofprivacypoli-
+ciesbecausedevelopersstruggletoaccuratelycreatethem[15][24]. Finally,weexperimentwith
+additional state-of-the-art model architectures for document classification. Similar to the paper,
+10
+weuseanensemble-basedapproachwhereeachdatatypeisidentifiedusingitsownclassifier.
+Documentclassificationisanextensivelyresearchedfield. Earlyresearchinthefieldyielded
+model architectures utilizing convolutional layers such as KimCNN and Char-CNN [21] [45].
+Later work utilized recurrent neural networks (RNNs) with attention mechanisms, such as Hier-
+archial Attention Networks, which were able to achieve state-of-the-art results [43]. In extreme
+multi-label document classification scenarios, where each document can be assigned a set of
+labelsnumberinginthehundredsorthousands,XML-CNNhasbeenshowntoproducestate-of-
+the-artresults[25]. However,sincethesearchspaceforthispaperisrelativelysmall(32labels),
+weuseasimplerapproach: trainingindividualmodelsforeachlabel.
+Currentstate-of-the-arttechniquesinNLParelargelybasedonthetransformermodel,which
+sidestepstraditionalmethodssuchasrecurrence[40]. Insteaditreliesentirelyonusingattention
+mechanisms to learn global dependencies between inputs and outputs [40]. Transformer based
+models,suchasBERTandRoBERTahavebeenshowntoachieveincredibleresultsinNLP[11]
+[26]. In the field of document classification, a tailored version of BERT, dubbed DocBERT, has
+been shown to achieve state-of-the-art results on popular document classification datasets [1].
+However, documents are typically longer than the maximum token length allowed by BERT,
+RoBERTa, and DocBERT: 512 tokens, where each token roughly corresponds to one word. To
+alleviate this, the Longformer model was proposed. Longformer increased the maximum token
+length to eight-fold what previous models were capable of [5]. This is particularly useful, as
+the median length of privacy policies – 2500 words – is quite large [28]. In an application of
+transformer based models to privacy, Ravichander et al. fine tuned BERT to answer privacy
+relatedquestionsaboutmobileappprivacypolicies[32].
+Whiletransformerbasedmodelsareabletoachieveincredibleresults,theycomewithtremen-
+dous computational overhead. Recognizing this, Adhikari et al. proposed the RegLSTM, a reg-
+ularized LSTM that was able to outperform several transformer models in popular document
+classification tasks [2]. Importantly, RegLSTM requires fewer resources to run, resulting in a
+far lower overhead than transformer based models [2]. Moreover, the reduced overhead enables
+RegLSTM to process documents far larger than even the Longformer model. In our experimen-
+tation,wewereabletoprocessprivacypoliciesinexcessof9000words. Moreinformationabout
+theformulationofourensemble-basedclassifierwillbepresentedinChapter4.
+11
+12
+Chapter 3
+A Distributed Pipeline for Automated
+Analysis
+3.1 iOS App Sampling Strategy
+Wefirstbeganbyidentifyingacandidatelistofappstoanalyze. Priorworkhasreliedoncrawling
+mobile app stores for app discovery; however, we found that not to be necessary for this work
+[49]. Fortunately, Apple publishes a categorized, alphabetical list of all available iOS Apps,
+includingpopularappspercategory[17]. OnJanuary29th,2023,wesystematicallycrawledand
+scrapedthewebsitetoassemblealistof918,293uniqueappsavailableontheUnitedStatesiOS
+AppStore. Ofthoseapps,4,846areclassifiedaspopularapps.
+Next, we devised a sampling strategy to pick a subset of apps to analyze. Conducting a
+simple random sample of the entire App Store is the easiest way to generate a representative
+sampleoftheentireAppStore;however,thisapproachislikelytomissheavy-hitters: frequently
+downloadedappsthataremorelikelytobepresentonusers’sdevices–popularapps. Conversely,
+sampling only popular apps leads to a biased representation of the App Store, as many apps are
+missed. Wedevisedahybridsamplingstrategytocreateasetofappslikelytobepresentonuser’s
+devices and an unbiased representation of apps available on the iOS App Store: we sampled all
+4,846 popular apps in addition to a randomly selected set of 350,000 non-popular apps. In total,
+ourfinaldatasetcomprisedof354,725apps,assomeapplistingswereunabletobeloaded.
+3.2 Identifying Privacy Policies
+iOS apps are required to provide a URL to their privacy policy. However, in many cases, these
+URLs would lead to landing pages, or other unrelated webpages. To accurately obtain privacy
+policies,wedevelopedalogisticregressionclassiertodetermineifpageswereEnglish-language
+privacy policies, similar to prior work [49]. We collected 918 webpages linked to by iOS app
+privacy policies, of which 618 (67.3%) where legitimate policies, and 300 were unrelated web-
+pages. Beautiful Soup 4 (BS4) was used to extract text from the downloaded pages, which were
+then vectorized using scikit-learn’s TF-IDF implementation. We used k-fold cross validation to
+gridsearchoverseveralregularizationvalues(C = [1.0, 2.0, 512, 1024]).
+13
+We then evaluated our trained classifier on a separate unseen test set, with 64 positive exam-
+ples and 42 negative examples. Our classifier was able to achieve 98.1% accuracy with an F1
+scoreof98.4%(precision=100%,recall=96.9%).
+To run our system within a reasonable amount of time, we only classified pages directly
+linked to by the provided privacy policy URL. We did not crawl websites to discover privacy
+policies.
+3.3 Design of a Distributed Infrastructure
+Figure3.1: AdiagramoftheATLASdatacollectionpipeline.
+The scale of our study necessitated the design, development, and deployment of a highly
+parallelizable and distributed data collection pipeline. This enabled us to collect all data within
+a relatively short window. To this end, we created an infrastructure as depicted in Figure 3.1.
+We utilized a driver node to coordinate work between N worker nodes. Each worker node ran
+a headless Firefox browser to replicate a real-world browser. This gave us the ability to capture
+dynamically loaded content and follow any webpage redirects – emulating the experience of a
+realuser. Sincewecontinuouslyhitthesamebasedomain(https://apps.apple.com)to
+scrape app pages, rate-limiting was a concern. To mitigate that, we utilized a pool of N proxy
+servers(oneperworker)toincreasethenumberofavailableIPaddresses. TheSOCKS5protocol
+wasusedtoconnectworkernodestoproxies. Afterwebpageswereretrieved,theyweresavedin
+ashareddatabase.
+WebegandatacollectiononJanuary29th,2023,andoursystemranuntilJanuary31st,2023.
+We completed data collection in two phases. Phase 1 focused on downloading app listings from
+the iOS App Store, and Phase 2 focused on downloading privacy policies. We used slightly
+different configurations for each phase. Phase 1 utilized one driver node with 49 worker nodes
+and 49 proxies; whereas Phase 2 used one driver node with 80 worker nodes and no proxies.
+ProxieswerenotrequiredinPhase2sinceprivacypolicieswerehostedondifferentdomains,so
+rate-limitingwasnotaconcern.
+14
+Figure 3.2: A diagram of the number of processed apps over time. Data collection began on
+January29th,2023andendedonJanuary31st,2023.
+As depicted in Figure 3.2, Phase 1 ran at a rate of approximately 21,000 apps per hour.
+Around the 7.5 hour mark, our proxy servers initiated a nightly-reboot cycle, which caused the
+ratetodiminish. Aftermanualintervention,oursystempickedbackuparoundthe15hourmark.
+9 proxy servers were no longer responsive, so our rate slowed to approximately 19,000 apps per
+hour. Phase2beganaroundhour26atanaveragerateof20,500appsperhour.
+At around hour 45, we reran Phases 1 and 2 in an attempt to re-download app listings and
+privacy policies that timed out. We reran Phase 2 once more around the 60 hour mark to collect
+thefinalsetofprivacypolicies. Intotal,wewereabletocollect345,725apps.
+Figure3.3: Adepictionofthenumberofappspercategory.
+15
+Throughtheuseofoursystem,wewereabletocollectatotalof345,725apps. Thisnumber
+was slightly lower than the total number of sampled apps, as some apps were unreachable. We
+then conducted a preliminary analysis of downloaded data. As depicted in Figure 3.3, Games
+were the most popular app within our sample and Developer Tools was the least popular. Addi-
+tionally, popular apps were approximately uniformly distributed among all categories; however,
+theStickerscategorywasanexception,withnopopularapps.
+3.4 Privacy Policy and Privacy Label Adoption
+(a)ProportionofPrivacyPolicies (b)ProportionofPrivacyPoliciesandPrivacyLabels
+Figure 3.4: Figure 3.4a depicts the proportion of webpages linked to by reported privacy policy
+URLsintheiOSAppStore. Figure3.4bdepictstheproportionofappsprovidingprivacypolicies
+andprivacylabelsintheiOSAppStore.
+We found several interesting trends upon analysis of downloaded apps. Even though apps
+are required to link to privacy policies, a substantial number of apps provided extraneous links
+instead. AsdepictedinFigure3.4b,5.0%ofappsprovideddeadlinks. Moreover,54.7%ofapps
+provided links that led to extraneous webpages, such as landing pages, home pages, and 404s.
+Only 40.3% of apps provided direct links to legitimate privacy policies, which we characterized
+asaccessibleprivacypolicies.
+Next,weanalyzedtheadoptionrateofprivacylabels. Applebeganrequiringappspublished
+or updated after December 2020 include privacy labels. Interestingly, we discovered that 62.5%
+ofsampledappsprovidedprivacylabels. Anumbersubstantiallyhigherthanthosethatprovided
+accessible privacy policies. As depicted in Figure 3.4b, only 29.6% of apps (105,131 apps)
+provided both accessible privacy policies and privacy labels. We focused on this subset of apps
+toconductourcomplianceanalysis.
+Finally, we analyzed the most common types of reported data collection, as show in Figure
+3.5. Unsurprisingly, the most common data type collected was Crash Data, followed by Product
+Interaction and Email Address. Interestingly, Gameplay Content was the second least reported
+type of data collected, even though Games were the most common type of app in our dataset
+16
+Figure3.5: Adepictionofthenumberofappsusingdeclaringcollectionofeachdatatype.
+(and in the App Store), as shown in Figure 3.3. Also indicated is the number of popular apps
+reportingcollectionofeachdatatype: thedistributionofcollectionacrossdatatypesforpopular
+appsapproximatelyfollowsthesamedistributionasappsavailableinthebroaderAppStore.
+17
+18
+Chapter 4
+Autogenerating Privacy Labels from
+Privacy Policies
+Wenextfocusedoureffortsonpredictingprivacylabelsfromprivacypolicies. Weformulatedthe
+task as a supervised multi-class, multi-label document classification problem, where the input is
+aprivacypolicy,andtheoutputisasetofcollecteddatatypes,asindicatedbytheprivacypolicy.
+Wetargetedthesame32datatypesincludediniOSprivacylabels(2.1.2).
+iOS privacy labels include what data types are collected, and require developers to indicate
+how each data type is used (up to six purposes), if it is linked to the user, and if it can be used
+to track the user. Instead, we focused only on identifying which data types were collected. This
+enabled us to more precisely focus efforts by reducing search space complexity by a factor of
+eight.
+To avoid challenges associated with single model multi-label classification, we treated pre-
+dicting each data type as an independent binary classification problem. That is, we created 32
+models,whereeachmodelwouldberesponsibleforpredictingasingledatatype. Whilethisdid
+increaseoverallruntime,itgreatlysimplifiedmodelcomplexity.
+4.1 Dataset Construction
+Unlikepriorresearch,whichusedhighqualityannotatorlabeledprivacypolicies,wereliedsolely
+on developer reported privacy labels to learn from privacy policies [38] [49]. We began by
+filtering our downloaded set of apps to those which provided both privacy policies and privacy
+labels. This left us with 105,131 iOS apps. However, upon analysis, we found many privacy
+policies to be shared among apps – developers likely reused the same privacy policy among
+many of their apps. We determined policy uniqueness by comparing privacy policy URLs for
+exact matches, though a more sophisticated system that looks at the cosine similarity of privacy
+policy text would likely find matches among identical policies with different URLs. However,
+we found our system to be adequate, as its simplicity yielded performant runtime. In total, we
+found34.5%ofpoliciestobeduplicates,leavinguswith68,863uniqueprivacypolicies.
+Carewastakentopreservethestructureofdifferingprivacylabelsforidenticalprivacypoli-
+cies. We assumed that shared privacy policies are written generally, so as to be applicable to
+19
+multiple apps. Privacy labels, however, are constructed on a per app basis; therefore, they only
+represent a subset of the privacy policy. As a result, we reasoned that when duplicate policies
+weremergedtogether,theirprivacylabelsneededtobecombinedbytakingtheunionofcollected
+data types. For example, if the same privacy policy was associated with one privacy label that
+declared collection of {Name, Email Address, Precise Location} while another
+declared {Name, Physical Address}, the resulting merged privacy label would declare
+{Name, Email Address, Physical Address, Precise Location}.
+4.2 Sampling Procedure
+While using developer reported privacy labels enabled us to build a training corpus almost a
+hundred times larger than previous work, our data was expected to be somewhat “noisy” [38]
+[49]. Smaller scale analyses in the past suggest that privacy labels may not be accurate [24]
+[15]. While much work has been dedicated to learning from noisy, mislabeled data ([37], [46]),
+it is “unfair and unreasonable to have noise in the” testing data [6]. We outline a technique for
+importancesamplingtohelpreducenoisewhencreatingtrainingandtestingdatasets. Forclarity,
+wedefinethefollowingtermsusedwithinthissection:
+• A Positive instance is a privacy policy associated with a privacy label that reported a par-
+ticulardatatypeasbeingcollected.
+• A Negative instance is a privacy policy associated with a privacy label that reported a
+particulardatatypeasnotbeingcollected.
+Figure 4.1: Random samples of Name (left), Precise Location (middle), and Credit Info (right).
+Each point is a t-SNE representation of a privacy policy TF-IDF embedding. Point colors cor-
+respondtodeveloperreportedvaluesfordatacollectionwhere“Positive”indicatesthedatatype
+wascollectedand“Negative”indicatestheparticulardatatypewasnotcollected.
+Figure 4.1 characterizes how noisy the underlying data was. We provided random samples
+for three data types: Name, Precise Location, and Credit Info. For each data type, we ran-
+domly sampled 500 policies with positive instances, and 500 policies with negative instances.
+We then extracted an embedding from each policy using TF-IDF vectorization and created a
+two-dimensionalrepresentationusingt-SNE[39]. FortheNameandPreciseLocationdatatypes,
+20
+there is significant overlap between positive and negative instances and no clear distinction be-
+tween the two groups; this suggests that many policies might be mislabeled. Credit Info, on the
+other hand, has a much clearer distinction between the two groups, likely because accurately
+disclosingcollectionandprocessingoffinancialinformationismandatedbylaw[8].
+Figure4.2: ClustersappearinginrandomsamplesofName(left),PreciseLocation(middle),and
+Credit Info (right). Each point is a t-SNE representation of a privacy policy TF-IDF embedding.
+Point colors correspond to DBSCAN clusters, where light grey points are outliers, and all other
+coloredpointsareclusterinliers.
+However, as depicted in Figure 4.2, natural clusters tended to appear within the randomly
+sampled data. Points were clustered using DBSCAN – since the number of clusters was not
+known a priori and the underlying data contains some noise – after performing Latent Semantic
+Analysis (LSA) on the high dimensional TF-IDF embeddings [14] [12]. LSAwas performed by
+usingTruncatedSVDtoprojectthehigh-dimensionaldataonto10components. Wereasonedthat
+these clusters are semantically similar privacy policies, and should therefore all have the same
+privacy label (either positive or negative). For example, if a cluster had 20 positive instances
+and 5 negative instances, then the negative instances could potentially be mislabeled, since the
+contentoftheirprivacypoliciesweresimilartomanypositiveinstances.
+We assigned clusters a positive or negative label by conducting a two-proportion z-test that
+compared the incidence of positive to negative labels within a cluster. If a cluster had a statis-
+tically significantly larger proportion (i.e. p < 0.05) of one class than the other, we assigned
+the cluster the label of the more prominent class. In cases where determining cluster labels was
+inconclusive(i.e. p≥0.05),wedisregardedtheclusterentirely. Wethencomputedcentroidsfor
+allpositiveandnegativeclusters.
+Finally, to construct a dataset of size N, with N positive and N negative examples, we con-
+2 2
+ducted a random oversample of N instances per class. Then, for each class, we selected the
+N examples closest to the class centroids, effectively sampling points closer to centroids with
+2
+higher probability than those farther away. We also equally weighted the contribution of each
+class centroid. Each of the C centroids had approximately N examples associated with it. To
+2C
+accountforedgecaseswherenoclusterswereidentified,wefellbacktoasimplerandomsample.
+This process was used to construct the test (N = 150), validation (N = 150), and training
+sets (N = 1000), for each data type. We had 4,376 unique examples within the test sets, 4,262
+21
+uniqueexampleswithinthevalidationsets,and22,262uniqueexampleswithinthetrainingsets.
+Intotal,weused30,900uniqueprivacypoliciestotrainandevaluateourclassifiers.
+Figure 4.3: Importance samples of Name (left), Precise Location (middle), and Credit Info
+(right). PointsarevisualizedusingthesamemethodologyasinFigure4.1.
+Intuitively, our sampling procedure can be thought of focusing on high-density areas with
+largeamountsofinformationmorelikelytobelabeledcorrectly. Pointsontheedgehavealower
+probabilityofbeingselected: theyareassumedtobelesslikelytobelabeledcorrectly,therefore
+contributinglessusefulinformation. Figure4.3demonstrateshowimportancesamplingcreatesa
+clearseparationbetweenthepositiveandnegativeclasses,incontrasttorandomsamplingshown
+inFigure4.1.
+4.3 Model Selection
+After constructing the datasets, we trained using several model architectures. We used logistic
+regression as our baseline architecture, with a similar configuration to prior work [38]. We then
+graduatedtousingmorecomplexarchitectures: multilayerperceptron(MLP),RegLSTM,BERT,
+RoBERTa,andLongformer. Weconductedextensivehyperparametertuningforeachmodel,per
+data type. Since we were training a separate model per data type, we created a final “ensemble”
+modelutilizingacombinationofarchitecturesthatmaximizedvalidationMacroF1Score.
+Models were trained using PyTorch on four NVIDIA GeForce RTX 2080 Ti GPUs [30].
+In total, it took approximately 48 hours to hyperparameter tune and train 32 models across 6
+differentarchitectures.
+22
+4.3.1 Logistic Regression (Baseline)
+We first began with logistic regression, our baseline model. We vectorized privacy policies us-
+ingscikit-learn’sTF-IDFvectorizerusingEnglishstopwordsstop words=‘english’with
+unigrams and bigrams (ngram range=(1,2)), similar to prior work [38] [49]. We hyperpa-
+rameter tuned by grid searching across batch sizes of 50 and 100; weight decay of 0 and 10-5;
+and TF-IDF binary term counts (binary=True and binary=False). Hyperparameter tun-
+ing was performed per data type. After finding optimal configurations, we trained for 20 epochs
+perdatatype.
+Figure4.4: LogisticRegression(baseline)validationresultsperdatatype.
+AsshowninFigure4.4,logisticregressionservedasastrongbaseline,withanaverageMacro
+F1scoreacrossdatatypesof93.4%. Infact,severaldatatypes–EmailsorTextMessages,User
+ID,PurchaseHistory,andProductInteraction–hadMacroF1scoresof100%.
+23
+4.3.2 Multilayer Perceptron
+We next trained using a slightly more complex architecture: a multilayer perceptron (MLP)
+with a single hidden layer. Privacy policy vectorization was identical to the baseline model
+(4.3.1). However, we performed a more extensive hyperparameter tuning step by grid search-
+ing across batch sizs of 50 and 100; weight decay of 0 and 10-5; TF-IDF binary term counts
+(binary=True and binary=False); hidden layer sizes of 128 and 256; and dropout prob-
+abilites of 0.4 and 0.6. Similar to the baseline model, hyperparameter tuning was performed per
+datatype. Afterfindingoptimalconfigurations,wetrainedfor20epochsperdatatype.
+Figure 4.5: MLP validation results per data type are shown on the left, and improvement over
+thebaselinemodelisshownontheright.
+AsshowninFigure4.5,usinganMLPintroducedmodestperformanceimprovements(mea-
+suredbypercentageimprovementoverbaselineMacroF1scores)acrossseveraldatatypes,with
+thelargestincreasesbeingamongHealth,OtherFinancialInfo,andContacts.
+24
+4.3.3 RegLSTM
+Next,weevaluatedtheRegLSTMmodel. IntroducedbyAdhikarietal.,theRegLSTMfallsinto
+the category of recurrent neural networks [2]. Importantly, RegLSTM has lower computational
+overhead than more complex models (such as BERT), yet is still able to achieve state-of-the-art
+resultsonpopularbenchmarkdatasets[2]. WeusetheimplementationofRegLSTMprovidedby
+theHedwigtoolkit[3]. Wemadeonechangefromtheprovidedimplementation: insteadofusing
+word2vec embeddings, we utilized GloVe, finding that the latter embedding method to have
+broader support within PyTorch [29] [31]. While the maximum sequence length for RegLSTM
+is unbounded, we chose to use 5,000 words. This struck a balance between runtime and privacy
+policylength(themedianpolicylengthwascloseto2,000words).
+We then performed hyperparameter tuning using grid search across 1 and 2 network layers;
+static and non-static embed modes; and weight decay of 0, 10-5, and 10-4. Similar to
+prior architectures, hyperparameter tuning was performed per data type. After finding optimal
+configurations,wetrainedfor20epochsperdatatype.
+Figure 4.6: RegLSTM validation results per data type are shown on the left, and improvement
+overthebaselinemodelisshownontheright.
+AsshowninFigure4.6,theRegLSTMshowssubstantialimprovementinseveralcategories,
+such as Fitness, Other Financial Info, Contacts, and Other Usage Data. However, several cat-
+egories, such as Other User Contact Info and Advertising Data, perform notably worse than
+baseline.
+25
+4.3.4 BERT
+We next move onto transformer based models. We fine-tuned BERT for sequence classifica-
+tion,usingtheimplementationprovidedbyHuggingFaceandthebert-base-uncasedbase
+model [41]. BERT has been shown to achieve state-of-the-art results on popular NLP bench-
+mark datasets, and we hope to replicate similar performance in the context of this work [11].
+As before, we perform hyperparameter tuning by grid searching across weight decays of 10-5,
+2×10-4,and10-3. Hyperparametertuningwasperformedperdatatype,andafterfindingoptimal
+configurations,wetrainedfor10epochs.
+Since BERT has a maximum token length of 512, we truncated privacy policies to the first
+512tokens.
+Figure 4.7: BERT validation results per data type are shown on the left, and improvement over
+thebaselinemodelisshownontheright.
+Figure 4.7 shows that BERT perfoms significantly better than baseline in several categories,
+including Fitness, Payment Information, and Audio Data. However, like the RegLSTM, it also
+performsnotablyworseonseveraldatatypes,suchasSearchHistory.
+26
+4.3.5 RoBERTa
+We also evaluated RoBERTa on our dataset. RoBERTa is robustly optimized version of BERT
+that outperforms it on standard NLP benchmarks [26]. We a fine-tuned RoBERTa for sequence
+classificationusingtheimplementationprovidedbyHuggingFaceandtheroberta-basebase
+model[7]. Asbefore,weperformhyperparametertuningbygridsearchingacrossweightdecays
+of10-5,2×10-4,and10-3. Hyperparametertuningwasperformedperdatatype,andafterfinding
+optimalconfigurations,wetrainedfor10epochs.
+Since RoBERTa has a maximum token length of 512, we truncated privacy policies to the
+first512tokens.
+Figure 4.8: RoBERTa validation results per data type are shown on the left, and improvement
+overthebaselinemodelisshownontheright.
+As shown in Figure 4.8, RoBERTa outperforms the baseline model in several categories,
+such as Contacts and Crash Data. However, similar to BERT, it underperforms in several other
+categories,suchasSearchHistory.
+27
+4.3.6 Longformer
+Finally, we evaluated Longformer on our dataset. While BERT and RoBERTa are able to out-
+perform the baseline model for several data types, they are limited by their token length of 512
+tokens. Sinceatokenapproximatelycorrespondstoasingleword(althoughtypicallyitisasub-
+word), BERT and RoBERTa exclude large chunks of privacy policies, since the median length
+is approximately 2,000 words. Longformer aims to solve this by expanding the maximum token
+length to 4096. However, due to computational constraints (i.e. exceeding GPU memory con-
+straings), we had to limit token length to 1536 (triple that of BERT / RoBERTa). As before, we
+performhyperparametertuningbygridsearchingacrossweightdecaysof10-5,2×10-4,and10-3.
+Hyperparameter tuning was performed per data type, and after finding optimal configurations,
+wetrainedfor8epochs.
+Figure 4.9: Longformer validation results per data type are shown on the left, and improvement
+overthebaselinemodelisshownontheright.
+Figure 4.9 shows that Longformer was able to outperform the baseline model considerably
+in several categories. Of note, it was the only model to outperform baseline for the Name and
+Other Data Type categories. However, like previous transformer models, it underperformed for
+severaldatatypes,suchasDeviceID.
+28
+4.3.7 Ensemble
+Figure 4.10: Ensemble validation results per data type are shown on the left, and improvement
+overthebaselinemodelisshownontheright.
+Our final model was constructed with an ensemble of architectures. Since each data type
+was trained separately, we selected the architecture that maximized the Macro F1 score for that
+data type. In the case that multiple models have identical Macro F1 scores, we selected the
+simplest model. Figure 4.10 shows the selection of architecture per data type, as well as overall
+improvement over baseline. No singular data model dominated; however, the baseline model
+washighlycompetitivecomparedtomorecomplexmodels.
+29
+4.4 Model Performance
+Figure4.11: Ensembletestresultsperdatatype
+Finally, we evaluated our ensemble of models on an unseen set of test data. Figure 4.11
+shows the test Macro F1 score achieved per data type. Overall, we were able to achieve an
+averageaccuracyof91.3%andanaverageMacroF1scoreof91.3%acrossallclasses. Notably,
+wewereabletoachieveaMacroF1scoreof100%forCreditInfo,withseveralotherdatatypes
+beingthehigh-90s.
+Table4.1providesdetailedstatisticsaboutmodelperformanceonthetestdataset.
+30
+Table 4.1: The following table summarizes the performance of the final ensemble model on the
+testdataset.
+TestAcc Acc MacroF1 F1 Prec Recall
+Name 0.95 [0.99,0.92] 0.95 [0.95,0.95] [0.93,0.99] [0.99,0.92]
+EmailAddress 0.93 [0.89,0.96] 0.93 [0.92,0.93] [0.96,0.90] [0.89,0.96]
+PhoneNumber 0.93 [0.91,0.95] 0.93 [0.93,0.93] [0.94,0.91] [0.91,0.95]
+PhysicalAddress 0.97 [0.95,1.00] 0.97 [0.97,0.97] [1.00,0.95] [0.95,1.00]
+OtherUserContactInfo 0.98 [0.96,1.00] 0.98 [0.98,0.98] [1.00,0.96] [0.96,1.00]
+Health 0.95 [0.92,0.97] 0.95 [0.95,0.95] [0.97,0.92] [0.92,0.97]
+Fitness 0.93 [0.93,0.92] 0.93 [0.93,0.93] [0.92,0.93] [0.93,0.92]
+PaymentInfo 0.97 [0.99,0.96] 0.97 [0.97,0.97] [0.96,0.99] [0.99,0.96]
+CreditInfo 1.00 [1.00,1.00] 1.00 [1.00,1.00] [1.00,1.00] [1.00,1.00]
+OtherFinancialInfo 0.99 [0.97,1.00] 0.99 [0.99,0.99] [1.00,0.97] [0.97,1.00]
+PreciseLocation 0.97 [0.96,0.99] 0.97 [0.97,0.97] [0.99,0.96] [0.96,0.99]
+CoarseLocation 0.84 [0.79,0.89] 0.84 [0.83,0.85] [0.88,0.81] [0.79,0.89]
+SensitiveInfo 0.93 [0.89,0.96] 0.93 [0.92,0.93] [0.96,0.90] [0.89,0.96]
+Contacts 0.99 [1.00,0.99] 0.99 [0.99,0.99] [0.99,1.00] [1.00,0.99]
+EmailsorTextMessages 0.94 [0.88,1.00] 0.94 [0.94,0.94] [1.00,0.89] [0.88,1.00]
+PhotosorVideos 0.93 [0.91,0.95] 0.93 [0.93,0.93] [0.94,0.91] [0.91,0.95]
+AudioData 0.97 [0.96,0.97] 0.97 [0.97,0.97] [0.97,0.96] [0.96,0.97]
+GameplayContent 0.93 [0.92,0.93] 0.93 [0.93,0.93] [0.93,0.92] [0.92,0.93]
+CustomerSupport 0.92 [0.92,0.92] 0.92 [0.92,0.92] [0.92,0.92] [0.92,0.92]
+OtherUserContent 0.94 [0.89,0.99] 0.94 [0.94,0.94] [0.99,0.90] [0.89,0.99]
+BrowsingHistory 0.71 [0.73,0.69] 0.71 [0.72,0.71] [0.71,0.72] [0.73,0.69]
+SearchHistory 0.85 [0.80,0.89] 0.85 [0.84,0.85] [0.88,0.82] [0.80,0.89]
+UserId 0.97 [0.96,0.97] 0.97 [0.97,0.97] [0.97,0.96] [0.96,0.97]
+DeviceId 0.85 [0.77,0.93] 0.85 [0.84,0.86] [0.92,0.80] [0.77,0.93]
+PurchaseHistory 0.89 [0.80,0.99] 0.89 [0.88,0.90] [0.98,0.83] [0.80,0.99]
+ProductInteraction 0.99 [1.00,0.99] 0.99 [0.99,0.99] [0.99,1.00] [1.00,0.99]
+AdvertisingData 0.88 [0.88,0.88] 0.88 [0.88,0.88] [0.88,0.88] [0.88,0.88]
+OtherUsageData 0.75 [0.67,0.83] 0.75 [0.72,0.77] [0.79,0.71] [0.67,0.83]
+CrashData 0.94 [0.92,0.96] 0.94 [0.94,0.94] [0.96,0.92] [0.92,0.96]
+PerformanceData 0.77 [0.68,0.87] 0.77 [0.75,0.79] [0.84,0.73] [0.68,0.87]
+OtherDiagnosticData 0.97 [0.93,1.00] 0.97 [0.97,0.97] [1.00,0.94] [0.93,1.00]
+OtherDataTypes 0.70 [0.77,0.63] 0.70 [0.72,0.68] [0.67,0.73] [0.77,0.63]
+31
+32
+Chapter 5
+Compliance Analysis
+After training our ensemble-based classifier, we used it to predict privacy labels for the remain-
+ing privacy policies. After removing training data, we were left with a set of privacy policies
+correspondingto61,596iOSapps. Thefollowinganalysisispresentedforthoseapps.
+5.1 Characterizing Potential Compliance Issues
+(a)ProbabilityDistributionforName (b)ProbabilityDistributionforPreciseLocation
+Figure 5.1: Shown here are two probability distributions (Name and Precise Location) after
+running our ensemble-based classifier on the entire set of privacy policies (excluding training
+data). Thisfigurecharacterizesclassifierconfidenceforeachdatatype.
+We first begin by characterizing a potential compliance issue. For an arbitrary app, let P be
+thesetofdatatypescollectedasdisclosedbyanapp’sprivacypolicy,andletLbethesetofdata
+types collected as disclosed by its privacy label. Let D represent the set of all data types, and
+ˆ
+let d ∈ D be a single data type. We use d to denote a predicted data type. For our purposes,
+|D| = 32. Bydefinition,wecanwriteP ⊆ D andL ⊆ D.
+33
+ThefirsttypeofpotentialcomplianceissueisanIncompletePrivacyPolicy(oftenshortened
+toIncompletePolicyintherestofthesection):
+ˆ
+∃d ∈ D,suchthat(d (cid:54)∈ P)∧(d ∈ L)
+Intuitively, an incomplete policy means that a privacy policy does not disclose the collection
+of a data type, while its developer reported privacy label does. While, this type of discrepancy
+can be interpreted as an over-reported privacy label disclosure, privacy labels in iOS default to
+non-disclosure. That is, developers have to manually indicate their app collects a particular data
+type, which is indicative of an underlying reason for disclosure. As a result, we believe that
+characterizingthistypeofdiscrepancyasan“IncompletePrivacyPolicy”ismorereasonable.
+ThesecondtypeofpotentialcomplianceissueisanIncompletePrivacyLabel(oftenshort-
+enedtoIncompleteLabel):
+ˆ
+∃d ∈ D,suchthat(d ∈ P)∧(d (cid:54)∈ L)
+Intuitively, an incomplete label is when collection of a data type is disclosed within a privacy
+policy, but not within the developer reported privacy label. Similar to before, this type of dis-
+crepancycanbeinterpretedasanover-reportedprivacypolicy;however,wereasonthattheeffort
+to include legal text about data collection within a policy is indicative of an underlying reason.
+Therefore, we believe it to be more appropriate to characterize this type of discrepancy as an
+“IncompletePrivacyLabel.”
+Potentialcompliance issuesare ona perdata typebasis. Thismeans thatthe totalnumber of
+potentialcomplianceissuesperappiscappedat32(oneperdatatype).
+We also took care to ensure that we only identified potential compliance issues with high
+probability. Figure 5.1, shows the probability that a policy collects a particular data type (i.e.
+p ). Since we formulated this as a binary classification problem for each data type, p =
+dˆ∈P dˆ(cid:54)∈P
+1 − p . For example, as shown in 5.1a, most policies have a high probability of collecting
+dˆ∈P
+name, or a high probability of not collecting Name; however, for many policies, it is uncertain
+thattheycollectPreciseLocation(Figure5.1b),asmanyprobabilitiesarenear50%. So,weonly
+considered
+ˆ
+(d (cid:54)∈ P) ⇐⇒ (p < 0.25)
+dˆ∈P
+ˆ
+(d ∈ P) ⇐⇒ (p > 0.75)
+dˆ∈P
+which is depicted by the two vertical lines in Figures 5.1a and 5.1b. Intuitively, we only consid-
+eredpredictionswithhighprobability;otherwise,weclassifythepredictionas“Inconclusive.”
+34
+5.2 Potential Compliance Issues by Data Type
+(a)IncompletePolicies (b)IncompleteLabels
+Figure5.2: Potentialcomplianceissuesbydatatype.
+Weofferabreakdownofcomplianceissuesbydatatype,asshowinFigure5.2. Figure5.2a,
+shows the rate of incomplete policies by data type. The percentage for each data type, d ∈ D, is
+thetotalnumberofincompletepoliciesforddividedbythetotalnumberofappswhereL ⇒ d .
+1
+For example, 27.7% of apps have privacy policies that do not declare collection of Name, even
+whentheirprivacylabelsdo.
+Similarly, Figure 5.2b shows the rate of incomplete labels by data type. The percentage for
+eachdatatype,d ∈ D,isthetotalnumberofincompletelabelsforddividedbythetotalnumber
+of apps where L ⇒ d . For example, 42.9% of apps have privacy labels that do not declare
+0
+collectionofName,evenwhentheirprivacypoliciesdo.
+Of particular note are the high rates of incomplete policies within financial disclosures:
+62.4% of apps declaring Credit Info and 63.9% of apps declaring Other Financial Info on their
+privacylabelshaveincompleteprivacypolicies. Thisparticularsetofpotentialcomplianceissues
+couldbeaviolationoftheGramm-Leach-BlileyAct[8].
+While it may seem that incomplete policies are more prevalent than incomplete labels, it is
+important to note that for most data types, d, the number of apps declaring they do not collect d
+is typically higher than the number of apps declaring they do collect d. We discuss this more in
+Section5.4.
+35
+5.3 Potential Compliance Issues by Category
+(a)IncompletePolicies (b)IncompleteLabels
+Figure5.3: Potentialcomplianceissuesbycategory.
+Next,wecharacterizetheratesofpotentialcompliancesbyappcategory,asshowninFigure
+5.3. Figure 5.3a depicts the percentage of apps per category with at least one incomplete policy
+discrepancy. Figure 5.3b similarly depicts the percentage of apps per category with at least one
+incompletelabeldiscrepancy.
+As is shown within the two graphs, both types of potential compliance issues are approxi-
+mately uniformly distributed across categories, with the notable exception of the Stickers cate-
+gory,whenanalyzingincompleteprivacypolicies(likelyduetomanyerrorsbeinginconclusive).
+Interestingly,theratesbetweenthetwotypesoferrorsarequitedifferent: appsarefarlesslikely
+tohaveincompletepolicies(themaximumdiscrepancyratepercategoryis40.75%)thanincom-
+pletelabels(whereallcategorieshavediscrepancyratesbetween80%and100%).
+36
+5.4 Distribution of Potential Compliance Issues
+(a)DistributionofPotentialComplianceIssues (b)CDFofPotentialComplianceIssues
+Figure5.4: Ontheleftisagraphofthedistributionofthedifferenttypesofpotentialcompliance
+issues,andontherightisaCDFofthedifferenttypesofpotentialcomplianceissues.
+Table5.1: Thistableprovidesacumulativedistributionofpotentialcomplianceissues.
+IncompletePolicies(%) IncompleteLabels(%) Both(%)
+1ormorediscrepancies 26.8 85.7 88.0
+2ormorediscrepancies 14.3 72.9 76.1
+3ormorediscrepancies 8.5 61.3 65.0
+Figure5.4 showsthedistributionand cumulative distributionofpotentialcompliance issues.
+In particular, incomplete policies are far less common than incomplete labels, with apps having
+an average of 0.62 incomplete policy discrepancies and 4.698 incomplete label discrepancies.
+Whenlookingatthecombinationofincompletepolicyandlabelerrors,appshave5.32potential
+compliance issues on average. The lower rate of incomplete policy errors is clearly represented
+byFigure5.4a,asthebucketfor0complianceissuesisfarlargerthanforincompletelabels(note
+that there is a break in the graph between 10,000 and 42,000 on the y-axis, so the depiction is
+lessexaggerated).
+Figure 5.4b depicts the CDF for each data type, which makes it much clearer to examine
+differences between distributions. Of note, 26.8% of apps have at least one incomplete policy
+discrepancy and 85.7% of apps have at least one incomplete label discrepancy. When analyzing
+both incomplete policies and labels, 88.0% of apps have at least one discrepancy. We provide
+additionalpercentagesinTable5.1.
+37
+5.5 App Rating vs Number of Potential Compliance Issues
+(a)RatingvsIncompletePolicyDiscrepancies (b)RatingvsIncompleteLabelDiscrepancies
+Figure 5.5: The graph on the left depicts the correlation with respect to incomplete policy dis-
+crepancies, and the graph on the right depicts the correlation with respect to incomplete label
+discrepancies. Darker points represent a larger number of apps (iOS App Store ratings are dis-
+cretizedintenthsanddiscrepanciesareintegers). Theshadedregionaroundeachlinerepresents
+a95%confidenceinterval.
+We also compared the trend between app rating and number of potential compliance issues,
+asshowninFigure5.5. Surprisingly,forincompletepolicycomplianceissues,wefoundaweak,
+significant positive correlation (r = 0.04, p < 0.05) between app rating and number of incom-
+plete policy discrepancies. That is, as the number of incomplete policy discrepancies increase,
+theappratingtendstoincrease.
+While the previous result was surprising, the relationship between app rating and incom-
+plete label discrepancies is as expected: we found a weak, significant negative correlation (r =
+−0.011, p < 0.05). That is, as the number of incomplete label discrepancies increase, the app
+ratingtendstodecrease.
+38
+5.6 Potential Compliance Issues Among Popular vs Other Apps
+Figure 5.6: A depiction of the average number of discrepancies among popular and other apps.
+DiscrepanciestypesarecategorizedbyIncompletePolicies,IncompleteLabels,andBoth.
+Table 5.2: This table provides the average number of discrepancies among popular and other
+apps, categories by discrepancy type. Discrepancy types with significant difference (p < 0.05)
+aresignifiedwith∗
+AvgDiscrepanciesforPopularApps AvgDiscrepanciesforOtherApps pvalue
+IncompletePolicies 0.67 0.66 0.877
+IncompleteLabels 4.48 4.78 0.005∗
+Both 5.15 5.44 0.004∗
+Finally, we compared the incidence of discrepancies between popular and other apps. As
+shown in Figure 5.6 and Table 5.2, other apps (i.e. unpopular apps), tend to have a statistically
+significantly higher number of incomplete label discrepancies, on average, than popular apps
+(p < 0.05). Consequently, when looking across all discrepancies, other apps also have a higher
+number of discrepancies, on average, than popular apps (p < 0.05). There is no significant
+difference between the incidence of incomplete policy discrepancies between popular and other
+apps(p > 0.05).
+We conclude from this comparison that popular apps, on average, have fewer discrepancies
+than their counterparts. As popular apps represent apps likely to be on user’s devices, this trend
+is reassuring; however, the incidence of discrepancies among popular apps is still high, at an
+averageof5.15discrepanciesperapp.
+39
+40
+Chapter 6
+Discussion
+In Section 3, we outlined the development of a pipeline to systematically download and analyze
+iOSAppStorelistings. Wefound62.5%ofappstoprovideprivacylabels. Thisisapproximately
+the same, albeit slightly higher than reported by Balash et al. in their work [4]. The slightly
+higher percentage in our study likely reflects our study being conducted several months after
+Balashetal.’s,allowingmoretimeforappstoincludeprivacylabels.
+We also introduced a mechanism to identify if a webpage linked to by a privacy policy URL
+was a legitimate policy. For efficiency reasons, we chose not to perform a limited crawl in cases
+where the webpage was a landing page, and required further navigation to the privacy policy.
+While this likely reduced the reported number of apps with privacy policies, we believe that
+our approach mimics the actions of the average consumer, who is unlikely to navigate complex
+webpagestofindaprivacypolicy.
+In Chapter 4, we outlined a technique for predicting iOS privacy labels from the text of
+privacypolicies. Toourknowledge,thisisthefirstworkthathasattemptedsuchatask. However,
+it is not without limitations. For one, we relied on noisy data to train our classifiers. To mitigate
+thisweusedanimportancesamplingapproachtoreducevariancewithinthedata. However,this
+may have had the effect of biasing the training data towards similar policies, lowering effective
+recallincaseswhereoutlierpolicieswerelabeledcorrectly,butwerenotincludedduetolackof
+similarity.
+Moreover, in certain cases, Apple stipulates that privacy labels may optionally disclose cer-
+taindatacollection,butarenotrequiredtodoso[16]. Thiscouldleadtoresultsthatoverestimate
+potential discrepancies when looking at optional privacy label disclosures. In principle, because
+lessdatacollectionistypicallyseenasdesirable,developerswouldtypicallybeexpectedtoonly
+disclosecollectionwhenrequiredtodoso. So,assumingthatourtrainingdataisbiasedtowards
+required disclosures, our resulting classifiers could be expected to indicate positive instances
+onlyiftheyaretrulyrequired.
+In Chapter 5, we described a large-scale analysis of apps available on the iOS App Store.
+Prior work had already provided evidence that iOS privacy labels can be inaccurate [24], [44].
+Our study adds to this evidence by comparing disclosures made in privacy policies to those in
+privacy labels. To the extent that discrepancies are indicative of potential compliance issues, we
+find that as many as 88% of apps have at least one potential compliance issue, with apps having
+an average of 5.32 potential compliance issues. These results appear generally consistent with
+41
+prior work, albeit in slightly different contexts. For example, Zimmeck et al. report a mean
+of 2.89 potential compliance issues per app in their large-scale analysis of Android apps; how-
+ever,theycharacterizedpotentialcomplianceissuesasdiscrepanciesbetweenthetextofprivacy
+policies and static code analysis of Android apps [49]. Our work, on the other hand, compares
+disclosureswithinprivacypoliciestothoseinprivacylabels. WealsofindthatIncompleteLabel
+discrepancies were more common that Incomplete Policy discrepancies. This could likely be a
+byproduct of privacy policies being written to be more general and permissive than privacy la-
+bels. Inparticular,somepoliciesareknowntoapplytomultipleapps,whereasallprivacylabels
+are specific to a given app. In addition, privacy labels may often be created by developers and
+may be authored with the intent to only disclose those practices an app actually engages in. In
+contrast,privacypoliciesareknowntooftenbe”writtenbylawyers,forlawyers”and,asaresult,
+canbeexpectedtobemoregeneral.
+Additionally, Balash et al. found in a review of 1.6 million apps available on the App Store
+that42.1%ofappswithlabelsindicatetheydonotcollectanydata,whichtheyclaimisunlikely
+to be true. Our work provides concrete evidence for their claim by showing that incomplete
+privacylabelsaretheprimarysourceoferrors,whichisconsistentwiththeirresults[4].
+42
+Chapter 7
+Future Work
+Severalavenuesexisttocontinuethisworkinthefuture. Weofferthreepotentialareasofexplo-
+ration that naturally extend this work: a detailed privacy policy prevalence analysis, predicting
+moredetailedprivacylabels,andcombiningouranalysiswithstaticanddynamiccodeanalysis.
+7.1 A Detailed Privacy Policy Analysis
+First, we could explore the prevalence of privacy policies within the iOS App Store in more
+detail. For example, we currently only determine if the webpage linked to by the privacy policy
+URL provided by apps is a legitimate privacy policy; however, in some cases, the URL leads to
+aprivacylandingpage,andtheactualprivacypolicycanbefoundbyclickingalinksomewhere
+onthatpage. Futureworkcouldexaminethe“depth”oftheseprivacypolicies–howmanypages
+fromtherootdousersneedtonavigatetoarriveataprivacypolicy?
+7.2 Predicting Detailed Privacy Labels
+Another avenue for exploration involves predicting more detailed privacy labels from privacy
+policies. We currently only predict if a privacy policy declares collection of a particular data
+type. However,iOSprivacylabelsgofurther,providinginformationonhowcollecteddatatypes
+are used, if they are linked to the user, and if they can be used to track the user. Future work
+couldinvestigateifitispossibletoaccuratelydeterminehowcollecteddataisusedfromthetext
+of privacy policies. One approach could be to formulate privacy label prediction as a two-step
+process. First, future work could use our classifiers to determine if a privacy policy collected
+a particular data type. Then, they could implement an additional set of classifiers to determine
+howthedatatypewasused.
+Moreover, providing textual evidence to corroborate predicted data types could also be in-
+vestigated. For example, users might have questions about how data is being used beyond the
+capabilities of privacy labels, such as “How long does this app retain my data?” Prior work has
+focused on answering these types of questions [32]. Future work could combine [32] with our
+classifierstoproducemoredetailedsummariesofprivacypolicies.
+43
+7.3 Static and Dynamic Code Analysis
+Finally, future research could combine this work with static and dynamic code analysis. These
+types of mechanisms enables analyses that provide concrete evidence to ground claims about
+datacollectionpracticesbyanalyzingappcodeandappbehavioruponexecution. Thisevidence
+can then be compared to the text of privacy policies to determine potential compliance issues
+more concretely. For example, Privacy Label Wiz is able to conduct static analyses on iOS apps
+to determine certain types of data collection [15]. Future work could combine our techniques –
+determining data collection within privacy policies – to determine if the text of privacy policies
+matchesthecodeofiOSapps.
+7.4 Conclusion
+Privacy labels have been proposed as usable mechanisms to help users better understand salient
+data practices found within privacy policies. In December 2020, Apple began requiring that all
+iOSappsincludeprivacylabels,arguablythelargestadoptionofprivacylabelstodate;however,
+priorworkhasquestionedtheaccuracyofsuchlabels[24][15].
+Inthiswork,weintroducedtheAutomatedPrivacyLabelAnalysisSystem(ATLAS).ATLAS
+enabledustoprovideadetailedanalysisof354,725iOSappsavailableontheUnitedStatesApp
+Store. Wefoundthatprivacypolicyaccessibilityandprivacylabeladoptionisrelativelylow,with
+only62.5%ofappsprovidingprivacylabels. Wealsodevelopedanensemble-basedclassierthat
+wasabletoaccuratelypredictprivacylabelsfromprivacypolicieswith91.3%accuracy. Wethen
+used our classifier to conduct a compliance analysis, finding several interesting trends. For ex-
+ample,88%ofappshadatleastonediscrepancybetweenthetextoftheirprivacypolicyandtheir
+privacy label. On average, we found iOS apps to have 5.32 discrepancies. These discrepancies
+could potentially be indicative of compliance issues. We hope that our work enables a thorough
+reviewofprivacylabelstohelppromoteaccurateprivacydisclosuresinthefuture.
+44
+Bibliography
+[1] Ashutosh Adhikari, Achyudh Ram, Raphael Tang, and Jimmy Lin. DocBERT: BERT for
+documentclassification. arXivpreprintarXiv:1904.08398,2019. 2.4
+[2] Ashutosh Adhikari, Achyudh Ram, Raphael Tang, and Jimmy Lin. Rethinking complex
+neural network architectures for document classification. In Proceedings of the 2019 Con-
+ference of the North American Chapter of the Association for Computational Linguistics:
+Human Language Technologies, Volume 1 (Long and Short Papers), pages 4046–4051,
+2019. 2.4,4.3.3
+[3] Data Systems Group at the University of Waterloo. Hedwig. https://github.com/
+castorini/hedwig,2022. Accessed: 2023-03-13. 4.3.3
+[4] David G Balash, Mir Masood Ali, Xiaoyuan Wu, Chris Kanich, and Adam J Aviv. Longi-
+tudinal analysis of privacy labels in the apple app store. arXiv preprint arXiv:2206.02658,
+2022. 2.3,6
+[5] Iz Beltagy, Matthew E Peters, and Arman Cohan. Longformer: The long-document trans-
+former. arXivpreprintarXiv:2004.05150,2020. 2.4
+[6] DonBlaheta. Handlingnoisytrainingandtestingdata. InProceedingsofthe2002Confer-
+ence on Empirical Methods in Natural Language Processing (EMNLP 2002), pages 111–
+116,2002. 4.2
+[7] Julien Chaumond. Roberta. https://huggingface.co/docs/transformers/
+v4.26.1/en/model_doc/roberta,2023. Accessed: 2023-03-13. 4.3.5
+[8] Federal Trade Commission. Gramm-leach-bliley act. https://www.ftc.gov/
+business-guidance/privacy-security/gramm-leach-bliley-act,
+2023. Accessed: 2023-03-13. 4.2,5.2
+[9] Lorrie Faith Cranor. P3P: Making privacy policies more useful. IEEE Security & Privacy,
+1(6):50–55,2003. doi: 10.1109/MSECP.2003.1253568. 2.1.1
+[10] Lorrie Faith Cranor, Serge Egelman, Steve Sheng, Aleecia M McDonald, and Abdur
+Chowdhury. P3p deployment on websites. Electronic Commerce Research and Appli-
+cations,7(3):274–293,2008. 2.1.1
+[11] Jacob Devlin, Ming-Wei Chang, Kenton Lee, and Kristina Toutanova. BERT: Pre-
+training of deep bidirectional transformers for language understanding. arXiv preprint
+arXiv:1810.04805,2018. 2.4,4.3.4
+[12] Susan T Dumais et al. Latent semantic analysis. Annu. Rev. Inf. Sci. Technol., 38(1):188–
+45
+230,2004. 4.2
+[13] William Enck, Peter Gilbert, Seungyeop Han, Vasant Tendulkar, Byung-Gon Chun, Lan-
+don P Cox, Jaeyeon Jung, Patrick McDaniel, and Anmol N Sheth. TaintDroid: an
+information-flow tracking system for realtime privacy monitoring on smartphones. ACM
+TransactionsonComputerSystems(TOCS),32(2):1–29,2014. 2.3
+[14] Martin Ester, Hans-Peter Kriegel, Jo¨rg Sander, Xiaowei Xu, et al. A density-based algo-
+rithm for discovering clusters in large spatial databases with noise. In kdd, volume 96,
+pages226–231,1996. 4.2
+[15] Jack Gardner, Yuanyuan Feng, Kayla Reiman, Zhi Lin, Akshath Jain, and Norman Sadeh.
+Helping mobile application developers create accurate privacy labels. In 2022 IEEE Euro-
+peanSymposiumonSecurityandPrivacyWorkshops(EuroS&PW),pages212–230.IEEE,
+2022. 2.1.3,2.1.4,2.4,4.2,7.3,7.4
+[16] AppleInc. Appprivacydetails-appstore. URLhttps://developer.apple.com/
+app-store/app-privacy-details/. 2.1.2,6
+[17] AppleInc. iTunespreview. https://apps.apple.com/us/genre/ios-books/
+id6018,2023. Accessed: 2023-03-13. 3.1
+[18] Patrick Gage Kelley, Joanna Bresee, Lorrie Faith Cranor, and Robert W. Reeder. A ”nu-
+trition label” for privacy. In Proceedings of the 5th Symposium on Usable Privacy and
+Security, SOUPS ’09, New York, NY, USA, 2009. Association for Computing Machinery.
+ISBN9781605587363. doi: 10.1145/1572532.1572538. URLhttps://doi.org/10.
+1145/1572532.1572538. 2.1.1
+[19] PatrickGageKelley,LucianCesca,JoannaBresee,andLorrieFaithCranor. Standardizing
+privacy notices: an online study of the nutrition label approach. In Proceedings of the
+SIGCHI Conference on Human factors in Computing Systems, pages 1573–1582, 2010.
+2.1.1
+[20] Patrick Gage Kelley, Lorrie Faith Cranor, and Norman Sadeh. Privacy as part of the app
+decision-making process. In Proceedings of the SIGCHI conference on human factors in
+computingsystems,pages3393–3402,2013. 2.1.1,2.1.2
+[21] YoonKim. Convolutionalneuralnetworksforsentenceclassification. InProceedingsofthe
+2014ConferenceonEmpiricalMethodsinNaturalLanguageProcessing(EMNLP),pages
+1746–1751, Doha, Qatar, October 2014. Association for Computational Linguistics. doi:
+10.3115/v1/D14-1181. URLhttps://aclanthology.org/D14-1181. 2.4
+[22] Simon Koch, Malte Wessels, Benjamin Altpeter, Madita Olvermann, and Martin Johns.
+Keeping privacy labels honest. Proceedings on Privacy Enhancing Technologies, 4:486–
+506,2022. 2,2.1.3
+[23] Konrad Kollnig, Anastasia Shuba, Max Van Kleek, Reuben Binns, and Nigel Shadbolt.
+Goodbye tracking? impact of iOS app tracking transparency and privacy labels. In 2022
+ACM Conference on Fairness, Accountability, and Transparency, pages 508–520, New
+York, NY, USA, 2022. Association for Computing Machinery. ISBN 9781450393522.
+doi: 10.1145/3531146.3533116. URL https://doi.org/10.1145/3531146.
+46
+3533116. 2.3
+[24] TianshiLi,KaylaReiman,YuvrajAgarwal,LorrieFaithCranor,andJasonIHong. Under-
+standing challenges for developers to create accurate privacy nutrition labels. In Proceed-
+ings of the 2022 CHI Conference on Human Factors in Computing Systems, pages 1–24,
+2022. 1,2,2.1.3,2.1.4,2.4,4.2,6,7.4
+[25] Jingzhou Liu, Wei-Cheng Chang, Yuexin Wu, and Yiming Yang. Deep learning for ex-
+treme multi-label text classification. In Proceedings of the 40th international ACM SIGIR
+conference on research and development in information retrieval, pages 115–124, 2017.
+2.4
+[26] Yinhan Liu, Myle Ott, Naman Goyal, Jingfei Du, Mandar Joshi, Danqi Chen, Omer Levy,
+Mike Lewis, Luke Zettlemoyer, and Veselin Stoyanov. RoBERTa: A robustly optimized
+BERTpretrainingapproach. arXivpreprintarXiv:1907.11692,2019. 2.4,4.3.5
+[27] Hunton & William LLP. Ten steps to develop a multilayered privacy notice. Technical
+report,TheCenterforInformationPolicyLeadership,2007. 2.1.1
+[28] Aleecia M McDonald and Lorrie Faith Cranor. The cost of reading privacy policies. Isjlp,
+4:543,2008. 1,2.1.1,2.4
+[29] Tomas Mikolov, Kai Chen, Greg Corrado, and Jeffrey Dean. Efficient estimation of word
+representationsinvectorspace. arXivpreprintarXiv:1301.3781,2013. 4.3.3
+[30] Adam Paszke, Sam Gross, Soumith Chintala, Gregory Chanan, Edward Yang, Zachary
+DeVito, Zeming Lin, Alban Desmaison, Luca Antiga, and Adam Lerer. Automatic differ-
+entiationinPyTorch. 2017. 4.3
+[31] Jeffrey Pennington, Richard Socher, and Christopher D. Manning. GloVe: Global vec-
+tors for word representation. In Empirical Methods in Natural Language Processing
+(EMNLP), pages 1532–1543, 2014. URL http://www.aclweb.org/anthology/
+D14-1162. 4.3.3
+[32] Abhilasha Ravichander, Alan W Black, Shomir Wilson, Thomas Norton, and Norman
+Sadeh. Question answering for privacy policies: Combining computational and legal
+perspectives. In Proceedings of the 2019 Conference on Empirical Methods in Natu-
+ral Language Processing and the 9th International Joint Conference on Natural Lan-
+guage Processing (EMNLP-IJCNLP), pages 4949–4959, Hong Kong, China, November
+2019. Association for Computational Linguistics. doi: 10.18653/v1/D19-1500. URL
+https://www.aclweb.org/anthology/D19-1500. 2.4,7.2
+[33] Joel Reardon, A´lvaro Feal, Primal Wijesekera, Amit Elazari Bar On, Narseo Vallina-
+Rodriguez,andSergeEgelman. 50waystoleakyourdata: Anexplorationofapps’circum-
+vention of the android permissions system. In 28th USENIX security symposium (USENIX
+security19),pages603–620,2019. 2.3
+[34] Robert W Reeder, Patrick Gage Kelley, Aleecia M McDonald, and Lorrie Faith Cranor. A
+user study of the expandable grid applied to P3P privacy policy visualization. In Proceed-
+ings of the 7th ACM workshop on Privacy in the electronic society, pages 45–54, 2008.
+2.1.1
+47
+[35] Joel R Reidenberg, Travis Breaux, Lorrie Faith Cranor, Brian French, Amanda Grannis,
+James T Graves, Fei Liu, Aleecia McDonald, Thomas B Norton, and Rohan Ramanath.
+Disagreeable privacy policies: Mismatches between meaning and users’ understanding.
+BerkeleyTech.LJ,30:39,2015. 1
+[36] NormanSadeh,AlessandroAcquisti,TravisDBreaux,LorrieFaithCranor,AleeciaMMc-
+Donald, Joel R Reidenberg, Noah A Smith, Fei Liu, N Cameron Russell, Florian Schaub,
+et al. The usable privacy policy project. In Technical report, Technical Report, CMU-ISR-
+13-119.CarnegieMellonUniversity,2013. 1
+[37] HwanjunSong,MinseokKim,DongminPark,YoojuShin,andJae-GilLee. Learningfrom
+noisy labels with deep neural networks: A survey. IEEE Transactions on Neural Networks
+andLearningSystems,2022. 4.2
+[38] Peter Story, Sebastian Zimmeck, Abhilasha Ravichander, Daniel Smullen, Ziqi Wang, Joel
+Reidenberg,NCameronRussell,andNormanSadeh. Naturallanguageprocessingformo-
+bile app privacy compliance. In AAAI Spring Symposium on Privacy-Enhancing Artificial
+IntelligenceandLanguageTechnologies,2019. 2.4,4.1,4.2,4.3,4.3.1
+[39] Laurens Van der Maaten and Geoffrey Hinton. Visualizing data using t-sne. Journal of
+machinelearningresearch,9(11),2008. 4.2
+[40] Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N
+Gomez, Łukasz Kaiser, and Illia Polosukhin. Attention is all you need. In I. Guyon,
+U. Von Luxburg, S. Bengio, H. Wallach, R. Fergus, S. Vishwanathan, and R. Garnett,
+editors, Advances in Neural Information Processing Systems, volume 30. Curran Asso-
+ciates, Inc., 2017. URL https://proceedings.neurips.cc/paper/2017/
+file/3f5ee243547dee91fbd053c1c4a845aa-Paper.pdf. 2.4
+[41] Thomas Wolf. Bert. https://huggingface.co/docs/transformers/
+model_doc/bert,2023. Accessed: 2023-03-13. 4.3.4
+[42] Yue Xiao, Zhengyi Li, Yue Qin, Jiale Guan, Xiaolong Bai, Xiaojing Liao, and Luyi Xing.
+Lalaine: Measuring and characterizing non-compliance of apple privacy labels at scale.
+arXivpreprintarXiv:2206.06274,2022. 2.3
+[43] Zichao Yang, Diyi Yang, Chris Dyer, Xiaodong He, Alex Smola, and Eduard Hovy. Hier-
+archical attention networks for document classification. In Proceedings of the 2016 con-
+ference of the North American chapter of the association for computational linguistics:
+humanlanguagetechnologies,pages1480–1489,2016. 2.4
+[44] ShikunZhangandNormanSadeh. Doprivacylabelsanswerusers’privacyquestions? 1,6
+[45] Xiang Zhang, Junbo Zhao, and Yann LeCun. Character-level convolutional networks for
+textclassification. Advancesinneuralinformationprocessingsystems,28,2015. 2.4
+[46] WentingZhaoandCarlaGomes. Evaluatingmulti-labelclassifierswithnoisylabels. arXiv
+preprintarXiv:2102.08427,2021. 4.2
+[47] Sebastian Zimmeck, Ziqi Wang, Lieyong Zou, Roger Iyengar, Bin Liu, Florian Schaub,
+ShomirWilson,NormanMSadeh,StevenMBellovin,andJoelRReidenberg. Automated
+analysisofprivacyrequirementsformobileapps. InNDSS,2017. 2.1.4,2.3
+48
+[48] Sebastian Zimmeck, Peter Story, Rafael Goldstein, David Baraka, Shaoyan Li, Yuanyuan
+Feng, and Norman Sadeh. Compliance traceability: Privacy policies as software devel-
+opment artifacts. Open Day for Privacy, Usability, and Transparency (PUT), Stockholm,
+Sweden,2019. 2.1.4
+[49] Sebastian Zimmeck, Peter Story, Daniel Smullen, Abhilasha Ravichander, Ziqi Wang, Joel
+Reidenberg, N Cameron Russell, and Norman Sadeh. MAPS: Scaling privacy compliance
+analysis to a million apps. Proceedings on Privacy Enhancing Technologies, 2019(3):66–
+86,2019. 2.3,3.1,3.2,4.1,4.2,4.3.1,6
+[50] Sebastian Zimmeck, Rafael Goldstein, and David Baraka. PrivacyFlash Pro: Automating
+privacypolicygenerationformobileapps. InNDSS,2021. 2.1.4
+49

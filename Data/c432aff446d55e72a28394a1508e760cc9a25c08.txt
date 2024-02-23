@@ -1,0 +1,1085 @@
+Why do Nearest Neighbor Language Models Work?
+FrankF.Xu UriAlon GrahamNeubig
+LanguageTechnologiesInstitute
+CarnegieMellonUniversity
+{fangzhex,ualon,gneubig}@cs.cmu.edu
+Abstract
+Language models (LMs) compute the probability of a text by sequentially computing
+a representation of an already-seen context and using this representation to predict the
+nextword. Currently,mostLMscalculatetheserepresentationsthroughaneuralnetwork
+consumingtheimmediatepreviouscontext. Howeverrecently,retrieval-augmentedLMs
+haveshowntoimproveoverstandardneuralLMs,byaccessinginformationretrievedfroma
+largedatastore,inadditiontotheirstandard,parametric,next-wordprediction. Inthispaper,
+wesetouttounderstandwhyretrieval-augmentedlanguagemodels,andspecificallywhy
+k-nearestneighborlanguagemodels(kNN-LMs)performbetterthanstandardparametric
+LMs, even when the k-nearest neighbor component retrieves examples from the same
+training set that the LM was originally trained on. To this end, we perform a careful
+analysisofthevariousdimensionsoverwhichkNN-LMdivergesfromstandardLMs,and
+investigate these dimensions one by one. Empirically, we identify three main reasons
+whykNN-LMperformsbetterthanstandardLMs: usingadifferentinputrepresentation
+forpredictingthenexttokens, approximatekNNsearch, andtheimportanceofsoftmax
+temperature for the kNN distribution. Further, we incorporate these insights into the
+model architecture or the training procedure of the standard parametric LM, improving
+itsresultswithouttheneedforanexplicitretrievalcomponent. Thecodeisavailableat
+https://github.com/frankxu2004/knnlm-why.
+1 Introduction
+Languagemodelingisthetaskofpredictingtheprobabilityofatext(oftenconditionedoncontext), with
+broad-spanning applications across natural language processing (Bengio et al., 2003; Merity et al., 2018;
+BaevskiandAuli,2018;Brownetal.,2020). Thismodelingisusuallydonebysequentiallyencodingacontext
+c usingatrainedneuralnetworkfunctionf,andcomputingtheprobabilityofthenextwordw accordingto
+t t
+f(c )andavectorrepresentationofw .
+t t
+Recently,retrieval-augmentedLMshaveshownaseriesofimpressiveresults(Graveetal.,2017;Guuetal.,
+2018;Heetal.,2020;Khandelwaletal.,2020b;Borgeaudetal.,2022;Alonetal.,2022). Retrieval-augmented
+LMscomputenexttokendistributionsbasednotonlyontheimmediatelyprecedingcontextc andthemodel
+t
+parameters,butalsoonanexternaldatastore,fromwhichexamplesareretrievedandincorporatedintothe
+baseLM’sprediction.
+Oneretrieval-augmentedmodelthatisnotableforbothitssimplicityandefficacyisthek-nearestneighbor
+languagemodel(kNN-LM;Khandelwaletal.,2020b). ItextendsatrainedbaseLMbylinearlyinterpolating
+theoutputworddistributionwithakNNmodel. Thenearestneighborsareretrievedaccordingtothedistances
+betweenthecurrentcontextembeddingofthebaseLMandallthecontextembeddingsinthedatastore. The
+datastoreiscreatedbyencodingallcontextsfromanytextcollection,includingtheoriginalLMtrainingdata.
+OneofthemostsurprisingresultsfromKhandelwaletal.(2020b)isthatkNN-LMreducestheperplexityof
+thebaseLMevenwhenthekNNcomponentisretrievingexamplesfromthesametrainingsetthattheLM
+wasoriginallytrainedon,indicatingthatthekNN-LMimprovestheabilitytomodelthetrainingdataandis
+Preprint.Underreview.
+3202
+naJ
+71
+]LC.sc[
+2v82820.1032:viXra
+𝑃 parametric component 𝑃 non-parametric component
+𝐿𝑀 𝑘𝑁𝑁
+softmax() 𝐷 softmax() 𝐷
+𝐷 𝐷
+ℎ 𝑠𝑚 𝑊 𝑠𝑚 𝑉 + ℎ 𝑑𝑠
+Feed Forward FFN
+Network 𝑊 𝑑𝑠 𝑁 𝑑𝑠 mask-to-k()
+Layer Norm ATT In 𝑘NN-LM:
+top-𝑘()
+Multi Headed
+Attention In 𝑘NN-LM:
+𝑁 : up to 5000𝑉
+𝑑𝑠
+Figure1: AnillustrationofthegeneralizedformulationofkNN-LMinEquation5.
+notsimplybenefitingfromaccesstomoredata. Intriguedbythis,weaskquestionslike,couldkNN-LMbe
+improvingbecauseofcapacityissuesintheparametricbaseLM?Inthispaper,wesetouttounderstandwhy
+kNN-LMsworkeveninthissetting.
+Inthefollowingsections,wefirstelucidateconnectionsbetweentheaddedkNNcomponentandthestandard
+LMcomponent. Specifically,wenotethatworddistributionsfromthetwocomponentsarebothcalculated
+usingasoftmaxfunction,basedonthesimilarityofthecurrentcontextembeddingwithasetofembeddings
+thatcorrespondstodifferentnextwords. Withthisintuition,weformalizeandgeneralizethenon-parametric
+distributioncalculationwiththesoftmaxlayerandwordembeddinglayerusedinparametricLMs. Wethen
+showthatthisgeneralizedformexposesavarietyofdesignchoices,e.g.,thenumberofcontextembeddings
+inthedatastore,theinputrepresentationusedinsoftmaxlayer,differentsimilarityfunctions,aswellasthe
+approximationandsparsificationimplementationsinthekNNsearch. Thisprovidesageneralframeworkfor
+analyzingkNN-LMandsimilarmodelsandallowsustoperformablationstudiesthattesttheimportanceof
+variousdesigndecisions.
+WeproceedtoproposemultiplehypothesesforwhykNN-LMworks, whicharetestablebyadjustingthe
+variousparametersexposedbyourgeneralizedformulation. Basedonthesehypotheses,weperformablation
+experimentsandanalyzethenuancesbetweendifferentimplementationsofthegeneralizedversionofP .
+kNN
+Astheanswertoourquestion,“whykNN-LMswork”,weeventuallyshowthatthemostprobablereasonsare
+threefold:
+1. Ensemblingtheoutputofsoftmaxusingtworepresentationsfromdifferentlayersofthetransformer
+isimportant;inourexperiments,thisaccountsfor55%oftheperformancegainofkNN-LM,or6.5%
+relativeperplexityimprovementcomparedtothebaseLM.
+2. kNN-LMusesapproximatenearestneighborsearchtohandlethelargenumberofcandidates,and
+thelackofthisprecisenessinthisalgorithmactuallyhelpskNN-LMtogeneralizebetterthanusing
+exactnearestneighborsearchanddistancecalculation,possiblyduetoaregularizationeffect. The
+relativeperplexityimprovementfromthisfactorisabout2.6%.
+3. Depending on the design decisions that are chosen for modeling, adding a temperature term to
+the kNN non-parametric component can become crucial to the success of modeling (although
+coincidentally,intheoriginalsettingsofKhandelwaletal.(2020b),atemperatureof1.0iscloseto
+optimal,whichhidtheimportanceofthisterm). Insomesettings,therelativeperplexitygapbetween
+thedefaultandoptimaltemperaturecanbeashighas3.7%.
+Finally,onesignificantdrawbacktothecurrentkNN-LMistheinefficiencyofkNNsearchperformedateach
+step(Heetal.,2021;Borgeaudetal.,2022;Alonetal.,2022;Wangetal.,2022). Becauseofthesimilarity
+betweenkNN-LMandtheparametricLM’slastlayersandthemanydesignchoices,wealsodemonstratethat
+weareabletomakekNN-LMmoreefficientbysubstitutingthekNNsearchwithanothermatrixoperation
+thatcanfitinacceleratormemorywhilemaintainingmorethanhalftheperplexityimprovement,ormorethan
+6.5%relativeimprovementcomparedtothebaseLM.
+2
+2 FormalizingandGeneralizingkNN-LM
+kNN-LM(Khandelwaletal.,2020b)isalinearinterpolationbetweenabaseLMandakNNmodel. Givena
+setofcontextsc andtheircorrespondingnexttokenw asapair(c ,w )∈D,kNN-LMscreateadatastore
+i i i i
+(K,V)={(k ,v )},asasetofkey-valuepairs:
+i i
+(K,V)={(f(c ),w )|(c ,w )∈D} (1)
+i i i i
+Duringinference,theparametriccomponentoftheLMgeneratestheoutputdistributionp (w |c ;θ)over
+LM t t
+thenexttokensandproducesthecorrespondingcontextrepresentationf(c ),giventhetestinputcontextc .
+t t
+Thenthenon-parametriccomponentoftheLMqueriesthedatastorewiththef(c )representationtoretrieve
+t
+itsk-nearestneighborsN accordingtoadistancefunctiond(·,·). Next,thekNN-LMcomputesaprobability
+distributionovertheseneighborsusingthesoftmaxoftheirnegativedistances,andaggregatestheprobability
+massforeachvocabularyitemacrossallofitsoccurrencesintheretrievedtargets:
+(cid:88)
+p (w |c )∝ 1 exp(−d(k ,f(c ))) (2)
+kNN t t wt=vi i t
+(ki,vi)∈N
+Finally,thisdistributionisinterpolatedwiththeparametricLMdistributionp toproducethefinalkNN-LM
+LM
+distribution:
+p(w |c ;θ)=(1−λ)p (w |c ;θ)+λp (w |c ) (3)
+t t LM t t kNN t t
+where λ is a scalar that controls the weights of the interpolation between two components, with higher λ
+puttingmoreweightonthenon-parametriccomponent.
+LookingcloselyatEquation2,wecannoticeasimilaritybetweenthecalculationofP andthestandard
+kNN
+P . ThekNNdistributionisbasedonthedistancesbetweenthecurrentcontextandthenearestneighbors
+LM
+fromthedatastore,normalizedbyasoftmaxfunction. Recallthatin(standard)parametriclanguagemodels,
+thedistributionoverthevocabularyisalsobasedonameasureofdistance,theinnerproductbetweenthe
+currentcontextembeddingandthewordembeddingsofeverytokeninthevocabulary. Becauseeachcontext
+embeddinginthedatastore(K,V)correspondstoatargettoken,wecanalsoviewthisdatastoreasalarge
+wordembeddingmatrixwithmultiplewordembeddingsforeachofthevocabularywords. Theoretically,
+givenunlimitedcomputation,wecouldcalculatethedistributionbasedonthedistancestoeveryembeddingin
+thedatastore,andaggregatebyvocabularyitems,makingitmorecloselyresembleP . Inthiscase,k =|D|,
+LM
+thesizeoftheentiredatastore,andEquation2becomesthefollowing,basedonthedistancestoeverycontext
+inthedatastoreDinsteadofasubsetofnearestneighborsN.
+(cid:88)
+p (w |c )∝ 1 exp(−d(k ,f(c ))) (4)
+D t t wt=vi i t
+(ki,vi)∈D
+In practice, we use kNN search as a way of approximation, by limiting the calculation to only k nearest
+neighborstoavoidthecomputationalcostofcalculatingthedistributionovertheentiredatastore.
+Ifwere-writeandgeneralizeEquation2,boththekNN-LMofKhandelwaletal.(2020b)andalargenumber
+ofrelatedmodelscanbeexpressedthroughthefollowingequation:
+P =(1−λ)softmax(W ·h )+λMsoftmax(mask-to-k(W ⊗h )/τ). (5)
+interp sm sm ds ds
+(cid:124) (cid:123)(cid:122) (cid:125) (cid:124) (cid:123)(cid:122) (cid:125)
+PLMparametriccomponent PkNNnon-parametriccomponent
+Figure 1 provides an illustration of Equation 5. The first term of the equation is the standard parametric
+languagemodel,whereasthesecondrepresentsageneralizedversionofutilizinganexternaldatastore. The
+firstcomponent,theoutputlayerofacommonparametriclanguagemodel,isrelativelystraightforward. W
+sm
+ofsizeV ×Distheembeddingmatrixoftheoutputtoken,andh isthecontextvectorusedtocalculatethe
+sm
+distributionoftheoutputtoken,usuallytheoutputofthefinalfeedforwardlayerinthetransformer.
+Inthesecondcomponent,W representsthedatastore,ofsizeN ×D. N isthenumberofentriesin
+ds ds ds
+thedatastore,andD isthesizeofeachcontextvector. h representsthecontextvectorusedtoquerythe
+ds
+datastore. AsshowninFigure1,thesevectorscancomefromdifferentlayersofthetransformerarchitecture.
+⊗representstheoperationtypeusedtocalculatethesimilaritybetweencontextvectorsandthequeryvector,
+whichalsohasseveralalternativesthatwediscussbelow.
+mask-to-k(·)representsafunctiontosparsifysimilarityscoresacrossthedatastore,settingallbutksimilarity
+scores to −∞, which results in probabilities of zero for all masked similarity scores after the softmax.
+3
+Practically, this is necessary for kNN-LMs because the size of the datastore N makes it infeasible to
+ds
+calculatealloutputsatthesametime. Withmaskedlogits,weapplyamoregeneralizedversionofsoftmax
+withtemperatureτ. Intuitivelyaddingthetemperaturecanadjustthepeakinessorconfidenceofthesoftmax
+probabilitydistributionoutput. Afterthesoftmax,thematrixM ofdimensionV ×N sumstheprobabilityof
+ds
+theN datastoreentriescorrespondingtoeachoftheV vocabularyentries.Eachcolumninthismatrixconsists
+ds
+ofaone-hotvectorwithavalueof1andtheindexcorrespondingtothevocabularyitemw correspondingto
+i
+thedatastoreentryforc .
+i
+Withinthisformulation,itbecomesobviousthattherearemanydesignchoicesforkNN-LM-likemodels. One
+importantthingtonoteisthattherightsideofEquation5isactuallyverysimilartotheleftsiderepresenting
+thestandardparametriclanguagemodel,withafewadditionalcomponents: M,mask-to-k,and⊗. More
+specifically,someofthedesigndecisionsthatgointothekNN-LM,andparallelswithstandardparametric
+modelsare:
+1. SizeofW : Inthestandardparametricmodel,thesizeofW isV embeddingvectors,eachwith
+ds sm
+Ddimensions. InthekNN-LMthesizeofW isverylarge: N ,thesizeofthedatastore,usually
+ds ds
+thenumberoftokensintheentiretrainingcorpus.
+2. Inputrepresentation: Intheparametricmodel,h istheoutputfromthefeedforwardlayerinthe
+sm
+lasttransformerblock,whichweabbreviate“ffn”. Incontrast,Khandelwaletal.(2020b)ratheruse
+ash theoutputfromthemulti-headedattentionlayerofthelasttransformerblock(beforerunning
+ds
+therepresentationsthroughthefeed-forwardnetwork,andaftertheLayerNorm(Baetal.,2016)),
+whichweabbreviateas“att”.
+3. Similarity&Temperature: Intheparametricmodel,thefunctionalformof⊗istheinnerproduct
+(abbreviatedIP),whereasKhandelwaletal.(2020b)usenegativesquaredL2distance(abbreviated
+L2)asasimilarityfunctionbetweenW andh . Asthesimilarityscoresareturnedintoprobability
+ds ds
+distributionswiththesoftmaxfunction,thechoiceofsoftmaxtemperature(τ)cancontrolthescaling
+ofthesimilarityscoresandthusthepeakinessofthenon-parametriccomponentdistribution.
+4. Approximation & Sparsification: In the parametric model, k = V, and no values are masked,
+but inthe kNN-LM, k (cid:28) V, andmostof thedatastoreentriesare prunedout. The definitionof
+themask-to-k(·)function,i.e. howtoselecttheimportantdatastoreembeddingstoincludeinthe
+similaritycalculation(inkNN-LM’scasetheknearestneighbors),isacrucialopendesignchoice.
+Inthefollowingsections,wesetouttobetterunderstandhoweachofthesedesigndecisionscontributestothe
+improvementinaccuracyduetotheuseofkNN-LMs.
+3 BaselinekNN-LMResults
+First,weevaluatethekNN-LMbaselineontheWikitext-103dataset(Merityetal.,2016),andexaminethe
+importanceoftwodesignchoices: theinputrepresentationh andthesimilarityfunction⊗.
+ds
+Inmodelsexaminedinthispaper, theparametricmodelisatransformerlanguagemodelwithmostlythe
+samearchitectureasinKhandelwaletal.(2020b). However,Wedomakemodificationstotheoriginalbase
+LM(BaevskiandAuli,2018)toaccommodateourexperimentationneed.WeusingBPEtokenization(Sennrich
+etal.,2015)totrainasmallervocabulary(33K)thantheoriginal(260K)onthetrainingcorpusofWikitext-103,
+assubwordtokenizationisubiquitousinmanystate-of-the-artlanguagemodels(Radfordetal.,2019;Devlin
+etal.,2018;Liuetal.,2019;Brownetal.,2020). Usingsubwordtokenizationalsoeliminatestheneedfor
+adaptivesoftmax(Joulinetal.,2017). Itmakestheoutputlayermoregeneralized,sharingmoreresemblance
+tothekNNcomponentasdescribedinSection2,andfacilitatestheablationstudiesinthispaper.1 Thisbase
+LMhas268Mparameters. Togetaperspectiveonhowlargethedatastoreis,itisbuiltonthetrainingdata
+thatcontainsnearly150MBPEtokens,eachpairedwithacontextvectorofsize1024. Thisdatastorehasa
+totalmemoryconsumptionofabout300GB.Ateveryretrievalstep,wetakethetop1024nearestneighbors,
+i.e.,k =1024,followingKhandelwaletal.(2020b). Theinterpolatedperplexityiscomputedwithoptimal
+interpolationparameterλtunedaccordingtotheperplexityonthedevelopmentset. λisfixedduringthe
+inferenceforallpredictions,thesameasthestandardkNN-LM.
+1BytrainingourownversionofthebaseLMfromscratchwithBPEtokenizationandastandardoutputsoftmaxlayer,
+ourLM’sperplexityisworsethanthatusedintheoriginalkNN-LMpaper.However,weobservesimilarrelativegains
+fromtheadditionalkNNcomponent.WearguethatthebaseLM’sperformanceisorthogonaltothestudyofthefactors
+behindkNN-LM’simprovements.
+4
+h ⊗ +#params PPL Interp.PPL Oracle
+ds
+BaseLM - - 0 21.750 - -
+kNN-LM-L2 att L2 N ×D ∞ 19.174 14.230
+ds
+kNN-LM-IP att IP N ×D ∞ 19.095 14.077
+ds
+kNN-LM-L2 ffn L2 N ×D ∞ 20.734 15.594
+ds
+kNN-LM-IP ffn IP N ×D ∞ 21.101 16.254
+ds
+Table1: PerformanceoftheparametriclanguagemodelandseveralkNN-LMvariants.
+Results comparing multiple kNN-LM variants are shown in Table 1. The first row represents the base
+parametriclanguagemodel’sperplexity. ThesecondisaformulationanalogoustothatofKhandelwaletal.
+(2020b), and in the remaining rows, we vary the input representation h and distance function ⊗ from
+ds
+Equation 5. All of them use a large datastore with size N , approximately 5000 times the size of the
+ds
+vocabularyV,asalsoreflectedin“+#params”,thenumberofadditionalparametersotherthanthebaseLM.
+Wereportseveralimportantquantitieswithrespecttoeachmodel.
+• “PPL”showstheperplexityofonlythekNNcomponentofthemodelp (). Thisis∞forallkNN-
+kNN
+LMmodelsinallcases,aswhenthekNNsearchdoesnotretrieveanydatastoreentriescorresponding
+tothetruetargetwordw theprobabilityofthetargetwordwillbezero.
+t
+• “Oracle”showsthelowerboundoftheinterpolationperformancebychoosingthebestλforeach
+token in the evaluation dataset, which will either be λ = 0 or λ = 1 depending on whether
+P (w |c )>P (w |c )ornot,respectively.
+LM t t knn t t
+Fromthetable,wecanseethat:
+1. Usingtheoutputofthemulti-headedattentionlayer(“att”)ash (insteadofthestandard“ffn”layer)
+ds
+iscrucialforbetterperformanceofkNN-LM.
+2. Ingeneral,usingnegativesquaredL2distanceorinnerproductasasimilarityfunctiondoesnotresult
+inalargeandconsistentdifference,althoughinoursetting,IPprovidesslightlybetterperformance
+whenusingthe“att”inputs,andslightlyworsewhenusing“ffn”inputs.
+3. Interestingly,whenusing“ffn”and“IP”,thesameinputanddistancemetricusedintheparametric
+model, the results are the worst, indicating that the kNN-LM is particularly benefiting when the
+kNN-LMachievesadifferentviewofthedatafromtheparametricmodel.
+WefoundinpreliminaryexperimentsthatkNN-LMisgeneralizabletootherbaselanguagemodelsaswell,
+rangingfromsmallmodelswith82Mparameterstolargermodelswith774Mparameters. Thegainfrom
+kNN-LMismoresignificantwhenusedwithasmaller,lesscapablebaselanguagemodel,asexpected. The
+details are shown in Appendix A. In this paper, we are mainly focused on the factors contributing to the
+relativeimprovementsfromkNN-LM,insteadoftheabsoluteperformance,soweusethe268Mmodelforthe
+remainderofthepaper.
+Inthenextsections,weperformfurtherexperimentswithablationsonthegeneralformulationEquation5to
+elucidatethekeyelementscontributingtotheperformanceimprovementsinkNN-LM.
+4 EffectofDifferentW Formulations
+ds
+4.1 ReplacingtheDatastorewithTrainableEmbeddings
+FromtheobservationinSection3,weseethatthechoiceofh hasalargeimpactontheperformanceof
+ds
+kNN-LM.ThisintriguesustoexploreifonekeytotheimprovementsaffordedbykNN-LMliesintheuse
+ofdifferentinputrepresentationstogether,namelytheattentionoutput(h = att)andfeedforwardoutput
+ds
+(h = ffn). However, fromonlytheexperimentsabove, itisnotpossibletodisentangletheeffectofthe
+ds
+choiceofh andthatofotherdesignchoicesandfactorsinEquation5.
+ds
+Totesttheeffectofh inamorecontrolledsetting,weremovethenon-parametricdatastoreentirely,and
+ds
+initializeW inEquation5witharandomlyinitializedwordembeddingmatrixwiththesamesize(N =V)
+ds ds
+5
+astheLM’soutputembeddingW ,andtrainW withallotherparametersfixed.2 Thelossfunctionfor
+sm ds
+trainingisthecross-entropylossofsoftmax(W ·h )withrespecttotheground-truthtokens,identically
+ds ds
+to how the base LM is trained. We compare how using h = att or h = ffn affects the interpolated
+ds ds
+performance. TheresultsareshowninTable2,andwealsoshowresultsfromkNN-LMsusingthesetwo
+varietiesofinputrepresentationforreference.
+Fromtheseexperimentswecanfindseveralinterestingconclusions:
+Effectivenessofre-trainingW : Inthecaseof“LearnedW w/FFN”,weareessentiallyre-learningthe
+ds ds
+weightsfeedingintothesoftmaxfunctionseparatelyfromtheunderlyingLMencoder. Despitethisfact,we
+canseethemodelachievesaPPLof20.920,whichis0.83pointsbetterthanthebasemodel. Thissuggests
+thatthereissomebenefitinlearningtheparametersofW afterfreezingthebodyofthetransformerencoder.
+ds
+Effectivenessofensemblingtwopredictors:InbothcasesforW ,theinterpolatedperplexityissignificantly
+ds
+betterthanthatofusingasinglepredictor. Thisisparticularlythecasewhenusingthe“att”representationfor
+h ,suggestingthattheutilityofensemblingpredictionsfromtwoviewsofthedataisnotonlyusefulwhen
+ds
+usingkNN-LM,butalsoinstandardparametricmodelsaswell.
+ParametricensemblesasanalternativetokNN-LM?:Overall,byusingaseparatewordembeddingmatrix
+withsizeV ×DasanalternativetokNN,wecanrecoverabout55%oftheperformancegainachievedby
+kNN-LM,withonlyalimitednumberofparametersandwithoutthenecessityforslowkNNretrievalevery
+timeatokenispredicted. ThissuggeststhatthemajorityofthegainaffordedbykNN-LMcouldbeachieved
+byothermoreefficientmeansaswell.
+h N ⊗ +#params PPL Interp. Oracle
+ds ds
+BaseLM - - - 0 21.750 - -
+kNN-LMw/ATT att Big IP N ×D ∞ 19.095 14.077
+ds
+LearnedW w/ATT att 1x IP V ×D 22.584 20.353 16.954
+ds
+kNN-LMw/FFN ffn Big IP N ×D ∞ 21.101 16.254
+ds
+LearnedW w/FFN ffn 1x IP V ×D 20.920 20.694 18.772
+ds
+Table2: Performancecomparisonhowthechoiceofh ,inputrepresentation,affectskNNbaselinesand
+ds
+modelswithlearnableembeddingsasdatastorealternative. h istheattentionlayeroutput.
+ds
+4.2 IncreasingtheSoftmaxCapacity
+OnepremisebehindkNN-LMisthatthelargedatastoreisthekeyreasonforthemodelworkingwell: the
+largerthesoftmaxcapacity,thebettertheperformance. Naturally,asafirststep,weneedtocheckwhether
+such a big datastore is warranted and whether the high rank of W leads to better performance. We test
+ds
+theeffectofthedatastoresizeforkNNretrievalonkNN-LMinterpolatedperplexity. Ifabiggerdatastore
+(ahighrankW )isbetterinkNN-LMthanasmallerdatastore,thenthehypothesisofsoftmaxcapacityis
+ds
+moreprobable. Werandomlysubsamplethefulldatastoreinvaryingpercentagesandtheresultsareshown
+inFigure2. Thefulldatastorecontainsmorethan150Mentriesandstoringthemtakes293GBwhenusing
+half-precision floating points (fp16). We can see that whether or not approximate kNN is used, the final
+perplexitydecreasesalmostlinearlywithmorepercentageoftheoriginaldatastore. Evenwithjust5%of
+thedatastoresize(15G),kNN-LMstillprovidesabenefitoverjustusingthebaseLM.However,evenwhen
+thesubsamplingpercentagereaches90%,havingmoreentriesinthedatastorestillprovidesbenefitswithout
+havingsignificantdiminishingreturns,suggestingthatalargedatastoreisbeneficial.
+Onepossiblereasonwhyalargerdatastoreishelpfulisthatwordscanbedifficulttopredict. Thereareseveral
+reasons: (1)Theyarerare,or(2)theyarefrequent,buttheyhavemultiplemeaningsandappearindifferent
+contexts. Thesoftmaxbottleneck(Yangetal.,2017)suggeststhatthefinaldotproductoflanguagemodel
+W ·h limitstheexpressivityoftheoutputprobabilitydistributionsgiventhecontext;thatis,asingle
+sm sm
+outputvectorofafixed(1024)sizecannotexpressallthepossiblemappingsbetween100Mtrainingexamples
+and33Kvocabularyoutputs. WehypothesizethatkNN-LMimprovesperformancebyalleviatingtheproblem,
+sinceW ⊗h hasahigherrankandismoreexpressivethanjustW ·h . Inotherwords,kNNisa
+ds ds sm sm
+sparseapproximationofthefullsoftmaxoveralltheembeddingsinthedatastoreW . Totestthishypothesis,
+ds
+2BecausewepreviouslyfoundlittledifferencebetweenIPandL2assimilarityfunctions,weuseIPintheexperiments.
+Forsimplicity,wesettemperatureτ =1.
+6
+wedisentangletheeffectofthehighrankinW fromtheactualsavedcontextembeddingsinW ,bytraining
+ds ds
+anembeddingmatrixofthesamedesiredsizetotestfromscratch.
+22.000
+21.000
+20.000
+19.000
+0.00 0.25 0.50 0.75 1.00
+Ratio to Full Datastore Size
+Figure2: TheeffectofthesizeofthedatastoreusedforkNNretrievalonfinalinterpolatedperplexity.
+Weexploreseveralpotentialsolutionsforincreasingthecapacityofsoftmax,andexamineiftheycanachieve
+asimilareffectofkNN-LM.Thefirstandeasiestsolutionistoincreasetheembeddingmatrixsizebyadding
+moreembeddingvectorsforeachwordtypeinthevocabulary. Totestthis, wereplaceW withamuch
+ds
+smallermatrixofsizenV ×D,whereweallocatenembeddingvectorsforeachwordtype. Whencalculating
+theprobabilityfromthiscomponent,wecomputethesoftmaxovernV itemsandsumtheprobabilitiesfor
+eachvocabularyentrytocalculatethefinalprobability. mask-to-k(·)isnolongerneeded,asthisformulation
+issmallenoughtofittheentirematrixintheGPU.WethenfinetunethenewW onthetrainingdatauntil
+ds
+convergence.
+Figure3comparesthebaseLMandtheoriginalkNN-LMversususingeitherattentionlayeroutput(“att”)
+orfeedforwardlayeroutput(“ffn”)ash . Weplotthenumberofembeddingsforeachwordtype(nV total
+ds
+embeddingsinW )versustheinterpolatedperplexity,withfulldetailsfoundinAppendixB. Inbothcases,
+ds
+comparingwiththetophorizontallinewhichrepresentstheperplexityofthebaseLM,replacingthedatastore
+withamuchsmallerweightmatrix(fromN tonV )byassigningonlyafewmoreembeddingsforeach
+ds ds
+wordhelps,althoughonlyabouthalfaseffectiveaskNN-LM.Togiveaperspective,theoriginaldatastore
+sizeisabout5000V. Surprisingly,wefindthatincreasingndoesnotalwaysbringbetterperformance,even
+thoughalargerdatastoreisbetterthanusingasmalldatastoreinkNN-LM.Wecanseethatwhenh =ffn,
+ds
+over-parameterizationprovidesverylimitedimprovements,whileforh =attitdoesnotbringconsistent
+ds
+improvementsatall.ComparingthetrendofincreasingtheembeddingsinW ,withthebottomhorizontalline
+ds
+intheplot,whichrepresentstheperplexityofthestandardkNN-LMusingthefulldatastore(W withapprox.
+ds
+5000V embeddings),wecanseenocleartrendthatmoretrainableembeddingsresultinbetterperplexity,and
+thatthegapbetweenusingtrainedembeddingsandusingfulldatastoreisstillsignificant. Thissuggeststhat
+simplyover-parameterizingW isnotaneffectivemethodofachievingaccuracygainssimilartokNN-LM.
+ds
+We hypothesize that this is because by just adding more embeddings, while still using the same training
+procedureastheoriginalLM,themultipleembeddingsforeachwordtypeafterlearningcouldstillbevery
+closetoeachother,andthusdonotincreasethesoftmaxcapacitymuch. Thissuggeststhatsomeregularization
+terms may be needed during training to make the multiple embeddings not converge to the same vector,
+renderingover-parameterizationuseless.
+Besidessimplyincreasingthenumberofembeddingvectorsequallyforeachwordtype,wealsopropose
+otheralternativestoincreasesoftmaxcapacity. First,wehypothesizethatdifferentwordtypeshavedifferent
+difficultiesforthelanguagemodeltopredict. Forthosewordsthatappearveryfrequently,theymayappear
+in many different contexts. As a result, instead of adding an equal number of additional embeddings to
+eachwordtype,weproposetoadaptivelyincreasethenumberofembeddingsforwordtypesbasedonword
+frequency,ortotaltraininglossfortheword. Second,wetrytobreakthesoftmaxbottleneckwithaMixture
+of Softmax. Yang et al. (2017) proposes a solution to the problem using a Mixture of Softmax (MoS) to
+producemorelinearlyindependentprobabilitydistributionsofwordsgivendifferentcontexts. Last,opposite
+totrainingthewordembeddingsofincreasedsize,wealsoconsiderwaystocompressthedatastoredowntoa
+similar-sizedembeddingmatrixforsoftmaxcomputationbyclusteringthewholedatastoreandallowingfor
+furtherfinetuningoftheembeddingmatrixconsistingofclustercentroids. However,noneofthesealternative
+methods provided additional benefits over the simple multi-embedding approach. More details on these
+attemptscanbefoundinAppendixC.
+7
+ytixelpreP
+detalopretnI
+att ffn
+22
+21
+20
+19
+2 4 6 8
+Number of Trained Embeddings (nV)
+Figure 3: The number of embeddings per word type (nV total embeddings in W ) versus interpolated
+ds
+perplexity. Thehorizontallineatthetop(black)representstheperplexityofthebaseLM.Thehorizontalline
+atthebottom(red)representstheinterpolatedperplexityusingafulldatastorewithkNN-LM.
+5 ApproximatekNNSearch&SoftmaxTemperature
+5.1 ComparingApproximatekNNSearch
+TocalculateP ofthenon-parametriccomponentinEquation5,itisusuallyprohibitivetouseexhaustive
+kNN
+kNNsearch,andthusKhandelwaletal.(2020a)useapproximatekNNsearchusingtheFAISSlibrary(Johnson
+etal.,2019). TheuseofFAISS(similarlytootherapproximatesearchlibraries)resultsintwovarietiesof
+approximation.
+• ApproximateNeighbors: Becausethesearchfornearestneighborsisnotexact,thesetofnearest
+neighborsmightnotbeequivalenttotheactualnearestneighbors. Recallthefunctionmask-to-k(·)in
+Equation5,itisthefunctionwhereweselectthekNNentriesfromthedatastoreW . Wedenote
+ds
+“realmask”astheaccuratenearestneighborsformask-to-k(·)selection,and“FAISSmask”asthe
+approximatenearestneighborsreturnedbytheFAISSlibrary.3
+• ApproximateScores: Inaddition,FAISSmakessomeapproximationsincalculatingthedistances
+betweenthequeryandtheretrievedneighborsforefficiencypurposes. Wedenote“realscore”asthe
+scorescalculatedfromgroundtruthdistancesbetweentheembeddings,and“FAISSscore”asthe
+distancesreturnedbyFAISSapproximatesearch.
+Thecomparisonofthedifferentapproximationsettingsisshownin Table3. Quitesurprisingly,weactually
+findthattheinterpolatedperplexitywithapproximatesearchisbetterthanthatwithexactsearch,bothwith
+respecttothemaskandthescorecalculation. Intriguedbythiscounter-intuitiveresult,weexploretheeffectof
+kNNsearchapproximation.
+h ⊗ +#params PPL λ Interp.PPL Oracle
+ds
+BaseLM - - 0 21.750 - - -
+kNN-LMw/FAISSmask,FAISSscore att L2 N ×D ∞ 0.271 19.174 14.230
+ds
+kNN-LMw/FAISSmask,realscore att L2 N ×D ∞ 0.176 19.672 14.393
+ds
+kNN-LMw/realmask,realscore att L2 N ×D ∞ 0.172 19.735 14.480
+ds
+Table3: PerformanceoftheparametriclanguagemodelandcomparisonofkNN-LMsusingtheapproximate
+versusgroundtruthkNN.
+First,weplotthesubsampledsizeofthedatastorewiththeinterpolatedperplexityFigure4,asimilarplot
+toFigure2,butshowcasingthecomparisonbetweenapproximateandrealmasks,betweenapproximateand
+realscoresinboththefulldatastoreaswellasasmallsubsampleddatastoresetting. Wefindthatusingan
+approximateFAISSmasktofindnearestneighborsisbetterthanusingthegroundtruthnearestneighborsand
+thatusingtheapproximatescorereturnedbyFAISSisbetterthanrecomputingthegroundtruthdistances
+3Tocalculatetherealmaskoveralargedatastore,weshardthedatastoreintoseveralsmallerdatastores,calculatethe
+nearestneighborsforeachofthesmallerdatastores,andcombinethembacktogethertogetthefinalresult.
+8
+ytixelpreP
+detalopretnI
+between embeddings for the kNN distribution at different levels of datastore size, both at 5% or 100%.
+Interestingly,thegapbetweenusinganapproximatescoreorrealscoregiventhesameapproximatenearest
+neighbors (“FAISS mask, FAISS score” vs. “FAISS mask, real score”) is larger than that between using
+approximateorrealnearestneighborsgiventhesamegroundtruthmethodofcalculatingthedistance(“real
+mask,realscore”vs. “FAISSmask,realscore”),forreasonswewillelucidateinthenextsection.
+FAISS mask, FAISS score FAISS mask, real score real mask, real score
+22.000
+21.000
+20.000
+19.000
+0.00 0.25 0.50 0.75 1.00
+Ratio to Full Datastore Size
+Figure4:ThedifferencesbetweenusingapproximateandaccuratekNNsearchonvaryingsizeofthedatastore.
+5.2 AddingSoftmaxTemperaturetokNNDistribution
+Becausethenumberofretrievednearestneighbors,k isusuallymuchsmallerthanthevocabularysizeV,
+intuitively,thekNNdistributionP usedforinterpolationtendstobemorepeakythanthestandardLM
+kNN
+output distribution. When k = 1024 and V = 33000, as in our experiments, P will only have a few
+kNN
+vocabularyitemswithanon-zeroprobability. Furthermore,manyoftheretrievedneighborssharethesame
+targettokenandthusmakethekNNdistributionevenpeakier. Onewaytocontroltheentropy,orpeakinessof
+thedistributionistoaddtemperaturetothelogitsthatgointothesoftmaxfunction(Holtzmanetal.,2019).
+Wecalculatetheprobabilityofnon-parametriccomponentP withthefollowingequationwheretisthe
+kNN
+softmaxtemperature:
+P =Msoftmax(mask-to-k(W ⊗h )/t) (6)
+kNN ds ds
+Ingeneral,thehigherthetemperature,theless“peaky”thedistributionwouldbecome. Weexperimentwith
+boththe5%aswellasthefulldatastoreusingdifferenttemperaturesrangingfrom0to3at0.1intervals. The
+resultsareshowninFigure5aandFigure5brespectively.
+(a)On5%subsampleddatastore. (b)Onfulldatastore.
+Figure5: Theinterpolatedperplexityvarieswithdifferentsoftmaxtemperaturevalues.
+Wecanseethatthedefaulttemperaturet=1doesnotalwaysresultinthebest-interpolatedperplexityand
+tuningsoftmaxtemperatureisdesirableforallsizesofdatastore. Thelessonlearnedhereisthattuningthe
+9
+ytixelpreP
+detalopretnI
+softmaxtemperatureforthekNNdistributioniscrucialforgettingoptimalresultsfromeachsetting. Only
+coincidentally,atemperatureof1.0wasclosetooptimalintheoriginalsettingsofKhandelwaletal.(2020b),
+whichhidtheimportanceofthishyperparameter.
+Inboththe5%subsampleddatastoreandthefulldatastorescenarios,temperaturet=1isclosetooptimal
+when using “FAISS mask, FAISS score”. When using either “real mask” or “real score”, this is not true
+anymore. Evenattheoptimaltemperatureforeachsetting,“realmask,realscore”somewhatunderperforms
+“FAISSmask,realscore”. Itisconsistentwiththecounter-intuitivephenomenondiscussedinSection5.1.
+Therearealsodifferencesbetweenthetwoscenariosofdifferentdatastoresizes. Withthefulldatastore,using
+“realscore”outperforms“FAISSscore”giventhesame“FAISSmask”. However,theoppositeistruewhen
+usingthe5%datastore. Thissuggeststhatasthedatastoresizegrows,usingaccuratedistancevaluesarebetter
+thantheapproximateones. Therelativelysmallgapbetweenusing“realscore”and“FAISSscore”inboth
+datastoresettingsshowsthatthemaincontributortotheimprovementsisusingapproximatenearestneighbors
+(“FAISSmask”)ratherthanusingapproximatedistancevalues(“FAISSscore”).
+Wehypothesizethatthisisrelatedtoregularizationforpreventingoverfitting,andapproximatesearchprovides
+fuzziness that functions as a regularizer. We can think of the non-parametric part in kNN-LM, the kNN
+componentasamodel,wherethedatastoresizeisitsmodelcapacity,andthedatastoreisitstrainingdata.
+ConsideringthatthekNNcomponentusestheexactsametrainingdataasthebaseparametricLM,having
+groundtruth,accuratekNNsearchmaycausethekNNcomponenttooverfitthetrainingdata. Comparingthe
+smalldatastorewithonly5%withtheoriginaldatastore,weseethatasmalldatastoremeansasmalltraining
+setforthekNN“model”anditthusitbenefitsmorefromthisregularization,bothboththroughusingthe
+FAISSmaskandFAISSscore(atoptimaltemperaturesettings). Fromtheseexperiments,wecanseethat,
+surprisingly,oneoftheimportantingredientsinkNN-LMseemstobeapproximatekNNsearch,whichlikely
+preventsoverfittingtothedatastorecreatedfromthesametrainingset. Wefurtheranalyzethisunexpected
+resultinAppendixD,wherewefindthatlongerwordsandwordsthatappearinmanydifferentcontextshave
+slightlybetterresultswithapproximatenearestneighbors.
+Coincidentally, He et al. (2021) find that dimensionality reduction using PCA on datastore vectors (from
+1024to512dimensions)improvestheperplexityoftheoriginalkNN-LMfrom16.46to16.25,whichcan
+be explained by our findings as PCA may provide another source of “approximation” that contributes to
+regularization.
+Notably,similareffects,whereanapproximationcomponentleadtobettergeneralization,havebeenreportedin
+otherNLPtasksaswell,andaresometimesreferredtoas“beneficialsearchbias”,whenmodelingerrorscause
+thehighest-scoringsolutiontonotbethecorrectone: Meisteretal.(2020b)suggestthat“quitesurprisingly,
+beam search often returns better results than exact inference due to beneficial search bias for NLP tasks.”
+StahlbergandByrne(2019)alsoconcludethat“vanillaNMTinitscurrentformrequiresjusttherightamount
+ofbeamsearcherrors,which,fromamodelingperspective,isahighlyunsatisfactoryconclusionindeed,as
+themodeloftenprefersanemptytranslation”.
+6 ProbablyWrongHypothesesforWhykNN-LMsWork
+Theresultsintheprevioussectionsaretheresultofextensiveanalysisandexperimentation,inwhichwealso
+testedanumberofhypothesesthatdidnotturnouttohaveasignificanteffect. Additionaldetailsofthese
+hypothesesaredetailedinAppendixE,andwehopethattheymayprovideideasforfutureimprovementsof
+retrieval-basedLMs.
+EnsembleofDistanceMetrics Wehypothesizedthattheensembleoftwodistancemetrics: thestandard
+innerproductdistance(whichtheLMuses)andtheL2distance(whichthekNNcomponentuses),isthekey
+totheimprovement. However,wefoundthatsimilargainscanbeachievedusingtheinner-productmetricfor
+theretrievedkNN.MoredetailscanbefoundinAppendixE.1.
+EnsemblingofTwoModels WehypothesizedthatthekNNcomponentmerelyprovidesanothermodel
+forensembling. TheimprovementfromkNN-LMispurelyduetotheensemblingeffectofdifferentmodels.
+However,wefoundthatkNN-LM’simprovementisorthogonaltoensemblingwithadifferentbaseLM.More
+detailscanbefoundinAppendixE.5.
+Sparsification Themask-to-k(·)usedbykNNretrievalinducessparsityinthedistributionoverthevocab-
+ulary,duetoasmallk(typically1024)comparedtothesizeofthevocabularyV (33Kinourexperiments
+10
+and260KintheoriginalsettingsofKhandelwaletal.(2020b)). WehypothesizedthatkNN-LMincreases
+theprobabilityofthetop-kentrieswhiletaking“probabilitymass”fromthelongtailofunlikelywordtypes.
+However,wecouldnotgainanybenefitssolelyfromsparsifyingtheoutputprobabilityofastandardLMand
+interpolatingitwiththeoriginalLM.MoredetailscanbefoundinAppendixE.2.
+StolenProbabilities Thestolenprobabilitieseffect(Demeteretal.,2020)referstothesituationwherethe
+outputembeddingsofanLMarelearnedsuchthatsomewordsaregeometricallyplacedinsidetheconvex
+hull that is formed by other word embeddings and can thus never be “selected” as the argmax word. We
+hypothesizedthatkNN-LMsolvesthestolenprobabilitiesproblembyallowingtoassignthehighestprobability
+toanyword,givenatestcontextthatiscloseenoughtothatword’sdatastorekey. However,wefoundthat
+noneofthevectorsinourembeddingmatrixandintheoriginalembeddingmatrixofKhandelwaletal.(2020b)
+islocatedintheconvexhulloftheothers,whichisconsistentwiththefindingsofGrivasetal.(2022). More
+detailscanbefoundinAppendixE.4.
+Memorization WehypothesizedthatthekNNcomponentsimplyprovidesmemorizationofthetrainingset.
+However,wecouldnotimproveastandardLMbyinterpolatingitsprobabilitywithanotherstandardLMthat
+wasfurthertrainedtooverfitthetrainingset. MoredetailscanbefoundinAppendixE.6.1.
+Soft Labels We hypothesized that kNN-LM’s improvement lies in reducing the “over-correction” error
+whentrainingwith1-hotlabels,ashypothesizedbyYangetal.(2022),andthatretrievingneighborsisnot
+important. If only “soft labels” are the key, we could hypothetically improve the performance of another
+freshLMwiththesamemodelarchitecturebuttrainedwiththesoftlabelsfromthebaseLM,insteadoffrom
+kNN-LM.Thisseparatestheeffectof“softlabeling”fromtheadditionalguidanceprovidedbykNN.However,
+thisdoesnothelpwiththeinterpolatedperplexityatall. MoredetailscanbefoundinAppendixE.6.2.
+Optimizing Interpolated Loss We hypothesized that the standard LM cross-entropy training loss does
+not emphasize the examples where base LM performs badly which could benefit from kNN, and directly
+optimizing the interpolated loss of standard LM and a separate trainable softmax layer could be a better
+alternative. However,wecouldnotgainanybenefitsbytraininganadditionalsoftmaxlayertogetherwitha
+baseLMusingtheinterpolatedloss. MoredetailscanbefoundinAppendixE.6.3.
+7 Conclusion
+Inthispaper,weinvestigatewhykNN-LMimprovesperplexity,evenwhenretrievingexamplesfromthesame
+trainingdatathatthebaseLMwastrainedon. Byproposingandtestingvarioushypothesesandperforming
+extensiveablationstudies,wefindthatthekeytokNN-LM’ssuccessisthreefold:
+1. Ensemblingdifferentinputrepresentations–thefeedforwardlayeroutputandtheattentionlayer
+output–canrecover55%oftheperformance,evenwithoutretrieval.
+2. One of the most unexpected discoveries in the paper is that using approximate nearest neighbor
+searchallowskNN-LMstogeneralizebetterthanexactnearestneighborsearch,possiblyduetoa
+regularizationeffect.
+3. TuningthesoftmaxtemperatureforthekNNdistributioniscrucialtoadjustthestandardLMoutput
+distributionwiththedistributioncreatedbytheretrievedneighbors’distances.
+WeperformedextensiveexperimentswhichruledoutotherhypothesesastowhykNN-LMswork,suchas
+over-parameterization,datastoreclustering,sparsification,overfitting,ensemblingofdistancemetrics,and
+alternativetrainingmethods.
+We believe that this work unlocks a variety of exciting research directions for efficient kNN alternatives.
+For example, exploring methods that replace the kNN component with trainable parameters and achieve
+comparableresultswithoutthelatencyburdenofkNN-LM.
+Acknowledgement
+WethankRameshNallapati,SudiptaSengupta,DanRoth,DanielFriedandXiaosenZhengforthehelpful
+discussionsandfeedback. ThisprojectwassupportedbyagiftfromAWSAI.FrankF.Xuissupportedby
+IBMPh.D.Fellowship.
+11
+References
+Uri Alon, Frank F Xu, Junxian He, Sudipta Sengupta, Dan Roth, and Graham Neubig. Neuro-symbolic
+languagemodelingwithautomaton-augmentedretrieval. arXivpreprintarXiv:2201.12431,2022.
+Jimmy Lei Ba, Jamie Ryan Kiros, and Geoffrey E Hinton. Layer normalization. arXiv preprint
+arXiv:1607.06450,2016.
+AlexeiBaevskiandMichaelAuli. Adaptiveinputrepresentationsforneurallanguagemodeling. arXivpreprint
+arXiv:1809.10853,2018.
+YoshuaBengio,RéjeanDucharme,PascalVincent,andChristianJauvin. Aneuralprobabilisticlanguage
+model. Journalofmachinelearningresearch,3(Feb):1137–1155,2003.
+Sebastian Borgeaud, Arthur Mensch, Jordan Hoffmann, Trevor Cai, Eliza Rutherford, Katie Millican,
+George Bm Van Den Driessche, Jean-Baptiste Lespiau, Bogdan Damoc, Aidan Clark, et al. Improv-
+inglanguagemodelsbyretrievingfromtrillionsoftokens. InInternationalconferenceonmachinelearning,
+pages2206–2240.PMLR,2022.
+Tom B Brown, Benjamin Mann, Nick Ryder, Melanie Subbiah, Jared Kaplan, Prafulla Dhariwal, Arvind
+Neelakantan,PranavShyam,GirishSastry,AmandaAskell,etal. Languagemodelsarefew-shotlearners.
+arXivpreprintarXiv:2005.14165,2020.
+AaronClauset, CosmaRohillaShalizi, andMarkEJNewman. Power-lawdistributionsinempiricaldata.
+SIAMreview,51(4):661–703,2009.
+DavidDemeter,GregoryKimmel,andDougDowney. Stolenprobability: Astructuralweaknessofneural
+language models. In Proceedings of the 58th Annual Meeting of the Association for Computational
+Linguistics,pages2191–2197,2020.
+JacobDevlin,Ming-WeiChang,KentonLee,andKristinaToutanova.BERT:Pre-trainingofdeepbidirectional
+transformersforlanguageunderstanding. arXivpreprintarXiv:1810.04805,2018.
+EdouardGrave,MoustaphaCissé,andArmandJoulin. Unboundedcachemodelforonlinelanguagemodeling
+withopenvocabulary. arXivpreprintarXiv:1711.02604,2017.
+AndreasGrivas,NikolayBogoychev,andAdamLopez. Low-ranksoftmaxcanhaveunargmaxableclassesin
+theorybutrarelyinpractice.InProceedingsofthe60thAnnualMeetingoftheAssociationforComputational
+Linguistics(Volume1: LongPapers),pages6738–6758,2022.
+Kelvin Guu, Tatsunori B Hashimoto, Yonatan Oren, and Percy Liang. Generating sentences by editing
+prototypes. TransactionsoftheAssociationforComputationalLinguistics,6:437–450,2018.
+JunxianHe,TaylorBerg-Kirkpatrick,andGrahamNeubig. Learningsparseprototypesfortextgeneration.
+arXivpreprintarXiv:2006.16336,2020.
+JunxianHe,GrahamNeubig,andTaylorBerg-Kirkpatrick. Efficientnearestneighborlanguagemodels. arXiv
+preprintarXiv:2109.04212,2021.
+GeoffreyHinton,OriolVinyals,JeffDean,etal. Distillingtheknowledgeinaneuralnetwork. arXivpreprint
+arXiv:1503.02531,2(7),2015.
+AriHoltzman,JanBuys,LiDu,MaxwellForbes,andYejinChoi. Thecuriouscaseofneuraltextdegeneration.
+arXivpreprintarXiv:1904.09751,2019.
+JeffJohnson,MatthijsDouze,andHervéJégou. Billion-scalesimilaritysearchwithGPUs. IEEETransactions
+onBigData,7(3):535–547,2019.
+ArmandJoulin,MoustaphaCissé,DavidGrangier,HervéJégou,etal. Efficientsoftmaxapproximationfor
+gpus. InInternationalconferenceonmachinelearning,pages1302–1310.PMLR,2017.
+Urvashi Khandelwal, Angela Fan, Dan Jurafsky, Luke Zettlemoyer, and Mike Lewis. Nearest neighbor
+machinetranslation. arXivpreprintarXiv:2010.00710,2020a.
+12
+UrvashiKhandelwal,OmerLevy,DanJurafsky,LukeZettlemoyer,andMikeLewis. Generalizationthrough
+Memorization: NearestNeighborLanguageModels. InInternationalConferenceonLearningRepresenta-
+tions(ICLR),2020b.
+YinhanLiu,MyleOtt,NamanGoyal,JingfeiDu,MandarJoshi,DanqiChen,OmerLevy,MikeLewis,Luke
+Zettlemoyer,andVeselinStoyanov. Roberta:Arobustlyoptimizedbertpretrainingapproach. arXivpreprint
+arXiv:1907.11692,2019.
+ClaraMeister,ElizabethSalesky,andRyanCotterell. Generalizedentropyregularizationor: There’snothing
+specialaboutlabelsmoothing. arXivpreprintarXiv:2005.00820,2020a.
+ClaraMeister,TimVieira,andRyanCotterell. Best-firstbeamsearch. TransactionsoftheAssociationfor
+ComputationalLinguistics,8:795–809,2020b.
+StephenMerity,CaimingXiong,JamesBradbury,andRichardSocher. Pointersentinelmixturemodels. arXiv
+preprintarXiv:1609.07843,2016.
+StephenMerity,NitishShirishKeskar,andRichardSocher. RegularizingandoptimizingLSTMlanguage
+models. InProceedingsofICLR,2018.
+Hermann Ney, Ute Essen, and Reinhard Kneser. On structuring probabilistic dependences in stochastic
+languagemodelling. ComputerSpeech&Language,8(1):1–38,1994.
+GabrielPereyra,GeorgeTucker,JanChorowski,ŁukaszKaiser,andGeoffreyHinton. Regularizingneural
+networksbypenalizingconfidentoutputdistributions. arXivpreprintarXiv:1701.06548,2017.
+AlecRadford,JeffreyWu,RewonChild,DavidLuan,DarioAmodei,IlyaSutskever,etal. Languagemodels
+areunsupervisedmultitasklearners. OpenAIblog,1(8):9,2019.
+VictorSanh, LysandreDebut, JulienChaumond, andThomasWolf. Distilbert, adistilledversionofbert:
+smaller,faster,cheaperandlighter. arXivpreprintarXiv:1910.01108,2019.
+RicoSennrich,BarryHaddow,andAlexandraBirch. Neuralmachinetranslationofrarewordswithsubword
+units. arXivpreprintarXiv:1508.07909,2015.
+FelixStahlbergandBillByrne. Onnmtsearcherrorsandmodelerrors: Catgotyourtongue? arXivpreprint
+arXiv:1908.10090,2019.
+Christian Szegedy, Vincent Vanhoucke, Sergey Ioffe, Jon Shlens, and Zbigniew Wojna. Rethinking the
+inceptionarchitectureforcomputervision. InProceedingsoftheIEEEconferenceoncomputervisionand
+patternrecognition,pages2818–2826,2016.
+DexinWang,KaiFan,BoxingChen,andDeyiXiong. Efficientcluster-basedk-nearest-neighbormachine
+translation. ArXiv,abs/2204.06175,2022.
+ZhilinYang,ZihangDai,RuslanSalakhutdinov,andWilliamWCohen. Breakingthesoftmaxbottleneck: A
+high-rankrnnlanguagemodel. arXivpreprintarXiv:1711.03953,2017.
+ZhixianYang,RenliangSun,andXiaojunWan. Nearestneighborknowledgedistillationforneuralmachine
+translation. In Proceedings of the 2022 Conference of the North American Chapter of the Association
+forComputationalLinguistics: HumanLanguageTechnologies,pages5546–5556,Seattle,UnitedStates,
+July 2022. Association for Computational Linguistics. doi: 10.18653/v1/2022.naacl-main.406. URL
+https://aclanthology.org/2022.naacl-main.406.
+13
+A kNN-LMGeneralizationtoOtherLMs
+#params BaseLMPPL kNN-LMPPL AbsolutePPLGain
+Ours 268M 21.75 19.17 2.58
+Distilled-GPT2 82M 18.25 14.84 3.41
+GPT2-small 117M 14.84 12.55 2.29
+GPT2-medium 345M 11.55 10.37 1.18
+GPT2-large 774M 10.56 9.76 0.80
+Table4: PerformanceofkNN-LMappliedtootherpretrainedlanguagemodelsofdifferentsizes.
+TotestthegeneralizabilityofkNN-LM,wefollowthesameexperimentalsetupasusedinSection3. We
+selectseveralpretrainedmodelsfromtheGPT2family(Radfordetal.,2019)ofvariousparametercounts,
+plusadistilledversionofGPT2,DistillGPT2.(Sanhetal.,2019)Wetakethepretrainedmodelcheckpoint,
+buildthedatastoreandevaluateontheWikitext-103datasetsplits. TheresultsareshowninTable4. Wecan
+seethatkNN-LMshasgoodgeneralizabilityonothermodels. ItimprovestheperplexityofallthebaseLMs
+tested. However,thelargerthemodelis,andusuallythebetterthebaseLM’sperplexityis,thelessgaincan
+beachievedfromaddingkNN.NotethatourmodelistrainedfromscratchonWikitext-103datasetandthus
+evenwitharelativelylargemodelsize,theperplexityandperplexitygainfromaddingkNNisstilllessthan
+modelswithpretraining. Withoutlossofgeneralizability,wewilluseourowntrained-from-scratchmodelas
+thebaseLMinthefollowingsectionsforablationstudy.
+B DetailedResultsforIncreasingtheSoftmaxCapacity
+h N ⊗ +#params PPL Interp. Oracle
+ds ds
+- - - 0 21.750 - -
+att Big IP N ×D ∞ 19.095 14.077
+ds
+att 1x IP V ×D 22.584 20.353 16.954
+att 2x IP 2V ×D 21.903 20.529 17.432
+att 3x IP 3V ×D 22.434 20.395 17.132
+att 4x IP 4V ×D 21.936 20.521 17.423
+att 5x IP 5V ×D 22.025 20.643 17.560
+att 6x IP 6V ×D 21.972 20.519 17.422
+att 9x IP 9V ×D 22.084 20.696 17.631
+ffn Big IP N ×D ∞ 21.101 16.254
+ds
+ffn 1x IP V ×D 20.920 20.694 18.772
+ffn 2x IP 2V ×D 20.889 20.646 18.701
+ffn 3x IP 3V ×D 20.829 20.603 18.717
+ffn 4x IP 4V ×D 20.769 20.629 18.876
+ffn 5x IP 5V ×D 20.720 20.594 18.878
+ffn 6x IP 6V ×D 20.726 20.599 18.902
+ffn 9x IP 9V ×D 20.687 20.567 18.887
+Table 5: Performance comparison of kNN baselines and models with learnable embeddings as datastore
+alternative. h iseitherattentionlayeroutput(att)orfeedforwardlayeroutput(ffn).
+ds
+C AlternativeMethodsforIncreasingSoftmaxCapacity
+C.1 AdaptiveIncreasingEmbeddingSize
+Wehypothesizethatdifferentwordtypeshavedifferentdifficultiesforthelanguagemodeltopredict. For
+thosewordsthatappearveryfrequently, theymayappearinmanydifferentcontexts. Asaresult, instead
+ofaddingequalnumberofadditionalembeddingstoeachwordtype,weproposetoadaptivelyincreasethe
+numberofembeddingsforwordtypesbasedonwordfrequency,ortotaltraininglossfortheword. Basedon
+theintuitionofZipf’slaw(Clausetetal.,2009),weassign1+log f foreachwordtypev ∈V,basedon
+b v
+14
+eitherthefrequencyorthetotaltraininglossoftheword,f . Thebisahyperparameterthatcouldbetuned.
+v
+Toensurefaircomparison,wetunebsothatforeachexperimentthetotalnumberofembeddingsmatches:
+(cid:80)
+1+log f =nV. TheresultsareshowninTable6. Wecanseethatalthoughniceinpaper,giventhe
+v∈V b v
+samenumberoftotalembeddings,adaptivelyincreasingthenumberofembeddingsassignedforeachword
+typedoesnotmakeasignificantdifferenceinthefinalperplexity,whencomparedwiththemodelsthatuse
+equalnumberofembeddingsforeachwordtype.
+h N ⊗ +#params PPL λ Interp.PPL Oracle
+ds ds
+BaseLM - - - 0 21.750 - - -
+KNN att Big L2 N ×D ∞ 0.271 19.174 14.230
+ds
+KNN att Big IP N ×D ∞ 0.266 19.095 14.077
+ds
+EqualPerWord att 3x IP 3V ×D 22.434 0.417 20.395 17.132
+LossWeighted att 3x IP 3V ×D 21.948 0.437 20.440 17.303
+Freq.Weighted att 3x IP 3V ×D 22.507 0.412 20.387 17.105
+KNN ffn Big L2 N ×D ∞ 0.065 20.734 15.594
+ds
+KNN ffn Big IP N ×D ∞ 0.050 21.101 16.254
+ds
+EqualPerWord ffn 3x IP 3V ×D 20.829 0.622 20.603 18.717
+LossWeighted ffn 3x IP 3V ×D 20.764 0.713 20.659 18.978
+Freq.Weighted ffn 3x IP 3V ×D 20.757 0.658 20.572 18.782
+Table6: PerformancecomparisonofkNNbaselinesandseveralconfigurationsthatadaptivelyincreasethe
+embeddingsizewithtraininglossorwordfrequency.
+C.2 MixtureofSoftmaxes
+Yangetal.(2017)proposesasolutiontotheproblemusingaMixtureofSoftmax(MoS)toproducemore
+linearly independent probability distributions of words given different contexts. Suppose that there are a
+totalofRmixturecomponents. MoSfirstusesRlinearlayerswithweightw totransformthecurrentquery
+r
+contextvectorh intow h . WithasharedwordembeddingmatrixW ,wecancalculateeachsoftmax
+ds r ds sm
+component’sprobabilitydistributionwithsoftmax(W ·w h ). Themixturedistributionisthengivenby:
+sm r ds
+R
+(cid:88)
+P = π softmax(W ·w h ) (7)
+MoS r,hds sm r ds
+r
+The prior weights are calculated using another linear layer with weight w , as π = softmax(w h ).
+π r,hds π ds
+The softmax ensures that
+(cid:80)Rπ
+= 1. Comparing the MoS with the first term in Equation 5,
+r r,hds
+Msoftmax(mask-to-k(W ⊗h )), we can see that there are some connections between the two. MoS
+ds ds
+eliminates the mask-to-k(·) operation, and replaces the single softmax across a very large vector (size of
+datastore),intomultiplesmallersoftmaxes,eachacrossonlyavectorofthesizeofvocabulary. Asaresult,
+thehugeW isreplacedbyseverallinearlayerstoprojectthewordembeddingmatrix. Nowthefirstterm
+ds
+becomes:
+M(⊕Rsoftmax(W ·w h )) (8)
+r sm r ds
+M =π ,∀i≤V (9)
+ir r,hds
+where⊕representsthevectorconcatenationoperation,andtheaggregationmatrixM nowcontainsthemixture
+weightsforeachsoftmaxbeingconcatenated. Weperformexperimentswithavaryingnumberofmixtures
+(R),differentdefinitionsh ,andwhethertofinetunetheoutputwordembeddingsW . Weallowfinetuning
+ds sm
+thewordembeddingwhenweuseattentionlayeroutputascontextvector,sincethewordembeddingmatrixis
+trainedwithfeedforwardlayeroutputoriginally. TheresultsforthisformulationareshowninTable7. MoS
+modelsonitsownincreasetheperformanceofthelanguagemodelmarginally. WhencomparedwithTable5,
+we find that these models are worse than those that simply increases the number of embeddings. This is
+expectedbecauseMoShasfeweraddedparameterscomparedtothose,asitonlyrequiresseveraladditional
+linearprojectionlayersfortheembeddings.
+C.3 ClusteringDatastore
+Oppositetotrainingthewordembeddingsofanincreasedsize,wealsoconsiderwaystocompressthedatastore
+downtoasimilar-sizedembeddingmatrixforsoftmaxcomputation. Theintuitionisthatthedatastorecontains
+15
+h R ⊗ +#params PPL λ Interp.PPL Oracle
+ds
+BaseLM - - - 0 21.750 - - -
+KNN att - L2 N ×D ∞ 0.271 19.174 14.230
+ds
+KNN att - IP N ×D ∞ 0.266 19.095 14.077
+ds
+KNN ffn - L2 N ×D ∞ 0.065 20.734 15.594
+ds
+KNN ffn - IP N ×D ∞ 0.050 21.101 16.254
+ds
+Ft.MoS+embed att 2 IP VD+2D2+2D 21.986 0.437 20.720 17.573
+Ft.MoS+embed att 3 IP VD+3D2+3D 22.106 0.422 20.779 17.609
+Ft.MoSOnly att 2 IP 2D2+2D 22.552 0.371 21.011 17.796
+Ft.MoSOnly att 3 IP 3D2+3D 22.573 0.371 21.024 17.812
+Ft.MoSOnly ffn 2 IP 2D2+2D 21.351 0.843 21.338 20.258
+Ft.MoSOnly ffn 3 IP 3D2+3D 21.495 0.733 21.460 20.322
+Ft.MoSOnly ffn 4 IP 4D2+4D 21.321 0.994 21.321 20.396
+Ft.MoSOnly ffn 5 IP 5D2+5D 21.371 0.909 21.367 20.406
+Table7: PerformancecomparisonofkNNbaselinesandseveralMoSconfigurations. R isthenumberof
+mixtures.
+redundantcontextvectors,andthuscompressioncouldmakethedatastoresmallerwithoutsacrificingtoo
+muchperformancegain. Heetal.(2021)showsthatwecansafelycompressthedatastorebyclusteringto50%
+oftheoriginalsizewithoutlosingperformance. Wetestthisideafurtherbyclusteringtheentiredatastore
+intoasizethatcouldfitinGPUmemory(e.g. 2V,3V)andthuscouldbeeasilyfinetunedfurtherandusethe
+resultingcentroidstoreplaceW . Withineachcluster,therewillbeadistributionofdifferentwordswith
+ds
+contexts,andweusethefrequencyofwordswithineachclustertocalculatetheaggregationmatrixM in
+Equation5. Thiswouldhavetheaddedbenefitof“multi-sense”embedding,whichallowssimilarmeaningsto
+beclusteredtoformanew“metaword”whilethesamewordwithdifferentmeaningswouldformdifferent
+“metawords”. Anotableexampleisbank,shore,andfinancialinstitution. However,thisdoesnotwork,mostly
+becauseofthehighcompressionlossafterclusteringandtheimbalanceddistributionofwordtypesamong
+eachcluster.
+D WhichWordsBenefitfromApproximation?
+TofurtherunderstandtheunexpectedresultswhenusingthedifferentkNNapproximateretrievalsettings
+inSection5.1andSection5.2, weanalyzeonatokenlevel, basedonhowmanytimeseachgroundtruth
+token’sprobabilityintheevaluationsetarehelpedbyeachkNNsetting. Itmeansthatforeachgroundtruth
+tokenintheevaluation,wecountthetimeswhenthekNNdistributionishigherthanthebaseLMdistribution
+P ,i.e.,P >P .
+LM kNN LM
+SincewefoundpreviouslythatapproximatekNNprovidesanadditionalperformanceboostcomparedto
+groundtruthkNN,wethuscompare“realmask,realscore”versus“FAISSmask,realscore”inthisanalysis.
+Topreventoutliers,wefilteroutwordswithlessthan10occurrencesintheevaluationset. Foreachsetting,we
+calculatethepercentageofoccurrencesintheevaluationsetwhereeachtokeninthevocabularywherethe
+kNNmoduleachievesabetterprobabilitythanbaseLM.Wethenplottheabsolutedifferencebetweenthe
+percentagesofthetwosettings,withrespecttovariouspossibleattributesofthetokenthatachievesbetter
+probabilityusingeachsetting.
+Figure6showsthatthelongerthetokenis,whichusuallysuggestspropernounsandharderandlesscommon
+wordsinEnglish,arebetterwithapproximateneighborsthangroundtruthones,andviceversa.Wehypothesize
+thatthisisduetolongerwordsaremorepronetooverfittinginkNN-LMandthususingapproximatekNN
+providesaneffectsimilartosmoothingandregularization.
+Wealsocomparewordsthatcouldappearinmorediversecontextswithwordsthatco-occurwithfewdistinct
+contexts. Tomeasurehowdiversethecontextsofeachwordinthevocabularyis,wecalculateboththeforward
+andbackwardbigramentropyforeachwordintheevaluationsetthathasmorethan10occurrences. The
+bigramentropyisasimpleyetgoodindicatorofcontextdiversityforagivenword,asusedinKneser–Ney
+smoothing(Neyetal.,1994). Wecalculateboththeforwardandbackwardbigramentropyforeachwordwas
+16
+Figure6: Theeffectofthetokencharacterlengthonhowmuchaccuratenearestneighborsarebetterthan
+approximateFAISSneighbors. Negativevaluesmeanworse. Thetrendlineofthescatterpointsisshown.
+follows,wherew andw representthewordafterandbeforethegivenwordw.
+after before
+(cid:88)
+H (w)=− p(w |w)logp(w |w) (10)
+forward after after
+wafter
+(cid:88)
+H (w)=− p(w |w)logp(w |w) (11)
+backward before before
+wbefore
+Forwardandbackwardentropyrepresentshowdiversethecontextafterandbeforethegivenwordis.Intuitively,
+bigramentropyissupposedtoindicatewordsthatcanappearinlotsofdifferentcontexts. Thehigherthe
+entropyofaword,themorediverseitscontextis,andviceversa. Forexample,wordslike“Francisco”would
+havealowentropybecauseitmostlycomesafter“San”.
+Figure7: Theeffectoftheforwardandbackwardentropyofwordsonhowaccuratenearestneighborsare
+betterthanapproximateFAISSneighbors. Negativevaluesmeanworse. Thetrendlineofthescatterpointsare
+shown.
+ThecomparisonisshowninFigure7. Wecanseethatthehighertheentropyinbothforwardandbackward
+cases,thebetterusingapproximatenearestneighborsearchbecomes. Thissuggeststhatwordsthatappear
+in many different contexts are better off with an approximate kNN, and “easy-to-predict” examples such
+as“Jersey”and“Fransisco”isbetterwithaccuratekNN,possiblybecausetheseexamplesarelessproneto
+overfittingerrorsandthusrequireslessregularizationfromapproximation.
+17
+E FailedHypotheses
+E.1 DistanceMetric
+WehypothesizethatthekeytokNN-LM’sperformancegainistheensembleoftwodistancemetrics: the
+standarddotproductdistance(whichtheLMuses)withtheL2distance(whichthekNNcomponentusesas
+⊗). WetriedtoreplacethekNNcomponentwithacomponentthatjusttakesthetokensretrievedbythekNN
+searchandreturnstheirL2distancetotheLMoutputwordembeddings: W ⊗h insteadofW ⊗h ,
+sm ds ds ds
+where⊗representsthenegativeL2distance. Wetriedthiswithbothvariantsofh ,attentionlayeroutput,
+ds
+andfeedforwardlayeroutput. Noneofthesehelped.
+E.2 Sparsification
+InEquation5,mask-to-k(·)usedbykNNretrievalinducessparsityinthedistributionoverthevocabulary,
+duetoasmallkcomparedtothenumberofvocabularyV. WehypothesizethattheinkNN-LM,thekNN
+distributionissparse,practicallyincreasingtheprobabilityofthetop-k entries. ThekNNdistributionhas
+upto1024entriesthatarenon-zero,concentratingmoreprobabilitymassoverthemostlikelytokens. This
+effectissimilartotheredistributionofprobabilitymassfortextgenerationinHoltzmanetal.(2019). We
+testthishypothesisonlybytakingtop32,64,128,512,or1024tokensintheparametricLMprobabilityand
+zeroingouttheprobabilitiesoftherestofthetokens. Tocompensate,weexperimentwithdifferentsoftmax
+temperaturesandtheninterpolatewiththeparametricLMprobability. Thisisolatestheeffectofthedatastore
+andretrievalatall,andthisdoesnothelpatall,suggestingthatsparsificationoftheoutputprobabilityaloneis
+notenough.
+AnotherattemptistohypothesizethatthekeyinkNN-LMisthatitselects“whichtokenstoinclude”inthe
+kNNdistribution,andnottheirdistances. Theintuitionbehindisthatmaybetheselectionofthetoptokens
+accordingtothekNNsearchisbetterthanthatfromthedot-productdistancebetweenthelanguagemodel’s
+outputvectorandallthevocabularyembeddings. Weperformexperimentssimilartothepreviousattempt,
+sparsifyingtheoutputprobabilitywiththetokensretrievedbythekNNsearch(butignoringthedistances
+providedbythekNNsearch)ratherthanthetopktokensoftheLM,withandwithoutremovingduplicates. In
+thebestcase,theymanagetoreducetheperplexityby0.5(whereaskNN-LMreducesbynearly2).
+E.3 LocationwithinContextWindow
+Supposedly,wordsinthebeginningofthe“contextwindow”ofthetransformerattesttimehavelesscontextual
+informationthanwordstowardtheendofcontextwindow.
+WehypothesizedthatmaybethebaseLMperformsworseinoneofthese(beginningvs. endofthecontext
+window),andmaybekNN-LMprovidesahigherimprovementinoneofthese. Wemeasuredtheper-token
+testperplexitywithrespecttothelocationofeachtokeninthecontextwindow. However,wedidnotfindany
+significantcorrelationbetweentheperformanceofthebaseLMandthelocation,andnosignificantcorrelation
+betweenthedifferencebetweenkNN-LMandthebaseLMandthelocation.
+WealsohypothesizedthatmaybethebeginningofeveryWikipediaarticleismore“predictable”,andthetext
+becomesmoredifficulttopredictasthearticlegoesintodetails. However,wealsodidnotfindanycorrelation
+withthelocationofthewordwithinthedocumentitappearsin.
+E.4 StolenProbabilities
+Thestolenprobabilitieseffect(Demeteretal.,2020)referstothesituationwheretheoutputembeddingsof
+anLMarelearnedsuchthatsomewordsaregeometricallyplacedinsidetheconvexhullthatisformedby
+otherwordembeddings. Sincelanguagemodelsgenerateascoreforeveryoutputwordbycomputingthe
+dotproductofahiddenstatewithallwordembeddings,Demeteretal.(2020)provethatinsuchacase,itis
+impossibleforwordsinsidetheconvexhulltobepredictedastheLM’smostprobableword(the“argmax”).
+We hypothesized that kNN-LM solves the stolen probabilities problem by allowing to assign the highest
+probabilitytoanyword,givenatesthiddenstatethatiscloseenoughtothatword’sdatastorekey.Nevertheless,
+asshownbyGrivasetal.(2022),althoughthisproblemmighthappeninsmallRNN-basedlanguagemodels,
+inmoderntransformersitrarelyhappensinpractice. UsingthecodeofGrivasetal.(2022),wecheckedthe
+embeddingsmatrixofourmodelandofthecheckpointprovidedbyKhandelwaletal.(2020b). Indeed,we
+foundthatinbothmodels–nowordisun-argmaxable.
+18
+E.5 ArekNN-LMJustEnsembling?
+Our hypothesis is that kNN component only provides another model for ensembling. The interpolation
+processisbasicallyanensemblemodel. TechnicallyitisunsurprisingthatkNN-LMwillhavethebenefit
+from ensembling, but we perform experiments to see how it compares to other ensembling. We trained
+another language model with the same architecture as the base LM we used throughout the experiments,
+with some variants having more than one embedding vector for each word (similar to Section 4.2). We
+interpolatethemodelswiththeoriginalbaseLM,andtheresultsareshowninTable8. Wecanseethateven
+justensemblingthebaseLMwithanotheridenticalmodel,buttrainedwithadifferentrandomseed,provides
+ahugeperformanceboost,bothoninterpretedperplexityandonoracleperplexity.
+Prev.Layers h N ⊗ +#params PPL Interp. Oracle
+ds ds
+same - - - 0 21.750 - -
+same att Big L2 N ×D ∞ 19.174 14.230
+ds
+same att Big IP N ×D ∞ 19.095 14.077
+ds
+same ffn Big L2 N ×D ∞ 20.734 15.594
+ds
+same ffn Big IP N ×D ∞ 21.101 16.254
+ds
+diff ffn 1x IP F +V ×D 21.569 18.941 14.980
+diff ffn 2x IP F +2V ×D 21.914 18.948 14.885
+diff ffn 3x IP F +3V ×D 22.206 18.981 14.853
+Table 8: Performance comparison of kNN baselines and models with different size output embeddings
+re-trainedfromscratch.
+However, just because ensembling two LMs of the same architecture provides better performance than
+interpolatingthebaseLMwithkNNdoesnotnecessarilysuggestthatkNN’sperformanceimprovementcan
+befullyreplacedbymodelensembling. Inotherwords,weareinterestedinwhetherthekNNperformance
+improvementsareorthogonaltothatofmodelensembling. Totestthis,wecomparetheperformanceofthe
+ensembleofK multipleLMsversustheensembleofK −1multipleLMsplusthekNNcomponent. The
+comparisonisfairbecausewehavethesamenumberofmodelsintheensemble,andtheonlydifferenceis
+whetherthekNNcomponentisincluded. TheresultsareshowninFigure8. Forthe“LM”series,eachpoint
+isK LMsensemble,andforthe“kNN”series,eachpointisK−1LMspluskNN.Wecanseethatevenat
+4-ensemble,theensemblethatcontainkNNasacomponentstillhaveaconsiderableedgeoverthe4-ensemble
+thatcontainjustLMs.
+LM and KNN
+LM KNN
+22
+20
+18
+16
+1 2 3 4
+Ensemble Components
+Figure 8: Ensembling effect comparison, between multiple base LMs and multiple base LMs plus kNN
+component.
+E.6 ArekNN-LMJustAlternativeTrainingMethods?
+E.6.1 Overfitting
+Since kNN-LM improves perplexity even with the same training dataset as datastore, we are curious if
+kNN-LMworksbyonly“memorizing”thetrainingdata. ThehypothesisisthatthedatastoreandthekNN
+19
+Prev.Layers h N ⊗ +#params PPL Interp. Oracle
+ds ds
+BaseLM same - - - 0 21.750 - -
+KNN same att Big L2 N ×D ∞ 19.174 14.230
+ds
+KNN same att Big IP N ×D ∞ 19.095 14.077
+ds
+KNN same ffn Big L2 N ×D ∞ 20.734 15.594
+ds
+KNN same ffn Big IP N ×D ∞ 21.101 16.254
+ds
+Overfit@92 diff ffn V IP F +V ×D 1702.806 21.732 17.764
+Overfit@129 diff ffn V IP F +V ×D 8966.508 21.733 17.814
+Table9: Performancecomparisonofseveralbaselineswithtwooverfittedmodels,at92and129additional
+epochs.
+search are trying to memorize the training data. In other words, the parametric LM is under-fitting some
+tokens. TheintuitionbehindthisisthatthekNNcomponentretrievesexamplesdirectlyfromthetrainingset.
+WhatifwecouldretrievethesameexamplesusinganoverfittedLM?WetookthetrainedLM,removedthe
+dropout,andcontinuedtraininguntilalmostperfectfit(verysmalltrainingloss). Wetheninterpolatedthe
+overfittedtransformerwiththeoriginalLM.TheresultsareshowninTable9. F representsthenumberof
+parametersinthebaseLM,minustheoutputembeddingmatrix. Wecanseethatoverfittingcanprovidevery
+littlehelpafterinterpolation. Lookingattheoracleperformance,wethinkthattheoverfittedmodelmemorizes
+somerarecontextsandtokensinthetrainingsetwhereitcouldbeusefulduringevaluation. However,the
+overfittinghurtstheperformanceonothertokenstoomuchsothateveninterpolationisnotabletobalancethe
+performance.
+E.6.2 Soft-LabelTraining
+Yangetal.(2022)claimsthatusing“softlabels”duringtrainingisthekeytokNN’ssuccess,thatinterpolates
+theground truthlabelswith kNN-LMmodeloutputs, effectively“distilling” kNN-LM.It isbasedonthe
+hypothesisthattheroomforkNN-LM’simprovementoverbaseLMliesinthe“over-correction”whentraining
+witha1-hotlabels. Thisisrelatedtotheeffectfromlabelsmoothingmethods(Szegedyetal.,2016;Pereyra
+etal.,2017;Meisteretal.,2020a). However,webelievethatthisexplanationisnotsatisfactory. Ifthekeyis
+trainingwithsoft-labels,whydothesesoftlabelsmustbeprovidedspecificallybyakNNsearch? Ifsoftlabels
+werethekey,thensoft-labeltrainingwherethelabelscomefromthebaseLMitselfshouldhaveworkedas
+well. ToseparatetheeffectofsoftlabelingfromthekNN’sadditionalguidance,wetrainanotherLMwiththe
+samemodelarchitectureasthebaseLM,withthesoftlabelsfromthebaseLM.Thisteacher-studenttraining
+istodistilltheknowledgefromthebaseLM(Hintonetal.,2015). Wefindthatbyjusttrainingwith“soft
+labels“fromthebaseLMtoalleviatethealleged“over-correction”problemisnotthekey,asthisdoesnothelp
+withtheinterpolatedperplexityatall. Thissuggeststhatevenwiththesametrainingdata,kNNstillprovides
+valuableadditionalguidance.
+E.6.3 TrainingtoOptimizeInterpolatedLoss
+InSection4.2,wediscoverthatusingover-parameterizationwithstandardLMtraininglossdoesnotfurther
+closethegaptowardskNN-LM.Thissuggeststhatsomeregularizationtermmaybeneededduringtrainingto
+makethemultipleembeddingsnotconvergetothesamevector,renderingover-parameterizationuseless.
+FromTable2,weseethatabetterinterpolatedperplexitymaynotrequireaverylowperplexitywhenmeasured
+onlywiththeextrainputrepresentation. However,westilluseastandardLMlosstoonlytraintheadditional
+embedding matrix, that directly minimizes the perplexity using only the extra input representation. This
+discrepancybetweentrainingandtheevaluationwithinterpolationsuggeststhattrainingwithanalternative
+lossfunctionthatinterpolatesthebaseLM’soutputwiththeoutputusingtheextrainputrepresentationmay
+bebeneficial.
+TotestthehypothesisthatstandardLMtraininglossdonotemphasizetheexampleswherebaseLMperforms
+badly,wetraintheextramodel’sparameterW ,withinterpolatedlossL:
+ds
+L=CrossEntropy(λsoftmax(W ·h )+(1−λ)softmax(W ·h ),y) (12)
+ds ds sm sm
+y represents the ground truth label for each context. We only learn the parameter W while freezing all
+ds
+otherparameters,similartoallotherexperiments. Wechooseλ=0.25asitisthebesthyper-parameterfor
+kNN-LMexperimentsandourgoalforthistrainingistomimicthelossofkNN-LMafterinterpolation. This
+traininglosseffectivelyassignsahighervaluetothetrainingexampleswherethebaseLM’slossishigh,
+20
+suggestingtheneedfortheextraW tohelpwiththesehardcases. However,foreither“att”for“ffn”forh ,
+ds ds
+eitherV or3V forthenumberofembeddingsinW ,weareunabletoachieveabetterperplexitythanjust
+ds
+thebaseLM.Thissuggeststhat,whileniceonpaper,theinterpolatedlossoptimizationprocessisnottrivial.
+21

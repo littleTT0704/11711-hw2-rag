@@ -1,0 +1,666 @@
+Distribution-aware Goal Prediction and Conformant Model-based Planning
+for Safe Autonomous Driving
+JonathanFrancis*12 BingqingChen*1 WeiranYao*1 EricNyberg1 JeanOh1
+Abstract resultsinend-to-endimitationlearningfromexpertdemon-
+strations, wherein agents learn policies that replicate the
+Thefeasibilityofcollectingalargeamountofex- experts’actions,ateachtime-step,giventhecorresponding
+pertdemonstrationshasinspiredgrowingresearch observations(Bojarskietal.,2016;Codevillaetal.,2018;
+interestsinlearning-to-drivesettings,wheremod- 2019;Mulleretal.,2006;Panetal.,2017;Pomerleau,1989;
+elslearnbyimitatingthedrivingbehaviourfrom Ohn-Bar et al., 2020; Chen et al., 2020d). Despite this
+experts. However, exclusivelyrelyingonimita- progress,end-to-endimitativemodelsoftencannotcapture
+tioncanlimitagents’generalisabilitytonovelsce- thecausalstructuresthatunderlieexpert-environmentinter-
+nariosthatareoutsidethesupportofthetraining actions,leadingmodelstomisidentifythecorrectmappings
+data. Inthispaper,weaddressthischallengeby fromtheobservations(deHaanetal.,2019). Furthermore,
+factorisingthedrivingtask,basedontheintuition ifthecoverageofexpertdemonstrationsdoesnotextendto
+thatmodulararchitecturesaremoregeneralisable allscenariosthattheagentwillencounterduringtesttime,
+and more robust to changes in the environment theagentwillgeneratespuriousactionsinresponsetothese
+comparedtomonolithic,end-to-endframeworks. out-of-distribution(OOD)observations(Filosetal.,2020).
+Specifically, we draw inspiration from the tra-
+jectory forecasting community and reformulate
+Inanefforttotacklepartofthisissue,recentworksdeviate
+thelearning-to-drivetaskasobstacle-awareper- fromtheend-to-endlearningparadigmintheirrespective
+ception and grounding, distribution-aware goal problem domains, opting instead to decompose learning
+prediction,andmodel-basedplanning. Firstly,we intosub-modules,fortrajectoryforecasting(Rhinehartetal.,
+traintheobstacle-awareperceptionmoduletoex- 2018b;Filosetal.,2020), indoorrobotnavigation(Chen
+tractsalientrepresentationofthevisualcontext. et al., 2020c), learnable robot exploration (Chaplot et al.,
+Then,welearnamulti-modalgoaldistributionby 2020;Chenetal.,2019),andautonomousenergysystems
+performingconditionaldensity-estimationusing (Chenetal.,2020b;a). Here,theintuitionisthat,bybreak-
+normalisingflow. Finally,wegroundcandidate ing down the inference problem into smaller units, more
+trajectorypredictionsroadgeometry,andplanthe controlovertheinferencestepisobtainedandthecausal
+actions based on on vehicle dynamics. Under misidentificationissueissomewhatavoided,byfactorising
+theCARLAsimulator,wereportstate-of-the-art theproblemsviaengineeringjudgement. Themodularityof
+resultsontheCARNOVELbenchmark. thoseapproachesresonateswiththeproposedmethod,how-
+ever those approaches use only the classical global-local
+hierarchical planning paradigm, where the responsibility
+ofperformingfeature-extractionwhilealsoattemptingto
+1.Introduction
+(implicitly) model the environment dynamics is still con-
+Achievinggeneralisabilitytonovelscenariosinurbanau- tainedwithinasingleunit,leadingtospuriouspredictions
+tonomousdrivingremainsachallengingtaskforartificial in unseen environments. We proceed a step further, by
+intelligence(AI).Recentapproacheshaveshownpromising definingmodulesinthelearning-to-drivesetting,suchthat
+each module’s task is directly attributable to the compo-
+*Equalcontribution 1SchoolofComputerScience,Carnegie nentsofbehaviourexpectedofanexpertagent(seeFigure
+Mellon University; Pittsburgh, Pennsylvania, United States
+1). In our decomposition, modules are given specialised
+2Bosch Center for Artificial Intelligence; Pittsburgh, Pennsyl-
+roles (e.g., obstacle-awareness, goal/intention-prediction,
+vania, United States. Correspondence to: Jonathan Francis
+<jon.francis@us.bosch.com>. andexplicitlymodellingenvironmentaldynamics),improv-
+ing the tractability of their respective sub-tasks and their
+Proceedingsofthe1stWorkshoponSafeLearningforAutonomous complementaritytowardsthedownstreamobjective.
+Driving,atthe39thInternationalConferenceonMachineLearn-
+ing (ICML’22), Baltimore, Maryland, USA, PMLR 162, 2022. However, the challenge of generalisability still remains.
+Copyright2022bytheauthor(s).
+2202
+ceD
+61
+]OR.sc[
+1v92780.2122:viXra
+Distribution-awareGoalPredictionandConformantModel-basedPlanningforSafeAutonomousDriving
+Responsibilities of conventional end-to-end, data-driven encoders Responsibilities of conventional end-to-end, data-driven decoders
+Detection Analysis Planning Control + Behaviour
+Traffic Compute Compute Compute Speed
+Vehicles is_atL _ti rg ah ffit cs _light tM o e lea as du r ve e d hi is ct l. e M fe cra eos nmu te r r re o l iad ndi es t. throttle steering braking adjust speed on turns
+is_traffic_light_active adjust speed on hills
+is_vehicle_on_same_lane Adaptive adjust speed in crowded scenes
+is_front_vehicle_braking Compute goal Decide: when to cruising Braking a
+hypotheses follo ww a yv pe oh ii nc tle s vs.
+Ped. Con awsi ad re er go ob as lt sa ,c le- Dy Mn oa dm ei lcs P lol nan gn hin og ri zo ov ne sr s st ta or pt asl to rw edin g tr ao fn fic a lp igp hro tsa ch
+Turns
+outside expert
+demonstrations
+is_pedestrian_hitable Re-plan, given
+i is s_ _p pe ed de es st tr ri ia an n_ _o on n_ _h ni et_ az r_o hn ie t_zone new information c eo xm ecp uu tete f iw na ay l p sto ein et r ia nn gg ale ngle
+Projections + Encoding Distribution-aware Goal Prediction Conformant Model-based Planning Action-selection
+(a) (b)
+Figure1: Issueswithend-to-endimitativepipelines. The(a)redand(b)blueboxesillustratethescopeofresponsibilitiesof
+conventionaldata-drivenencodersanddecoders,respectively,intheoverallpursuitofreplicatinghumandrivingbehaviour.
+Theseincludeobstacledetectionandsceneanalysis,andplanningandcontrol. Entitieswithdottedlinesindicatebehavioural
+componentsthatlieoutsidethesupportoftheexpertdemonstrationsintypicallearning-to-driveAItasks,asinCARLA
+simulation, such as: computing goal alternatives, in response to dynamic obstacle behaviour or re-planning over long
+horizonswhenpresentedwithnewrouteinformation. Asaresult,itisneitherpossibleforend-to-endimitativemodels
+to recover these skills from data, nor for them to exhibit the necessary degree of internal specialisation, without role
+assignmentthroughtheadoptionofmodulartraining. Ourmodulardecompositionscheme(bottomarrows)ismotivatedby
+thistaxonomy,aswellasbytheshortcomingsofalternativedecompositionschemes.
+How can we effectively utilise the expert’s prior experi- ondifferentiablevehiclekinematicsfortrajectorygenera-
+ence (e.g., in the form of expert demonstrations), while tion. Our approach is summarised in Figure 2. First, (i)
+also achieving generalisability to novel scenarios? Some wedefinemodularprimitives,basedoninsightsaboutthe
+recent works from the trajectory forecasting community decomposable nature of human driving behaviour. Next,
+formulateadual-objectiveoptimisation,couplinganimita- (ii)wepursuemodelgeneralisabilitybycouplinganimita-
+tionobjectivewithagoallikelihoodterm(Rhinehartetal., tion prior objective with a goal likelihood term, enabling
+2018a;2019;Parketal.,2020;Bhatetal.,2020),arguing the agent to leverage expert knowledge, while modelling
+that the two ideals of using prior expert experience and morediversemodesintheunderlyingdistributionoverall
+generalisingcanbeunified. Acommonissuewiththisfor- goalfutures. Next,(iii)wegroundcandidatetrajectorieson
+mulation is that models are incentivised to trade-off the vehiclekinematics. Finally,underCARLAsimulation,(iv)
+twoobjectives,ratherthaninherittheirindividualbenefits. wereportnewstate-of-the-artresultsontheCARNOVEL
+Samplesfromthegoaldistributionmaynotbesufficiently benchmark.
+diverse,iftheexpertdemonstrationsdidnotprovidesuffi-
+cientcoverageoverthemodesinthedistributionoverall
+2.RelatedWork
+possiblepredictions. Furthermore,predictionsmaynotbe
+admissible, discussed by Park et al. (2020); Francis et al. Inthissection,wedescribepriorartthatiscloselyrelated
+(2022b),withoutsomebiastoadhereto,e.g.,knownphys- tothecoreattributesofourapproach.
+icalconstraints,asinVerletintegration(Verlet,1967). In
+Learning to drive. Pomerleau (1989) pioneered investi-
+thiswork,weutiliseexpertdemonstrationsforpre-training
+gation of end-to-end imitation learning, for sensorimotor
+sub-modulesandfordensityestimation,butwealsoground
+navigationinautonomousdriving. Followingsomeexten-
+predictions on a differentiable vehicle kinematics model
+sions(Mulleretal.,2006;Silveretal.,2010;Bojarskietal.,
+andweconstrainpredictionstorespectroadadmissibility
+2016)withapplicationsinlane-following,highwaydriving,
+throughgeometricalprojectionofgoalprediction.
+andobstacleavoidance,morerecentworksadaptedtheclas-
+As a summary of our contributions, we produce a frame- sicimitativemodellingapproachtourbandrivingscenarios
+workforgeneratingdiversemulti-modepredictions,forthe (Codevillaetal.,2018;Bansaletal.,2018;Codevillaetal.,
+learning-to-drive setting, that achieves improved general- 2019; Pan et al., 2017; Ohn-Bar et al., 2020; Chen et al.,
+isability through modular task structures, more informed 2020d),withmorecomplexroadlayoutsandchallengingdy-
+goallikelihooddensity-estimation,andexplicitgrounding namicobstacleinteractions. Whereastheincreasedsample-
+Distribution-awareGoalPredictionandConformantModel-basedPlanningforSafeAutonomousDriving
+efficiencyfromimitationallaysmuchseriousconsideration tories, and they score the ‘goodness’ of a trajectory as a
+of alternative learning paradigms, e.g., reinforcement, a learnablemodule,theirmethoddoesnotattempttomodel
+commonissuewithimitativemodellingarisesfromhaving theagent’spredictiveintent,e.g.,asmodesinalikelihood
+tolearnarepresentationfromhigh-dimensionalvisualin- density. Rhinehartetal.(2018b)incorporatedtheconcept
+puts,inhighly-varyingenvironments: evenwithsufficient ofgoal-likelihoodintotheirDeepImitativeModel(DIM),
+data,modelsstruggletoextractmeaningfulfeaturesfrom and characterised the agent’s objective via pre-specified
+theinputthatarenotconfoundedbyhigh-frequency,label- geometric primitives: points, piece-wise linear segments,
+independentvariation(e.g., variedvehicleshapes, sensor and polygons. However, their goal-likelihood is defined
+miscalibration,differentweatherconditions,shadows,poor assimplesetmembership(i.e.,withinthepre-specifiedge-
+expertbehaviour)(Bansaletal.,2018). Infact, accessto ometry or not). Intuitively, set membership is neither a
+more samples can actually yield worse performance, as necessaryorsufficientconditionforgooddrivingbehaviour
+low-quality data can lead the model to misidentify basic (e.g.,bankingvsfollowingwaypoints;avoidingobstaclesvs
+causal structures, underlying expert-environment interac- stayingonwaypoints;stayingwithindrivableareavs. driv-
+tions (de Haan et al., 2019). Following Codevilla et al. ingsafely). Filosetal.(2020)aimedtoimproveonDIMby
+(2018;2019),Ohn-Baretal.(2020);Chenetal.(2020d); evaluatingthetrajectoryonthebasisofanensembleofex-
+Saueretal.(2018)useconditioningstrategies,suchascom- pertlikelihoods;whilethatgivesamorerobustestimateof
+mandvariables,teachernetworks,andmixturesofexpert the‘goodness’ofatrajectory,itneitherconsidersdynamic
+policies,inattemptstolearnbetterconditionalrepresenta- obstaclesnormoreinformativegoalpriors. Whereasmulti-
+tionsandthusreducethesearchspaceforgeneratingactions. agenttrajectoryforecastinghasslightlydifferentintentions
+However,alimitationoftheseworksisthatthenumberof andimplicationsthanactionplanninginlearning-to-drive
+modesthatcanberepresentedbythesemethodsislimitedby settings,wenonethelessdrawinspirationfromthetrajectory
+thenumberofpre-specifiedcommandsorexperts—thereby forecastingliteraturefortheirdistributionalinterpretationof
+limitingthemodel’sgeneralisabilitytonoveldrivingscenes. theego-agent’sintent,whichwecombinewithinformation
+aboutthescenecontext,forimprovedobstacle-awareness
+Controlstrategiesforautonomousvehicles. Asidefrom
+inthosepredictedtrajectories.
+learning (e.g., neural) mappings from observations to ac-
+tions, various works advocate for the use of feedback or
+model-basedcontrol: tosimplifythelearningprocessfor 3.ProblemDefinition
+thedata-drivencomponentsoftheframework,toreplacethe
+Wedefine,here,theterminologythatwewillusetochar-
+data-drivencomponentsentirely,ortogroundneuralpredic-
+acteriseourproblem. Theego-agentisadynamic,on-road
+tionswithexplicitphysicalconstraints. Chenetal.(2020d)
+entitywhosestateischaracterisedbya4Dpose: thespatial
+utiliseaproportional-integral-derivative(PID)controllerto
+position(consistingofx,andyinaCartesianworldcoordi-
+tracktheagent’stargetvelocity,whileSaueretal.(2018)
+nateframe),thespeedv,andtheyawangleθ,whichevolves
+useaPIDcontrollerforlongitudinaltrackingandaStanley
+overtime. Forthepositionoftheego-agentatcontroltime-
+Controller(SC)(Thrunetal.,2006)forlateraltracking,with
+stepk,weusethenotationx =[x ,y ,v ,θ ]∈R4;for
+respect to the road centerline. A feedback controller my- k k k k k
+theagent’ssequenceofpositions,fromtime-stepk tok ,
+opicallyandreactivelydeterminesitscontrolactionsbased 1 2
+weusex . Forthefullsequenceoftheego-agent’sposi-
+ondeviationsfromthesetpoints,whereasmodel-basedcon- k1:k2
+tions,forasingleepisodeinthetrainingdata,weuse(bold)
+trollers,suchamodel-predictivecontroller(MPC),canplan
+X. Setting k as the present state, we define the agent’s
+trajectories over long planning horizons by unrolling its 0
+historicaltrajectoryt≤k tobeX andtheagent’sfuture
+modelofthesystemdynamics. Kabzanetal.(2019);Her- 0 past
+trajectory(again,fromtheexpertdemonstrations)t ≥ k
+manetal.(2021);Chenetal.(2021);Francisetal.(2022a) 0
+tobeX . Ateachcontroltime-step,k,theagentispro-
+implement MPC controllers for their autonomous racing future
+vided with contextual information from the environment,
+tasks,usingground-truthvehiclestates. Inthiswork,wein-
+such as a frontal camera view Φ ∈ RH×W×C and a se-
+tegrateourperceptionandgoal-predictionmoduleswithan
+quence of waypoints ω. Combining X , Φ, and ω we
+MPC,inthecontextofurbandriving,enablingoursystem past
+havetheagent’sobservation,orsimplyO≡{X ,Φ,ω}.
+togeneratetrajectoriesthatconformtovehiclekinematics. past
+Ateachtime-step,theagentmusttakeanactionu ,defined
+Trajectoryforecastingforautonomousdriving. Theno- k
+asatupleofbraking,throttling,andsteeringcontrol. Our
+tionofcharacterisingdistributionsoverallpossibleagent
+objective is to learn a parameterised policy π that maps
+predictionshasseenexcitinggrowthinthedomainoftrajec- θ
+observations to actions u ∼ π (·|O), such that, given a
+toryforecastingforautonomousdriving(Leeetal.,2017; θ
+sequenceofobservations,anagentthatbeginsatsomeinitial
+Rhinehart et al., 2018a;b; 2019; Park et al., 2020; Filos
+locationintheenvironmentcandrivetosomedestination.
+etal.,2020). WhereasLeeetal.(2017)usepasttrajecto-
+riesandscenecontextasinputforpredictingfuturetrajec-
+Distribution-awareGoalPredictionandConformantModel-basedPlanningforSafeAutonomousDriving
+Environment
+Flow Frenet
+Waypoints Projection Inverse Inverse
+Car Model
+Obstacle-
+K
+Speed a aw ta tere
+n
+ts ioe nlf - Z(1)
+,
+Z(2)
+, ...
+Z(k)
+Vehicle
+M
+K oi dn ee lmatics
+Action
+V Sample Selection
+ResNet Backbone Q
+Learning-based
+Flow Model-predictive
+Z Base Complex Control
+Distribution Distribution
+Top-down
+PC roo jn et ce tix ot
+n Imitation Prior
+T(1)
+,
+T(2)
+, ...
+T(k)
+Obstacle Distribution-aware Conformant Model-
+Action-selection
+Awareness Goal Prediction based Planning
+Figure2: Modelarchitecture. Ourframeworkusestheego-centricsequenceofRGBimages,world-framewaypoints,and
+theagent’sowncurrentspeedinformationtolearnobstacle-awareattentionmapsandtop-downvisualrepresentations.
+These scene encodings inform distribution-aware goal prediction, to leverage expert experience for generalisability to
+novelscenarios. Asetofcandidategoalpredictionsarerealisedastrajectories,eachtransformedtotheFrenetroadframe
+coordinatesystemandgroundedtovehiclekinematics,usingadifferentiableMPCcontroller. Trajectoriesareprunedusing
+alearnablerankingandrefinementmodule.
+4.Approach eachsamplecanberegardedasanindependenthypothesis
+ofwhatmighthavehappened,giventhesameobservation.
+Urbandrivingcanbemodelledasacompositionofdriving
+x ,u = MPC(x ) is a learning-based
+k+1:k+N k+1:k+N goal
+primitives, where, through decomposition of the conven-
+MPC,whichtakesapredictedgoalfromthegoaldistribu-
+tional multimodal perception backbone into hierarchical
+tionasinputandgeneratesatrajectorythatreachesx in
+goal
+unitsandthroughmodulartraining,weenjoylowersample-
+N time-stepsbasedonitsembeddedvehiclemodel.
+complexityandimprovedrobustnessandgeneralisability,
+comparedtoend-to-endpolicies. Ourframeworkusestheego-centricsequenceofRGBim-
+ages,world-framewaypoints,andtheagent’sowncurrent
+4.1.ProblemFormulation speedinformationtolearnobstacle-awareattentionmaps
+andtop-downvisualrepresentations. Thesesceneencod-
+WeproposeamodularpipelinethatperformsDistribution- ingsinformourgoalpredictionmodule,whichcombines
+awareGoalPrediction,withconformantmodel-basedplan- animitationpriorandagoallikelihoodobjective,inorder
+ning, in urban driving settings (DGP). It primarily con- toleverageexpertexperienceforgeneralisabilitytonovel
+sistsofthreecomponents: anobstacle-awarenessmodule, scenarios. Asetofcandidategoalpredictionsarerealisedas
+a distribution-aware goal prediction module, and a con- trajectories,eachtransformedtotheFrenetroadframecoor-
+formant model-based planning module, as illustrated in dinatesystemandgroundedtovehiclekinematics,usinga
+Figures 1 (decomposition) and 2 (overview). More for- differentiableMPC.
+mally,wefactorisethepredictivedistributionoveractions,
+as a more tractable mapping: MPC ◦GP ◦OA. Here,
+4.2.ObstacleAwareness: ProjectionsandEncoding
+m ∼ OA(·|O) is an obstacle-awareness module, which
+generatesanembeddingm ∈ R256,givenanobservation. Weconditionthelearningofourgoaldistributiononcrucial
+x ∈R4 ∼GP(·|m)isagoalpredictionmodule,whose scenecontext—fromprojectedtopdownfeaturerepresen-
+goal
+samplesaredesiredtobediverseintheircoverageofthe tationandobstacleself-attention. Thisperceptionmodule’s
+modesinthetrue,underlyinggoaldistributionp(cid:63)(x |m). taskistotransformthefront-viewimageobservationsinto
+goal
+Here,x isthepredictedgoalfromtheGP moduleand bird’seyeview(BEV)semanticobjectattentionmaps.
+goal
+x(cid:63) is the true (unobserved) goal of the expert agent,
+goal In this work, we leverage the orthographic feature trans-
+whichcharacterisesitsscene-conditionednavigationalin-
+form(OFT)techniquedevelopedby(Roddicketal.,2018).
+tent. We want GP to generate multiple samples, where
+Inparticular,weextractobstaclesemanticinformationby
+Distribution-awareGoalPredictionandConformantModel-basedPlanningforSafeAutonomousDriving
+pre-trainingavariationalautoencoder(Kingma&Welling, Weaver,1997),whichensuresthatq remainswell-defined
+x
+2014)toreconstructpixels,speed,andsteeringcontrolin andobtainablethroughachangeofvariables,andensures
+thenexttimestepfromcurrentobservations. Itencourages thatp isuniformlydistributedonthesamedomainasthe
+z
+thelatentvariablestoattendtoobstacleinfrontview(e.g., dataspace(Liao&He,2021)—insofarasbothf andits
+vehicles,pedestrians,trafficlights,curbs,etc.)whichimpact inversef−1 aredifferentiableandthatzretainsthesame
+futurevehiclecontrol. Thefront-viewfeaturemapf(u,v) dimensionasx:
+isconstructedbycombiningthelearnedself-attentionmaps
+(Vaswanietal.,2017)withmulti-scaleimagesfeaturesof p x(x)=p z(z)(cid:12) (cid:12)det∂ ∂f z(cid:12) (cid:12)−1 (1)
+pre-trained ResNet-18 front-end. Then, voxel-based fea-
+turesg(x,y,z)aregeneratedbyaccumulatingimage-based Wecanconstructarbitrarilycomplexdensities,byflowingz
+featuresf(u,v)toauniformlyspaced3DlatticeG fixedto alongthepathcreatedbyachainofKsuccessivenormal-
+thegroundplaneadistancey pbelowthecameraandhasdi- izingdistributionsp z(z),witheachsuccessivedistribution
+mensionsW,H,Dandavoxelresolutionofrusingorthog- governedbyadiffeomorphictransformation:
+onaltransformation. Finally,thetopdownimagefeaturerep-
+resentationh(x,z)isgeneratedbycollapsingthe3Dvoxel x=z K =f K ◦···◦f 2◦f 1(z 0) (2)
+featuremapalongtheverticaldimensionthroughalearned
+1Dconvolution. Inadditiontoimagefeatures,weinterpo- Followingthissequenceoftransformations,ourmaininter-
+latewaypointsequenceandcreateatopdowngridrepresen- faceswiththeflow-basedmodelarethrougheithersampling
+tationofwaypointswithone-hotencoding. Thefinaltop- orevaluatingitsdensity,where,intheformer,wesample
+downfeaturerepresentationisofdimension[W/r,D/r,C] fromp z(z)andmustcomputetheforwardtransformation
+wherethenumberofchannelsC =C +C +1. f; in the latter, we must compute the inverse transforma-
+attn resnet
+tion f−1, its Jacobiandeterminant, andthe p (z) density
+z
+evaluation. The learning objective of the goal prediction
+4.3.Multi-modeGoalDistribution
+model is given by Eqn. 3, which is to minimise the KL
+Wewishtoapproximatethetruepredictivedistributionover divergence between the true and approximate goal distri-
+allpossiblegoalfuturesoftheego-agent,p(cid:63)(x goal|m),given bution,orequivalentlymaximisethelog-likelihoodofthe
+theembeddingvectormfromtheobstacleawarenessmod- approximategoaldistribution:
+ule (§4.2) based on the observation O from the environ-
+ment. Unfortunately, the predictive intent of the expert minKL(p(cid:63)||p )=maxE logp (x)
+θ x∼p(cid:63) θ
+agentisnotobservablefromthetrainingdata: theexpert θ θ
+(cid:88) (3)
+maymakemultiplemanoeuvresgiventhesamescenario, ≈max logp θ(x)
+θ
+butweonlyobservetheexperttakingoneoftheoptions. As x∼D
+aproxy,wetakeafuturestateoftheexpertagent,atfixed
+ThelikelihoodisgivenininEqn. 1,whichismadetractable
+timehorizonN,tobethe“ground-truth"ego-agent’sgoal,
+throughthespecialdesignofthebijectivetransformation
+x ≡x ,whereNdenotesthenumberoftime-steps
+goal k0+N f. Sincewearelearningaconditionaldistribution,wealso
+intheplanninghorizon.
+passthecontextembeddingmtotheflowmodel,following
+Next, rather than learning a mapping to directly imitate priorworks(Dinhetal.,2016;Papamakariosetal.,2017).
+these derived expert goals, we instead model an approxi-
+mationp θ(x goal|m)oftheunderlyinggoaldistribution,by 4.4.GroundingActionPredictionswithRoad
+leveragingabijectiveanddifferentiablemappingbetweena GeometryandVehicleDynamics
+chosenbasedistributionp andtheaforementionedtarget
+0
+Given x ∼ GP(·|m), we want to find a trajectory to
+approximate goal distribution p . This technique is com- goal
+θ
+x thatisconformanttobothvehicledynamicsandroad
+monlyreferredtoasa‘normalizingflow’,whichprovides goal
+geometry. Toconformtoroadgeometry,wepredictthegoal
+a general framework for transforming a simple probabil-
+stateinFrenétcoordinate(Figure3)andinverttoCartesian
+itydensity(basedistribution)intoamoreexpressiveone,
+coordinate. Weparameterisetheroadgeometryasacubic
+throughaseriesofinvertiblemappings(Tabaketal.,2010;
+splinealongthewaypoints, andcalculatetheFrenétand
+Rezende & Mohamed, 2015; Papamakarios et al., 2021;
+inverse-Frenéttransformationaccordingly.
+Kingma&Dhariwal,2018;Parketal.,2020).
+To be conformant to the vehicle dynamics, we formulate
+Formally,letf beaninvertibleandsmoothfunction,with
+f : Rd → Rd, x = f(z), z ∼ p , f−1 = g, and thus reachingadesiredgoalstateasaMPCproblem(Eqn. 4),
+z
+whichembedsavehiclemodel. Theobjective(Equation4a)
+g ◦ f(z) = z, for d-dimensional random vectors x and
+istoreachthegoalwithregularisationonactuations. Qand
+z. In this case, d = 4 and p = N(0,I). Further, we
+z
+Rarebothdiagonalmatricescorrespondingtocostweights
+attribute to f the property of diffeomorphism (Milnor &
+fortrackingreferencestatesandregularisingactions. Atthe
+Distribution-awareGoalPredictionandConformantModel-basedPlanningforSafeAutonomousDriving
+CartesianCoordinate celerationandsteering,inphysicalunits,whiletheCARLA
+Y
+simulatorexpectsnormalisedcommands. Themappingis
+unknown to us, and thus, we learn the mapping by min-
+y imisingthepredictionerrorbetweenpredictedandactual
+trajectoriesfromexpertdemonstrations.
+x˙ =vcos(φ) (5a)
+x X y˙ =vsin(φ) (5b)
+Fren´etCoordinate
+D v˙ =a (5c)
+φ˙ =vtanδ/L (5d)
+s(t) d(t)
+We solve the MPC problem with the iterative linear
+S quadratic regulator (iLQR) proposed in (Li & Todorov,
+2004), which iteratively linearises the non-linear dynam-
+icsalongthecurrentestimateoftrajectory,solvesalinear
+quadraticregulator(LQR)problembasedonthelinearized
+Figure3: ComparisonofCartesianandFrenétcoordinates.
+dynamics,andrepeatstheprocessuntilconvergence.Specif-
+ically,weusedtheimplementationforiLQRfrom(Amos
+Y
+etal.,2018).
+5.Experiments
+δ
+WeevaluateourapproachusingtheCARLA(Dosovitskiy
+etal.,2017)simulator,withspecificfocusonthreechallenge
+v
+benchmarks: CARNOVEL (Filos et al., 2020), NoCrash
+φ
+y (Codevilla et al., 2019), and the original CARLA bench-
+L mark(Dosovitskiyetal.,2017). Inallsettings, theagent
+isprovidedwithanRGBimage,awaypointsequence,and
+vehiclespeed;theagentmustproducesteering,throttle,and
+brakingcontrol,inordertonavigationtoadestination.
+x X
+AllexperimentswereconductedusingCARLAsimulator
+Figure4: Illustrationofthekinematicbikemodel. version0.9.6, whichisworthnotingbecausethisversion
+introducedupdatestotherenderingengineandpedestrian
+logic,allowingforconsistencyacross variousbenchmarks
+sametime,theMPCrespectsthesystemdynamicsofthe butmakingtheresultsofcontemporaryapproachesonpre-
+vehicle(Equation4b),andallowableactuation(Eqn. 4c). vioussimulatorversionsnolongercomparable(Chenetal.,
+2020d). Weusedadual-GPUmachine,withthefollowing
+N
+(cid:88) CPUspecifications: Intel(R)Core(TM)i9-9920XCPU@
+min (x −x )TQ(x −x )+ uTRu (4a)
+u1:N N goal N goal k k 3.50GHz;1CPU,12physicalcoresperCPU,total24log-
+k=1
+icalCPUunits. ThemachineincludestwoNVIDIATitan
+s.t. x =F(x ,u ), ∀k =1,...,N (4b)
+k+1 k k RTXGPUs,eachwith24GBGPUmemory.
+u≤u ≤u¯ (4c)
+k
+In this section, we further describe the tasks, baselines,
+Specifically,wecharacterisethevehiclewiththekinematic researchchallenges,andablations.
+bikemodel(Kongetal.,2015)giveninEqn. 51 andvisu-
+Benchmarktasks. WefollowFilosetal.(2020)inassess-
+alisedinFigure4, wherethestateisx = [x,y,v,φ], and
+ingtherobustnessofmodellingapproachestonovel,OOD
+theactionisu = [a,δ]. aistheacceleration,andδ isthe
+drivingscenariosintheirCARNOVELbenchmark. Predi-
+steering angle at the front axle. A key challenge is that
+catedontheCARLAsimulator(Dosovitskiyetal.,2017),
+thegroundtruthvehicleparameterswerenotknowntous.
+agentsarefirsttrainedontheprovidedofflineexpertdemon-
+AsidefromLdefinedasthedistancebetweenthefrontand
+strationfromTown01thatwereoriginallygeneratedusing
+rearaxle,thekinematicbikemodelexpectsactions,i.e. ac-
+arules-basedautopilot.Agentsarethenevaluatedonvarious
+1Thissetofequationsisdefinedwithrespecttothebackaxle OODnavigationtasks,suchas: abnormalturns,busy-town
+ofthevehicle. settings,hills,androundabouts. Agents’performanceare
+Distribution-awareGoalPredictionandConformantModel-basedPlanningforSafeAutonomousDriving
+Table1: ResultsofbaselinemodelsandourproposedapproachonCARNOVEL(Filosetal.,2020). WereportSuccess
+Rate(↑;M×Nscenes,%),theNumberofInfractions(Collisions,LaneInvasions)perkilometer(↓;×1e−3),andDistance
+travelled(m),onfournovel(unseen)scenarios.
+ABNORMALTURNS BUSYTOWN
+Success(↑) Infra/km(↓) Distance Success(↑) Infra/km(↓) Distance
+Method (M×Nscenes,%) (×1e−3) (m) (M×Nscenes,%) (×1e−3) (m)
+CIL(Codevillaetal.,2018) 65.71±7.37 7.04±5.07 128±20 5.45±6.35 11.49±3.66 217±33
+LBC(Chenetal.,2020d) 0.0±0.0 5.81±0.58 208±4 20.00±13.48 3.96±0.15 374±16
+DIM(Rhinehartetal.,2018b) 74.28±11.26 5.56±4.06 108±17 47.13±14.54 8.47±5.22 175±26
+RIP(Filosetal.,2020) 87.14±14.20 4.91±3.60 102±21 62.72±5.16 3.17±2.04 167±21
+DGP(ours) 82.86±6.39 1.49±1.44 108.74±8.70 76.36±4.98 5.51±2.34 126.83±6.73
+HILLS ROUNDABOUTS
+Success(↑) Infra/km(↓) Distance Success(↑) Infra/km(↓) Distance
+Method (M×Nscenes,%) (×1e−3) (m) (M×Nscenes,%) (×1e−3) (m)
+CIL(Codevillaetal.,2018) 60.00±29.34 4.74±3.02 219±34 20.00±0.0 3.60±3.23 269±21
+LBC(Chenetal.,2020d) 50.00±0.0 1.61±0.15 514±101 8.00±10.95 3.70±0.72 323±43
+DIM(Rhinehartetal.,2018b) 70.00±10.54 6.87±4.09 195±12 20.00±9.42 6.19±4.73 240±44
+RIP(Filosetal.,2020) 87.50±13.17 1.83±1.73 191±6 42.00±6.32 4.32±1.91 217±30
+DGP(ours) 100±0.0 0.0±0.0 193.12±0.03 80.00±14.14 4.44±7.21 126.32±11.83
+measuredaccordingtothefollowingmetrics: successrate generalisationinvisuomotorcontrolforurbandrivingfrom
+(percentage of successful navigations to the destination), ourapproach,whichjointlyestimatestheego-agent’saction
+infractionsperkilometre(ratioofmovingviolationstokilo- distributionwhilelearningtopredictandscoreintermediate
+metredriven),andtotaldistancetravelled. goals. Notably,weobservemostsignificantimprovements
+overthenext-bestmodel,RobustImitativePlanning(RIP;
+Baselinesmodels. Wecompareourmodelwiththefollow-
+Filosetal.(2020);anepistemicuncertainty-awaremodel)
+ingbaselinesintheCARNOVELbenchmark:
+whentransferringmodelstocompletelyunseentrafficlay-
+Conditionalimitationlearning(CIL)(Codevillaetal.,2018) outs,suchasRoundabouts.
+isanend-to-endbehaviourcloningapproach,whichcondi-
+Qualitativeresultsonagentintention. Anotablebenefitof
+tionsitspredictionsonhigh-levelcommandsandLiDAR
+ourfactorisingtheurbandrivingproblem—intoencoding,
+information.
+distribution-awaregoalprediction,conformantmodel-based
+Learningbycheating(LBC)(Chenetal.,2020d)extends planning,andpruning+action-selection—isthatweobtain
+CIL through cross-modal knowledge distillation, from a increasedinterpretabilityinouragent’spredictionpipeline.
+teachernetwork(trainedonprivilegedinformation—e.g., Specifically,bywayofourgoal-predictionmodule,weob-
+environmentstate,overheadimages)toasensorimotornavi- taintheabilitytorevealagent’sintent,duringitssimulated
+gationagent(theego-agent). taskexecution. Figure5offersqualitativeresultsfromour
+agent’sinteractionwiththeenvironmentduringinference.
+DeepImitativeModel(DIM)(Rhinehartetal.,2018b)isa
+Eachframecapturestheagent’sprediction(inred),given
+trajectoryforecastingandcontrolmethod,whichcombines
+its own speed information, ego-vision context, and short
+animitativeobjectivewithgoal-directedplanning.
+waypointsequences(inmustard).
+RobustImitativePlanning(RIP)(Filosetal.,2020)isthe
+Weobservedthatwaypointsequences,providedbytheen-
+methodthatwasproposedalongsidetherecentCARNOVEL
+vironment,maysometimeschange,asagentsapproachlo-
+benchmark. RIPisanepistemicuncertainty-awaremethod,
+cations where some decision must be made (e.g., turns).
+targetedtowardrobustnesstoOODdrivingscenarios.
+Coupledwithourmodelsestimationoftheunderlyingac-
+tiondistribution,conditionedonofflinedatasetsamples,our
+6.Results modelcorrectlymakesmultipleadmissiblepredictionsof
+turning(a),goingstraight(b),changinglanes(c),orstop-
+GeneralisationtoOODscenes. InTable1,wereportthe
+ping/slowing(d)asitapproachesthefirstintersection. After
+successrate,numberofinfractionsperkilometer,anddis-
+committing and executing the turn (e-f), the agent once
+tancetravelledofourapproach,alongsidestrongbaselines
+againconsidersmultiplepossiblefutures(g),beforeonce
+fromboththelearning-to-driveandtrajectoryforecasting
+againfollowingtherightwardarcingwaypointsequence.On
+communities. Weshowsignificantimprovementsinunseen
+Distribution-awareGoalPredictionandConformantModel-basedPlanningforSafeAutonomousDriving
+(a) (a) ((aa)) (f) (f) ((ff))
+(b) (b) ((bb)) (g) (g) ((gg))
+(c) (c) ((cc)) (h) (h) ((hh))
+(d) (d) ((dd))
+(i) (i) ((ii))
+(e) (e) ((ee)) (j) (j) ((jj))
+prediction waypoints
+Figure5: Qualitativeresultsfromsimulatedtaskexecution.
+straightsections,theagentshowsstrongbeliefonforward
+movement,indicatedbydistantandstraightgoalpredictions
+(h),butcorrectlyslows(i)andstops(j)forobstacles.
+7.DiscussionandConclusion
+Inthispaper,weintroduceadistribution-awaretrajectory
+generationmechanismthatremainsconformanttobothroad
+geometryandvehiclekinematics. Weshowhowouragent
+usesthislearnedpriortogeneralisetocompletelyout-of-
+distributiondrivingscenarios,suchasbusytowns,abnormal
+turns,hills,andunseentrafficpatternssuchasroundabouts.
+Distribution-awareGoalPredictionandConformantModel-basedPlanningforSafeAutonomousDriving
+References Codevilla, F., Santana, E., López, A. M., and Gaidon, A.
+Exploring the limitations of behavior cloning for au-
+Amos, B., Rodriguez, I. D. J., Sacks, J., Boots, B., and
+tonomousdriving. InProceedingsoftheIEEE/CVFInter-
+Kolter,J.Z. Differentiablempcforend-to-endplanning
+nationalConferenceonComputerVision,pp.9329–9338,
+andcontrol. arXivpreprintarXiv:1810.13400,2018.
+2019.
+Bansal, M.,Krizhevsky, A.,andOgale,A. Chauffeurnet:
+deHaan,P.,Jayaraman,D.,andLevine,S.Causalconfusion
+Learningtodrivebyimitatingthebestandsynthesizing
+inimitationlearning,2019.
+theworst. arXivpreprintarXiv:1812.03079,2018.
+Dinh,L.,Sohl-Dickstein,J.,andBengio,S. Densityesti-
+Bhat,M.,Francis,J.,andOh,J. Trajformer: Trajectorypre-
+mationusingrealnvp. arXivpreprintarXiv:1605.08803,
+dictionwithlocalself-attentivecontextsforautonomous
+2016.
+driving. arXivpreprintarXiv:2011.14910,2020.
+Dosovitskiy, A., Ros, G., Codevilla, F., Lopez, A., and
+Bojarski,M.,DelTesta,D.,Dworakowski,D.,Firner,B.,
+Koltun, V. CARLA: An open urban driving simulator.
+Flepp,B.,Goyal,P.,Jackel,L.D.,Monfort,M.,Muller,
+InProceedingsofthe1stAnnualConferenceonRobot
+U.,Zhang,J.,etal. Endtoendlearningforself-driving
+Learning,pp.1–16,2017.
+cars. arXivpreprintarXiv:1604.07316,2016.
+Filos,A.,Tigkas,P.,McAllister,R.,Rhinehart,N.,Levine,
+Chaplot, D. S., Gandhi, D., Gupta, S., Gupta, A., and
+S., and Gal, Y. Can autonomous vehicles identify, re-
+Salakhutdinov,R. Learningtoexploreusingactiveneural
+coverfrom,andadapttodistributionshifts? InInterna-
+slam. arXivpreprintarXiv:2004.05155,2020.
+tionalConferenceonMachineLearning,pp.3145–3153.
+Chen,B.,Francis,J.,Pritoni,M.,Kar,S.,andBergés,M. PMLR,2020.
+Cohort: Coordinationofheterogeneousthermostatically
+Francis,J.,Chen,B.,Ganju,S.,Kathpal,S.,Poonganam,
+controlledloadsfordemandflexibility. InProceedings
+J.,Shivani,A.,Vyas,V.,Genc,S.,Zhukov,I.,Kumskoy,
+ofthe7thACMInternationalConferenceonSystemsfor
+M., Oh, J., Nyberg, E., and Herbert, S. L. Learn-to-
+Energy-Efficient Buildings, Cities, and Transportation,
+race challenge 2022: Benchmarking safe learning and
+pp.31–40,2020a.
+cross-domain generalisation in autonomous racing. In
+Chen,B.,Yao,W.,Francis,J.,andBergés,M. Learninga 1stWorkshoponSafeLearningforAutonomousDriving,
+distributedcontrolschemefordemandflexibilityinther- at the International Conference on Machine Learning,
+mostaticallycontrolledloads.In2020IEEEInternational 2022a.
+ConferenceonCommunications,Control,andComputing
+Francis, J., Kitamura, N., Labelle, F., Lu, X., Navarro, I.,
+TechnologiesforSmartGrids(SmartGridComm),pp.1–7.
+andOh,J. Corechallengesinembodiedvision-language
+IEEE,2020b.
+planning. JournalofArtificialIntelligenceResearch,74:
+Chen,B.,Francis,J.,Oh,J.,Nyberg,E.,andHerbert,S.L. 459–515,2022b.
+Safeautonomousracingviaapproximatereachabilityon
+Herman,J.,Francis,J.,Ganju,S.,Chen,B.,Koul,A.,Gupta,
+ego-vision,2021.
+A.,Skabelkin,A.,Zhukov,I.,Kumskoy,M.,andNyberg,
+Chen, C., Majumder, S., Al-Halah, Z., Gao, R., Ra- E. Learn-to-race: Amultimodalcontrolenvironmentfor
+makrishnan, S. K., and Grauman, K. Learning to set autonomous racing. In Proceedings of the IEEE/CVF
+waypoints for audio-visual navigation. arXiv preprint InternationalConferenceonComputerVision,pp.9793–
+arXiv:2008.09622,1(2):6,2020c. 9802,2021.
+Chen,D.,Zhou,B.,Koltun,V.,andKrähenbühl,P.Learning Kabzan, J., Hewing, L., Liniger, A., andZeilinger, M.N.
+bycheating.InConferenceonRobotLearning,pp.66–75. Learning-basedmodelpredictivecontrolforautonomous
+PMLR,2020d. racing. IEEE Robotics and Automation Letters, 4(4):
+3363–3370,2019.
+Chen, T., Gupta, S., andGupta, A. Learningexploration
+policiesfornavigation. arXivpreprintarXiv:1903.01959, Kingma, D. P. and Dhariwal, P. Glow: Generative
+2019. flow with invertible 1x1 convolutions. arXiv preprint
+arXiv:1807.03039,2018.
+Codevilla,F.,Müller,M.,López,A.,Koltun,V.,andDoso-
+vitskiy,A. End-to-enddrivingviaconditionalimitation Kingma,D.P.andWelling,M. Auto-EncodingVariational
+learning. In 2018 IEEE International Conference on Bayes. In 2nd International Conference on Learning
+RoboticsandAutomation(ICRA),pp.4693–4700.IEEE, Representations,ICLR2014,Banff,AB,Canada,April
+2018. 14-16,2014,ConferenceTrackProceedings,2014.
+Distribution-awareGoalPredictionandConformantModel-basedPlanningforSafeAutonomousDriving
+Kong,J.,Pfeiffer,M.,Schildbach,G.,andBorrelli,F. Kine- Rhinehart,N.,Kitani,K.M.,andVernaza,P. R2p2: Arepa-
+maticanddynamicvehiclemodelsforautonomousdriv- rameterizedpushforwardpolicyfordiverse,precisegen-
+ing control design. In 2015 IEEE Intelligent Vehicles erativepathforecasting. InProceedingsoftheEuropean
+Symposium(IV),pp.1094–1099.IEEE,2015. ConferenceonComputerVision(ECCV),pp.772–788,
+2018a.
+Lee, N., Choi, W., Vernaza, P., Choy, C. B., Torr, P. H.,
+andChandraker,M. Desire: Distantfuturepredictionin Rhinehart,N.,McAllister,R.,andLevine,S. Deepimitative
+dynamicsceneswithinteractingagents. InProceedings modelsforflexibleinference,planning,andcontrol.arXiv
+oftheIEEEConferenceonComputerVisionandPattern preprintarXiv:1810.06544,2018b.
+Recognition,pp.336–345,2017.
+Rhinehart, N., McAllister, R., Kitani, K., and Levine, S.
+Li,W.andTodorov,E. Iterativelinearquadraticregulator Precog: Predictionconditionedongoalsinvisualmulti-
+design for nonlinear biological movement systems. In agentsettings. InProceedingsoftheIEEEInternational
+ICINCO(1),pp.222–229.Citeseer,2004. ConferenceonComputerVision,pp.2821–2830,2019.
+Liao, H.andHe, J. Jacobiandeterminantofnormalizing Roddick,T.,Kendall,A.,andCipolla,R. Orthographicfea-
+flows. arXivpreprintarXiv:2102.06539,2021. turetransformformonocular3dobjectdetection. arXiv
+preprintarXiv:1811.08188,2018.
+Milnor,J.andWeaver,D.W. Topologyfromthedifferen-
+tiableviewpoint. Princetonuniversitypress,1997. Sauer,A.,Savinov,N.,andGeiger,A. Conditionalaffor-
+dance learning for driving in urban environments. In
+Muller,U.,Ben,J.,Cosatto,E.,Flepp,B.,andCun,Y.L.
+Conference on Robot Learning, pp. 237–252. PMLR,
+Off-roadobstacleavoidancethroughend-to-endlearning.
+2018.
+In Advances in neural information processing systems,
+pp.739–746.Citeseer,2006.
+Silver, D., Bagnell, J. A., and Stentz, A. Learning from
+demonstrationforautonomousnavigationincomplexun-
+Ohn-Bar,E.,Prakash,A.,Behl,A.,Chitta,K.,andGeiger,
+structuredterrain. TheInternationalJournalofRobotics
+A. Learningsituationaldriving. InProceedingsofthe
+Research,29(12):1565–1592,2010.
+IEEE/CVFConferenceonComputerVisionandPattern
+Recognition,pp.11296–11305,2020.
+Tabak,E.G.,Vanden-Eijnden,E.,etal. Densityestimation
+bydualascentofthelog-likelihood. Communicationsin
+Pan, Y., Cheng, C.-A., Saigol, K., Lee, K., Yan, X.,
+MathematicalSciences,8(1):217–233,2010.
+Theodorou,E.,andBoots,B. Agileautonomousdriving
+usingend-to-enddeepimitationlearning. arXivpreprint
+Thrun, S., Montemerlo, M., Dahlkamp, H., Stavens, D.,
+arXiv:1709.07174,2017.
+Aron, A., Diebel, J., Fong, P., Gale, J., Halpenny, M.,
+Papamakarios, G., Pavlakou, T., and Murray, I. Masked Hoffmann, G., et al. Stanley: The robot that won the
+autoregressiveflowfordensityestimation. arXivpreprint darpagrandchallenge. JournaloffieldRobotics,23(9):
+arXiv:1705.07057,2017. 661–692,2006.
+Papamakarios,G.,Nalisnick,E.,Rezende,D.J.,Mohamed, Vaswani, A., Shazeer, N., Parmar, N., Uszkoreit, J.,
+S., and Lakshminarayanan, B. Normalizing flows for Jones,L.,Gomez,A.N.,Kaiser,L.,andPolosukhin,I.
+probabilisticmodelingandinference.JournalofMachine Attentionisallyouneed. InGuyon,I.,vonLuxburg,U.,
+LearningResearch,22(57):1–64,2021. Bengio, S., Wallach, H.M., Fergus, R., Vishwanathan,
+S. V. N., and Garnett, R. (eds.), Advances in Neural
+Park,S.H.,Lee,G.,Bhat,M.,Seo,J.,Kang,M.,Francis,J., InformationProcessingSystems30: AnnualConference
+Jadhav,A.R.,Liang,P.P.,andMorency,L.-P. Diverse on Neural Information Processing Systems 2017,
+andadmissibletrajectoryforecastingthroughmultimodal December4-9,2017,LongBeach,CA,USA,pp.5998–
+contextunderstanding. InEuropeanConferenceonCom- 6008, 2017. URL https://proceedings.
+puterVision(ECCV),2020. neurips.cc/paper/2017/hash/
+3f5ee243547dee91fbd053c1c4a845aa-Abstract.
+Pomerleau, D. A. Alvinn: An autonomous land vehicle
+html.
+in a neural network. Technical report, CARNEGIE-
+MELLONUNIVPITTSBURGHPAARTIFICIALIN- Verlet, L. Computer "experiments" on classical fluids. i.
+TELLIGENCEANDPSYCHOLOGY...,1989. thermodynamicalpropertiesoflennard-jonesmolecules.
+Physicalreview,159(1):98,1967.
+Rezende,D.J.andMohamed,S. Variationalinferencewith
+normalizing flows. arXiv preprint arXiv:1505.05770,
+2015.

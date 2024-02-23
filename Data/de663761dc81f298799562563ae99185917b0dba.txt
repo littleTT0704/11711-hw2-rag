@@ -1,0 +1,325 @@
+SpeechandLanguageTechnologyin
+ISCAArchive Education(SLaTE2009)
+WroxallAbbeyEstate,Warwickshire,UK
+http://www.isca-speech.org/archive
+September3-5,2009
+Automated Generation of Example Contexts for
+Helping Children Learn Vocabulary
+Liu Liu, Jack Mostow, and Gregory Aist
+Project LISTEN, School of Computer Science
+Carnegie Mellon University, Pittsburgh, Pennsylvania USA
+{liuliu, mostow}@cs.cmu.edu, gregory.aist@alumni.cmu.edu
+Abstract1 This paper describes a system that generates example
+contexts to help children in grades 2-3 learn targeted
+This paper addresses the problem of generating good example vocabulary, by using language resources and multiple NLP
+contexts to help children learn vocabulary. We construct technologies. The rest of this paper is organized as follows.
+candidate contexts from the Google N-gram corpus. We Section 2 describes how our context generator uses Google
+propose a set of constraints on good contexts, and use them to N-gram data [6] to generate candidate contexts. Section 3
+filter candidate example contexts. We evaluate the describes constraints on good contexts, and filters to
+automatically generated contexts by comparison to example operationalize them. Section 4 evaluates automatically
+contexts from children’s dictionaries and from children’s generated example contexts against human-authored
+stories. examples. Section 5 discusses limitations and future work.
+Section 6 concludes.
+1. Introduction
+2. Context generation
+Vocabulary plays a critical role in reading comprehension. “A
+reader who can pronounce a word but does not know its Our contexts are sequences of overlapping Google n-grams.
+meaning or crucial facts about it is at a disadvantage in
+2.1. Data set
+comprehending the text in which it occurs” [1].
+This paper focuses on one particular aspect of vocabulary The Google N-gram data set [6] contains billions of n-grams
+learning – learning word meanings from example contexts. and their frequencies, based on over one trillion words of text
+Word meaning includes both denotation (explicit definition) extracted from public web pages and segmented into
+and connotation (implied meaning and associations) [2]. sentences. It has been used in many areas, including spelling
+Readers must acquire both aspects, so effective vocabulary correction and machine translation. The data set contains n-
+instruction combines explicit explanation with multiple grams for n from one to five. We use five-grams in generating
+encounters in varied contexts [3]. contexts, as five-grams are the longest so they provide more
+Contexts give clues to semantics but also convey many information about the target word. The data set contains all
+other different lexical aspects, such as part of speech, 1,176,470,663 five-grams that appeared at least 40 times, e.g.:
+morphology, and pragmatics, which help enrich children’s
+advantage in a competitive </S> 4 2
+word knowledge base. However, not all contexts are equally
+advantage in a competitive environment 6 6
+useful; in fact, most natural contexts are insufficient to infer
+advantage in a competitive job 69
+word meaning [4], especially for younger readers.
+advantage in a competitive market 219
+Accordingly, one key issue in vocabulary instruction is
+advantage in a competitive world 94
+how to find or create good example contexts to help children
+learn a word. Context examples are usually created by Here </S> is the symbol for the end of a sentence, and the
+teachers, lexicographers, or occasionally educational number after each five-gram is its frequency.
+researchers [3, 5]. A human expert may generate excellent The entire data set is about 200 GB including indices, so
+examples, but takes time, costs money, and may not be we extract only the five-grams containing target vocabulary
+available when needed. Also, human-generated contexts are words to teach, and then save the five-grams for each target
+shaped by the cognitive retrieval and production processes of word in a separate database table to allow efficient access.
+a person who knows the word, and may therefore overlook
+2.2. Generation method
+important uses. In contrast, computer-generated contexts can
+provide systematic, comprehensive coverage, and address Given a target vocabulary word, e.g. extinct, the context
+specific learning goals. generation process works as follows. First, choose a five-
+gram containing the target word as the initial context, e.g.:
+Dinosaurs have been extinct for millions of years
+Then, repeatedly extend it one word to the left or right by
+1
+This work was supported by the Institute of Education Sciences, choosing a five-gram (underlined here) that matches the first
+U.S. Department of Education, through Grant R305A080157 to
+or last four words, e.g.:
+Carnegie Mellon University. The opinions expressed are those of the
+Dinosaurs have been extinct for millions of years
+authors and do not necessarily represent the views of the Institute or
+the U.S. Department of Education. We thank Dr. Margaret McKeown.
+Dinosaurs have been extinct for millions of years
+SpeechandLanguageTechnologyinEducation(SLaTE2009) 129
+33-9002.ETaLS/73412.01
+Dinosaurs have been extinct for millions of years be useful, the child must understand it. If the context contains
+Continue until no further extension is possible. Our generator many unfamiliar words besides the target word, the child will
+uses only five-grams containing the target word, so it not understand the context well enough for it to help in
+generates sentences at most nine words long, with the target learning the target word. For example, the context It is time
+word in the middle and four words on each side of it. to declare victory and go home is reasonably understandable,
+This method is based on the consistency assumption that assuming the child knows the word victory. In contrast, any
+if one five-gram overlaps with another by four words, then context containing …penalties of perjury solemnly declare…
+both of them came from the same set of sentences in the is useless for teaching declare to a child who does not know
+original corpus. When this heuristic assumption holds true, the words penalties, perjury, or solemnly.
+the method reconstructs part or all of one of these sentences. One comprehensibility filter excludes examples
+However, when it fails, the method can generate a novel containing more than two words rated above grade level 2
+word sequence. We call this phenomenon “crossover” according to two leveled word lists [13, 14]. This threshold
+because it combines five-grams from different sentences. The could easily be changed to fit students’ reading level.
+resulting sequence is still locally consistent because each Another filter removes examples containing relative pronouns
+successive five words constitute an authentic five-gram. (such as who or that), in order to limit sentence complexity.
+On the positive side, this ability to generate novel
+sentences can potentially produce example contexts that 3.2. Grammatically correct and complete
+improve on the original sentences, for example by
+Good contexts should be complete, grammatical sentences.
+streamlining them to eliminate undesirable complexity. On
+Some generated candidates are not grammatical, such as the
+the negative side, crossover can produce global
+list Southpaw Stout Dem Blog The Scarlet. Some candidates
+inconsistencies, as we will see later. Fortunately, the 9-word
+are incomplete sentences, such as Jennifer is very anxious to
+limit restricts the opportunity for crossover.
+know about the.
+To filter out incomplete or ungrammatical contexts, we
+2.3. Relation to prior work
+use the Link Grammar Parser [15], a syntactic dependency
+Some related work has automated the generation of example parser, as a grammar checker. The parser rejects any context
+sentences. Dowding et al. [7] used a grammar to generate it fails to parse as syntactically valid English. A second filter
+example sentences containing specific words (e.g., pressure requires that generated sentences must either start with <S>
+and commander in the sentence Measure the pressure at the or a capitalized word, or end with </S> or punctuation.
+commander’s seat) for targeted help in spoken dialogue Another filter excludes sentences that end with modal or
+systems. Our work involves a different population (children), auxiliary verbs. The last two filters help favor complete
+purpose (vocabulary development), and method (generation sentences.
+using a corpus of n-grams).
+Other related work [8-11] has automated the selection of 3.3. Sense-appropriate
+example sentences for vocabulary learning and assessment.
+A good context is consistent with target word meaning. A
+Some selection criteria [10, 11] resemble constraints we
+context that uses a different sense of the target word than the
+impose on the generation process. However, the selection
+meaning to be taught is confusing, not helpful.
+methods extract complete sentences from an existing
+To filter out contexts where a word has a part of speech
+language corpus, but our method generates context sentences.
+incompatible with its target meaning, the context generator
+So far as we know, ours is the first study that uses Google
+checks the part of speech assigned by the Link Grammar
+five-grams to generate example sentences. N-grams aggregate
+Parser; if it does not match the target meaning, the filter
+information across sentences, so the frequency of n-grams
+excludes the context. For example, if the target meaning of
+reflects the typicality of contexts and usage. In contrast, the
+stout is sturdy, this filter eliminates the context Grant Stout
+corpus frequency of most complete sentences is 1, which does
+added 16 points because it uses stout as a (proper) noun.
+not indicate whether or not their word usage is typical.
+A more sophisticated version of this filter would also
+exclude contexts with the right part of speech but a different
+3. Context constraints
+sense of the target word. This capability would involve
+How can we ensure the generated contexts are good for identifying the word sense used in the context and deciding if
+vocabulary learning? We identified several constraints on it is consistent with the target meaning.
+good contexts, based partly on expert knowledge and partly
+3.4. Informative about word meaning
+on analyzing why some generated contexts were bad.
+Sections 3.1-3.7 describe each constraint and A highly informative context imposes strong semantic
+operationalize it as one or more heuristic filters. These filters constraints on the target word. Experimental study confirmed
+eliminate contexts that violate the constraint, or prefer that “the degree of semantic constraint for individual contexts
+contexts that satisfy it better or more probably. We compiled played a substantial role in learning word meanings” [3].
+the filters into a heuristic search procedure using The context generator operationalizes semantic constraint
+transformations described in [12], but space limitations as multiple filters. One filter prefers longer sentences because
+preclude a detailed description of the resulting procedure. they tend to provide richer information. Another filter
+prefers content words (such as nouns and verbs) because they
+3.1. Comprehensible to children
+tend to provide more meaning than function words. It
+We want to generate contexts that assist the vocabulary eliminates sentences that contain fewer than three content
+development of children in primary school. For a context to words. A third filter specifically prefers words related to the
+SpeechandLanguageTechnologyinEducation(SLaTE2009) 130
+target word, i.e., that co-occur with the target word in many of To choose the words, we started with the 789 words in
+the same five-grams in the corpus. It requires the initial five- Reading Tutor stories that our vocabulary expert Dr. Margaret
+gram to contain one or more related words. McKeown had classified as “Tier 2” words [4], i.e., words
+Overall, these filters prefer sentences that contain more used in many domains but unknown to most children, and
+words overall, more content words, and more related words. thus important to teach. Of the 15 such words that occurred
+For example, consider these two contexts: in exactly two stories, once in each story, we excluded 5
+Find the strength and courage to take risks words with multiple parts of speech, and chose the other 10:
+We know it takes courage to do so anxious, courage, declare, extinct, merchant, remarkable,
+Both contexts are 8 words long, but the filters prefer the first slender, stout (because we didn’t think of its noun sense),
+context because it contains more content words, including suspicious, and tremendous.
+strength and take, which are related to courage. Of the contexts generated for each of these target words,
+we used the 6 rated highest by the context generator. For
+3.5. Ordinary prose comparison we chose two types of human-authored contexts.
+As a sample of naturalistic contexts in which the child would
+Good contexts use normal, classroom-appropriate English.
+encounter the word during normal reading, we used the two
+However, we noticed that some of the generated contexts
+Reading Tutor story sentences containing the word. As a gold
+were very web specific, and likely unfamiliar to young
+standard, we used all 1-3 example sentences from the
+children, e.g., a Merchant ID and password.
+WordSmyth children’s dictionary (www.wordsmyth.net),
+A filter to avoid web jargon eliminates contexts
+crafted to illustrate the meaning of each word sense listed.
+containing words much more common on the web than in
+The three source types totaled 98 contexts: 57 generated
+print, such as copyright, password, and download, whose
+contexts, 20 story sentences, and 21 dictionary sentences.
+unigram frequencies in the Google corpus are
+Dr. McKeown scored all 98 sentences, blind to source
+disproportionally higher than in a conventional text corpus.
+type, on a five-point Likert scale (1=bad, 3=OK, 5=good),
+Similar filters exclude sentences containing words from a list
+both in general quality, and on three specific aspects that
+of taboo words, or special symbols such as @; sentences
+influence it: (1) good use of words, i.e. correct or meaningful
+containing capitalized words other than the first word, the
+use in the intended target sense; (2) the degree to which the
+target word, or named entities; and sentences with more than
+context is constraining, or reveals elements of the word
+four consecutive numerals or capitalized words.
+meaning; (3) comprehensibility to children based on other
+words or concepts in the context, or syntactic complexity.
+3.6. Typical of usage and situation
+Typicality is an important property of good contexts. They 4.2. Results and discussions
+should show how words are commonly used, and in what
+Table 1 shows mean scores and standard errors for each type
+situations. For example, celebrate is often used in situations
+of context. ANOVA showed significant main effects for
+like birthdays and anniversaries. We rely on five-gram
+context source on all four measures. Pairwise comparison
+frequency to quantify typicality.
+showed that dictionary contexts surpassed automatically
+Accordingly, one filter prefers high-frequency five-grams.
+generated examples in general score (p<0.001), in good use of
+words (p<0.05), in constraining context (p<0.05), and in
+3.7. Varied and not redundant
+comprehensibility to children (p<0.05). There was also a
+Children need to see a word in several varied contexts to trend for the story sentences to be better than the generated
+decontextualize their knowledge of the word’s meaning and contexts in general score (p=0.051). No other differences
+acquire enough retrieval cues to access it reliably and were significant.
+efficiently [3]. The Google corpus is large enough to generate
+diverse contexts for a target word, e.g.: Table 1: Expert scoring of contexts
+Members are asked to declare that you are 18
+He was forced to declare a state of emergency
+Mean (Standard Error)
+It is time to declare victory and go home
+Evaluation criteria Auto Auto
+However, some generated contexts are very similar, e.g.: Story Dictionary
+(all) (top half)
+Just declare victory and go home
+General score 2.5 (0.21) 3.9 (0.15) 3.4 (0.28) 4.1 (0.21)
+We should declare victory and go home
+It’s time to declare victory and go home Good use 3.4 (0.22) 4.2 (0.21) 4.0 (0.28) 4.4 (0.20)
+A filter to eliminate such redundancy clusters the generated Constraining
+3.2 (0.21) 3.9 (0.19) 3.6 (0.21) 4.1 (0.19)
+contexts and picks only one from each cluster. context
+Comprehensibility 2.7 (0.23) 4.2 (0.18) 3.5 (0.33) 4.1 (0.25)
+4. Evaluation
+The top-scored half of the generated sentences compared
+How good are the generated contexts? Section 4.1 describes
+favorably to story sentences, which suggests that refining the
+how we evaluated them. Section 4.2 presents the results.
+generator to filter out the bottom half would make its output
+as good as story sentences. Section 5 analyzes the bottom
+4.1. Methodology
+half to identify the main problems. However, predictions of
+To evaluate our method, we selected 10 target words, the resulting performance are overly optimistic because we
+generated contexts for them, and compared the generated “tested on the training data” in that we designed some of the
+contexts against human-authored contexts. filters to eliminate bad contexts generated for the 10 test
+SpeechandLanguageTechnologyinEducation(SLaTE2009) 131
+words. This approach made sense as a first step; future work References
+will test performance on unseen words.
+[1] K. Stanovich, R. West, and A. E. Cunningham, "Beyond
+5. Limitations and future work phonological processes: Print exposure and orthographic
+processing," in Phonological Processes in Literacy, D.
+We identified problems in automatically generated contexts Shankweiler, Ed. Hillsdale, NJ: Lawrence Erlbaum
+on multiple levels, and possible approaches to some of them. Associates, 1992.
+On the syntactic level, some generated sentences are [2] D. Chandler, Semiotics: The Basics, 2 ed: Routledge,
+incomplete or ungrammatical. To fix incomplete sentences, 2004.
+we plan to concatenate n-grams that start with <S> or end [3] D. J. Bolger, M. Balass, E. Landen, and C. A. Perfetti,
+with </S> to lengthen and complete them. To filter out "Contextual variation and definitions in learning the
+ungrammatical sentences more thoroughly, a better grammar meanings of words: An instance-based learning
+checker would help. We also plan to explore the syntactic approach," Discourse Processes, vol. 45, pp. 122-159,
+structure of generated sentences and restrict them to satisfy 2008.
+some syntactic constraints. For example, we could stick to [4] I. L. Beck, M. G. McKeown, and L. Kucan, Bringing
+sentences with simple parses such as [S [NP VP]] to improve Words to Life: Robust Vocabulary Instruction. NY:
+comprehensibility, or with syntactic structures characteristic Guilford, 2002.
+of more informative contexts. Such structures might be [5] M. G. McKeown, "The acquisition of word meaning from
+induced by analyzing a sufficiently large set of good context by children of high and low ability," Reading
+sentences, such as a corpus of dictionary examples. Research Quarterly, vol. 20, pp. 482-496, 1985.
+On the semantic and pragmatic levels, we found long- [6] T. Brants and A. Franz, "Web 1T 5-gram Version 1," in
+distance mismatches in some generated sentences, whose left Linguistic Data Consortium, Philadelphia, 2006.
+half is not consistent with their right half, due to crossover. [7] J. Dowding, G. Aist, B. A. Hockey, and E. O. Bratt,
+For example, I will have a tremendous impact on my life is "Generating Canonical Example Sentences using
+semantically acceptable, but pragmatically problematic due to Candidate Words," in AAAI Spring Symposium on
+being self-evident. Another issue pertains to our particular Natural Language Generation in Spoken and Written
+application: non-kid-friendly sentences should not be used for Dialogue, Palo Alto, California, 2003, pp. 23-27.
+vocabulary learning. Non-kid-friendly sentences include [8] C.-L. Liu, C.-H. Wang, Z.-M. Gao, and S.-M. Huang,
+contexts unfamiliar to children, e.g. legal statements, and "Applications of lexical information for algorithmically
+contexts that are inappropriate. Although we filter out composing multiple-choice cloze items," in Proceedings
+sentences containing taboo words, some generated contexts of the Second Workshop on Building Educational
+are still inappropriate even though each word is fine, e.g. She Applications Using NLP, Ann Arbor, Michigan, 2005,
+reaches her slender fingers towards my exploding. Human pp. 1-8.
+judgment will likely remain necessary to detect such cases. [9] J. C. Brown, G. A. Frishkoff, and M. Eskenazi,
+Another type of low-scored sentence is the spuriously "Automatic Question Generation for Vocabulary
+high frequency context, e.g. Please check the merchant store. Assessment," in Proceedings of the Human Language
+Such sentences are composed of five-grams with high Technology Conference and Conference on Empirical
+frequency, and chosen by our context generator because it Methods in Natural Language Processing, Vancouver,
+uses average five-gram frequency as a proxy for typicality of B.C., Canada, 2005, pp. 819-826.
+usage. However, their high frequency is not because they are [10] J. Pino, M. Heilman, and M. Eskenazi, "A selection
+actually very common in English but rather due to replication strategy to improve cloze question quality," in
+of documents on the Web. To combat this effect, we will start Proceedings of the Workshop on Intelligent Tutoring
+with high-frequency trigrams, extending them with five-grams. Systems for Ill-Defined Domains. 9th International
+Because trigrams are shorter than five-grams, they occur Conference on Intelligent Tutoring Systems, Montreal,
+much more often, so their frequencies are less distorted by Canada, 2008, pp. 22-32.
+replicated sentences, and hence reflect typicality better. [11] T. K. Landauer, K. Kireyev, and C. Panaccione, "A New
+Yardstick and Tool for Personalized Vocabulary
+6. Conclusion Building," in The 4th Workshop on Innovative Use of
+NLP for Building Educational Applications, Boulder,
+This paper makes three contributions to automated generation
+CO, USA, 2009, pp. 27-33.
+of good example contexts to help children learn vocabulary.
+[12] D. J. Mostow, "Machine transformation of advice into a
+First, we introduce the problem of automatic context
+heuristic search procedure," in Machine Learning: An
+generation for learning vocabulary. Although the importance
+Artificial Intelligence Approach, R. S. Michalski, J. G.
+of context to learning vocabulary is well-known, context
+Carbonell, and T. M. Mitchell, Eds. Palo Alto, CA:
+examples used in education have been created by hand and
+Tioga: Springer, 1983, pp. 367-403.
+we know of no prior work to automate their generation.
+[13] A. Biemiller, "Words worth teaching," Columbus, OH:
+Second, we show how to generate contexts by combining
+SRA/McGraw-Hill, in press, 2008.
+Google five-grams. We identify several constraints on good
+[14] E. B. Diane E. Paynter, Jane K. Doty, Nell K. Duke, "For
+example contexts, and filters to operationalize them.
+the Love of Words: Vocabulary Instruction that Works,
+Third, we evaluate against dictionary examples and story
+Grades K-6," pp. 127-202, 2005.
+sentences based on expert scoring. The top half of the
+[15] D. Sleator and D. Temperley, "Parsing English with a
+generated contexts average as good as or better than the story
+link grammar," in Third International Workshop on
+sentences in which children would normally encounter them.
+Parsing Technologies, 1993, pp. 277-292.
+SpeechandLanguageTechnologyinEducation(SLaTE2009) 132

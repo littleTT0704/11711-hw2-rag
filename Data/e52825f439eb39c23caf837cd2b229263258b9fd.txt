@@ -1,0 +1,711 @@
+Identifying Products in Online Cybercrime Marketplaces:
+A Dataset for Fine-grained Domain Adaptation
+GregDurrett JonathanK.Kummerfeld TaylorBerg-Kirkpatrick
+UTAustin UniversityofMichigan CarnegieMellonUniversity
+gdurrett@cs.utexas.edu jkummerf@umich.edu tberg@cs.cmu.edu
+RebeccaS.Portnoff SadiaAfroz DamonMcCoy
+UCBerkeley ICSI,UCBerkeley NYU
+rsportnoff@cs.berkeley.edu sadia@icsi.berkeley.edu mccoy@nyu.edu
+KirillLevchenko VernPaxson
+UCSanDiego ICSI,UCBerkeley
+klevchen@cs.ucsd.edu vern@berkeley.edu
+Abstract TITLE:[buy]Backconnectbot
+BODY:Lookingforasolidbackconnectbot.
+One weakness of machine-learned NLP Ifyouknowofanyonewhocodesthempleaselet
+meknow
+models is that they typically perform
+(a)File0-initiator4856
+poorly on out-of-domain data. In this
+work, we study the task of identifying
+TITLE:Exploitcleaning?
+products being bought and sold in on-
+BODY:HavesomeExploitsineedfud.
+line cybercrime forums, which exhibits
+(b)File0-initiator10815
+particularly challenging cross-domain ef-
+Figure 1: Example posts and annotations from
+fects. We formulate a task that represents
+Darkode, with annotated product tokens under-
+ahybridofslot-fillinginformationextrac-
+lined. The second example exhibits jargon (fud
+tion and named entity recognition and an-
+means “fully undetectable”), nouns that could be
+notate data from four different forums.
+aproductinothercontexts(Exploit),andmultiple
+Each of these forums constitutes its own
+lexically-distinct descriptions of a single service.
+“fine-grained domain” in that the forums
+Notethatthesepostsaremuchshorterthantheav-
+cover different market sectors with differ-
+erageDarkodepost(61.5words).
+ent properties, even though all forums are
+in the broad domain of cybercrime. We
+characterize these domain differences in 2013). One domain for which automated analy-
+thecontextofalearning-basedsystem: su- sis is particularly useful is Internet security: re-
+pervised models see decreased accuracy searchers obtain large amounts of text data perti-
+when applied to new forums, and stan- nenttoactivethreatsorongoingcybercriminalac-
+dardtechniquesforsemi-supervisedlearn- tivity, forwhichtheabilitytorapidlycharacterize
+inganddomainadaptationhavelimitedef- thattextanddrawconclusionscanreapmajorben-
+fectiveness on this data, which suggests efits(Krebs,2013a,b). However,conductingauto-
+the need to improve these techniques. We matic analysis is difficult because this data is out-
+release a dataset of 1,938 annotated posts of-domain for conventional NLP models, which
+fromacrossthefourforums.1
+harms the performance of both discrete models
+(McClosky et al., 2010) and deep models (Zhang
+1 Introduction
+etal.,2017). Notonlythat,weshowthatdatafrom
+NLP can be extremely useful for enabling scien- one cybercrime forum is even out of domain with
+tific inquiry, helping us to quickly and efficiently respecttoanother cybercrimeforum, makingthis
+understandlargecorpora,gatherevidence,andtest dataespeciallychallenging.
+hypotheses(Bammanetal.,2013;O’Connoretal., In this work, we present the task of identify-
+ingproductsbeingboughtandsoldinthemarket-
+1Datasetandcodetotrainmodelsavailableat
+https://evidencebasedsecurity.org/forums/ place sections of these online cybercrime forums.
+2598
+Proceedingsofthe2017ConferenceonEmpiricalMethodsinNaturalLanguageProcessing,pages2598–2607
+Copenhagen,Denmark,September7–11,2017.(cid:13)c2017AssociationforComputationalLinguistics
+Words Products Annotated Annotators Inter-annotatoragreement
+Forum Posts perpost perpost posts perpost 3-annotated all-annotated
+Darkode 3,368 61.5 3.2 660/100/100 3/8/8 0.62 0.66
+HackForums 51,271 58.9 2.2 758/140 3/4 0.58 0.65
+Blackhat 167 174 3.2 80 3 0.66 0.67
+Nulled 39,118 157 2.3 100 3 0.77 -
+Table 1: Forum statistics. The left columns (posts and words per post) are calculated over all data,
+while the right columns are based on annotated data only. Note that products per post indicate product
+mentions per post, not product types. Slashes indicate the train/development/test split for Darkode and
+train/test split for Hack Forums. Agreement is measured using Fleiss’ Kappa; the two columns cover
+datawherethreeannotatorslabeledeachpostandasubsetlabeledbyallannotators.
+Wedefineatoken-levelannotationtaskwhere,for classificationoftokensasproductsiseffective,but
+eachpost,weannotatereferencestotheproductor performance drops off precipitously when a sys-
+products being bought or sold in that post. Hav- tem trained on one forum is applied to a differ-
+ing the ability to automatically tag posts in this ent forum: in this sense, even two different cy-
+way lets us characterize the composition of a fo- bercrimeforumsseemtorepresentdifferent“fine-
+rum in terms of what products it deals with, iden- graineddomains.” Sincewewanttoavoidhaving
+tifytrendsovertime,associateuserswithparticu- to annotate data for every new forum that might
+laractivityprofiles, andconnecttopriceinforma- need to be analyzed, we explore several methods
+tion to better understand the marketplace. Some foradaptation,mixingtype-levelannotation(Gar-
+of these analyses only require post-level informa- rette and Baldridge, 2013; Garrette et al., 2013),
+tion (what is the product being bought or sold in token-level annotation (Daume III, 2007), and
+this post?) whereas other analyses might require semi-supervised approaches (Turian et al., 2010;
+token-level references; we annotate at the token Kshirsagar et al., 2015). We find little improve-
+level to make our annotation as general as possi- mentfromthesemethodsanddiscusswhytheyfail
+ble. Our dataset has already proven enabling for tohavealargerimpact.
+case studies on these particular forums (Portnoff Overall, our results characterize the challenges
+etal.,2017),includingastudyofmarketplaceac- of our fine-grained domain adaptation problem in
+tivityonbulkhackedaccountsversususersselling onlinemarketplacedata. Webelievethatthisnew
+theirownaccounts. dataset provides a useful testbed for additional
+Our task has similarities to both slot-filling in- inquiry and investigation into modeling of fine-
+formation extraction (with provenance informa- graineddomaindifferences.
+tion) as well as standard named-entity recogni-
+2 DatasetandAnnotation
+tion (NER). Compared to NER, our task features
+a higher dependence on context: we only care Weconsiderseveralforumsthatvaryinthenature
+about the specific product being bought or sold ofproductsbeingtraded:
+in a post, not other products that might be men-
+• Darkode: Cybercriminalwares,includingex-
+tioned. Moreover, because we are operating over
+ploit kits, spam services, ransomware pro-
+forums,thedataissubstantiallymessierthanclas-
+grams,andstealthybotnets.
+sical NER corpora like CoNLL (Tjong Kim Sang
+and De Meulder, 2003). While prior work has • Hack Forums: A mixture of cyber-security
+dealt with these messy characteristics for syntax and computer gaming blackhat and non-
+(Kaljahi et al., 2015) and for discourse (Lui and cybercrimeproducts.
+Baldwin, 2010; Kim et al., 2010; Wang et al.,
+• Blackhat: BlackhatSearchEngineOptimiza-
+2011), our work is the first to tackle forum data
+tiontechniques.
+(andmarketplaceforumsspecifically)fromanin-
+formationextractionperspective. • Nulled: Datastealingtoolsandservices.
+Having annotated a dataset, we examine super- Table 1 gives some statistics of these forums.
+vised and semi-supervised learning approaches to These are the same forums used to study prod-
+the product extraction problem. Binary or CRF uctactivityinPortnoffetal.(2017). Wecollected
+2599
+allavailablepostsandannotatedasubsetofthem. to annotate tokens when they are either the prod-
+Intotal,weannotated130,336tokens;accounting uctthatwillbedeliveredorareanintegralpartof
+formultipleannotators,ourannotatorsconsidered themethodleadingtothedeliveryofthatproduct.
+478,176tokensintheprocessoflabelingthedata. Figure 1 shows examples of this for a deliverable
+Figure 1 shows two examples of posts from product(bot)aswellasaservice(cleaning). Both
+Darkode. Inadditiontoaspectsoftheannotation, a product and service may be annotated in a sin-
+which we describe below, we see that the text ex- gleexample: forapostaskingtohackanaccount,
+hibitscommonfeaturesofwebtext: abbreviations, hack is the method and the deliverable is the ac-
+ungrammaticality, spelling errors, and visual for- count, so both are annotated. In general, methods
+matting, particularly in thread titles. Also, note expressedasverbsmaybeannotatedinadditionto
+how some words that are not products here might nominalreferences.
+beinothercontexts(e.g.,Exploits). When the product is a multiword expression
+(e.g., Backconnect bot), it is almost exclusively a
+2.1 AnnotationProcess
+noun phrase, in which case we annotate the head
+We developed our annotation guidelines through word of the noun phrase (bot). Annotating single
+sixpreliminaryroundsofannotation,covering560 tokensinsteadofspansmeantthatweavoidedhav-
+posts. Eachroundwasfollowedbydiscussionand ing to agree on an exact parse of each post, since
+resolution of every post with disagreements. We even the boundaries of base noun phrases can be
+benefitedfrommembersofourteamwhobrought quitedifficulttoagreeoninungrammaticaltext.
+extensive domain expertise to the task. As well If multiple different products are being bought
+asrefiningtheannotationguidelines,thedevelop- orsold,weannotatethemall. Wedonotannotate:
+ment process trained annotators who were not se-
+• Featuresofproducts
+curityexperts. Thedataannotatedduringthispro-
+cessisnotincludedinTable1. • Genericproductreferences,e.g.,this,them
+Once we had defined the annotation standard,
+• Product mentions inside “vouches” (reviews
+we annotated datasets from Darkode, Hack Fo-
+fromotherusers)
+rums, Blackhat, and Nulled as described in Ta-
+ble 1.2 Three people annotated every post in the • Productmentionsoutsideofthefirstandlast
+Darkodetraining,HackForumstraining,Blackhat 10linesofeachpost4
+test, and Nulled test sets; these annotations were Table 1 shows inter-annotator agreement ac-
+then merged into a final annotation by majority cording to our annotation scheme. We use the
+vote. The development and test sets for Darkode Fleiss’ Kappa measurement (Fleiss, 1971), treat-
+and Hack Forums were annotated by additional ing our task as a token-level annotation where
+teammembers(fiveforDarkode,oneforHackFo- every token is annotated as either a product or
+rums),andtheneverydisagreementwasdiscussed not. We chose this measure as we are inter-
+andresolvedtoproduceafinalannotation. Theau- estedinagreementbetweenmorethantwoannota-
+thors, who are researchers in either NLP or com- tors (ruling out Cohen’s kappa), have a binary as-
+putersecurity,didalloftheannotation. signment (ruling out correlation coefficients) and
+We preprocessed the data using the tokenizer have datasets large enough that the biases Krip-
+and sentence-splitter from the Stanford CoreNLP pendorff’sAlphaaddressesarenotaconcern. The
+toolkit (Manning et al., 2014). Note that many valuesindicatereasonableagreement.
+sentencesinthedataarealreadydelimitedbyline
+breaks, making the sentence-splitting task much 2.2 Discussion
+easier. Weperformedannotationonthetokenized Becauseweannotateentitiesinacontext-sensitive
+data so that annotations would be consistent with way (i.e., only annotating those in product con-
+surroundingpunctuationandhyphenatedwords. text), our task resembles a post-level information
+Our full annotation guide is available with our
+4In preliminary annotation we found that content in the
+data release.3 Our basic annotation principle is
+middle of the post typically described features or gave in-
+structions without explicitly mentioning the product. Most
+2Thetabledoesnotincludeadditionalpoststhatwerela- posts are unaffected by this rule: 96% of Darkode, 77% of
+beledbyallannotatorsinordertocheckagreement. HackForums,84%ofBlackhat,and93%ofNulledpostsare
+3https://evidencebasedsecurity.org/ lessthan20lines. However,thecutoffstillsubstantiallyre-
+forums/annotation-guide.pdf ducedannotatoreffortonthetailofverylongposts.
+2600
+extractiontask. Theproductinformationinapost “products” that are actually just different ways
+can be thought of as a list-valued slot to be filled of referring to one core product. Roughly 60%
+in the style of TAC KBP (Surdeanu, 2013; Sur- of posts in the two forums contain multiple an-
+deanu and Ji, 2014), with the token-level annota- notated tokens that are distinct beyond stemming
+tions constituting provenance information. How- and lowercasing. However, we analyzed 100 of
+ever, we chose to anchor the task fully at the to- these multiple product posts across Darkode and
+ken level to simplify the annotation task: at the HackForums,andfoundthatonly6ofthemwere
+post level, we would have to decide whether two actually selling multiple products, indicating that
+distinct product mentions were actually distinct posts selling multiple types of products are actu-
+products or not, which requires heavier domain allyquiterare(roughly3%ofcasesoverall). Inthe
+knowledge. Ourapproachalsoresemblesthefully restofthecases,thevariationswereduetoslightly
+token-level annotations of entity and event infor- differentwaysofdescribingthesameproduct.
+mationintheACEdataset(NIST,2005). In light of this, we also might consider ask-
+ing the system to extract some product reference
+3 EvaluationMetrics
+fromthepost,ratherthanallofthem. Specifically,
+wecomputeaccuracyonapost-levelbychecking
+Inlightofthevariousviewsonthistaskanditsdif-
+whetherthefirstproducttypeextractedbythesys-
+ferentrequirementsfordifferentpotentialapplica-
+tem is contained in the annotated set of product
+tions,wedescribeandmotivateafewdistincteval-
+types.6 Because most posts feature one product,
+uation metrics below. The choice of metric will
+thismetricissufficienttoevaluatewhetherweun-
+impactsystemdesign,aswediscussinthefollow-
+derstoodwhatthecoreproductofthepostwas.
+ingsections.
+3.1 Phrase-levelEvaluation
+Token-level accuracy We can follow the ap-
+proach used in token-level tasks like NER and Another axis of variation in metrics comes from
+compute precision, recall, and F over the set of whether we consider token-level or phrase-level
+1
+tokens labeled as products. This most closely outputs. As noted in the previous section, we did
+mimicsourannotationprocess. notannotatenounphrases,butwemayactuallybe
+interestedinidentifyingthem. InFigure1,forex-
+Type-level product extraction (per post) For
+ample, extracting Backconnect bot is more useful
+manyapplications,theprimarygoaloftheextrac-
+than extracting bot in isolation, since bot is a less
+tiontaskismoreinlinewithKBP-styleslotfilling,
+specificcharacterizationoftheproduct.
+where we care about the set of products extracted
+We can convert our token-level annotations
+from a particular post. Without a domain-specific
+to phrase-level annotations by projecting our
+lexicon containing full synsets of products (e.g.,
+annotations to the noun phrase level based on
+something that could recognize that hack and ac-
+the output of an automatic parser. We used the
+cessaresynonymous),itisdifficulttoevaluatethis
+parser of Chen and Manning (2014) to parse all
+in a fully satisfying way. However, we approxi-
+sentences of each post. For each annotated token
+matethisevaluationbycomparingthesetofprod-
+that was given a nominal tag (N*), we projected
+uct types5 in a post with the set of product types
+thattokentothelargestNPcontainingitoflength
+predictedbythesystem. Again,weconsiderpreci-
+less than or equal to 7; most product NPs are
+sion,recall,andF overthesetwosets. Thismet-
+1 shorter than this, and when the parser predicts
+ric favors systems that consistently make correct
+a longer NP, our analysis found that it typically
+post-level predictions even if they do not retrieve
+reflects a mistake. In Figure 1, the entire noun
+everytoken-leveloccurrenceoftheproduct.
+phrase Backconnect bot would be labeled as a
+Post-level accuracy Most posts contain only product. For products realized as verbs (e.g.,
+oneproduct,butourtype-levelextractionwillnat- hack),weleavetheannotationasthesingletoken.
+urally be a conservative estimate of performance
+simply because there may seem to be multiple Throughouttherestofthiswork,wewillevalu-
+atesometimesatthetoken-levelandsometimesat
+5Twoproducttokensareconsideredthesametypeifafter
+lowercasingandstemmingtheyhaveasufficientlysmalledit 6Forthismetricweexcludepostscontainingnoproducts.
+distance: 0ifthetokensarelength4orless,1ifthelengths Theseareusuallypoststhathavehadtheircontentdeletedor
+arebetween5and7,and2forlengthsof8ormore areaboutforumadministration.
+2601
+theNP-level7 (includingfortheproducttypeeval- Our token-classifying SVM extracts base fea-
+uation and post-level accuracy); we will specify tures on the token under consideration as well as
+whichevaluationisusedwhere. its syntactic parent. Before inclusion in the final
+classifier, these features are conjoined with an in-
+4 Models
+dicator of their source (i.e., the current token or
+the parent token). Our NP-classifying SVM ex-
+We consider several baselines for product ex-
+tractsbasefeaturesonfirst,last,head,andsyntac-
+traction, two supervised learning-based methods
+tic parent tokens of the noun phrase, again with
+(here),andsemi-supervisedmethods(Section5).
+eachfeatureconjoinedwithitstokensource.
+Baselines One approach takes the most fre-
+We weight false positives and false negatives
+quentnoun orverb in a postand classifies alloc-
+differently to adjust the precision/recall curve
+currences of that word type as products. A more
+(tuned on development data for each forum), and
+sophisticated lexical baseline is based on a prod-
+we also empirically found better performance by
+uct dictionary extracted from our training data:
+upweighting the contribution to the objective of
+we tag the most frequent noun or verb in a post
+singleton products (product types that occur only
+that also appears in this dictionary. This method
+onceinthetrainingset).
+failsprimarilyinthatitpreferstoextractcommon
+wordslikeaccountandwebsiteevenwhentheydo
+not occur as products. The most relevant off-the- Post-level classifier As discussed in Section 3,
+shelfsystemisanNERtaggingmodel;weretrain one metric we are interested in is whether we can
+theStanfordNERsystemonourdata(Finkeletal., find any occurrence of a product in a post. This
+2005). Finally,wecantagthefirstnounphraseof task is easier than the general tagging problem:
+thepostasaproduct,whichwilloftencapturethe if we can effectively identify the product in, e.g.,
+productifitismentionedinthetitleofthepost.8
+the title of a post, then we do not need to identify
+We also include human performance results. additional references to that product in the body
+We averaged the results for annotators compared of the post. Therefore, we also consider a post-
+with the consensus annotations. For the phrase level model, which directly tries to select one to-
+level evaluation, we apply the projection method ken (or NP) out of a post as the most likely prod-
+describedinSection3.1. uct. Structuringthepredictionprobleminthisway
+naturallyletsthemodelbemoreconservativeinits
+Binary classifier/CRF One learning-based ap-
+extractions,sincehighlyambiguousproductmen-
+proach to this task is to employ a binary SVM
+tions can be ignored if a clear product mention is
+classifier for each token in isolation. We also ex-
+present. Putanotherway,itsuppliesausefulform
+perimented with a token-level CRF with a binary
+ofpriorknowledge,namelythateachposthasex-
+tagset,andfoundidenticalperformance,sowede-
+actlyoneproductinalmostallcases.
+scribe the binary classifier version.9 Our features
+lookatboththetokenunderconsiderationaswell Our post-level system is formulated as an in-
+as neighboring tokens, as described in the next stance of a latent SVM (Yu and Joachims, 2009).
+paragraph. Avectorof“basefeatures”isextracted The output space is the set of all tokens (or noun
+for each of these target tokens: these include 1) phrases, in the NP case) in the post. The latent
+sentencepositioninthedocumentandwordposi- variable is the choice of token/NP to select, since
+tioninthecurrentsentenceasbucketedindices;2) there may be multiple correct choices of product
+word identity (for common words), POS tag, and tokens. The features used on each token/NP are
+dependency relation to parent for each word in a thesameasinthetokenclassifier.
+windowofsize3surroundingthecurrentword;3)
+Wetrainedallofthelearnedmodelsbysubgra-
+character 3-grams of the current word. The same
+dient descent on the primal form of the objective
+basefeaturesetisusedforeverytoken.
+(Ratliffetal.,2007;Kummerfeldetal.,2015). We
+useAdaGrad(Duchietal.,2011)tospeedconver-
+7WhereNP-levelmeans“nounphrasesandverbs”asde-
+scribedinSection3.1. genceinthepresenceofalargeweightvectorwith
+8Sincethisbaselinefundamentallyreliesonnounphrases, heterogeneous feature types. All product extrac-
+weonlyevaluateitinthenounphrasesetting.
+torsinthissectionaretrainedfor5iterationswith
+9WefurtherexperimentedwithabidirectionalLSTMtag-
+gerandfoundsimilarperformanceaswell. ‘ 1-regularizationtunedonthedevelopmentset.
+2602
+TokenPrediction is accurate enough to enable analysis of Darkode
+Tokens Products Posts
+withautomaticannotation.
+P R F P R F Acc.
+1 1
+Freq 41.9 42.5 42.2 48.4 33.5 39.6 45.3 Throughout the rest of this work, we focus on
+Dict 57.9 51.1 54.3 65.6 44.0 52.7 60.8 NP-levelevaluationandpost-levelNPaccuracy.
+NER 59.7 62.2 60.9 60.8 62.6 61.7 72.2
+Binary 62.4 76.0 68.5 58.1 77.6 66.4 75.2
+5 DomainAdaptation
+Post 82.4 36.1 50.3 83.5 56.6 67.5 82.4
+Human∗ 86.9 80.4 83.5 87.7 77.6 82.2 89.2
+Table2onlyshowedresultsfortrainingandevalu-
+NPPrediction
+NPs Products Posts atingwithinthesameforum(Darkode). However,
+P R F P R F Acc.
+1 1 wewishtoapplyoursystemtoextractproductoc-
+Freq 61.8 28.9 39.4 61.8 50.0 55.2 61.8
+currences from a wide variety of forums, so we
+Dict 57.9 61.8 59.8 71.8 57.5 63.8 68.0
+First 73.1 34.2 46.7 73.1 59.1 65.4 73.1 areinterestedinhowwellthesystemwillgeneral-
+NER 63.6 63.3 63.4 69.7 70.3 70.0 76.3
+ize to a new forum. Tables 3 and 4 show full re-
+Binary 67.0 74.8 70.7 65.5 82.5 73.0 82.4
+sultsofseveralsystemsinwithin-forumandcross-
+Post 87.6 41.0 55.9 87.6 70.8 78.3 87.6
+Human∗ 87.6 83.2 85.3 91.6 84.9 88.1 93.0 forumevaluationsettings. Performanceisseverely
+degraded in the cross-forum setting compared to
+Table 2: Development set results on Darkode.
+the within-forum setting, e.g., on NP-level F , a
+BoldedF valuesrepresentstatistically-significant 1
+1 Hack Forums-trained model is 14.6 F worse at
+improvements over all other system values in the 1
+the Darkode task than a Darkode-trained model
+columnwithp < 0.05accordingtoabootstrapre-
+(61.2 vs. 75.8). Differences in how the systems
+sampling test. Our post-level system outperforms
+adapt between different forums will be explored
+our binary classifier at whole-post accuracy and
+morethoroughlyinSection5.4.
+ontype-levelproductextraction, eventhoughitis
+Inthenextfewsections,weexploreseveralpos-
+less good on the token-level metric. All systems
+sible methods for improving results in the cross-
+consistently identify product NPs better than they
+forum settings and attempting to build a more
+identify product tokens. However, there is a sub-
+domain-general system. These techniques gen-
+stantial gap between our systems and human per-
+erally reflect two possible hypotheses about the
+formance.
+sourceofthecross-domainchallenges:
+4.1 BasicResults Hypothesis 1: Product inventories are the pri-
+mary difference across domains; context-based
+Table 2 shows development set results on Dark-
+featureswilltransfer,butthemainchallengeisnot
+ode for each of the four systems for each metric
+beingabletorecognizeunknownproducts.
+described in Section 3. Our learning-based sys-
+temssubstantiallyoutperformthebaselinesonthe Hypothesis 2: Product inventories and stylistic
+metricstheyareoptimizedfor. Thepost-levelsys- conventions both differ across domains; we need
+tem underperforms the binary classifier on the to- tocapturebothtoadaptmodelssuccessfully.
+ken evaluation, but is superior at not only post-
+level accuracy but also product type F . This 5.1 BrownClusters
+1
+lends credence to our hypothesis that picking one TotestHypothesis1,weinvestigatewhetheraddi-
+product suffices to characterize a large fraction of tional lexical information helps identify product-
+posts. Comparing the automaticsystems with hu- like words in new domains. A classic semi-
+man annotator performance we see a substantial supervised technique for exploiting unlabeled tar-
+gap. Note that our best annotator’s token F 1 was get data is to fire features over word clusters or
+89.8, and NP post accuracy was 100%; a careful, word vectors (Turian et al., 2010). These fea-
+well-trained annotator can achieve very high per- tures should generalize well across domains that
+formance,indicatingahighskyline. theclustersareformedon: ifproductnounsoccur
+Thenounphrasemetricappearstobegenerally in similar contexts across domains and therefore
+more forgiving, since token distinctions within wind up in the same cluster, then a model trained
+nounphrasesareerased. Thepost-levelNPsystem ondomain-limiteddatashouldbeabletolearnthat
+achieves an F-score of 78 on product type identi- thatclusteridentityisindicativeofproducts.
+fication, and post-level accuracy is around 88%. We form Brown clusters on our unlabeled data
+Whilethereisroomforimprovement,thissystem frombothDarkodeandHackForums(seeTable1
+2603
+Evaldata Darkode HackForums Blackhat Nulled Avg
+System P R F P R F P R F P R F F
+1 1 1 1 1
+TrainedonDarkode
+Dict 55.9 54.2 55.0 42.1 39.8 40.9 37.1 36.6 36.8 52.6 43.2 47.4 45.0
+Binary 73.3 78.6 75.8 51.1 50.2 50.6 55.2 58.3 56.7 55.2 64.0 59.3 60.6
+Binary+BrownClusters 75.5 76.4 76.0 52.1 55.9 48.1 59.7 57.1 58.4 60.0 61.1 60.5 60.8
+Binary+Gazetteers 73.1 75.6 74.3 52.6 51.1 51.8 − − − − − − −
+TrainedonHackForums
+Dict 57.3 44.8 50.3 50.0 52.7 51.3 45.0 44.7 44.8 51.1 43.6 47.1 48.4
+Binary 67.0 56.4 61.2 58.0 64.2 61.0 62.4 60.8 61.6 71.0 68.9 69.9 63.4
+Binary+BrownClusters 67.2 52.5 58.9 59.3 64.7 61.9 61.9 59.6 60.7 73.1 67.4 70.2 62.9
+Binary+Gazetteers 67.8 64.1 †65.9 59.9 61.3 60.6 − − − − − − −
+Table3: TestsetresultsattheNPlevelinwithin-forumandcross-forumsettingsforavarietyofdifferent
+systems. UsingeitherBrownclustersorgazetteersgivesmixedresultsoncross-forumperformance: only
+oneoftheimprovements(†)isstatisticallysignificantwithp < 0.05accordingtoabootstrapresampling
+test. GazetteersareunavailableforBlackhatandNulledsincewehavenotrainingdataforthoseforums.
+forsizes). WeuseLiang(2005)’simplementation Darkode HackForums Blackhat Nulled
+TrainedonDarkode
+tolearn50clusters.10 Uponinspection,theseclus-
+Dict 59.3 39.7 43.5 54.6
+tersdoindeedcapturesomeofthesemanticsrele- Post 89.5 66.9 75.8 79.0
+vant to the problem: for example, the cluster 110 +Brown 89.5 66.9 69.3 84.8
++Gaz 87.5 72.1 − −
+hasasitsmostfrequentmembersservice,account,
+TrainedonHackForums
+price,time,crypter,andserver,manyofwhichare Dict 48.9 53.6 50.0 53.4
+product-associatednouns. Weincorporatetheseas Post 78.1 78.6 74.1 81.3
++Brown 82.2 81.6 77.4 82.5
+featuresintoourmodelbycharacterizingeachto-
++Gaz 79.1 †83.8 − −
+kenwithprefixesoftheBrownclusterID;weused
+prefixesoflength2,4,and6. Table 4: Test set results at the whole-post level
+inwithin-forumandcross-forumsettingsforava-
+Tables 3 and 4 show the results of incorporat-
+riety of different systems. Brown clusters and
+ing Brown cluster features into our trained mod-
+gazetteers give similarly mixed results as in the
+els. These features do not lead to statistically-
+token-levelevaluation;†indicatesstatisticallysig-
+significantgainsineitherNP-levelF orpost-level
+1
+nificantgainsoverthepost-levelsystemwithp <
+accuracy, despite small improvements in some
+0.05accordingtoabootstrapresamplingtest.
+cases. This indicates that Brown clusters might
+beausefulfeaturesometimes,butdonotsolvethe
+domainadaptationprobleminthiscontext.11 our labeled data and collecting annotated prod-
+uct names that are sufficiently common. Specifi-
+5.2 Type-levelAnnotation cally, we take all (lowercased, stemmed) product
+tokensandkeepthoseoccurringatleast4timesin
+Another approach following Hypothesis 1 is to
+the training dataset (recall that these datasets are
+use small amounts of supervised data, One cheap
+≈ 700 posts). This gives us a list of 121 products
+approach for annotating data in a new domain
+inDarkodeand105productsinHackForums.
+is to exploit type-level annotation (Garrette and
+Toincorporatethisinformationintooursystem,
+Baldridge,2013;Garretteetal.,2013). Ourtoken-
+we add a new feature on each token indicating
+level annotation standard is relatively complex to
+whetherornotitoccursinthegazetteer. Attrain-
+learn,butaresearchercouldquiteeasilyprovidea
+ing time, we use the gazetteer scraped from the
+few exemplar products for a new forum based on
+training set. At test time, we use the gazetteer
+just a few minutes of reading posts and analyzing
+from the target domain as a form of partial type-
+theforum.
+level supervision. Tables 3 and 4 shows the re-
+Given the data that we’ve already annotated,
+sults of incorporating the gazetteer into the sys-
+we can simulate this process by iterating through
+tem. Gazetteersseemtoprovidesomewhatconsis-
+tent gains in cross-domain settings, though many
+10Thisvaluewaschosenbasedondevsetexperiments.
+11Wecouldalsousevectorrepresentationsofwordshere, of these individual improvements are not statisti-
+but in initial experiments, these did not outperform Brown callysignificant,andthegazetteerscansometimes
+clusters. That is consistent with the results of Turian et al.
+hurt performance when testing on the same do-
+(2010) who showed similar performance between Brown
+clustersandwordvectorsforchunkingandNER. mainthesystemwastrainedon.
+2604
+Test Darkode HackForums Blackhat Nulled
+System %OOV Rseen Roov %OOV Rseen Roov %OOV Rseen Roov %OOV Rseen Roov
+Binary(Darkode) 20 78 62 41 64 47 42 69 46 30 72 45
+Binary(HF) 50 76 40 35 75 42 51 70 38 33 83 32
+Table5: Producttokenout-of-vocabularyratesondevelopmentsets(testsetforBlackhatandNulled)of
+variousforumswithrespecttotrainingonDarkodeandHackForums. WealsoshowtherecallofanNP-
+levelsystemonseen(Rseen)andOOV(Roov)tokens. Darkodeseemstobemore“general”thanHack
+Forums: theDarkodesystemgenerallyhaslowerOOVratesandprovidesmoreconsistentperformance
+onOOVtokensthantheHackForumssystem.
+bel (here, the name of the forum).12 In doing
+80
+so,themodelshouldgainsomeabilitytoseparate
+domain-generalfromdomain-specificfeatureval-
+70
+ues, with regularization encouraging the domain-
+60 general feature to explain as much of the phe-
+nomenon as possible. For both training methods,
+50 weupweightthecontributionofthetarget-domain
+postsintheobjectivebyafactorof5.
+40
+HF → D HF → D +feats Figure2showslearningcurvesforbothofthese
+D → HF D → HF +feats methodsintwoadaptationsettingsaswevarythe
+30
+0 40 80 120 160 amountoflabeledtarget-domaindata. Thesystem
+Number of labeled posts in target domain trained on Hack Forums is able to make good use
+Figure 2: Token-supervised domain adaptation oflabeleddatafromDarkode: havingaccessto20
+results for two settings. As our system is trained labeled posts leads to gains of roughly 7 F 1. In-
+onanincreasingamountoftarget-domaindata(x- terestingly, the system trained on Darkode is not
+axis), its performance generally improves. How- able to make good use of labeled data from Hack
+ever, adaptation from Hack Forums to Darkode is Forums,andthedomain-specificfeaturesactually
+much more effective than the other way around, cause a drop in performance until we include a
+andusingdomainfeaturesasinDaumeIII(2007) substantial amount of data from Hack Forums (at
+giveslittlebenefitoverna¨ıveuseofthenewdata. least80posts). Wearelikelyoverfittingthesmall
+HackForumstrainingsetwiththedomain-specific
+features.
+5.3 Token-levelAnnotation
+5.4 Analysis
+We now turn our attention to methods that might In order to understand the variable performance
+address Hypothesis 2. If we assume the domain and shortcomings of the domain adaptation ap-
+transferproblemismorecomplex,wereallywant proaches we explored, it is useful to examine
+toleveragelabeleddatainthetargetdomainrather our two initial hypotheses and characterize the
+than attempting to transfer features based only on datasets a bit further. To do so, we break down
+type-level information. Specifically, we are in- systemperformanceonproductsseeninthetrain-
+terested in cases where a relatively small num- ing set versus novel products. Because our sys-
+beroflabeledposts(lessthan100)mightprovide tems depend on lexical and character n-gram fea-
+substantial benefit to the adaptation; a researcher tures,weexpectthattheywilldobetteratpredict-
+couldplausiblydothisannotationinafewhours. ingproductswehaveseenbefore.
+Table5confirmsthisintuition: itshowsproduct
+We consider two ways of exploiting labeled
+out-of-vocabularyratesineachofthefourforums
+target-domain data. The first is to simply take
+relativetotrainingonbothDarkodeandHackFo-
+these posts as additional training data. The sec-
+rums, along with recall of an NP-level system on
+ond is to also employ the “frustratingly easy” do-
+both previously seen and OOV products. As ex-
+main adaptation method of Daume III (2007). In
+pected, performance is substantially higher on in-
+this framework, each feature fired in our model
+is actually fired twice: one copy is domain-
+12Ifwearetrainingondatafromkdomains,thisgivesrise
+general and one is conjoined with the domain la- touptok+1totalversionsofeachfeature.
+2605
+1F
+level-PN
+vocabulary products. OOV rates of a Darkode- new forums, and while we explore methods for
+trainedsystemaregenerallyloweronnewforums, fine-graineddomainadaptioninthisdata,effective
+indicating that that forum has better all-around methodsforthistaskarestillanopenquestion.
+product coverage. A system trained on Darkode Our datasets used in this work are avail-
+is therefore in some sense more domain-general able at https://evidencebasedsecurity.org/
+thanonetrainedonHackForums. forums/ Code for the product extractor can be
+This would seem to support Hypothesis 1. found at https://github.com/ccied/ugforum-
+Moreover, Table 3 shows that the Hack Forums- analysis/tree/master/extract-product
+trained system achieves a 21% error reduction
+on Hack Forums compared to a Darkode-trained Acknowledgments
+system, while a Darkode-trained system obtains
+This work was supported in part by the National
+a 38% error reduction on Darkode relative to a
+Science Foundation under grants CNS-1237265
+Hack Forums-trained system; this greater error
+and CNS-1619620, by the Office of Naval Re-
+reduction means that Darkode has better cover-
+searchunderMURIgrantN000140911081,bythe
+age of Hack Forums than vice versa. Darkode’s
+Center for Long-Term Cybersecurity and by gifts
+better product coverage also helps explain why
+from Google. We thank all the people that pro-
+Section 5.3 showed better performance of adapt-
+vided us with forum data for our analysis; in par-
+ing Hack Forums to Darkode than the other way
+ticular Scraping Hub and SRI for their assistance
+around: augmenting Hack Forums data with a
+in collecting data for this study. Any opinions,
+few posts from Darkode can give critical knowl-
+findings, and conclusions expressed in this mate-
+edge about new products, but this is less true if
+rialarethoseoftheauthorsanddonotnecessarily
+the forums are reversed. Duplicating features and
+reflecttheviewsofthesponsors.
+addingparameterstothelearneralsohaslessofa
+clear benefit when adapting from Darkode, when
+the types of knowledge that need to be added are
+References
+lessconcrete.
+David Bamman, Brendan O’Connor, and Noah A.
+Note, however, that these results do not tell the
+Smith. 2013. Learning Latent Personas of Film
+full story. Table 5 reports recall values, but not
+Characters. InProceedingsofthe51stAnnualMeet-
+all systems have the same precision/recall trade- ingoftheAssociationforComputationalLinguistics
+off: althoughtheyweretunedtobalanceprecision (ACL).
+and recall on their respective development sets,
+Danqi Chen and Christopher D Manning. 2014. A
+the Hack Forums-trained system is slightly more
+Fast and Accurate Dependency Parser using Neu-
+precision-oriented on Nulled than the Darkode-
+ralNetworks. InProceedingsoftheConferenceon
+trained system.13 In fact, Table 3 shows that EmpiricalMethodsinNaturalLanguageProcessing
+theHackForums-trainedsystemactuallyperforms (EMNLP).
+betteronNulled,largelyduetobetterperformance
+Hal Daume III. 2007. Frustratingly Easy Domain
+on previously-seen products. This indicates that
+Adaptation. In Proceedings of the 45th Annual
+there is some truth to Hypothesis 2: product cov- Meeting of the Association of Computational Lin-
+erageisnottheonlyimportantfactordetermining guistics(ACL).
+performance.
+John Duchi, Elad Hazan, and Yoram Singer. 2011.
+AdaptiveSubgradientMethodsforOnlineLearning
+6 Conclusion
+and Stochastic Optimization. Journal of Machine
+LearningResearch,12:2121–2159.
+Wepresentanewdatasetofpostsfromcybercrime
+marketplacesannotatedwithproductreferences,a Jenny Rose Finkel, Trond Grenager, and Christopher
+task which blends IE and NER. Learning-based Manning. 2005. Incorporating non-local informa-
+tion into information extraction systems by gibbs
+methods degrade in performance when applied to
+sampling. InProceedingsofthe43rdAnnualMeet-
+ingoftheAssociationforComputationalLinguistics
+13Whileahyperparametercontrollingtheprecision/recall
+(ACL’05).
+tradeoffcouldtheoreticallybetunedonthetargetdomain,it
+ishardtodothisinarobust,principledwaywithouthaving
+accesstoasizableannotateddatasetfromthatdomain. This J. L. Fleiss. 1971. Measuring nominal scale agree-
+limitationfurthercomplicatestheevaluationandmakesitdif- ment among many raters. Psychological Bulletin,
+ficulttosetupapples-to-applescomparisonsacrossdomains. 76(5):378–382.
+2606
+Dan Garrette and Jason Baldridge. 2013. Learning a NIST.2005. TheACE2005EvaluationPlan. InNIST.
+Part-of-Speech Tagger from Two Hours of Anno-
+tation. In Proceedings of the 2013 Conference of BrendanO’Connor,BrandonM.Stewart,andNoahA.
+the North American Chapter of the Association for Smith. 2013. Learning to Extract International Re-
+ComputationalLinguistics:HumanLanguageTech- lationsfromPoliticalContext. InProceedingsofthe
+nologies(NAACL-HLT). 51stAnnualMeetingoftheAssociationforCompu-
+tationalLinguistics(ACL).
+Dan Garrette, Jason Mielens, and Jason Baldridge.
+2013. Real-World Semi-Supervised Learning of Rebecca S. Portnoff, Sadia Afroz, Greg Durrett,
+POS-TaggersforLow-ResourceLanguages. InPro- Jonathan K. Kummerfeld, Taylor Berg-Kirkpatrick,
+ceedingsofthe51stAnnualMeetingoftheAssocia- DamonMcCoy,KirillLevchenko,andVernPaxson.
+tionforComputationalLinguistics(ACL). 2017. ToolsforAutomatedAnalysisofCybercrim-
+inal Markets. In Proceedings of the 26th Interna-
+Rasoul Kaljahi, Jennifer Foster, Johann Roturier, tionalConferenceonWorldWideWeb(WWW).
+CorentinRibeyre,TeresaLynn,andJosephLeRoux.
+2015. Foreebank: Syntactic Analysis of Customer Nathan J. Ratliff, Andrew Bagnell, and Martin Zinke-
+SupportForums. InProceedingsoftheConference vich. 2007. (Online) Subgradient Methods for
+on Empirical Methods in Natural Language Pro- Structured Prediction. In Proceedings of the Inter-
+cessing(EMNLP). national Conference on Artificial Intelligence and
+Statistics.
+Su Nam Kim, Li Wang, and Timothy Baldwin. 2010.
+TaggingandLinkingWebForumPosts. InProceed- Mihai Surdeanu. 2013. Overview of the TAC2013
+ingsoftheFourteenthConferenceonComputational Knowledge Base Population Evaluation: English
+NaturalLanguageLearning(CoNLL). SlotFillingandTemporalSlotFilling,. InProceed-
+ingsoftheTAC-KBP2013Workshop.
+Brian Krebs. 2013a. Cards Stolen in Target Breach
+FloodUndergroundMarkets. Mihai Surdeanu and Heng Ji. 2014. Overview of the
+English Slot Filling Track at the TAC2014 Knowl-
+BrianKrebs.2013b. Who’sSellingCreditCardsfrom edgeBasePopulationEvaluation. InProceedingsof
+Target? theTAC-KBP2014Workshop.
+Meghana Kshirsagar, Sam Thomson, Nathan Schnei- Erik F. Tjong Kim Sang and Fien De Meulder.
+der, Jaime Carbonell, Noah A. Smith, and Chris 2003. Introduction to the CoNLL-2003 Shared
+Dyer. 2015. Frame-Semantic Role Labeling with Task: Language-IndependentNamedEntityRecog-
+Heterogeneous Annotations. In Proceedings of the nition. InProceedingsoftheConferenceonNatural
+53rdAnnualMeetingoftheAssociationforCompu- LanguageLearning(CoNLL).
+tationalLinguistics(ACL).
+JosephTurian, Lev-ArieRatinov, andYoshuaBengio.
+Jonathan K. Kummerfeld, Taylor Berg-Kirkpatrick, 2010. WordRepresentations:ASimpleandGeneral
+and Dan Klein. 2015. An Empirical Analysis of MethodforSemi-SupervisedLearning. InProceed-
+OptimizationforMax-MarginNLP. InProceedings ings of the 48th Annual Meeting of the Association
+oftheConferenceonEmpiricalMethodsinNatural forComputationalLinguistics(ACL).
+LanguageProcessing(EMNLP).
+LiWang,MarcoLui,SuNamKim,JoakimNivre,and
+PercyLiang.2005. Semi-SupervisedLearningforNat- Timothy Baldwin. 2011. Predicting Thread Dis-
+uralLanguageProcessing. InMaster’sThesis,Mas- course Structure over Technical Web Forums. In
+sachusettsInstituteofTechnology. Proceedings of the Conference on Empirical Meth-
+odsinNaturalLanguageProcessing(EMNLP).
+Marco Lui and Timothy Baldwin. 2010. Classifying
+UserForumParticipants:SeparatingtheGurusfrom Chun-Nam John Yu and Thorsten Joachims. 2009.
+the Hacks, and Other Tales of the Internet. In Pro- LearningStructuralSVMswithLatentVariables. In
+ceedings of the Australasian Language Technology Proceedings of the 26th Annual International Con-
+AssociationWorkshop(ALTA). ferenceonMachineLearning(ICML).
+Christopher Manning, Mihai Surdeanu, John Bauer, Yuan Zhang, Regina Barzilay, and Tommi Jaakkola.
+JennyFinkel,StevenBethard,andDavidMcClosky. 2017. Aspect-augmentedAdversarialNetworksfor
+2014. The Stanford CoreNLP Natural Language DomainAdaptation. InTransactionsoftheAssoci-
+ProcessingToolkit. InProceedingsof52ndAnnual ationforComputationalLinguistics(TACL).
+Meeting of the Association for Computational Lin-
+guistics: SystemDemonstrations(ACL).
+David McClosky, Eugene Charniak, and Mark John-
+son. 2010. Automatic domain adaptation for pars-
+ing. InProceedingsoftheConferenceoftheNorth
+American Chapter of the Association for Computa-
+tionalLinguistics(NAACL).
+2607

@@ -1,0 +1,948 @@
+MDACE: MIMIC Documents Annotated with Code Evidence
+HuaCheng1,RanaJafari1,AprilRussell1,RussellKlopfer1,
+EdmondLu1,BenjaminStriner1,MatthewR.Gormley2
+13MHealthInformationSystems,2CarnegieMellonUniversity
+{hcheng, rjafari, arussell3, rklopfer, elu3, bstriner}@mmm.com, mgormley@cs.cmu.edu
+Abstract containrationalesorevidenceassociatedwiththe
+labels. Of those that do, none (as of writing) are
+Weintroduceadatasetforevidence/rationale
+intheextrememulti-labelclassificationsettingor
+extractiononanextrememulti-labelclassifica-
+tion task over long medical documents. One applytolong-documents. Wepresentanewdataset
+suchtaskisComputer-AssistedCoding(CAC) for evidence extraction on long documents in an
+which has improved significantly in recent extrememulti-labelclassificationsetting. Wealso
+yearsthankstoadvancesinmachinelearning providebenchmarkresultsusingestablishedtech-
+technologies. However,simplypredictingaset
+niquesusingneuralnetworks.
+offinalcodesforapatientencounterisinsuf-
+Computer-Assisted Coding (CAC) is a real
+ficient, as CAC systems are required to pro-
+videsupportingtextualevidencetojustifythe world XMLTC application that uses natural lan-
+billingcodes. Amodelabletoproduceaccu- guageprocessing(NLP)techniquestoextractpro-
+rateandreliablesupportingevidenceforeach cedure and diagnosis codes from the documenta-
+codewouldbeatremendousbenefit. However,
+tionofpatientencounters. MIMIC-III(MedicalIn-
+ahuman-annotatedcodeevidencecorpusisex-
+formationMartforIntensiveCare)(Johnsonetal.,
+tremely difficult to create because it requires
+2016)isanopen-accessdatasetcomprisedofhos-
+specialized knowledge. In this paper, we in-
+pital recordsassociated withpatients admitted to
+troduce MDACE, the first publicly available
+codeevidencedataset,whichisbuiltonasub- thecriticalcareunitsoftheBethIsraelDeaconess
+setoftheMIMIC-III(English)clinicalrecords. MedicalCenter. Foreachpatientrecord/chart,the
+Thedataset–annotatedbyprofessionalmed- data related to billing includes diagnostic codes,
+ical coders – consists of 302 Inpatient charts procedurecodes, clinicalnotesbycareproviders
+with3,934evidencespansand52Profeecharts
+(dischargesummaries,radiologyandcardiologyre-
+with5,563evidencespans. Weimplemented
+ports,nursingnotes,etc.,allinEnglish),andother
+severalevidenceextractionmethodsbasedon
+patient demographic data. The MIMIC records
+theEffectiveCANmodel(Liuetal.,2021)to
+wereoriginallycodedwiththealphanumericcode
+establishbaselineperformanceonthisdataset.
+MDACEcanbeusedtoevaluatecodeevidence systemICD-9(InternationalClassificationofDis-
+extractionmethodsforCACsystems,aswellas eases)(WorldHealthOrganization,1978),which
+theaccuracyandinterpretabilityofdeeplearn- containsapproximately14,000codesoverall.
+ingmodelsformulti-labelclassification. We
+SincethereleaseofMIMIC-III,therehasbeen
+believethatthereleaseofMDACEwillgreatly
+asurgeofresearchonusingMLmodelstopredict
+improvetheunderstandingandapplicationof
+deeplearningtechnologiesformedicalcoding billing codes based on the clinical text (Ji et al.,
+anddocumentclassification. 2022). However, the MIMIC database does not
+containtheassociationbetweenthebillingcodes
+1 Introduction
+and the clinical notes, i.e., the specific narratives
+Inextrememulti-labeltextclassification(XMLTC) in the notes supporting the codes are not present.
+a document is assigned a small number of labels CACsystemsarerequiredtoextracttextevidence
+from an extremely large set of possible labels. (i.e. rationales) to support the generated billing
+This large label space poses a challenge for ma- codes. Thereisnodatasetforreferencecodeevi-
+chinelearning(ML)whichiscompoundedbythe denceasitrequiresmedicalcodingexpertiseandis
+length of input seen in long-document classifica- costlytobuild. Asaresult,workuntilthispointcan
+tion. Whilethereisawiderangeofdocumentclas- only illustrate qualitatively that their models can
+sificationdatasets,onlyalimitednumberofthose extract text evidence that looks reasonable to hu-
+3202
+luJ
+7
+]LC.sc[
+1v95830.7032:viXra
+mans. Thisapproachistime-consumingandmakes free-text,structured)havebeencurated. Wiegreffe
+thecomparisonofdifferentmethodsextremelydif- andMarasovic(2021)providealistof65datasets
+ficult. Theneedforareferenceevidencedatasetis for various explainable NLP tasks, and Feldhus
+obvious. etal.(2021)presenttheresultsofdifferentexpla-
+Inmanypartsoftheworld,theICD-9codesys- nationgenerationmodelstrainedonthesedatasets.
+tem is out of date. Most countries are currently
+Theprimarydifferencesbetween MDACE and
+usingthemuchmorerobustandspecificalphanu-
+existingexplanation/evidence/annotatorrationale
+mericcodesystem,ICD-10(WorldHealthOrgani-
+datasets for classification tasks are illustrated in
+zation,2004). TheU.S.version,ICD-10-CM,has
+Table 1. Prior datasets focused on shorter doc-
+approximately69,000codes,whiletheprocedures
+uments (except for EvidenceInference (Lehman
+(PCS)haveabout82,000codes. Onlydocuments
+etal.,2019)),andthetasksusuallyinvolveannota-
+generatedasaresultofaface-to-facevisitwithan
+torshighlightingevidencethatsupportsorrefutes
+allowable provider should be reviewed for direct
+asingleclaim(Lehmanetal.,2019;Zaidanetal.,
+ICD-10 code abstraction. This includes Progress
+2007a; Thorne et al., 2018). In contrast, our task
+Notes,HistoryandPhysicals,ConsultsandOpera-
+isanextrememulti-labelclassificationproblem: a
+tivesNotes,etc.,andexcludesnursingnotes. For
+medicalcodermustfindmultiplecodes(i.e. labels)
+procedurecodeselection,onlyaprocedureoroper-
+fromalargetargetsetofcodesbasedonthedocu-
+ativenoteisacceptable. Forthesereasons,theML
+mentationwhilehighlightingoneormorepiecesof
+models trained on the MIMIC-III discharge sum-
+evidenceforeachlabel. Tothebestofourknowl-
+mariestopredictICD-9codeshavelimitedvalue
+edge,MDACEistheonlypubliclyavailabledataset
+formedicalcodinginreality. MIMIC-IV(Johnson
+with evidence annotations for long documents in
+et al., 2020, 2023) improved upon MIMIC-III in
+anextrememulti-labelclassificationsetting.
+manyways,oneofwhichistheadditionofICD-10
+Manyprivatedatasetshavebeendevelopedfor
+codes. Butatthetimeofourannotationproject,the
+evidenceextractionformedicalcoding, e.g., Sen
+clinical notes associated with the patient records
+et al. (2021). DeYoung et al. (2022) described
+hadnotbeenreleased.
+a MIMIC-III subset annotated with potential evi-
+In this paper, we introduce MDACE, the first
+dencespansandassignedarankedlistofICD-10
+publiclyavailablecodeevidencedataset1 builton
+codes. However, these datasets are not publicly
+a subset of the MIMIC-III clinical records. The
+availableandcannotbeusedtoimproveresearchon
+datasetcontainsevidencespansfordiagnosisand
+evidenceextraction. Inaddition, MDACEwascre-
+procedurecodesannotatedbyprofessionalmedical
+atedwithanannotationprocesscloselymimicking
+coders. Each span contains the billing code and
+codinginaprofessionalsetting. Codersreviewed
+thetextoffsetsintherespectiveclinicalnote. We
+and annotated charts containing multiple clinical
+provide Python scripts for merging our evidence
+notes instead of individual unrelated notes, and
+representation with the MIMIC NOTEEVENTS
+codedbothprocedureanddiagnosiscodes. There
+table to obtain the true evidence so as to comply
+alsoexistsautomaticallycreateddatasets,forexam-
+withThePhysioNetCredentialedHealthDataLi-
+ple,Searleetal.(2020)usedasemi-supervisedap-
+cense. To broaden its use, we automatically map
+proachtocreateasilver-standarddatasetofclinical
+betweenICD-10andICD-9codessothattheevi-
+codesfromonlythedischargediagnosissections
+dencecanpotentiallybeusedwiththeMIMIC-IV
+oftheMIMIC-IIIdischargesummarynotes,witha
+corpus. MDACE addressesacriticalneedforthe
+smallsamplevalidatedbyhumans.
+automatic evaluation of code evidence generated
+byCACmodelsaswellastherationalesextracted Therehasbeenasurgeinneuralnetworkmod-
+byXMLTCsystems. els for automatic medical coding in the past sev-
+eral years. Mullenbach et al. (2018) first intro-
+2 RelatedWork ducedaconvolutionalneuralnetwithanattention
+mechanism, where the label dependent attention
+With the recent increased attention to the inter-
+weights were used as token importance measure
+pretabilityofdeeplearningmodels,datasetscon-
+for the model interpretability. Liu et al. (2021)
+tainingexplanationsindifferentforms(highlights,
+extendedthisworkbyincorporatingthesqueeze-
+and-excitation network (Hu et al., 2018) into the
+1The dataset and software (under the MIT license) are
+availableathttps://github.com/3mcloud/MDACE/. textencodertoobtainbettercontextualtextrepre-
+Dataset Avg.Tokens Tot.Labels Tot.Classes Avg.Labels Avg.Evidence
+MDACE(IP) 19,372 918 2 11.30 13.03
+MDACE(Profee) 11,116 652 2 31.35 106.98
+EvidenceInference(Lehmanetal.,2019) 4,200 1 3 4.19 4.19
+MovieReview(Zaidanetal.,2007a) 774 1 2 1 11.36
+FEVER(Thorneetal.,2018) 327 1 3 1 1.77
+e-SNLI(Camburuetal.,2018) 16 1 3 1 1
+Table1: Comparisonofasamplingofclassificationdatasetsthathaveevidenceannotations(i.e. rationales)interms
+oftheaveragenumberoftokensperdocument,totalnumberofuniquelabels/classes,averagenumberoflabelsper
+document(i.e. forstandardclassificationtasksthisis1,formulti-labelsettingsthisis>1),andaveragenumberof
+evidenceannotations(i.e. highlights)perdocument. OurnewMDACEdatasetconsistsoftwoparts: Inpatient(IP)
+andProfee.
+sentations. Xie et al. (2019) used the multi-scale 3.1 CodingSpecialties
+convolutionalattentionwhileVuetal.(2020)pro-
+MIMIC-IIIcontainsbothICD-9codes,whichare
+posed to combine Bi-LSTM and an extension of
+used for inpatient coding, and CPT (Current Pro-
+structuredself-attentionmechanismforICDcode
+cedureTerminology)codes,whicharemaintained
+prediction. Someotherrecentmodelsthatachieved
+bytheAmericanMedicalAssociation(AMA)and
+state-of-the-artresultsontheMIMIC-IIIfullcode
+used for outpatient facility and professional fee
+set include Kim and Ganapathi (2021); Hu et al.
+(Profee)billingintheU.S.(SeeAppendixAforde-
+(2021);Yuanetal.(2022). Therearealsoalarge
+tails). ThereareapproximatelytenthousandCPT-4
+numberofTransformerbasedmodelsformedical
+codes. Itwasnecessarytohavedifferentcodersfor
+coding,e.g.,Liuetal.(2022);Pascualetal.(2021),
+eachofthesetasks(Inpatientvs. Profee)becauseit
+buttheyoftenonlypredictthetop50codes. One
+isunusualthatonepersonbeexperiencedinboth
+exceptionisPLM-ICD(Huangetal.,2022),which
+areas. Thismeansthatinpatientcoderstendtobe
+useddomain-specificpretraining,segmentpooling,
+moreskilledICDcoders,whileProfeecodersare
+andlabel-awareattentiontotacklethechallenges
+oftenskilledCPTcoderswithintheirdomain. ICD
+ofcodingandimproveperformance.
+codesarealsoappliedtoProfeechartstomeetmed-
+Many of the above works are able to use the
+icalnecessityrequirementswhichensurethatthe
+attentionweightstoidentifythetextsnippetsthat
+patient’sbillispaidbyinsurancecompanies.
+justifycodepredictions. Butthereisnoquantitative
+Forthisreason,wehiredtwocodingteamswith
+evaluationofthequalityofthesnippetsmostlydue
+twoprofessionalcoderseachforInpatientandPro-
+tothelackofreferenceevidence.
+feecoding. Althoughbothteamscodeddiagnosis
+Worksthatusesemi-supervisedlearningforex- codes,theactualcodescanbedifferentduetodif-
+planationtasksinNLPmorebroadlyincludeZhong ferentcodingrules.
+etal.(2019);Pruthietal.(2020);Segaletal.(2020), Foreithercodingscenario,acoderusuallylooks
+where Segal et al. (2020) used a linear tagging forsufficientevidencethatsupportsacodeandig-
+modelforidentifyinganswersnippetsinquestion noresequallygoodevidencethatshecomesacross
+answering. Althoughtheyarenotdirectlyrelatedto latertosavetime. Thisposesachallengeforeval-
+medicalcoding,wecanapplytheirapproachesfor uatingCACsystemswhichcangeneratemultiple
+evidence extraction with the help of the MDACE piecesofevidenceforacodethatmayormaynot
+dataset. overlapwiththesufficientreferenceevidence. To
+overcome this challenge but still finish the anno-
+tations in a reasonable time frame, we asked our
+3 ChallengesandSolutions
+coderstoannotatesufficientevidenceforInpatient
+codingbutcompleteevidenceforProfeecoding.
+MIMIC-IIIposesanumberofchallengesforcreat-
+ingareferencecodeevidencedataset. Thesechal-
+3.2 CodeMappings
+lengesincludethedifferentcodingspecialties(In-
+patient&Profee)andcodesystems(ICD-9,ICD- Since ICD-9 coding has been discontinued, up-
+10&CPT).Thissectiondiscussesthesechallenges datingtheMIMIC-IIIdatasetwithICD-10codes
+anddescribesourprocesstoincreasetheusability andevidencewillbenefitresearchthattargetsreal-
+of MDACE. world coding problems. MDACE is designed to
+containevidenceforbothICD-9andICD-10codes ists. Batchesof50chartswerechosenatrandom.
+sothatitcanbeusedtoevaluateevidenceextrac- For each batch, all eligible documents were ex-
+tionofCACmodelstrainedoneitherMIMIC-III tracted,notjustdischargesummaries. Ourcoders
+orMIMIC-IV. workedononebatchatatime. Theprojectlasted
+WechosetouseICD-10forannotationbecause, twomonths.
+firstly,mostcodersaremorefamiliarwiththeICD-
+10 code system, and secondly, ICD-10 codes are 3.4 Inter-AnnotatorAgreement
+more specific, so the mapping from an ICD-10 Asthefirststepoftheannotationprocess,wemea-
+code to ICD-9 is less ambiguous than the other sured the inter-annotator agreement to assess the
+wayaround. Ourcodersannotatedasubsetofthe reliabilityoftheannotations. Toquantifythequal-
+MIMIC-IIIchartswithICD-10codesandtheirevi- ity of annotations, two coders independently an-
+dence,whichwerethenautomaticallymappedto notatedsufficient(forInpatient)orcomplete(for
+ICD-9throughtheGeneralEquivalenceMappings Profee)evidenceforthesamethreecharts,andwe
+(GEMs)2 (Center for Medicare & Medicaid Ser- measured the inter-coder agreement. Next, they
+vices,2009). GEMscontainsixtypesofmappings, reviewedeachother’sannotationswheretheydis-
+including Identical match, Approximate match, agreedtoinvestigatethereasonsfordisagreement
+Combination map, and No Map, etc. To ensure anddetermineiftheycouldreachanagreement. If
+thequalityofcodemapping,wefollowtheproce- theystilldisagreed,theirsupervisormadethefinal
+dure in Appendix B to backward map ICD-10 to call. Once all disagreements were resolved, the
+ICD-9. ThisprocessallowsallannotatedICD-10 codersstartedworkingonthefirstbatchofcharts
+codestobemappedexceptfortwoinourdataset. followingthesamecodingpractice.
+WeusedKrippendorf’sα(Krippendorff,2004)
+3.3 AnnotationWorkflow
+as an agreement measure, as it allows for assign-
+Medical coding is an extremely complex task,
+ing multiple labels to a span, which is the case
+and there is often disagreement among coders.
+in medical coding. The agreement for initial and
+Giventhelargenumberofnotesandcodesineach
+final coding is given in Table 2, where the α val-
+MIMIC-IIIrecord(Suetal.,2019),itisimpractical
+ueshigherthan0.80couldbeinterpretedasstrong
+forourcoderstofirstdecidethebestICD-10code
+agreement. Twootheragreementmeasures,Fleiss
+for a MIMIC ICD-9 code and then annotate the
+κ (Fleiss, 1981), and Hooper’s measure of index-
+narrative evidence in clinical notes for that code.
+ing consistency (Funk and Reid, 1983), are also
+Therefore,ourcodersfollowedtheirnaturalwork-
+reported. Punctuationwasdisregardedinthesecal-
+flowofcodingeachchartfromscratch. However,
+culations.
+theoriginalMIMICcodesandtheirpossibleICD-
+Weobservedtwosourcesthataccountedforthe
+10mappingsweremadeavailabletothem. Ifthere
+lowinitialagreement. Onesourceisthatthecoders
+wereMIMICcodesunaccountedforaftercomplet-
+annotatedthesameorsimilarevidencefromdiffer-
+ing a chart, those could be used as reference to
+entlocationsinthesamechart. Theothersource
+re-review the chart and annotate accordingly. If
+of disagreement came from external cause codes
+the coders could not find evidence after review-
+and symptom codes, which are not essential for
+ing again – for example, if the required note was
+billing,sosomecoderschosetocodethemwhile
+missing–theysimplymadeanoteintheircoding
+others did not. For Profee coding, the initial dis-
+reports.
+agreementwasalsoduetothelackofexperience
+WeusedatoolcalledINCEpTION(Klieetal.,
+ofonecoder. Examplesofthesedisagreementsare
+2018) to help our coders to review and annotate
+given in Appendix C. These cases were resolved
+MIMIC charts. This tool allows them to browse
+inthere-reviewprocess,andshouldbetreatedas
+throughtheclinicalnotes,highlighttextspansand
+agreements. After the review process, the inter-
+assignlabels(billingcodes)tothespans. Thean-
+annotatoragreementishighforbothInpatientand
+notationguidelineisillustratedinAppendixE.
+Profeecoding.
+We selected charts from Mullenbach et al.
+(2018)’s test set to be annotated by our special- 4 DatasetAnalysis
+2GEMsareacomprehensivetranslationdictionarydevel-
+In this section, we present various statistics of
+opedbymultiplehealthorganizationsintheU.S.toeffectively
+translatebetweentheICD-9andICD-10codes. MDACE,includingthenumberofannotatedcharts,
+Inpatient Profee NoteCategory Evidence Percentage
+NumberofAnnotations 384 1,282 DischargeSummary 3,434 87.3
+AgreementonInitialAnnotations Physician 364 9.3
+Krippendorf’sα 0.53 0.24 IP Radiology 60 1.5
+Fleiss’κ 0.53 0.24 General 28 0.7
+Hooper’sMeasure 0.65 0.38 Nutrition 19 0.5
+Physician 2,082 37.4
+AgreementafterReview
+DischargeSummary 1,584 28.5
+Krippendorf’sα 0.97 0.96
+PF Radiology 1,269 22.8
+Fleiss’κ 0.97 0.96
+ECG 256 4.6
+Echo 207 3.7
+Table2: Inter-annotatoragreementmeasuresoninitial
+RehabServices 66 1.2
+andreviewedannotations
+Table4: DistributionofevidencespansinInpatientand
+Annotated Inpatient Profee Profeenotes(cutoffat10)
+Encounters 302 52
+Documents 604 588
+Codes Inpatient Profee
+ICD-9Codes 918 652
+ICD-10Codes 1,024 734 MIMIC 5,250 694
+EvidenceforICD-9 3,934 5,563 MDACE 3,414 1,630
+EvidenceforICD-10 3,936 5,563 Agreed 2,370(45.1%) 306(44.1%)
+Averageevidencelength(tokens) 2.18 1.96 Missed 2,880(54.9%) 388(55.9%)
+Added(average) 3.457 25.462
+Table 3: Summary of MDACE (Profee code and evi-
+Table5: ComparisonofMIMIC-IIIandMDACEcodes
+dencecountsincludeCPTcodes)
+notedthatasimilarobservationoflowagreement
+documents,uniquecodes,andevidencespans(Ta-
+withMIMICcodersbasedon508re-annotateddis-
+ble 3). Since annotating complete evidence is
+chargesummarieswasalsoreportedin(Kimand
+more time-consuming than annotating sufficient
+Ganapathi, 2021). Our coders added an average
+evidence,theProfeecodersonlycompletedasmall
+of 25 extra codes per chart for Profee coding be-
+subset(52)ofthe302Inpatientcharts.
+causeoftheirefforttoannotateallevidencespans.
+Tables4showsthedistributionofevidencespans
+Thefinalcodesoftheannotatedchartsconsistof
+indifferentnotecategories. Researchondeeplearn-
+theoriginalMIMICcodesandextracodesadded
+ingmodelsforCAChasbeenmostlyfocusedonus-
+through annotation. Only codes verified by our
+ingdischargesummariesforcodeprediction. The
+annotatorshaverelatedevidence.
+tablesshowthatalthoughdischargesummariescap-
+ture the majority of coding related narratives for Table6summarizesthemappingfromICD-10
+Inpatient, they are insufficient for Profee coding. to ICD-9 codes. The majority of the mappings,
+Othernotes,suchasPhysicianandRadiologynotes, 92%forInpatientand87%forProfee,wereeither
+shouldalsobeused. verifiedbycodersduringtheannotationprocessor
+Table5showstheoverlapbetweentheMIMIC basedonasingleidenticalorapproximatematchin
+codesandMDACEcodes3. Thereislessthan50% GEMs. Thisgivesushighconfidenceinthequality
+codeoverlap,indicatingthatahighpercentageof ofthemappedICD-9codes.
+MIMIC codes are missing from our annotations.
+5 EvidenceExtractionMethods
+Therearetwopossibleexplanationsforthis: firstly,
+over37%ofthe302MIMICencountersaremiss-
+This section introduces several evidence extrac-
+ingoperativenotes,andasaresult,thecoderscould
+tionmethodsthatweimplementedwithinaconvo-
+not annotate the procedure codes accounting for
+lutional neural network based model to establish
+33%ofthemissingInpatientcodes;andsecondly,
+baselinesforcodeevidenceextractiononMDACE.
+codingguidelineshavechangedovertheyears,and
+ourcoderswerelikelyfollowingdifferentcoding 5.1 EffectiveCAN
+standardsfromtheMIMICcoders. However,veri-
+EffectiveCAN (Liu et al., 2021) is a convolution-
+fyingsuchaclaimwithoutinformationaboutthe
+basedmulti-labeltextclassifierthatachievedstate-
+MIMICcodingprocessisimpossible. Itshouldbe
+of-the-artperformanceonICD-9codeprediction
+3WeignoredCPTcodesforEvaluationandManagement on MIMIC-III. It encodes the input text through
+(E&M),whichareintherangeof99201and99499asthey
+multiplelayersofresidualsqueeze-and-excitation
+requireadecisionmakingcalculatortoarriveatthecorrect
+CPTcodesratherthansimplydependingontheclinicaltext. (Res-SE)convolutionalblocktogenerateinforma-
+ICD-10toICD-9 Inpatient Profee whereaistheattentionweights.
+CoderVerified 2,525(64.2%) 1,606(28.9%)
+Identicalmatch 417(10.6%) 1,387(24.9%) 5.2.3 LinearTaggingLayer
+Approximatematch 687(17.5%) 1,847(33.2%)
+Multiplematch 244(6.2%) 704(12.6%) InspiredbytheworkofSegaletal.(2020)onthe
+Other 61(1.6%) 19(0.3%) use of tagging for question answering, we added
+a feed-forward tagging layer on top of Effective-
+Table6: Distributionofcodemappings
+CAN for evidence extraction as shown in Fig. 2
+(a). WeusetheoutputofthelastRes-SEblock,hl,
+tiverepresentationsofthedocument. Ituseslabel- andthenormalizedattentionscoresw.r.t. themaxi-
+wiseattentiontogeneratelabelspecificrepresen- mumweight,a ,asinputstotwolinearlayers
+scaled
+tations, which has been widely used to improve that share parameters for all the labels. The scal-
+predictions as well as to provide an explanation ing is done so that the maximum score would be
+mechanismofthemodel,e.g.,(Mullenbachetal., consistentamongdifferentinstances. Theoutputs
+2018). WechoseEffectiveCANasourbasemodel of these linear layers are multiplied to obtain the
+foritssimplicity,efficiency,andhighperformance. logitsforevidenceprediction,ˆy ∈ RN (where
+evd
+Itsattentionweightscanbeviewedassoftmasks, N is the text length and each token is labeled as
+makingitanaturalfitforproducingbaselineevi- evidence or not). We used BCE for the tagging
+denceresultson MDACE. loss,andaddedittothelabellossthroughaweight
+term:
+5.2 EvidenceExtractionMethods
+We implemented multiple baseline methods for ˆy = σ(cid:0) f (hl=4)×f (a )(cid:1) (2)
+evd 1 2 scaled
+codeevidenceextraction,includingunsupervised
+attention,supervisedattention,lineartagging,and
+L = L (ˆy ,y )+λ L (ˆy ,y )
+CNN tagging. Figure 1 shows our implementa- BCE code code 2 BCE evd evd
+(3)
+tionoftheEffectiveCANmodelwiththeattention
+supervisionmechanismforevidenceextraction. 5.2.4 CNNTaggingLayer
+We extended the linear tagging layer by adding
+5.2.1 UnsupervisedAttention
+a CNN layer as another method for evidence ex-
+EffectiveCAN uses text encoding from multiple
+traction. The CNN tagger has as input the sum
+layersofRes-SEblocktogeneratethekeyforthe
+ofthetwolinearprojectionlayersofthelastRes-
+attentionmodule. Theresultisalabel-specificrep-
+SEblock,thenormalizedattentionscores,andthe
+resentationoftheinputobtainedbymultiplyingthe
+codeembeddings,u. Theinputsarethenfedinto
+key(value)bytheattentionweights. Theattention
+a1-Dconvolutionallayer(conv1D)withakernel
+weightssignalthemostrelevantpartsoftheinput
+sizeof9and out-channelsizeof10, followedby
+text with respect to the output. Highlighted evi-
+layernormalization,ReLUactivation,andfinally
+denceforpredictedcodesaretokenswhoseatten-
+alinearlayer(f )toprojecttheoutputbacktothe
+tionscoresaregreaterthanapre-definedthreshold. 4
+originaldimension(seeFig. 2(b)).
+Weconsiderthisthesimplestbaselineandcompare
+theperformanceofothersupervisedmethodswith
+it. x = f (hl=4)+f (a )+f (u) (4)
+1 2 scaled 3
+5.2.2 SupervisedAttention(SA)
+(cid:0) (cid:1)
+We added a loss for evidence supervision during ˆy = σ f (conv1D(x)) (5)
+evd 4
+training as illustrated in Equation 1. We chose
+Theoutputlogitsfromthefinallayerareusedfor
+Kullback–Leibler(KL)divergencelossoverother
+evidenceprediction,withthesameBCElossasthe
+losses,suchasmeansquarederror,sinceitisaterm
+lineartagger,showninEquation3.
+inthecross-entropylossexpressionandwouldre-
+sult in a similar gradient behavior to the binary-
+6 ExperimentsandResults
+crossentropy(BCE)lossusedforthecodepredic-
+tion(Yuetal.,2021). In this section, we describe the experiments for
+evaluatingtheevidenceextractionmethodsintro-
+L = L (ˆy ,y )+λ L (a,y )
+BCE code code 1 KLD evd ducedinSection5,usingthetoken-andspan-level
+(1)
+metricsinSection6.2.
+Figure1: ThearchitectureofEffectiveCANwithsupervisedattention.
+Figure2: (a)Linear,and(b)CNNtoken-levelevidencetaggingmodels.
+TrainSet Code-F1 Token-F1 DataSplits Train Dev Test
+0 58.3 32.0 Code(c) c.train c.dev c.test
+30(12.5%) 58.1 32.3 47,719 1,631 3,372
+60(25%) 57.7 32.8 Evidence(ev) ev.train ev.dev ev.test
+121(50%) 58.2 33.2 Inpatient 181 60 61
+181(75%) 58.1 36.2 Profee 31 10 11
+242(100%) 58.1 36.8 Code+Evidence c.train c.dev c.test-ev.dev
++ev.train +ev.dev -ev.train
+Table7: Supervisedattentiontrainingperformanceon Inpatient 47,900 1,691 3,131
+devsetforevidencetrainingdatasetsofdifferentsizes. Profee 47,750 1,641 3,331
+Table8: OurnewCode+Evidencedatasplitsbasedon
+thesplitsofMullenbachetal.(2018)forcodeprediction
+6.1 DataSplits
+andourevidencedatasetsplits.
+Ratherthansimplymakingrandomtrain/dev/test
+splits,wecreatedsub-trainingsplitstoeffectively
+determine the optimum splits for low-resource theEffectiveCANmodelasshowninTable7. As
+semi-supervisedevidencelearning. Werandomly a result, we established the data size needed for
+sampledfixeddevelopmentandtestsetswith10% supervisedtraining,whiletheremainingdatacan
+oftheannotatedcharts(overall,20%washeldout). beusedtocreateamorerepresentativetestset.
+Next,weuseddifferentportionsoftheremaining Wedecidedtousethe75%splitpointsincethe
+80% data to create 12.5%, 25%, 50%, 75%, and evidencetrainingshowedonlyslightimprovement
+100%trainingsetstotraintheattentionweightsof withmoredata. Hence,thecreatedevidencedata
+TokenMatch PositionIndependentTokenMatch
+Model Threshold
+Precision Recall F1 Precision Recall F1
+CAML
+Unsup.Attention 0.05±0.1 17.8±11.3 27.5±11.8 21.4±12.0 26.6±18.6 32.2±11.1 28.5±15.4
+EffectiveCAN
+Unsup.Attention 0.07±0.01 40.1±2.3 33.2±0.6 36.2±0.6 66.5±3.8 37.2±0.4 47.7±0.8
+Sup.Attention 0.05±0.01 40.5±3.0 46.3±4.1 43.0±0.2 65.3±4.4 50.7±3.9 56.8±0.7
+LinearTagging 0.23±0.06 45.6±1.2 36.3±0.8 40.4±0.1 68.8±1.8 43.4±0.4 53.3±0.8
+CNNTagging 0.32±0.08 35.5±0.4 51.1±1.4 41.9±0.7 52.0±0.3 59.8±2.0 55.6±1.0
+ExactSpanMatch PositionIndependentExactSpanMatch
+Model
+Precision Recall F1 Precision Recall F1
+CAML
+Unsup.Attention 4.9±8.2 13.0±21.2 7.1±11.8 7.7±12.7 14.5±23.3 10.1±16.5
+EffectiveCAN
+Unsup.Attention 19.8±1.6 35.1±0.2 25.3±1.3 32.2±2.3 38.1±0.1 34.9±1.4
+Sup.Attention 20.4±1.3 44.0±3.2 27.8±0.6 33.2±2.5 48.0±2.6 39.2±1.0
+LinearTagging 22.7±1.0 34.5±0.2 27.3±0.7 34.3±1.6 41.4±0.8 37.5±1.2
+CNNTagging 20.0±0.5 37.9±1.7 26.2±0.8 29.3±1.2 46.3±2.2 35.9±1.3
+Table9: EvaluationresultsofevidenceextractionmethodsontheIPdischargesummarytestsetofMDACE.
+TokenMatch ExactSpanMatch P.I.TokenMatch P.I.ExactSpanMatch
+Dataset Threshold
+P R F1 P R F1 P R F1 P R F1
+Inpatient 0.06 37.4 37.1 37.2 18.0 38.1 24.5 69.4 42.2 52.5 34.0 42.5 37.8
+Profee 0.02 32.6 39.4 36.5 21.9 39.3 28.1 41.0 41.9 41.4 21.1 40.4 27.7
+Table10: Evaluationresultsofthesupervisedattentionmodelonthecode-ablenotestestsetofMDACE.
+splits are 60%/20%/20% for train/dev/test. The ken in a document compared to its ground truth
+newdatasplitsforcodeandevidencearegivenin label. The span metrics measure the whole evi-
+Table 84. We adopted the train/dev splits (c.train dencespan,whichisdefinedasconsecutivetokens
+and c.dev) of Mullenbach et al. (2018) for code withtheevidencelabel. Anexactspanmatchcon-
+predictionastheyhavebeenwidelyusedforcom- siderscompleteoverlapwiththegroundtruthspan
+paring the performance of deep learning models. as correct. These metrics measure how well the
+Weremovedtheevidencetrainanddevexamples evidenceextractionmethodsgeneratewholespans
+(ev.train and ev.dev) from their test set (c.test) so ratherthandisjoint,correcttokens. TheP.I.metrics
+astofollowthestandarddatausepractices. disregardthelocationoftheevidencespan/token
+Table7alsoshowsthataddinglabeledevidence andconsideranevidenceascorrectbasedonstring
+datatothecodetrain/devsetsdidnotaffectcode matching. Thesemetricsareusedtoalleviatetheis-
+prediction significantly. This is reasonable given sueofsufficientvs. completeevidenceannotation
+thattheevidencedatasetismuchsmallerthanthe explained in Section 3.1. During evaluation, we
+code dataset. Compared with the results in (Liu allowevidencetobegeneratedforallcodesregard-
+et al., 2021), we can see that the code prediction lessofwhetherornotacode’spredictedprobability
+F1 does not change significantly with or without exceededthepredictionthreshold.
+evidencetraining. Thismeansthatcodeprediction Weusethemodel’sprecision-recallcurveonthe
+performanceestablishedontheMullenbachetal. devsettodetermineathresholdthatmaximizesthe
+(2018)datasplitscanbetransferredtotheMDACE tokenmatchmicro-F1score,andusethisthreshold
+datasplitswithoutmuchconcern. forevaluationonthetestset.
+6.2 EvaluationMetrics 6.3 Results
+Weevaluatetheevidenceextractionmethodsusing Theevaluationresultsofthevariousevidenceex-
+the precision, recall, and micro-F1 score on four traction methods on the discharge summaries of
+mainmetrics: Tokenmatch,Exactspanmatch,Po- MDACE are shown in Table 9, obtained by com-
+sitionindependent(P.I.)tokenmatch,andP.I.exact paring to the ground-truth evidence, irrespective
+spanmatch. Thetokenmatchmetricsareusedto ofwhetherornotthecodewaspredicted. There-
+measure the predicted evidence label of each to- sultsforeachmethod/modelarefromtheaverage
+ofthreerunsoftraining.
+4Fourrecordsinthecodetrainingsetwereremovedbe-
+causetheydonotcontainanybillingcodes. Outofalltheevidenceextractionmethodstested,
+Supervised Attention achieved the best micro-F1 shortevidencecorrectlybutonly3(17.6%)ofthe
+score across all metrics. The tagging methods 17 multi-token evidence correctly. Although the
+under-performed SA, likely because they need modelcouldn’textracttheexactmulti-tokenspans,
+more data to tune their parameters. The best ev- it often identified partial evidence. For example,
+idence extraction methods could be based on the it generated "peptic" instead of "peptic ulcer dis-
+sizeofthetrainingdata. ease",and"compartment"insteadof"compartment
+We provide the performance of CAML’s syndromeofleftlowerextremity". Table11inAp-
+attention-based explanation (Mullenbach et al., pendixFprovidesmoreexampleoutputsfromtwo
+2018)forcomparison. Itshouldbenotedthatthe baselineextractionmethods.
+bestmicro-F1weobtainedis0.523,lowerthanthe Appendix D describes the model parameters
+F1 value of 0.539 as reported in the paper. Addi- usedforreportingtheresults.
+tionally, one of the three trained CAML models
+7 Conclusions
+with different seeds yielded significantly higher
+evidence performance. As a result, the standard Inthispaper,weintroduceMDACE,thefirstpub-
+deviationforthereportedresultsisveryhigh. licly available code evidence dataset built on a
+Sincesupervisedattentionresultedinbetterper- subset of the MIMIC-III clinical records. The
+formance than other methods on discharge sum- datasetcontainsevidencespansfordiagnosisand
+maries,weusedittoevaluatetheeffectofadding procedurecodesannotatedbyprofessionalmedical
+othercode-ablenotesincludingphysicianandradi- coders. MDACEaddressesacriticalneedforCAC
+ologynotestotheinput(Table10). Fortrainingthe research to be able to automatically evaluate the
+modelonInpatientandProfeedatasets,themaxi- code evidence generated by ML models. To the
+mumlengthfortruncatingtextwasincreasedfrom best of our knowledge, MDACE is also the only
+3,500to5,000. Table10showstheperformance publicly available dataset with evidence annota-
+ofInpatientvs. Profeecoding. Thepositionsensi- tionsforlongdocumentsinanextrememulti-label
+tiveexactspanmetricsonProfeearesignificantly classificationsetting.
+higherthanthoseofInpatient,likelytheresultof The need for improving the interpretability of
+completeevidenceannotations,asthegaindisap- text classification models has increased in recent
+pearedonposition-independentmetrics. It’sworth years as they become more complex and opaque.
+pointingoutthattheevidenceresultsonallcode- However,datasetswithlabelevidencearerareas
+able notes could be affected by input text trunca- theevidenceannotationsdonotoccurnaturally,nor
+tionaspotentiallymorethanhalfofthetokensand is the evidence actually used in the real world in
+evidence were discarded. More experiments and those domains, e.g. the rationale annotations on
+analysisshouldbeconductedtobetterunderstand theIMDBreviews(Zaidanetal.,2007b;Pangand
+theseresults. Lee,2004). Recruitinghumansubjects,especially
+domainexperts,tocreateanevidencedatasetisan
+We determined threshold values based on the
+expensive and time consuming process. In addi-
+tokenmatchmetricforitssimplicity. Butwealso
+tion, many applications require the models to be
+takeintoconsiderationtheothermetrics, suchas
+abletogeneratelocalexplanations(Nguyen,2018).
+exactspanmatch,tohaveabettergraspofhowwell
+MDACEisasteptowardfillingthevoidandcanbe
+theextractedevidencematcheshumanannotations.
+usedtoevaluateandenhancetheexplainabilityof
+Notethatpositionindependenttokenmatchtakes
+DLmodels. Webelievethatitsreleasewillgreatly
+tokens out of their context, which may result in
+improvetheunderstandingandapplicationofdeep
+evidencethatisnotreasonabletohumans,e.g.,“hr”
+learningtechnologiesformedicalcodingandtext
+whereitmeanshourinsteadofheartrate.
+classification.
+We sampled 50 evidence output of the super-
+GiventherecentreleaseoftheMIMIC-IVclini-
+vised attention model from the Inpatient test set
+calnotes,ournextstepistocombinethe MDACE
+fordetailedanalysis. Weobservedthatthemodel
+annotationswiththeMIMIC-IVdatasetandestab-
+was better at extracting short, i.e., single token,
+lishbaselineperformanceforICD-10codepredic-
+evidence(e.g.,"hypotension"and"asthma")than
+tionandcodeevidenceextraction.
+evidence with multiple tokens (e.g., "peptic ul-
+cer disease"). Using the Exact span match met-
+ric,theSAmodelpredicted30(90.9%)ofthe33
+8 Limitations modelexplanationsandanalysistools. arXivpreprint
+arXiv:2108.13961.
+Professional coders are trained to find sufficient,
+JosephL.Fleiss.1981. Statisticalmethodsforratesand
+asopposedtoexhaustive,evidenceforeachcode.
+proportions(2ndEdition). NY:Wiley,JohnandSons,
+Our Profee coders were instructed to find all the
+Incorporated.
+evidenceforeachcode. However,giventhelarge
+Mark E. Funk and Carolyn A. Reid. 1983. Indexing
+numberofnotesinsomeMIMICencounters,they
+consistencyinMEDLINE. BulletinoftheMedical
+might only manage to annotate most of the evi-
+LibraryAssociation,71(2):176.
+dence. For Inpatient, there might be more bias
+amongcoderstowardsfindingsufficientevidence: Jie Hu, Li Shen, and Gang Sun. 2018. Squeeze-and-
+excitation networks. In Proceedings of the IEEE
+namely,thereweremanycasesinwhichonecoder
+ConferenceonComputerVisionandPatternRecog-
+foundevidencethatanotherhadnot,butduringthe
+nition(CVPR),pages7132–7141.
+adjudicationprocess,bothcodersagreeditshould
+Shuyuan Hu, Fei Teng, Lufei Huang, Jun Yan, and
+be included. Thus, although we have opened the
+HaiboZhang.2021. AnexplainableCNNapproach
+door to automatic evaluation of evidence extrac-
+formedicalcodespredictionfromclinicaltext. BMC
+tionsystems, somemetrics, suchasrecallonour Medical Informatics and Decision Making, pages
+dataset, might underestimate the true recall of a 1–12.
+system.
+Chao-Wei Huang, Shang-Chi Tsai, and Yun-Nung
+Weobservedinconsistenciesandhumanerrors Chen. 2022. PLM-ICD: Automatic ICD coding
+whilecleaningupthedata. Coderssometimesonly with pretrained language models. arXiv preprint
+annotated partial evidence, leaving out modifiers arXiv:2207.05289.
+like "acute", "moderate" and "bilateral". For ex-
+Shaoxiong Ji, Wei Sun, Hang Dong, Honghan Wu,
+ample, we consider "bilateral pleural effusions" and Pekka Marttinen. 2022. A unified review of
+as the correct evidence but only "effusions" was deeplearningforautomatedmedicalcoding. arXiv
+preprintarXiv:2201.02797.
+highlighted,andfor"weaknessinhislowerextrem-
+ities",only"weakness"washighlighted. Another AlistairJohnson,LucasBulgarelli,TomPollard,Steven
+sourceoferrorisduetothelimitationoftheanno- Horng, Leo Anthony Celi, and Roger Mark. 2020.
+tationtoolwhichdoesnotsupporthighlightingand "MIMIC-IV" (version 0.4). PhysioNet. https://
+mimic.mit.edu/docs/iv/about/.
+linkingdiscontinuousspansoftextasasingleevi-
+denceforacode. Asaresult,someevidencemay Alistair Johnson, Lucas Bulgarelli, Lu Shen, Alvin
+containextratokensbetweenthecorrectevidence Gayles, Ayad Shammout, Steven Horng, Tom Pol-
+lard,BenjaminMoody,BrianGow,LiweiLehman,
+tokens and others may miss part of the evidence
+etal.2023. MIMIC-IV,afreelyaccessibleelectronic
+when the supporting text spans are far apart. We
+healthrecorddataset. Scientificdata,10(1):1.
+tried our best to fix these issues, but some errors
+Alistair EW Johnson, Tom J Pollard, Lu Shen,
+likelyremaininthedataset.
+H Lehman Li-Wei, Mengling Feng, Moham-
+mad Ghassemi, Benjamin Moody, Peter Szolovits,
+Leo Anthony Celi, and Roger G. Mark. 2016.
+References
+MIMIC-III,afreelyaccessiblecriticalcaredatabase.
+Scientificdata,3(1):1–9.
+Oana-Maria Camburu, Tim Rocktäschel, Thomas
+Lukasiewicz,andPhilBlunsom.2018. e-SNLI:Natu- Byung-Hak Kim and Varun Ganapathi. 2021. Read,
+rallanguageinferencewithnaturallanguageexplana- attend,andcode:Pushingthelimitsofmedicalcodes
+tions. InAdvancesinNeuralInformationProcessing predictionfromclinicalnotesbymachines. InPro-
+Systems,volume31.CurranAssociates,Inc. ceedingsofthe6thMachineLearningforHealthcare
+Conference,volume149ofProceedingsofMachine
+CenterforMedicare&MedicaidServices.2009. Gen- LearningResearch,pages196–208.PMLR.
+eralequivalencemappings: ICD-9-CMtoandfrom
+ICD-10-CMandICD-10-PCS. https://library. Jan-Christoph Klie, Michael Bugert, Beto Boullosa,
+ahima.org/PdfView?oid=92359. Richard Eckart de Castilho, and Iryna Gurevych.
+2018. TheINCEpTIONplatform: Machine-assisted
+JayDeYoung,Han-ChinShing,LuyangKong,Christo- and knowledge-oriented interactive annotation. In
+pherWinestock,andChaitanyaShivade.2022. Entity Proceedingsofthe27thInternationalConferenceon
+anchoredICDcoding. InAMIA2022. ComputationalLinguistics: SystemDemonstrations,
+pages5–9.AssociationforComputationalLinguis-
+Nils Feldhus, Robert Schwarzenberg, and Sebastian tics. EventTitle: The27thInternationalConference
+Möller.2021. Thermostat: AlargecollectionofNLP onComputationalLinguistics(COLING2018).
+KlausKrippendorff.2004. Contentanalysis: Anintro- Elad Segal, Avia Efrat, Mor Shoham, Amir Glober-
+ductiontoitsmethodology(2ndEdition). CA:Sage son,andJonathanBerant.2020. Asimpleandeffec-
+Publications. tive model for answering multi-span questions. In
+Proceedings of the 2020 Conference on Empirical
+EricLehman,JayDeYoung,ReginaBarzilay,andBy- MethodsinNaturalLanguageProcessing(EMNLP),
+ronC.Wallace.2019. Inferringwhichmedicaltreat- pages3074–3080,Online.AssociationforComputa-
+ments work from reports of clinical trials. In Pro- tionalLinguistics.
+ceedingsofthe2019ConferenceoftheNorthAmer-
+CansuSen,BingyangYe,JavedAslam,andAmirTah-
+icanChapteroftheAssociationforComputational
+masebi. 2021. From extreme multi-label to multi-
+Linguistics: HumanLanguageTechnologies,Volume
+class: AhierarchicalapproachforautomatedICD-10
+1(LongandShortPapers),pages3705–3717,Min-
+codingusingphrase-levelattention. arXivpreprint
+neapolis,Minnesota.AssociationforComputational
+arXiv:2102.09136.
+Linguistics.
+Wu-ChenSu,KevinDufendach,andDannyWu.2019.
+Leibo Liu, Oscar Perez-Concha, Anthony Nguyen,
+Assessing the readability of freely available ICU
+VickiBennett,andLouisaJorm.2022. Hierarchical
+notes. Proceedings of the AMIA Joint Summits on
+label-wiseattentiontransformermodelforexplain-
+TranslationalScience.
+ableICDcoding. arXivpreprintarXiv:2204.10716.
+James Thorne, Andreas Vlachos, Christos
+Yang Liu, Hua Cheng, Russell Klopfer, Matthew R. Christodoulopoulos, and Arpit Mittal. 2018.
+Gormley,andThomasSchaaf.2021. Effectivecon- FEVER: a large-scale dataset for fact extraction
+volutionalattentionnetworkformulti-labelclinical and VERification. In Proceedings of the 2018
+documentclassification. InProceedingsofthe2021 Conference of the North American Chapter of
+Conference on Empirical Methods in Natural Lan- the Association for Computational Linguistics:
+guage Processing, pages 5941–5953, Online and Human Language Technologies, Volume 1 (Long
+Punta Cana, Dominican Republic. Association for Papers), pages 809–819, New Orleans, Louisiana.
+ComputationalLinguistics. AssociationforComputationalLinguistics.
+JamesMullenbach,SarahWiegreffe,JonDuke,Jimeng Thanh Vu, Dat Quoc Nguyen, and Anthony Nguyen.
+Sun,andJacobEisenstein.2018. Explainablepredic- 2020. AlabelattentionmodelforICDcodingfrom
+tionofmedicalcodesfromclinicaltext. Proceedings clinical text. In Proceedings of the Twenty-Ninth
+ofthe2018ConferenceoftheNorthAmericanChap- International Joint Conference on Artificial Intelli-
+teroftheAssociationforComputationalLinguistics: gence(IJCAI-20).
+HumanLanguageTechnologies,Volume1.
+SarahWiegreffeandAnaMarasovic.2021. Teachme
+toexplain: AreviewofdatasetsforexplainableNLP.
+DongNguyen.2018. Comparingautomaticandhuman
+CoRR,abs/2102.12060.
+evaluationoflocalexplanationsfortextclassification.
+ProceedingsofNAACL-HLT,pages1069–1078. WorldHealthOrganization.1978. Internationalclas-
+sification of diseases : [9th] ninth revision, basic
+BoPangandLillianLee.2004. Asentimentaleducation: tabulationlistwithalphabeticindex. WorldHealth
+Sentimentanalysisusingsubjectivitysummarization Organization.
+basedonminimumcuts. ProceedingsofACL,page
+271–278. World Health Organization. 2004. ICD-10 : Interna-
+tional statistical classification of diseases and re-
+DamianPascual,SandroLuck,andRogerWattenhofer. latedhealthproblems: tenthrevision,2ndededition.
+2021. TowardsBERT-basedautomaticICDcoding: WorldHealthOrganization.
+Limitations and opportunities. Proceedings of the
+XianchengXie,YunXiong,PhilipYu,andYamgyong
+BioNLP2021Workshop,pages54–63.
+Zhu.2019. EHRcodingwithmulti-scalefeatureat-
+tentionandstructuredknowledgegraphpropagation.
+Danish Pruthi, Bhuwan Dhingra, Graham Neubig,
+InProceedingsofthe28thACMInternationalCon-
+and Zachary C. Lipton. 2020. Weakly- and semi-
+ferenceonInformationandKnowledgeManagement.
+supervised evidence extraction. In Findings of the
+AssociationforComputationalLinguistics: EMNLP
+MoYu,YangZhang,ShiyuChang,andTommiJaakkola.
+2020, pages 3965–3970, Online. Association for
+2021. Understandinginterlockingdynamicsofcoop-
+ComputationalLinguistics.
+erativerationalization. InAdvancesinNeuralInfor-
+mationProcessingSystems,volume34,pages12822–
+Thomas Searle, Zina Ibrahim, and Richard Dobson. 12835.CurranAssociates,Inc.
+2020. Experimentalevaluationanddevelopmentof
+asilver-standardfortheMIMIC-IIIclinicalcoding ZhengYuan,ChuanqiTan,andSongfangHuang.2022.
+dataset. InProceedingsofthe19thSIGBioMedWork- Code synonyms do matter: Multiple synonyms
+shoponBiomedicalLanguageProcessing,pages76– matching network for automatic ICD coding. In
+85,Online.AssociationforComputationalLinguis- Proceedings of the60th Annual Meeting of the As-
+tics. sociationforComputationalLinguistics(Volume2:
+ShortPapers),pages808–814,Dublin,Ireland.As-
+sociationforComputationalLinguistics.
+OmarZaidan,JasonEisner,andChristinePiatko.2007a.
+Using “annotator rationales” to improve machine
+learningfortextcategorization. InHumanLanguage
+Technologies 2007: The Conference of the North
+AmericanChapteroftheAssociationforComputa-
+tionalLinguistics;ProceedingsoftheMainConfer-
+ence,pages260–267,Rochester,NewYork.Associa-
+tionforComputationalLinguistics.
+OmarZaidan,JasonEisner,andChristinePiatko.2007b.
+Using “annotator rationales” to improve machine
+learningfortextcategorization. InHumanlanguage
+technologies 2007: The conference of the North
+American chapter of the association for computa-
+tional linguistics; proceedings of the main confer-
+ence,pages260–267.
+Ruiqi Zhong, Steven Shao, and Kathleen McKeown.
+2019. Fine-grainedsentimentanalysiswithfaithful
+attention. arXivpreprintarXiv:1908.06870.
+A MedicalCodingTerminology ThisprocessallowsallannotatedICD-10codes
+tobemappedexceptfortwoinourdataset.
+Medicalcodingistheprocessofassigningcodes
+that specify the diagnoses and procedures per-
+C ExamplesofInitialDisagreement
+formedonpatientsduringavisittoamedicalfacil-
+ity. Formostpatientencounters,onlyafewcodes We observed two sources that accounted for the
+arechosenfromthetensofthousandsofICD,CPT, lowinitialagreement. Onesourceisthatthecoders
+or other procedure codes. Even with pre-defined annotatedthesameorsimilarevidencefromdiffer-
+codingguidelines,thereareoftensignificantvaria- entlocationsofthesamedocumentsorindifferent
+tionsincodeselectionasmedicalcodingdepends documents of the same chart. For example, two
+onthecoder’sinterpretation. Therearetwomajor codersannotatedG60.8for“idiopathicgeneralized
+categoriesofmedicalcoding: inpatientandoutpa- neuropathy”,onefromthePhysicianInitialConsult
+tient. Note,whiletheotherfromthePhysicianSurgical
+Inpatient coding is the coding process applied AdmissionNote. Bothnotesarevalidforcoding.
+todocumentationcreatedduringapatientvisitto AnotherexampleisthatonecoderassignedI46.9
+amedicalfacilitysuchasahospital. Theseadmis- for“Asystole”documentedintheDischargeSum-
+sionsaretypicallyforanextendedperiodoftime mary while the other assigned the same code for
+whereavarietyoftestsandproceduresarerunon “cardiacarrest”fromthePhysicianInitialConsult
+thepatient. Asaresult,inpatientrecordsareoften Note. Both diagnosis terms are correct for I46.9.
+longandcomplex,requiringanexperiencedmed- Thesecaseswereresolvedinthere-reviewprocess,
+icalcodertohandlethecodingprocess. Inpatient andshouldbetreatedasagreements.
+coding uses two types of code families when as- ForProfeecoding,theinitialdisagreementwas
+signingcodes: ICDdiagnosis(CM)andprocedure also due to the lack of experience of one coder.
+(PCS)codes. An example is that one coder assigned the code
+Outpatientcodingisthecodingprocessapplied S04.40XA for “traumatic 6th nerve palsy” docu-
+todocumentationcreatedduringshorterpatientvis- mented in the Discharge Summary whereas the
+itswherethepatientstaylastslessthan24hours. other assigned the code H49.20 for the same di-
+Theshorterstaytypicallymakestheoutpatientcod- agnosiswhichisincorrect. Thedisagreementwas
+ingprocess simpler andrequiresfewercodesper resolved after discussion and it was agreed that
+encounterthaninpatientcoding. Outpatientcoding S04.40XAwasthecorrectcode.
+includestwotypesofcodingservices: professional
+D ModelParameters
+fee coding (Profee) and facility coding. Profee
+referstocodingandbillingcoveringtheworkand
+For results given in Table 7, λ = 0.5 was used
+1
+reimbursementreceivedbythehealthcareprovider.
+as the hyperparameter in Equation 1 without any
+Facility coding is the coding and billing for the
+hyperparameter tuning. The λ values in the loss
+facility(e.g. hospitalornursingcare). Outpatient
+Equations1and3weretunedsuchthatthemicro-
+codingusesCMandcurrentproceduralterminol-
+F1valueforthecodepredictiontaskwouldremain
+ogy(CPT)codeswhenassigningcodes.
+close to the baseline value. For SA, 2.5 and 5.0
+were considered for the λ coefficient, and λ =
+B CodeMappingProcedure 1
+2.5 yielded code micro-F1 of 0.585, close to the
+ProcedureforbackwardmappingfromICD-10to baseline value of 0.584. For the tagging models,
+ICD-9: three values, 0.5, 1.0 and 2.0, were considered,
+and λ = 0.5 yielded code micro-F1 of 0.583,
+1. Usetheidenticalmatchorsingleapproximate 2
+closetothebaselineperformanceforCNNtagging.
+matchfromanICD-10toICD-9code;
+These values were used for the reported results.
+2. Whenmorethanonemappingexists,choose
+For evidence prediction threshold, steps of 0.02
+theICD-9codethatisintheMIMIC-IIIcode
+and0.05wereusedtogeneratetheprecision-recall
+set. IfnoneofthemappedcodesisinMIMIC,
+curvefortheattention-basedandtaggingmethods
+choosethecodewiththedescriptionthatover-
+respectively,andthethresholdvaluesarereported
+lapsthemostwiththatoftheICD-10code;
+inTables9and10.
+3. Whennomappingexists,usethemappedICD- TheEffectiveCANbasedmodelshaveabout17
+9codeoftheparentICD-10code. millionparameters,andeachtookaboutsixhours
+to train on a single NVIDIA Tesla V100 16GB 2. SelectSearchintheleftpanel. Youcansearch
+GPUwithCO emissionofabout680g. anyphraseandselectthedocumentcontaining
+2
+thephrasetoannotate.
+E AnnotationGuidelines
+3. OpenthePreferencespopup,andsetthefol-
+The task is to annotate MIMIC charts with suffi- lowing(Doneonceforaproject):
+cientcodeevidencebasedonthedocumentations
+• Editor: brat(line-oriented)
+usinganopensourcetoolcalledINCEpTION.
+• Sidebarright: 30
+• For Inpatient coding, annotate evidence for • Pagesize: 1000
+ICD-10-CMandICD-10-PCScodes.
+4. Inadocument,doubleclickonawordorhigh-
+• ForProfeecoding,annotateevidenceforICD- lightatextspan,andthenselectalabelfrom
+10-CM and CPT codes (ignoring EM codes therightpanel. Youcanalsostarttypinginthe
+whichareintherangeof99201-99499). labelboxandthematchinglabelswillshow
+up.
+Reference the latest coding book to decide
+whetheranICD-10codeissupportedbythedocu- 5. You can navigate through the documents us-
+mentation. Ifthereisadefinitivediagnosis,donot ing the icons at the top of the middle panel,
+code symptom codes, otherwise symptom codes and move through the annotations using the
+canbecoded. Codeexternalcausecodesonlywith arrowsintherightpanel.
+injurycodes.
+6. Afteryoufinishannotatingachart,selectAd-
+Codeasinreallife,onceaconditionisconfirmed
+ministration -> MIMIC-encounterID -> Set-
+andyoufeelcomfortablewithacodeassignment,
+tings->Export,chooseWebAnnoTSVv3.3
+annotatethetextspanswiththecodeandmoveon
+formatandthenExportthewholeproject.
+to the next one. You are encouraged to provide
+multipleevidenceforacode,aslongasitdoesn’t Thesecodeevidenceannotationswillbemade
+slow you down too much. For Profee coding, go availabletotheresearchcommunitiessothosewith
+throughallnotesandannotateasmanydiagnoses accesstotheMIMICdatasetcanusethemtoevalu-
+aspossible. atethecodeevidencegeneratedbytheirMLmod-
+Thegeneralannotationprocessincludes: els.
+• Leaf through chart documents to find the
+ones appropriate to code from. Highlight
+best/sufficient text spans as evidence for a
+code.
+• Choose the appropriate ICD-10/ICD-9 code
+pairorCPTcodeintheLabelboxtoassignto
+thehighlightedtextspan.
+• IfthecorrectICD-10orCPTcodeisnotinthe
+labelset,typeitintheLabelboxandassignit
+tothehighlightedtextspan.
+• TrytoannotateevidenceforallICD-9orCPT
+codes in the label set if there is supporting
+documentation.
+Followtheseinstructionstoannotateandexport
+achartinINCEpTION:
+1. GotoDashboardandclickAnnotation,select
+adocumenttoopen.
+F ExamplesofGeneratedEvidence
+Examples of predicted evidence, using unsuper-
+visedattentionweightsasthebaselineandthesu-
+pervisedattentionmethod,aregiveninTable11.
+Code HumanAnnotation UnsupervisedAttention SupervisedAttention Codedescription
+“leftinternalmammaryarteryto “mammary” “leftinternalmammary” Singleinternalmammary-coronary
+36.15
+leftanteriordescendingartery” “leftanteriordescending” arterybypass
+“Atrialfibrillation” “Atrial”×2 “Atrialfibrillation”×2 Atrialfibrillation
+427.31
+“atrial”
+“aorticstenosis” “Sj” “Sj” Aorticvalvedisorders
+424.1
+“Aortic(aortic×2)”
+“thoracicaorticaneurysm” “thoracic” “thoracic” Thoracicaneurysmwithoutmention
+441.2
+“aneurysm” ofrupture
+428.0 “Congestiveheartfailure” “Congestive”×2 “Congestiveheartfailure”×2 Congestiveheartfailure,unspecified
+“SupratherapeuticINR” “INR”×3 “INR” Abnormalcoagulationprofile
+790.92
+“SupratherapeuticINR”
+“AcuteRenalFailure” “Renal” “AcuteRenalFailure” Acutekidneyfailure,unspecified
+584.9 “creatinine” “renalfailure”
+“renal”
+585.9 “Chronicrenalinsufficiency” “renal”×2 “renalinsufficiency”×2 Chronickidneydisease,unspecified
+Table11: Examplesofgeneratedevidence

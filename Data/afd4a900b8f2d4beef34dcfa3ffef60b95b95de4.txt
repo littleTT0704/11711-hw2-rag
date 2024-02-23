@@ -1,0 +1,966 @@
+PINEAPPLE: Personifying INanimate Entities by Acquiring Parallel
+Personification Data for Learning Enhanced Generation
+SedrickScottKeh1,KevinLu2,VarunGangal∗1,StevenY.Feng∗3,
+HarshJhamtani1,MaliheAlikhani4,EduardHovy1
+1CarnegieMellonUniversity,2UniversityofWaterloo,
+3StanfordUniversity,4UniversityofPittsburgh
+{skeh,vgangal,jharsh,hovy}@cs.cmu.edu, syfeng@stanford.edu
+kevin.lu1@uwaterloo.ca, malihe@pitt.edu
+Abstract
+Apersonificationisafigureofspeechthaten-
+dows inanimate entities with properties and
+actions typically seen as requiring animacy.
+In this paper, we explore the task of person-
+ification generation. To this end, we pro-
+pose PINEAPPLE:PersonifyingINanimate
+EntitiesbyAcquiringParallelPersonification
+Data for Learning Enhanced Generation. We
+curate a corpus of personifications called Per-
+Figure1: Overall PINEAPPLEmodelpipeline. The sonifCorp, together with automatically gener-
+leftpartofthediagramshowsthecorpuscreationpro-
+atedde-personifiedliteralizationsoftheseper-
+cess,whiletherightpartofthediagramshowsthetrain-
+sonifications. We demonstrate the usefulness
+ingandgenerationprocess.
+of this parallel corpus by training a seq2seq
+modeltopersonifyagivenliteralinput. Both
+automatic and human evaluations show that
+fine-tuning with PersonifCorp leads to signif- communicating. Whenwesaysomethinglike“My
+icant gains in personification-related qualities
+phonehasdied,”or“Mycarisnotcooperating,”to
+such as animacy and interestingness. A de-
+adialoguesystem,itisimportantthatthedialogue
+tailed qualitative analysis also highlights key
+systemunderstandstheintendedmeaningbehind
+strengthsandimperfectionsof PINEAPPLE
+these personifications. If these systems interpret
+over baselines, demonstrating a strong ability
+to generate diverse and creative personifica- personifications literally, they may fail in several
+tions that enhance the overall appeal of a sen- downstream tasks (e.g. classification) since their
+tence. 1 understandingisincorrect. Beingabletogenerate
+personifications also allows dialogue agents and
+1 Introduction
+languagemodelstobemorecreativeandgenerate
+morefigurativesentences. Personificationgenera-
+Personificationistheattributionofanimateactions
+tionhasadditionalapplicationssuchasAI-assisted
+orcharacteristicstoanentitythatisinherentlyinan-
+creativewriting,sincemachine-generatedfigures
+imate. Consider, for example, the sentence “The
+ofspeechhavebeenshowntoenhancetheinterest-
+stars danced playfully in the moonlit sky.” Here,
+ingnessofwrittentext(Chakrabartyetal.,2021).
+the vibrance of the stars (something inanimate)
+is being likened to dancing playfully, which is a Despiteprevioussuccessingeneratingotherfig-
+distinctly animate action. By allowing readers to uresofspeechsuchassimiles(Chakrabartyetal.,
+construct clearer mental images, personifications 2020),metaphors(Stoweetal.,2021),hyperboles
+enhance the creativity of a piece of text (Bloom- (Troianoetal.,2018),irony(VanHeeetal.,2018),
+field,1980;Dorst,2011;Flannery,2016). andsarcasm(Hazarikaetal.,2018;Jaiswal,2020),
+Beingabletoautomaticallyidentifyandgenerate personification generation is relatively underex-
+personificationsisimportantformultiplereasons. plored. Onekeychallengeisthatpersonifications
+First,humansnaturallyusepersonificationswhen do not have an explicit syntactic structure unlike
+simileswhichuse‘like’or‘as’. Theyarealsonot
+∗ EqualcontributionbyVarunandSteven
+as loosely-defined as metaphors. Rather, a per-
+1Data and code can be found at https://github.
+com/sedrickkeh/PINEAPPLE sonificationrequiresidentifyinganinanimatesub-
+2202
+peS
+61
+]LC.sc[
+1v25770.9022:viXra
+jecttogetherwithactionsordescriptionswhichare be decomposed into very granular structures and
+commonlyusedonanimatesubjects. Thesesteps well-definedelements,theunstructurednatureof
+are challenging and require our models to under- personifications prevents us from directly defin-
+standcommonsenseconceptsincludinganimacy. ingsuchfine-grainedelementsforpersonifications.
+Inlinewithexploringthetaskofpersonification Rather, we define two main high-level elements,
+generation, we present three main contributions: the TOPIC (anounphrasethatactsaslogicalsub-
+(1) We curate a dataset, PersonifCorp, of diverse ject) and the ATTRIBUTE (the distinctly animate
+personificationexamplesfromvarioussources. (2) actionorcharacteristicthatisbeingascribedtothe
+Weproposeamethodcalled PINEAPPLEtoauto- TOPIC). Figure 2 shows examples of how these
+maticallyde-personifypersonificationsandcreate TOPICSand ATTRIBUTEScanrelatetoeachother.
+aparallelcorpusofpersonificationdataalongwith
+theirliteralizations. (3)Givenourparallelcorpus, 2.2 AutomaticParallelCorpusConstruction
+we train a seq2seq model to personify given text.
+Inordertotrainaseq2seqmodeltogeneratehigh-
+Weconductautomaticandhumanevaluationand
+qualitypersonifications,weneedpairsofpersoni-
+qualitativeanalysisofthegeneratedoutputs.
+ficationsalongwiththeircorrespondingliteraliza-
+tions. However,theliteralizationprocessmaytake
+2 Datasets
+severalhuman-hours,whichisimpracticalforlarge
+We curate a dataset called PersonifCorp of 511 datasets. We therefore propose PINEAPPLE, a
+personifications,with236comingfromapublicly three-stage automatic de-personification process,
+available open-sourced list2 and 275 manually- wherewefirstidentifyallvalidTOPIC-ATTRIBUTE
+filtered personifications extracted from the Deja pairs,thengeneratemultiplecandidatestoreplace
+dataset(Chenetal.,2015). TheDejadatasetisan the ATTRIBUTE of each TOPIC. Lastly, we select
+image-captioningdatasetcontaininga“figurative” themostappropriatecandidateintermsofanimacy,
+subsetofsize6000,ofwhich4.1%ofthecaptions fluency,andmeaningpreservation. Thesestepsare
+are labelled as personifications. We extract these furtherdetailedindividuallybelow:
+personificationsandcombinethemwithourexist- TOPIC-ATTRIBUTE Extraction. To identify
+inglisttoformthefinalPersonifCorpdataset. the TOPICS and ATTRIBUTES,weconsiderthede-
+Wealsonotethatalthoughitispossibletofur- pendencyparsetreeofasentenceandthepart-of-
+therexpandthisdataset(e.g. byadhocsearching speech (POS) tags of each of its words. Given
+formiscellaneoussitesandexamplesonline),we thetree,weextractallthenouns/pronounswhich
+ultimatelydecideagainstthisafterperformingan have edges pointing into it with the nominal sub-
+initial investigation. When we attempted to look jectlabel,togetherwiththecorrespondingparent
+for additional examples, we found that many of nodes. For instance, in the sentence “The stars
+thenewexampleswefoundwerenear-duplicates danced in the night sky”, the word ‘danced’ is a
+ofexistingpersonificationsalreadyinourlist. In parent of the word ‘stars’, with the nominal sub-
+addition,adhocsearchingcangiveatmostafew jectedgerelationship. Wecanthusidentify‘stars’
+hundred examples, which will lead to very incre- asthe TOPIC and‘danced’asthe ATTRIBUTE. In
+mental gains in performance. This is impractical morecomplexscenarios,wemayneedtoperform
+if we want to collect a large-scale dataset. We some additional merging to deal with compound
+hence decided to restrict ourselves to sentences multi-word TOPICS and ATTRIBUTES, as well as
+fromreasonablywell-vetted,alreadyexistingcor- any additional modifiers. More specifically, us-
+porafrom*CLpriorartorofficiallyreleaseddata ingthePOStags,weidentifyallwordstaggedas
+fromsourceslikeKaggle/SemEvalsharedtasks. negationmodifiers,possessionmodifiers,nominal
+modifiers,adjectivalcomplements,andobjectsof
+2.1 CharacterizingPersonifications prepositions,andwordstaggedasdeterminersand
+We define the elements of personification, an partsofcompoundphrases.3 Afterextractingthese
+analogue to what was previously done for simi- nodes,theyareiterativelymergedwiththeirparents
+les(NiculaeandDanescu-Niculescu-Mizil,2014; inthedependencyparsetree,andthemergingpro-
+Chakrabarty et al., 2020). While similes could cessisperformedrepeatedlyuntilnomoremerges
+2https://www.kaggle.com/datasets/ 3ThespaCylibrarywasusedtoextractthedependency
+varchitalalwani/figure-of-speech treeandPOStags.
+ATTRIBUTEType Example pairs,wemaskouttheATTRIBUTEofeachofthem
+Noun Theplanetearthisourmother. with<mask>,thenuseapre-trainedBARTmodel
+Verb Myalarmclockyellsatmeto
+(Lewis et al., 2020) to generate the top k = 10
+getoutofbedeverymorning.
+candidatesforeachmaskusingbeamsearchwitha
+Adjective Justiceisblindand,attimes,deaf.
+beamsizeof10. Thegoalofthisprocessistore-
+Figure2:Examplesofdifferenttypesofpersonification placeapossiblyanimateaction/characteristicwith
+ATTRIBUTES(TOPICSinredandATTRIBUTESinblue). candidatesthatareinanimate.
+CandidateSelection. Givenk = 10candidate
+replacement ATTRIBUTES,wenowselectthemost
+are possible. The final TOPIC-ATTRIBUTE pairs
+idealreplacementbasedonthreemetrics: animacy,
+arethenidentifiedusingthenominalsubjectedge
+fluency,andmeaningpreservation.
+relationshipaspreviouslydescribed. Examplesof
+themergingprocesscanbefoundinAppendixA.1.
+1. Animacy – We want the replacement AT-
+Candidate Generation. Once the TOPIC-
+TRIBUTEtobeinanimate;otherwisewewould
+ATTRIBUTE pairs have been identified, we then just be replacing an animate ATTRIBUTE
+determinewhichTOPICSareinanimate. Toachieve
+with another animate ATTRIBUTE. We de-
+this,weneedsometypeofcommonsensenotionof
+fine the animacy of a TOPIC-ATTRIBUTE
+whatconstituesanimacy. WeuseCOMET(Bosse-
+pair as difference between the affinity for a
+lutetal.,2019)totapintothecommonsenseknowl-
+human (A human,ATT) to do/possess the AT-
+edgepresentinlarge-scaleknowledgegraphssuch
+TRIBUTE,andtheaffinityforthegiven TOPIC
+asConceptNet(Speeretal.,2017). AlthoughCon-
+(A TOPIC,ATT)todo/possessthe ATTRIBUTE.
+ceptNet has no explicit notion of animacy, it has
+We use COMET’s ConceptNet relations to
+certain edge relations that we can leverage to de-
+computetheseaffinities;specifically,weuse
+signaproxymetric. Morespecifically,weusethe
+the CapableOf relation. To approximate
+IsArelationtodesignacustomIsAPersonanimacy
+A ,wecomputetheaverageCapa-
+human,ATT
+metric. If the TOPIC of our sentence refers to an bleOf score between the given ATTRIBUTE
+animateentity,thenweexpectitsIsArelationscore
+and all words in our previously defined HU-
+withtheword‘human’toberelativelylow.4 The
+MANSET. TocomputeA TOPIC,ATT,wecom-
+IsAPersonmetricishencedefinedasfollows: given
+putetheCapableOf scorebetweenthe TOPIC
+aTOPIC,wecomputeandaverageitsIsAscoresto
+andits ATTRIBUTE. Thefinalanimacyscore
+variouswordsthataresynonymousorveryclosely
+ofaTOPIC-ATTRIBUTEpairisdefinedasthe
+related to ‘human’, such as ‘person’, ‘man’, and
+difference A − A . If
+human,ATT TOPIC,ATT
+‘woman’. Wecallthissetof‘human’-relatedwords
+there are multiple TOPIC-ATTRIBUTE pairs,
+the HUMANSET. Theconstructionandfulllistof
+weconsidertheaverageanimacyofallpairs.
+wordsintheHUMANSETcanbefoundinAppendix
+A.2. The average of these ConceptNet scores is 2. Fluency – The de-personified sentences
+thenourfinalIsAPersonanimacyscore. should be grammatically correct and sound
+PhraseswhoseIsAPersonanimacyscoreexceeds natural. To measure for fluency, we use
+acertainthreshold5 areconsideredanimate; oth- BART’s generation scores (i.e. sum of indi-
+erwise, they are considered inanimate. Since our vidualtokenlogitsinthegeneratedoutput).
+goal is to de-personify a sentence, we can safely
+3. Meaning Preservation – It is important that
+discard all the animate TOPICS, as these need no
+thede-personifiedsentencedoesnotstraytoo
+furtherde-personification. Rather,wefocusonthe
+farfromthemeaningoftheoriginalpersoni-
+inanimate TOPICS because the segment we want
+fication. We use BERTScore (Zhang* et al.,
+to de-personify most likely occurs in the TOPIC-
+2020)betweenthede-personifiedandoriginal
+ATTRIBUTEpairswhoseTOPICisinanimate. Once
+sentencestomeasuremeaningpreservation.
+weidentifyallsuchinanimate TOPIC-ATTRIBUTE
+Wedesignacompositescoringmetriccomprisedof
+4FortheCOMETConceptNetgraph,lowerscorescorre-
+spondtobettermatches. theaggregatescoresfromthese3metrics. Dueto
+5We use a threshold of 7.0 for the IsAPerson animacy scalingdifferences,weconsiderthelogoftheani-
+metric.IsAPersonscores<7.0areconsideredanimate,while
+macyscore. Toaccountforthefactthatlowerani-
+scores≥7.0areconsideredinanimate.Moredetailsregarding
+theselectionofthisthresholdcanbefoundinAppendixA.3. macyscoresimplylessanimateTOPIC-ATTRIBUTE
+Figure3: Overviewofthe PINEAPPLEde-personificationpipeline.
+OriginalPersonification ResultAfterDe-Personifying
+Howfarthatlittlecandlethrowsitsbeams! Howfarthatlittlecandlecanspreaditsbeams!
+Abookisafragilecreature,itsuffersthewearoftime,it Abookisfragile,itcanbreakfromthewearoftime,it
+fearsrodents,theelementsandclumsyhands. canbeeatenbyrodents,theelementsandclumsyhands.
+Thecameraloveshersincesheissopretty. Thecameraisalwaysonhersincesheissopretty.
+AnytrustIhadforhimwalkedrightoutthedoor. AnytrustIhadforhimhadgonerightoutthedoor.
+Thefullmoonpeepedthroughpartialclouds. Thefullmoonwasvisiblethroughpartialclouds.
+Opportunitywasknockingatherdoor. Opportunitywasknockingatherdoor.
+Thekillingmoonwillcometoosoon. Thekillingmoonwillbeheretoosoon.
+Table1: Exampleoutputsofthe PINEAPPLEde-personificationpipeline. The ATTRIBUTES arehighlightedin
+blueforboththeoriginalpersonifications,aswellasthede-personifiedoutputsentences.Thelasttworowscontain
+negativeexampleswheretheprocessdoesnotsuccessfullyde-personifytheinput.
+pairs(whichisdesirableinde-personification),we with English as a medium of instruction. These
+takethenegativeoftheanimacy. Moreprecisely, annotatorswereinstructedtomanuallypersonify
+wedefineourcandidatescoreS forcandidateias these sentences to create ground-truth reference
+i
+personifications. ThefinalPersonifCorptestsplit
+S = α·(−log(S ))+β·S +γ·S
+i anim. flue. mean. has72literal+personifiedsentencepairs.
+whereα,β,γ areparameters. 6
+3 ExperimentalSetup
+OnceS iscomputedforallcandidates,weselect
+i
+thecandidatewiththehighestcompositescoreas
+3.1 Methods
+ourfinalde-personifiedsentence. Adiagramofthe
+Below we outline the three models we consider,
+entire PINEAPPLEpipelineisshowninFigure
+withtwoofthembeingnaivebaselines(COMET
+3,andexampleoutputscanbefoundinTable1.
+andBaseline-BART)thatwesimplyuseonPerson-
+2.3 TestDataConstruction ifCorp’stestset,andthethird(Finetuned-BART)
+beingourproposedmodeltrainedonPersonifCorp.
+While automatically generated pairs of personifi-
+cationsandliteralde-personificationsmaygreatly
+1. COMET:WeextracttheTOPIC-ATTRIBUTE
+assistwithtraining, thesemaynotnecessarilybe
+pairsandidentifytheinanimateTOPICSusing
+accurate for testing. Rather, it would be more
+themethodsdetailedin§2.2. Insteadofgen-
+idealduringtestingifwehaveground-truthhuman-
+eratingcandidatereplacementsusingBART
+annotated data. To mimic our task at hand, we
+likein§2.2,wegeneratecandidatesbyconsid-
+gatheralistofnon-personifiedEnglishsentences.7
+eringthetopk = 10resultsforagivenTOPIC
+WethenselecttwoannotatorswhoarenativeEn-
+using COMET’s ConceptNet IsCapable re-
+glish speakers currently enrolled in a university
+lation (if the original ATTRIBUTE is a verb)
+6Weuseα=1,β =1,γ =1. Detailsaboutthetuning or HasProperty relation (if adjective or ad-
+andselectionofα,β,γcanbefoundinAppendixA.3. verb). To incorporate a notion of animacy,
+7https://github.com/tuhinjubcse/
+SimileGeneration-EMNLP2020#
+weusethepreviouslydefined ATTRIBUTEan-
+set-up-data-processing-for-simile imacy A human,ATT and select the candidate
+withhighestanimacyasourfinalreplacement. 3.2.2 HumanEvaluation
+The human evaluation was conducted using paid
+2. Baseline-BART(BL-BART):Weimitatethe
+annotators on Amazon Mechanical Turk (AMT).
+processoutlinedfortheCOMETbaseline,ex-
+AnnotatorswerefromAnglophonecountrieswith
+ceptweuseapretrainedBARTmodeltogen-
+> 97% approval rate.8 Each test example was
+eratethecandidatesinsteadofusingCOMET.
+evaluated by exactly 2 annotators. For each test
+Allothersteps(TOPIC-ATTRIBUTE extraction
+example, we first generate outputs using each of
+andcandidateselection)remainthesame.
+the methods outlined in §3.1. Corresponding to
+3. PINEAPPLE-BART(PA-BART):Wefine- thistestinstance,wethencreateanAMTtaskpage
+tuneaBARTmodelbysupplyingthePerson- (a HIT), presenting the input literal sentence and
+ifCorp train split literal de-personified sen- eachofthemethodoutputs(inrandomizedorder)
+tences(fromthe PINEAPPLEpipeline)as forannotationalongfiveaspectsoftextquality.
+inputs,andtheoriginalground-truthpersoni- Specifically,annotationwaselicitedforthefol-
+ficationsastargetoutputs. Thisistrainedasa lowing metrics: (1) Personificationhood (“To
+seq2seqtask. Duringgeneration,weusebeam whatextentdoesthenewsentencecontainaperson-
+search. Furtherdetailsareoutlinedin§3.3. ification?”), (2) Appropriateness (“Do the per-
+sonified nouns, verbs, adjectives, adverbs sound
+3.2 Evaluation
+mutually coherent and natural?”), (3) Fluency
+We consider both automatic evaluation metrics
+(“DoesitsoundlikegoodEnglishwithgoodgram-
+(§3.2.1)andhumanevaluation(§3.2.2).
+mar?”), (4) Interestingness (“How interesting
+3.2.1 AutomaticEvaluation andcreativearephrasingoftheoriginalsentence
+is the personified sentence?”), and (5) Meaning
+Foreachmodelin§3.1,weevaluateitsgenerated
+Preservation (“Do the entities, their actions, in-
+outputsonPersonifCorp’stestsplitusingeachof
+teractions, and the events appear and relate to
+thefollowingautomaticevaluationmetrics:
+eachotherinthesamewayasintheoriginalsen-
+1. BLEU(Papinenietal.,2002): WeuseBLEU tence?”). EachmetricwasscoredonaLikertscale,
+to ensure that the generations do not greatly
+with1beingthelowestand5beingthehighest.
+differfromtheinputs. WecomputetheBLEU
+ForInterestingness,weobservedpooragreement
+scoreofeachgeneratedoutputwiththeliteral scoresamongsttheAMTannotators.9 Hence,for
+inputs(formeaningpreservation),aswellas
+this aspect, we instead used a curated group of
+theground-truthreferencepersonifications.
+known,in-personannotators: acohortofthreena-
+tiveEnglish-speakingstudentsfromanAmerican
+2. BERTScore (Zhang et al., 2019):
+university. Amongsttheseannotators,weobserve
+BERTScore measures how semantically
+aconsiderablyhigheragreement,withaKrippen-
+related two sentences are, and is generally
+dorffαvalueof0.5897. Forselectingthiscohort
+more robust than BLEU. We compute the
+from a slightly larger pool of candidates, we as-
+BERTScoreofeachgeneratedoutputwiththe
+sessed their performance on a short qualification
+inputs,aswellastheground-truthreference
+test of basic English literary skills and knowhow.
+personifications.
+Thefinalcohortchoseneachscored85%orhigher
+3. Fluency: To approximately measure the flu- onthistest. FurtherdetailsareinAppendixB.3.
+ency of a sentence, we use generation (log-
+perplexity) losses of each output using the 3.3 ImplementationDetails
+GPT-2languagemodel(Radfordetal.,2019).
+The PersonifCorp training corpus was randomly
+4. Animacy: Weareinterestedinhowpersoni- splitintoatrainingandvalidationsplitwithan80-
+fied thegeneratedoutputis. Weusethesame 20 ratio. We fine-tune a BART-base model with
+animacymetricusedforcandidateselection 139Mparametersusingalearningrateof2e-5and
+in§2,whichisacombinationofhowanimate abatchsizeof4. Trainingwasdonefor20epochs
+theATTRIBUTEis,aswellashowinanimate and400warmupsteps,andmodel/epochselection
+the TOPIC is. Moreprecisely,thisisdefined
+8MoredetailsaboutthehumanevalareinAppendixB.1.
+asA −A ,wheretheA
+human,ATT TOPIC,ATT 9Furtherdetailsoninter-annotatoragreementscorescan
+animacyscoresarepreviouslydefinedin§2. befoundinAppendixB.2.
+wasperformedbasedonthelowestvalidationloss. tries to quantify the presence and overall quality
+Forgeneratingtheoutputs,decodingwasdoneus- ofpersonifications. Inthismetric, ourPA-BART
+ingbeamsearchwithabeamsizeof10. Additional modelperformssignificantlybetterthanbothbase-
+detailscanbefoundinAppendixC. lines and is only slightly worse than the human
+referencepersonifications. ThisindicatesthatPA-
+4 ResultsandAnalysis
+BARTisverysuccessfulingeneratingpersonifica-
+tionsthathumansareabletodetectandunderstand.
+4.1 AutomaticEvaluationResults
+Asidefrommeasuringthepresenceofpersonifi-
+Table2reportstheautomaticevaluationresultsfor
+cations,wealsowanttomeasuremorefine-grained
+eachofthemetricsdetailedin§3.2.1. Weobserve
+qualities of these personifications. This is done
+thatourPA-BARTmodelperformsbestacrossall
+by considering the Appropriateness and Interest-
+automatic metrics except for fluency, where BL-
+ingnessscores. InInterestingness,PA-BARTsig-
+BART performs best. The difference in perfor-
+nificantlyoutperformsbothbaselinesbutisworse
+mance is most significant in the Animacy metric,
+thanhumanannotations,whileinAppropriateness,
+whichisthekeymetricthatquantifiesthedegree
+PA-BARTslightlyoutperformsBL-BARTandis
+towhichasentenceispersonified. Thisconfirms
+slightlyworsethanhumanannotations. Overall,we
+thatindeed,ourproposed PINEAPPLEmethod
+canconcludethatthepersonificationsgeneratedby
+issuccessfulintrainingamodeltopersonifytext.
+PA-BARTareofgoodquallity: the ATTRIBUTES
+OurPA-BARTmodelalsoperformswellforboth
+matchupwellwiththeTOPICS,andtheyareoverall
+BLEU and BERTScore, scoring better than the
+verycreative. Thisisfurtherexemplifiedthrough
+COMETandBARTbaselines,andcomingsecond
+thequalitativeexamplesexploredin§4.3.
+onlytothehuman-writtenpersonifications.
+Observations from Meaning Preservation and
+Lastly, with regards to fluency, the BL-BART
+Fluency are very similar to those from the
+modeloutperformsthePA-BARTmodel. Thisis
+BLEU/BERTScore/Fluency metrics in the auto-
+likelybecausewhenconsideringGPT-2likelihood,
+maticevaluations. ForMeaningPreservation,PA-
+itmayunfavorablypenalizecreativesentenceswith
+BARTperformsbestamongallmodels,andonly
+personificationssincethesearenaturallylesscom-
+slightly trails human references. Meanwhile, for
+moninregulartext. Asanexample,thesentence
+fluency,BL-BARTwasrankedthemostfluent,out-
+“The stars danced playfully” (GPT-2 loss = 7.02)
+performing both PA-BART and the human refer-
+wouldbedeemedsignificantlylessfluentthanthe
+ences. Asdiscussedpreviously, thisislikelydue
+sentence“Thestarstwinkledbrightly”(GPT-2loss
+tothefactthatliteralsentencesaregenerallyper-
+=5.24),eventhoughtheyarebothvalidsentences
+ceivedtobemorefluentthanpersonifications.
+with similar meanings. This argument is further
+supportedbythefactthateventhereferencehuman-
+4.3 QualitativeAnalysis
+generatedpersonificationsreceivedalowerfluency
+scorethantheBL-BARToutputs. Further, literal Table 4 contains a list of color-coded qualitative
+sentencesareindeedtypicallymorefluentoverall examplesforeachmethod. InFigure2,weprevi-
+thanpersonificationssincetheyexpressthemean- ouslyoutlinedthreemaintypesofpersonification
+ingliterally. Nevertheless,wearestillinterestedin TOPIC-ATTRIBUTE pairs,namelythecaseswhere
+theotherqualitiesbeingmeasuredbyfluency: Is ATTRIBUTE is a noun, a verb, and an adjective.
+thesentencecoherent? Doesitmakeunnecessary The first three examples in Table 4 demonstrate
+grammaticalerrors? Inthisregard,thefluencyof thecapacityofourPA-BARTmodeltocaptureall
+PA-BART remains quite good. It is significantly three cases. In the first example, the literal verb
+betterthanthefluencyoftheCOMETpersonifica- in “your phone rings out loud” is replaced with
+tions and only slightly worse than the fluency of themoreappropriateanimateverbin“yourphone
+thehuman-writtenpersonifications. yells out loud.” In the second, “silence is key” is
+replacedwithanounin“silenceisaghost”,while
+4.2 HumanEvaluationResults
+inthethirdexample,theliteraladjective“verydif-
+HumanevaluationresultsarereportedinTable3. ficult”isreplacedwiththeanimateadjective“very
+Outofthefivehumanevaluationmetrics,themost lonely”. These examples illustrate the generative
+pertinentmetrictothepersonificationgeneration flexibilityofourmodelanditscapacitytogenerate
+taskisPersonificationhood,asthismetricexplicitly diverseoutputswithdifferentparts-of-speech.
+BLEU BERTScore
+Input Gold Input Gold Fluency↓ Animacy
+HumanAnnotation 0.172 1.000 0.749 1.000 5.264 0.332
+COMET 0.127 0.128 0.655 0.569 6.366 -2.028
+BL-BART 0.132 0.133 0.728 0.617 4.573 0.106
+PA-BART 0.153 0.160 0.748 0.636 5.460 0.679
+Table 2: Average automatic evaluation results. The best-scoring method for each metric is highlighted in bold.
+Higherscoresarebetterforallmetricsexceptforfluency.
+Personificationhood Appropriateness Fluency Interestingness MeaningPreservation
+HumanAnnotation 3.763 4.175 4.138 3.667 3.913
+COMET 3.525 3.563 3.738 1.801 3.550
+BL-BART 3.500 3.938 4.188 2.006 3.750
+PA-BART 3.738 4.000 4.138 2.782 3.875
+Table3: Averagehumanevaluationresults. Thebest-scoringmethodforeachmetricishighlightedinbold.
+WealsoobservethattheoutputsforPA-BART andmeaningfulpersonifications,whilesimultane-
+generallycapturethemeaningoftheoriginaltext ouslystayingtruetothespiritofthesentence.
+(andsurroundingcontext)moreaccuratelythanthe We also point out that our model is not lim-
+otherbaselines. Infact,thepersonificationsgreatly ited to single-word substitutions. Rather, it con-
+enhance the expressiveness of some of these sen- siders a holistic view of the entire sentence and
+tences. In the first example, PA-BART replaces modifies key segments as necessary. This allows
+‘rings’with‘yells’,whileCOMETreplacesitwith PA-BARTtohandlecompoundphraseswell: con-
+‘beeps’, and BL-BART leaves ‘rings’ unchanged sider, for instance, the one-to-many-word substi-
+andjustaddsmoredetails. Giventhecontextofthe tutionof‘key’−→‘aghost’(example2),andthe
+sentence,weseethat‘yells’ismoreappropriate,ex- many-to-one-wordsubstitutionof“becamesilent”
+pressive,andconsistentwiththecontext. Asimilar −→ “lamented” (example 4). More importantly,
+argumentcanbemadeformostoftheotherexam- PA-BARTisalsoabletosimultaneouslygenerate
+plesinthetable: forthethirdexample,PA-BART personifications in two disjoint parts of the sen-
+replacestheliteral“verydifficult”withthemuch tence, as seen in the last example: “The sound
+moreanimateandexpressive“verylonely”,which clappedloudenoughtomakeyourearcry.” Here,
+is a suitable word to describe a relationship. In therearetwopersonificationsin“soundhit”−→
+thefourthexample,theBL-BARTmodelisableto “soundclapped”,and“earhurt”−→“earcry”.
+successfullycapturethemeaningof“thehousebe- Thislastexamplealsodemonstratestheimper-
+camesilent”with“thehousefellintodisrepair”. fectionofourmethod. Althoughthemodelisable
+Although the meaning is correct, “fell into disre- togeneratetwopersonifications,itlosesacompo-
+pair” is more literal and does not contain a per- nentoftheoriginalsentencebecausetherecipient
+sonification. Compare this with the PA-BART’s oftheaction(‘Frank’)hasdisappeared. Thissame
+choicetoreplace“thehousebecamesilent”with issueofmeaningorinformationlossispresentin
+“the house lamented”, which fits with the overall example2,whereourmodel’soutputof“silenceis
+context(“Thentherewerenomoreparties...”),and aghost”,whileapersonification,actuallycontra-
+also greatly enhances creativity by invoking the dictstheoriginaltext“silenceiskey”. BL-BART’s
+vividimageoflamentation. Meanwhile,inthefifth output of “silence is preferred”, while not a per-
+example,BL-BARTpersonifies“thecricketswere sonification,correctlypreservestheoriginalmean-
+silent”with“thecricketswerecalling”. However, ing,asdoesthehumanreferenceof“silenceisthe
+this shift completely changes the meaning, so it protagonist”. This suggests that the model may
+isaratherpoorchoiceofpersonification. Incon- stillneedsomeimprovementswithbalancingcre-
+trast,PA-BARTrewrites“theairwasstill”as“the ativityandsemanticpreservation. Otherpossible
+airwastired”,whichisareasonablepersonifica- weaknessesareoutlinedin§6.
+tionthatisconsistentwiththeimageryinthesen-
+4.3.1 NoveltyandDiversityAnalysis
+tence(“moonlessnights”,“cricketsweresilent”).
+We randomly sample 30 examples from the PA-
+Hence,weseethatPA-BARTcangeneratecreative
+BARTgenerations-andmanuallyidentifytheparts
+Method Text (used for humans only) + others,” as well as the
+LiteralInput Youareatabusinessdinnerwithyourbosswhenyourphonerings
+outloud(ex.1) structure “others + predicate verb (used for hu-
+HumanRef Youareatabusinessdinnerwithyourbosswhenyourphonestarts
+singingoutloud mans only) + nonhuman object + others.” We
+COMET Youareatabusinessdinnerwithyourbosswhenyourphonebeep
+outloud generalizeandrepackagetheseconcepts,renaming
+BL-BART Youareatabusinessdinnerwithyourbosswhenyourphonerings
+andyouansweroutloud
+thesubjectastheTOPICandthepredicateverbas
+PA-BART Youareatabusinessdinnerwithyourbosswhenyourphoneyells theATTRIBUTE. Indoingso,weareabletocapture
+outloud
+LiteralInput Inmosthorrorsettings,silenceiskey.(ex.2) moregeneralnotionsofanimacybeyondjustverbs.
+HumanRef Inmosthorrorsettings,silenceistheprotagonist.
+COMET Inmosthorrorsettings,silencescary. Generation of Metaphors, Similes, etc. A lot
+BL-BART Inmosthorrorsettings,silenceispreferred.
+PA-BART Inmosthorrorsettings,silenceisaghost. of studies on metaphors have focused on identi-
+LiteralInput Herrelationshipswithfamilyandfriendsareverydifficult(ex.3)
+fication using techniques like word sense disam-
+HumanRef Herrelationshipswithfamilyandfriendsbehaveveryunusually
+COMET Herrelationshipswithfamilyandfriendsserious biguation (Birke and Sarkar, 2007), topic model-
+BL-BART Herrelationshipswithfamilyandfriendshavealwaysbeenstrong.
+PA-BART Herrelationshipswithfamilyandfriendsareverylonely ing(Strzalkowskietal.,2013;Heintzetal.,2013),
+LiteralInput Thenthereweren’tanymorepartiesasthehousebecamesilent(ex.4)
+HumanRef Thenthereweren’tanymorepartiesasthehousekeptmum. dependencystructures(Jangetal.,2015),andse-
+COMET Thenthereweren’tanymorepartiesasthehousebuild.
+mantic analysis (Hovy et al., 2013). In terms of
+BL-BART Thenthereweren’tanymorepartiesasthehousefellintodisrepair.
+PA-BART Thentherewerenomorepartiesasthehouselamented. generation,earlysystemshaveexploredgrammar
+LiteralInput Itwasamoonlessnights,theairwasstillandthecricketsweresilent
+(ex.5) rules(GargettandBarnden,2013),whilemorere-
+HumanRef Itwasamoonlessnights,theairwasasleepandthecricketswere
+silent cently, large language models have greatly aided
+COMET Itcoldoutsideamoonlessnights,theaircoldoutsidestillandthe
+cricketsnoisy inmetaphorgeneration. Mostnotably,Stoweetal.
+BL-BART Itwasamoonlessnights,theairwasstillandthecricketswerecalling.
+(2021)generatemetaphorsbyconsideringconcep-
+PA-BART Itwasoneofthosemoonlessnights,theairwastiredandthecrickets
+weresilent tualmappingsbetweencertaindomainsandverbs.
+LiteralInput ThesoundhitFrankloudenoughtomakeyourearhurt(ex.6)
+HumanRef ThesoundslappedFrankloudenoughtomakeyourearhurt Chakrabartyetal.(2021)furtherbuildonthisby
+COMET ThesoundechoFrankloudenoughtomakeyourearsensesound
+BL-BART ThesoundofFrankSinatraisloudenoughtomakeyourearring. creatingaparallelcorpusofmetaphorsandtraining
+PA-BART Thesoundclappedloudenoughtomakeyourearcry
+alargelanguagemodeltoperformthegeneration.
+Table 4: Qualitative examples for personification: literal Wealsonoteherethatthetwoaforementioned
+input,humanwriting,COMET,BL-BART,andPA-BART.
+studiesalreadycoverpersonificationstoacertain
+MorecanbefoundinAppendixD.
+extent. However,thesestudiesconsideredperson-
+ifications as subtypes of metaphors. Some of the
+of the sentences that were personified, as well as methods used may not generalize well to other
+the animate ATTRIBUTES used to personify the typesofpersonifications. Ourstudyisthefirstto
+TOPICS. Among the 30 examples, there were 27 focusspecificallyongeneratingpersonifications.
+unique ATTRIBUTES, and only 3 repeats. Addi-
+Forgeneratingsimiles,Chakrabartyetal.(2020)
+tionally, there were 9 examples which generated
+proposeusingstyle-transfermodelswithCOMET
+completelynew ATTRIBUTES thatwereneverbe- commonsenseknowledgetogeneratesimiles. The
+fore seen in the training set, which demonstrates
+studysimilarlycreatesaparallelcorpusandtrains
+that the model is able to sufficiently capture the
+aseq2seqmodeltoperformthegeneration.
+essenceofapersonification,ratherthanjustblindly
+ThereisalsoarecentworkbyKehetal.(2022)
+memorizingATTRIBUTESfromthetrainingdata.
+thatuniquelyinvestigatesthegenerationoftongue
+twistersusingseq2seqandlanguagemodels.
+5 RelatedWork
+Personifications. Therearecurrentlyfewstud-
+Wepresentthelinguisticunderpinningsbehindthe iesthatspecificallyworkonpersonifications. Gao
+TOPIC-ATTRIBUTE frameworkusedinthispaper et al. (2018) detect personifications as a subtype
+and explore how other types of figures of speech ofmetaphors, butnotasitsownfigureofspeech.
+aregenerated. Wealsoexplorewhatmakesperson- Generationislargelyunexplored. Webelievethis
+ificationgenerationsochallenging. is likely because personifications are generally
+LinguisticMotivations. Personificationstradi- more difficult to define and categorize. Further-
+tionallydonothaveclearlydefinedclassifications. more, becauseseveralsourcessimplifypersonifi-
+Infact,evenwithinthelinguisticcommunity,the cationstofallundermetaphors(Stoweetal.,2021;
+definition of a personification is not always very Chakrabarty et al., 2021), there is also a lack of
+clear-cut(Edgecombe,1997;Hamilton,2002). A personification-specificdatasets.
+study by Long (2018) examines the personifica- ConstrainedTextGeneration. Thereisalsoa
+tionstructure“nonhumansubject+predicateverb body of work exploring the family of more gen-
+eralconstrainedtextgenerationtasks. Gangaletal.
+(2022)investigateNAREOR,ornarrativeordering,
+which rewrites stories in distinct narrative orders
+while preserving the underlying plot. Miao et al.
+(2019)showgainsonseveraltasksthroughdeter-
+miningLevenshteineditspergenerationstepusing
+Metropolis-Hastingssampling. Fengetal.(2019)
+propose Semantic Text Exchange to modify the
+topic-levelsemanticsofapieceoftext.
+Linetal.(2020)proposeCommonGen,agenera-
+tivecommonsensereasoningtaskbasedonconcept-
+to-textgeneration. Worksinvestigatingthistaskin-
+cludeEKI-BART(Fanetal.,2020)andKG-BART
+(Liu et al., 2021), which use external knowledge
+to enhance performance on CommonGen. SAP-
+PHIRE (Feng et al., 2021b) uses the data itself
+andthemodel’sowngenerationstoimproveCom-
+monGenperformance,whileVisCTG(Fengetal.,
+2022)usesper-examplevisualgrounding.
+6 ConclusionandFutureWork
+Inthispaper,weexploredthetaskofpersonifica-
+tion generation. We curated a dataset of personi-
+ficationsandproposedthe PINEAPPLEmethod
+toautomaticallyde-personifytext. Usingourpar-
+allel corpus, PersonifCorp, we trained a seq2seq
+model(BART)togeneratecreativepersonifications.
+Throughautomatic,human,andqualitativeevalu-
+ation,wedemonstratedthatthesepersonifications
+makesentencesmoreinterestingandenhancethe
+text’soverallappeal. Ourfinetunedmodelsuccess-
+fully does this while maintaining a high level of
+fluencyandmeaningperservation.
+Someweaknessesofourmodelincludefailing
+topersonifymorecomplexsentencestructures,and
+occasionallyfailingtopreservetheexactmeaning
+oftheoriginalsentence. Wealsobelievethatour
+model still has room to grow in terms of the di-
+versityofpersonificationsgenerated. Further,we
+can explore unsupervised style transfer methods
+(Yang et al., 2018; Malmi et al., 2020; Krishna
+etal.,2020),whereweregardthepersonification-
+hoodofasentenceasakindofstyle. Wecanalso
+investigatedataaugmentationmethods(Fengetal.,
+2021a,2020;Dholeetal.,2021)tofurtherexpand
+ourdataset. Anotherpromisingdirectionwouldbe
+toexplorewaystoacquiremorecontroloverwhich
+partsofthesentencearepersonifiedorwhattypes
+ofpersonificationsaregenerated,ortoapplythis
+tomakedialogueagentsmoreinteresting,e.g. by
+givingthemmorepersonality(Lietal.,2020).
+EthicsStatement Julia Birke and Anoop Sarkar. 2007. Active learn-
+ing for the identification of nonliteral language. In
+Our human and automatic evaluations (see §3.2) Proceedings of the Workshop on Computational
+aredoneovercontenteitherdirectlysourcedfrom, Approaches to Figurative Language, pages 21–28,
+Rochester, New York. Association for Computa-
+orgeneratedbypublicallyavailable,off-the-shelf
+tionalLinguistics.
+pretrained models trained either on already exist-
+ing,publiclyavailabledatasets,ordatasetsfurther
+Morton W Bloomfield. 1980. Personification-
+derivedbypost-processingthesame—asfurther metaphors. TheChaucerReview,pages287–297.
+describedinDatasets(see§2formore).
+AntoineBosselut,HannahRashkin,MaartenSap,Chai-
+We do collect human evaluation ratings using
+tanya Malaviya, Asli Celikyilmaz, and Yejin Choi.
+crowd-sourcing,specificallythroughAMTandin-
+2019. COMET:Commonsensetransformersforau-
+person annotation. However, we neither solicit, tomaticknowledgegraphconstruction. InProceed-
+record, nor request any kind of personal or iden- ings of the 57th Annual Meeting of the Association
+for Computational Linguistics, pages 4762–4779,
+tity information from the annotators. Our AMT
+Florence, Italy. Association for Computational Lin-
+annotationwasconductedinamannerconsistent
+guistics.
+with terms of use of any sources and intellectual
+propertyandprivacyrightsofAMTcrowdworkers. Tuhin Chakrabarty, Smaranda Muresan, and Nanyun
+Crowdworkerswerefairlycompensated: $1.12per Peng. 2020. Generating similes effortlessly like a
+pro: Astyletransferapproachforsimilegeneration.
+fluency+appropriateness+meaningpreservation
+InProceedingsofthe2020ConferenceonEmpirical
+evaluationHIT,and$0.56perpersonificationhood
+MethodsinNaturalLanguageProcessing(EMNLP),
+evaluationHIT,forroughly6min(first)and2min pages6455–6469,Online.AssociationforComputa-
+(latter) tasks, respectively. This is at least 1.5-2 tionalLinguistics.
+timestheminimumU.S.A.wageof$7.25perhour
+Tuhin Chakrabarty, Xurui Zhang, Smaranda Muresan,
+($0.725per6minutesand$0.25per2minutes).
+and Nanyun Peng. 2021. MERMAID: Metaphor
+Weprimarilyperformexperimentsonpersonifi-
+generation with symbolism and discriminative de-
+cationinEnglish(BenderandFriedman,2018). coding. In Proceedings of the 2021 Conference of
+NLG models are known to suffer from biases the North American Chapter of the Association for
+ComputationalLinguistics: HumanLanguageTech-
+learnablefromtrainingorfinetuningondata,such
+nologies,pages4250–4261,Online.Associationfor
+as gender bias (Dinan et al., 2020). However,
+ComputationalLinguistics.
+ourworkandcontributiondoesnotpresentorre-
+lease any completely new model architechtures, Jianfu Chen, Polina Kuznetsova, David Warren, and
+andisprimarilyconcernedwithmorecarefuladap- Yejin Choi. 2015. Déjà image-captions: A corpus
+of expressive descriptions in repetition. In HLT-
+tation and finetuning of existing pretrained mod-
+NAACL,pages504–514.
+els for a particular class of figurative construct
+(i.e. personification). Thefrailties,vulnerabilities, Kaustubh D Dhole, Varun Gangal, Sebastian
+and potential dangers of these models have been Gehrmann, Aadesh Gupta, Zhenhao Li, Saad
+Mahamood, Abinaya Mahendiran, Simon Mille,
+well researched and documented, and a specific
+Ashish Srivastava, Samson Tan, et al. 2021.
+re-investigationwouldberepetitiveandbeyondthe
+Nl-augmenter: A framework for task-sensitive
+scopeandspaceconstraintsofthispaper. natural language augmentation. arXiv preprint
+We do not foresee any explicit way that ma- arXiv:2112.02721.
+licious actors could specifically misuse fintuned
+Emily Dinan, Angela Fan, Adina Williams, Jack Ur-
+modelsthatcouldbetrainedonourdata,beyond
+banek, Douwe Kiela, and Jason Weston. 2020.
+thewell-researched,aforementionedmisusethatis
+Queensarepowerfultoo: Mitigatinggenderbiasin
+possibleingeneralwiththeirinstantiationforany dialogue generation. In Proceedings of the 2020
+transductiontaskordataset(e.g. summarization). Conference on Empirical Methods in Natural Lan-
+guageProcessing(EMNLP),pages8173–8188.
+AlettaGDorst.2011. Personificationindiscourse:Lin-
+References
+guisticforms,conceptualstructuresandcommunica-
+Emily M Bender and Batya Friedman. 2018. Data tivefunctions. LanguageandLiterature,20(2):113–
+statementsfornaturallanguageprocessing: Toward 135.
+mitigating system bias and enabling better science.
+Transactions of the Association for Computational RodneyStenningEdgecombe.1997. Waysofpersoni-
+Linguistics,6:587–604. fying. Style,31(1):1–13.
+ZhihaoFan,YeyunGong,ZhongyuWei,SiyuanWang, Andrew Gargett and John Barnden. 2013. Gen-meta:
+Yameng Huang, Jian Jiao, Xuanjing Huang, Nan Generatingmetaphorsusingacombinationofairea-
+Duan,andRuofeiZhang.2020. Anenhancedknowl- soning and corpus-based modeling of formulaic ex-
+edge injection model for commonsense generation. pressions. pages103–108.
+InProceedingsofthe28thInternationalConference
+on Computational Linguistics, pages 2014–2025, Craig A. Hamilton. 2002. Mapping the mind and
+Barcelona,Spain(Online).InternationalCommittee the body: On w. h. auden’s personifications. Style,
+onComputationalLinguistics. 36(3):408–427.
+Steven Y. Feng, Varun Gangal, Dongyeop Kang, DevamanyuHazarika,SoujanyaPoria,SruthiGorantla,
+TerukoMitamura,andEduardHovy.2020. GenAug: Erik Cambria, Roger Zimmermann, and Rada Mi-
+Dataaugmentationforfinetuningtextgenerators. In halcea. 2018. CASCADE: Contextual sarcasm de-
+ProceedingsofDeepLearningInsideOut(DeeLIO): tectioninonlinediscussionforums. InProceedings
+The First Workshop on Knowledge Extraction and of the 27th International Conference on Computa-
+Integration for Deep Learning Architectures, pages tionalLinguistics,pages1837–1848,SantaFe,New
+29–42, Online. Association for Computational Lin- Mexico, USA. Association for Computational Lin-
+guistics. guistics.
+StevenY.Feng,VarunGangal,JasonWei,SarathChan- IlanaHeintz,RyanGabbard,MaheshSrivastava,Dave
+dar, Soroush Vosoughi, Teruko Mitamura, and Ed- Barner,DonaldBlack,MajorieFriedman,andRalph
+uard Hovy. 2021a. A survey of data augmentation Weischedel. 2013. Automatic extraction of linguis-
+approachesforNLP. InFindingsoftheAssociation tic metaphors with LDA topic modeling. In Pro-
+for Computational Linguistics: ACL-IJCNLP 2021, ceedings of the First Workshop on Metaphor in
+pages 968–988, Online. Association for Computa- NLP,pages58–66,Atlanta,Georgia.Associationfor
+tionalLinguistics. ComputationalLinguistics.
+Steven Y. Feng, Jessica Huynh, Chaitanya Prasad DirkHovy, ShashankSrivastava, SujayKumarJauhar,
+Narisetty, Eduard Hovy, and Varun Gangal. 2021b. Mrinmaya Sachan, Kartik Goyal, Huying Li, Whit-
+SAPPHIRE: Approaches for enhanced concept-to- ney Sanders, and Eduard Hovy. 2013. Identify-
+textgeneration. InProceedingsofthe14thInterna- ing metaphorical word use with tree kernels. In
+tionalConferenceonNaturalLanguageGeneration, Proceedings of the First Workshop on Metaphor in
+pages 212–225, Aberdeen, Scotland, UK. Associa- NLP,pages52–57,Atlanta,Georgia.Associationfor
+tionforComputationalLinguistics. ComputationalLinguistics.
+Steven Y Feng, Aaron W Li, and Jesse Hoey. 2019. Nikhil Jaiswal. 2020. Neural sarcasm detection using
+Keepcalmandswitchon! preservingsentimentand conversation context. In Proceedings of the Sec-
+fluency in semantic text exchange. In Proceedings ond Workshop on Figurative Language Processing,
+of the 2019 Conference on Empirical Methods in pages77–82,Online.AssociationforComputational
+Natural Language Processing and the 9th Interna- Linguistics.
+tional Joint Conference on Natural Language Pro-
+Hyeju Jang, Seungwhan Moon, Yohan Jo, and Car-
+cessing(EMNLP-IJCNLP),pages2701–2711.
+olyn Rosé. 2015. Metaphor detection in discourse.
+Steven Y. Feng, Kevin Lu, Zhuofu Tao, Malihe In Proceedings of the 16th Annual Meeting of the
+Alikhani, Teruko Mitamura, Eduard Hovy, and Special Interest Group on Discourse and Dialogue,
+Varun Gangal. 2022. Retrieve, caption, generate: pages 384–392, Prague, Czech Republic. Associa-
+Visual grounding for enhancing commonsense in tionforComputationalLinguistics.
+text generation models. Proceedings of the AAAI
+SedrickScottKeh,StevenY.Feng,VarunGangal,Mal-
+ConferenceonArtificialIntelligence,36(10):10618–
+ihe Alikhani, and Eduard Hovy. 2022. Pancetta:
+10626.
+Phoneme aware neural completion to elicit tongue
+MaryCFlannery.2016. Personificationandembodied twistersautomatically. arXivpreprint.
+emotional practice in middle english literature. Lit-
+eratureCompass,13(6):351–361. KalpeshKrishna,JohnWieting,andMohitIyyer.2020.
+Reformulating unsupervised style transfer as para-
+Varun Gangal, Steven Y. Feng, Malihe Alikhani, phrasegeneration. InEmpiricalMethodsinNatural
+TerukoMitamura,andEduardHovy.2022. Nareor: LanguageProcessing.
+The narrative reordering problem. Proceedings
+of the AAAI Conference on Artificial Intelligence, Mike Lewis, Yinhan Liu, Naman Goyal, Mar-
+36(10):10645–10653. jan Ghazvininejad, Abdelrahman Mohamed, Omer
+Levy, Veselin Stoyanov, and Luke Zettlemoyer.
+Ge Gao, Eunsol Choi, Yejin Choi, and Luke Zettle- 2020. BART:Denoisingsequence-to-sequencepre-
+moyer.2018. Neuralmetaphordetectionincontext. trainingfornaturallanguagegeneration,translation,
+In Proceedings of the 2018 Conference on Empiri- andcomprehension. InProceedingsofthe58thAn-
+calMethodsinNaturalLanguageProcessing,pages nual Meeting of the Association for Computational
+607–613, Brussels, Belgium. Association for Com- Linguistics, pages 7871–7880, Online. Association
+putationalLinguistics. forComputationalLinguistics.
+Aaron W. Li, Veronica Jiang, Steven Y. Feng, Julia 11thInternationalJointConferenceonNaturalLan-
+Sprague, Wei Zhou, and Jesse Hoey. 2020. Aloha: guage Processing (Volume 1: Long Papers), pages
+Artificial learning of human attributes for dialogue 6724–6736, Online. Association for Computational
+agents. ProceedingsoftheAAAIConferenceonAr- Linguistics.
+tificialIntelligence,34(05):8155–8163.
+Tomek Strzalkowski, George Aaron Broadwell, Sarah
+BillYuchenLin, WangchunshuZhou, MingShen, Pei Taylor, Laurie Feldman, Samira Shaikh, Ting Liu,
+Zhou,ChandraBhagavatula,YejinChoi,andXiang Boris Yamrom, Kit Cho, Umit Boz, Ignacio Cases,
+Ren. 2020. CommonGen: A constrained text gen- and Kyle Elliot. 2013. Robust extraction of
+eration challenge for generative commonsense rea- metaphor from novel data. In Proceedings of the
+soning. InFindingsoftheAssociationforComputa- First Workshop on Metaphor in NLP, pages 67–
+tionalLinguistics: EMNLP2020,pages1823–1840, 76,Atlanta,Georgia.AssociationforComputational
+Online.AssociationforComputationalLinguistics. Linguistics.
+Ye Liu, Yao Wan, Lifang He, Hao Peng, and Philip S. Enrica Troiano, Carlo Strapparava, Gözde Özbal, and
+Yu. 2021. Kg-bart: Knowledge graph-augmented Serra Sinem Tekirog˘lu. 2018. A computational ex-
+bart for generative commonsense reasoning. Pro- ploration of exaggeration. In Proceedings of the
+ceedingsoftheAAAIConferenceonArtificialIntel- 2018 Conference on Empirical Methods in Natu-
+ligence,35(7):6418–6425. ral Language Processing, pages 3296–3304, Brus-
+sels, Belgium. Association for Computational Lin-
+DeyinLong.2018. Meaningconstructionofpersonifi- guistics.
+cation in discourse based on conceptual integration
+theory. Studiesin Literatureand Language, 17:21– Cynthia Van Hee, Els Lefever, and Véronique Hoste.
+28. 2018. SemEval-2018task3: IronydetectioninEn-
+glish tweets. In Proceedings of The 12th Interna-
+EricMalmi,AliakseiSeveryn,andSaschaRothe.2020. tionalWorkshoponSemanticEvaluation,pages39–
+Unsupervisedtextstyletransferwithpaddedmasked 50, New Orleans, Louisiana. Association for Com-
+language models. In Proceedings of the 2020 Con- putationalLinguistics.
+ferenceonEmpiricalMethodsinNaturalLanguage
+Processing(EMNLP),pages8671–8680,Online.As- ZichaoYang,ZhitingHu,ChrisDyer,EricP.Xing,and
+Taylor Berg-Kirkpatrick. 2018. Unsupervised text
+sociationforComputationalLinguistics.
+style transfer using language models as discrimina-
+Ning Miao, Hao Zhou, Lili Mou, Rui Yan, and Lei tors. InProceedingsofthe32ndInternationalCon-
+Li. 2019. Cgmh: Constrained sentence generation ference on Neural Information Processing Systems,
+bymetropolis-hastingssampling. InProceedingsof NIPS’18, page 7298–7309, Red Hook, NY, USA.
+the AAAI Conference on Artificial Intelligence, vol- CurranAssociatesInc.
+ume33,pages6834–6842.
+Tianyi Zhang, Varsha Kishore, Felix Wu, Kilian Q
+Vlad Niculae and Cristian Danescu-Niculescu-Mizil. Weinberger,andYoavArtzi.2019. Bertscore: Eval-
+2014. Brighter than gold: Figurative language in uating text generation with bert. arXiv preprint
+user generated comparisons. In Proceedings of the arXiv:1904.09675.
+2014 Conference on Empirical Methods in Natural
+TianyiZhang*,VarshaKishore*,FelixWu*,KilianQ.
+Language Processing (EMNLP), pages 2008–2018,
+Weinberger,andYoavArtzi.2020. Bertscore: Eval-
+Doha, Qatar. Association for Computational Lin-
+uating text generation with bert. In International
+guistics.
+ConferenceonLearningRepresentations.
+KishorePapineni,SalimRoukos,ToddWard,andWei-
+JingZhu.2002. Bleu: amethodforautomaticeval-
+uationofmachinetranslation. InProceedingsofthe
+40th annual meeting of the Association for Compu-
+tationalLinguistics,pages311–318.
+Alec Radford, Jeff Wu, Rewon Child, David Luan,
+DarioAmodei,andIlyaSutskever.2019. Language
+modelsareunsupervisedmultitasklearners.
+RobynSpeer,JoshuaChin,andCatherineHavasi.2017.
+Conceptnet5.5: Anopenmultilingualgraphofgen-
+eralknowledge. InAAAI.
+Kevin Stowe, Tuhin Chakrabarty, Nanyun Peng,
+Smaranda Muresan, and Iryna Gurevych. 2021.
+Metaphorgenerationwithconceptualmappings. In
+Proceedings of the 59th Annual Meeting of the
+Association for Computational Linguistics and the
+A AppendixA:De-Personification Metric Spearman Krippendorffα
+Correlation
+Pipeline
+Personificationhood 0.0934 0.0250
+Appropriateness 0.1660 0.1778
+A.1 DependencyTreeMergingExample Fluency 0.0050 0.0942
+Interestingness 0.6160 0.5898
+Figure4containsanexampleofthemergingpro-
+MeaningPreservation 0.0389 0.2558
+cessthatwasdescribedintheTOPIC-ATTRIBUTE
+extraction step in §2. As outlined in §2, edge re- Table5: Inter-annotatoragreementscores.
+lationstoiterativelymergearenegationmodifiers,
+possessionmodifiers,nominalmodifiers,adjectival
+similar scales (logarithmic), so setting α,β,γ to
+complements,andobjectsofprepositions,aswell
+a larger value like 2 or 3 would disproportion-
+aswordstaggedasdeterminersandpartsofcom-
+ately favor a certain metric, which is not what
+pound phrases. The priority order for merging is
+we desire. Second, we experimented with us-
+asfollows: 1)compoundphrases,2)nominalmod-
+ing values such as 0.8, 1.2, and 1.5, but the gen-
+ifiers, 3) possession modifiers, 4) negation modi-
+erated de-personifications were either very simi-
+fiers,5)determiners,6)objectsofprepositions,7)
+lar or slightly worse than the default setting of
+adjectivalcomplements.
+α = 1,β = 1,γ = 1. A possible future direc-
+tionwouldbetoexplorepossiblevaluesofα,β,γ
+A.2 Human-RelatedWords
+more thoroughly, but for this dataset, we stick to
+In§2,wedefinedtheIsAPersonanimacymetricas
+thesimplecaseofα = 1,β = 1,γ = 1.
+the average of the IsA scores between the TOPIC
+and various words that are very closely related B AppendixC:EvaluationDetails
+to ‘human’. We called this set the HUMANSET.
+B.1 HumanEvaluationSetup
+Thewordscontainedin HUMANSETareasfollows:
+{“person”, “human”, “man”, “woman”, “human Atotalof20uniqueAMTannotatorsparticipated
+being”,“boy”,“girl”}. inthestudyforfluency,appropriateness,andmean-
+Thesewordswereempiricallyselectedbycon- ingpreservation,eachperforming4.0HITsonaver-
+sidering a list of synonyms of the word ‘person’ age. Annotatorswerecompensated1.12$perHIT,
+andcheckingtheIsArelationCOMETscoreswith each of which was designed to take <6 mins on
+theword‘human’. AlloftheabovewordshaveIsA average.
+scoreswith‘person’oflessthan5.10. 22 unique AMT annotators participated in the
+second, separate study for personificationhood,
+A.3 ParametersandThresholds
+eachperforming4.36HITsonaverage. Annotators
+IsAPerson Threshold. For the IsAPerson ani- were compensated 0.56$ per HIT, each of which
+macy score, we use a threshold of 7.0. IsAPer- wasdesignedtotake<2minsonaverage.
+son scores < 7.0 are considered animate, while Fortheinterestingnessstudy,thedetailsregard-
+scores ≥ 7.0 are considered inanimate. This ing annotator background and selection can be
+threshold was selected empirically using words foundin§3.2.2andAppendixB.3.
+knowntobeanimateandwordsknowntobeinani- The html templates including instruc-
+mate. Wordstestedinclude“she”(5.31),“person” tions, questions and other study details
+(6.41), “moon” (8.743), “opportunity” (9.488), corresponding to both these AMT studies
+“stars”(8.717),“joe”(5.804),“jane”(4.976),“the can be found in the templates/ sub-
+policeofficer”(6.462),“myfriend”(6.805),“my folder of our code submission zip, with the
+new iphone” (10.055). From these observations, names fluency_appropriateness_
+weobservethatallanimatewordshaveanIsAPer- meaningPreservation.html and
+son score of < 7.0, while all inanimate objects personificationhood.htmlrespectively.
+haveascoreof≥ 7.0. Wehenceconcludethat7.0
+B.2 Inter-AnnotatorAgreementScores
+isasuitablethreshold.
+CandidateSelectionCompositeScoreParam- Each generated input instance and its respective
+eters. For the α,β,γ used in the composite model outputs are labelled by two distinct anno-
+score for candidate selection, we use values of tators. Tomeasureinter-annotatoragreement,we
+α = 1,β = 1,γ = 1. This was selected for two useSpearmancorrelationandKrippendorffα,as
+reasons. First, all of the score values had largely reportedinTable5.
+TogettheSpearmancorrelationpointvaluefor Method Text
+LiteralInput Thenewshitmehard.(ex.7)
+agivenaspectandtestinstance,wecomputemean HumanRef Thenewspunchedmehard.
+COMET Thenewsreporteventlatemehard.
+pairwiseSpearmancorrelationbetweentheaspect BL-BART Thenewshitmehard.
+PA-BART Thenewspoundedmehard.
+valuesassignedtothecorrespondingmodeloutputs
+LiteralInput Panicissweepingthroughthestreetscontagiously.(ex.8)
+by every pair of annotators. Specifically, we use HumanRef Panicisdrivingaroundthestreetscontagiously.
+COMET Panicisresultthroughthestreetscontagiously.
+thescipy.statsimplementationtocomputethis. 10 BL-BART Panicisrunningthroughthestreetscontagiously.
+PA-BART Panicrunsthroughthestreetscontagiously.
+ForKrippendorffα,wetreateachhumaneval- LiteralInput Inthedeadofsummer,inOhio,theclothesfelthotandhumid.(ex.9)
+HumanRef Inthedeadofsummer,inOhio,theclothesseemedtobesweating
+uation aspect as an ordinal quantity. Specifically,
+themselves.
+weusetheimplementationprovidedbythepython COMET Inthedeadofsummer,inOhio,theclothesfitandhumid.
+BL-BART Inthedeadofsummer,inOhio,theclotheswewearcanbehotand
+librarykrippendorff0.5.1.11 humid.
+PA-BART Inthedeadofsummer,inOhio,theclothescomplainedandhumid.
+LiteralInput Streaksofelectricityzippedthroughtheair,swirlingaroundand
+arounddangerous(ex.10)
+B.3 EnglishAssessmentTestforAnnotators HumanRef Streaksofelectricitycackledthroughtheair,swirlingaroundand
+arounddangerous.
+COMET Streaksofelectricitystaincarpetthroughtheair,swirlingaroundand
+From the native English-speaking university stu- arounddangerous.
+BL-BART Streaksofelectricitywereshootingthroughtheair,swirlingaround
+dentannotatorswhoenrolledtoparticipateinour
+andaroundthebuilding.
+Interestingnessstudy, wefirstelicitedanswersto PA-BART Streaksofelectricitydancedaroundandarounddangerous.
+LiteralInput Thesunisnowheretobefound,andthestreetsareeerilyquiet(ex.11)
+anEnglishassessmenttest,asmentionedin§3.2.2. HumanRef Thesunseemstobeonleave,andthestreetsareeerilyquiet.
+COMET Thesundown,andthestreetsfulloftraffic.
+Theassessmenttestcomprisedof12questions BL-BART Thesun,andthestreets.
+PA-BART Thesunrefusestobefound,andthestreetsarepolite
+spanning multiple question types testing the ex-
+LiteralInput Thewindblewthroughmefast.(ex.12)
+aminee’sgraspoftheuseanddistinctionbetween HumanRef Thewindstampededthroughmefast.
+COMET Thewindhowlthroughmefast.
+various figures of speech, basic literary general BL-BART Thewindwasgoingthroughmefast.
+PA-BART Thewindranmefast.
+knowledge,andverbalreasoningskills. Aspread-
+sheet file containing this test can be found with Table6: Additionalqualitativeexamplesforpersonification
+outputs: literalinput, humanwriting, COMET,BL-BART,
+thenameLiteratureTest.xlsxundertheTemplates/
+andPA-BART.
+subfolderofourcodesubmission.zipfile.
+Thefinalannotatorsusedforourinterestingness
+D AppendixD:AdditionalExamples
+studywerechosenfromthosewhogot11ormore
+ofthe12questionsontheEnglishassessmenttest Table 6 is an extension of Table 4 and contains
+correct,hencescoringatleast85%onthetest. additionalqualitativeexamplesofthegenerations.
+C AppendixB:ImplementationDetails
+TheBART-basemodelwastrainedusingalearning
+rateof2e-5. Thiswasbyconductingahyperparam-
+etersearchoverthevalues{1e-6,5e-6,1e-5,2e-5,
+5e-5,1e-4}andselectingthemodel/epochbasedon
+lowestvalidationloss. Thesameprocesswasdone
+toselectabatchsizeof4usingahyperparameter
+searchovervalues{2,4,8,16}. Trainingwasdone
+for20epochsand400warmupsteps. TheAdam
+optimizerwasused,andinputsweretruncatedto
+a maximum length of 64 tokens (using BART’s
+subwordtokenization).
+TrainingwasdoneonGoogleColaboratoryen-
+vironmentsusingV100GPUs. FortheBART-base
+model, a single training loop of 20 epochs takes
+approximately10minutestocomplete.
+10https://docs.scipy.org/doc/scipy/
+reference/generated/scipy.stats.
+spearmanr.html
+11https://pypi.org/project/
+krippendorff/
+Figure4: Step-by-stepexampleofthemergingprocessforTOPIC-ATTRIBUTEidentification.

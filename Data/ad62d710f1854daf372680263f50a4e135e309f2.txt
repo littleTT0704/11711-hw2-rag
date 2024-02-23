@@ -1,0 +1,1068 @@
+CHARD: Clinical Health-Aware Reasoning Across Dimensions for Text
+Generation Models
+StevenY.Feng1∗,VivekKhetan2,BogdanSacaleanu2,AnatoleGershman3,EduardHovy3
+1StanfordUniversity,2AccentureLabs,SF,3CarnegieMellonUniversity
+syfeng@stanford.edu
+{vivek.a.khetan,bogdan.e.sacaleanu}@accenture.com
+{anatoleg,hovy}@cs.cmu.edu
+Abstract Template FullTextwithExplanation
+ApersonwithCostochondri- ApersonwithCostochondritishasan
+tishasa/anexerciseriskfac- exerciseriskfactorbecausecostochon-
+WemotivateandintroduceCHARD:Clinical
+tor because/since/as {expla- dritiscanbeaggravatedbyanyactivity
+Health-Aware Reasoning across Dimensions, nation} thatplacesstressonyourchestarea.
+Apersonwithgouthasa/an Apersonwithgouthasaloseweight
+to investigate the capability of text genera- lose weight prevention be- prevention because losing weight can
+tion models to act as implicit clinical knowl- cause/since/as{explanation} loweruricacidlevelsinyourbodyand
+significantlyreducethechanceofgout
+edge bases and generate free-flow textual ex- attacks.
+planations about various health-related condi- A person with rheumatoid Apersonwithrheumatoidhasatherapy
+hasa/antherapytreatmentbe- treatmentbecausephysiotherapyhelps
+tions across several dimensions. We collect cause/since/as{explanation} rheumatoidpatientswithpaincontrol,
+andpresentanassociateddataset,CHARDat, reducing inflammation and joint stiff-
+nessandtoreturntothenormalactiv-
+consistingofexplanationsabout52healthcon- itiesofdailylivingorsports.
+ditions across three clinical dimensions. We
+Table1: Examplesof CHARDtemplateswithexplanations
+conduct extensive experiments using BART (fromCHARDat).Thehumanwasaskedtowritetheentire
+andT5alongwithdataaugmentation,andper- outputtext(notjusttheexplanation)byinfillingthetemplate.
+formautomatic,human,andqualitativeanaly-
+ses. We show that while our models can per- glewithcommonsensetasksthathumanscanrea-
+form decently, CHARD is very challenging sonthroughveryeasily(Talmoretal.,2020). There
+withstrongpotentialforfurtherexploration. areworksthatinvestigatemorecomplicatedreason-
+ingtasks,e.g. arithmeticandsymbolicreasoning
+1 Introduction
+(Wei et al., 2022b). PLMs inherently have some
+Pretrained language models (PLM) have seen in- extentofreasoningcapability,andmanymorecom-
+creasingpopularityforNLPtasksandapplications, plex reasoning tasks are easier to carry out over
+including text generation. Researchers have be- abstractPLMembeddingspace.
+comeinterestedintheextenttowhichPLMscan: Inthispaper,weareinterestedintheintersection
+1)actasknowledgebases,2)reasonlikehumans. oftheseareas. CanPLMsactasknowledgebases
+Ratherthanusingexternaldatabases,exposure and also reliably reason using their own knowl-
+tolargeamountsofdataduringtrainingcombined edge? WeinvestigatewhetherPLMscanlearnand
+with their large number of parameters, has given reasonthroughhealth-relatedknowledge. Workon
+PLMs the ability to store knowledge that can be generation-basedreasoningforhealthhasbeenlim-
+extractedthrougheffectiveprobingstrategiessuch ited,withmostpriorworkexploringretrieval-based
+as text infilling (Donahue et al., 2020), prompt- methods. Generation-basedreasoningismorediffi-
+ing(Liuetal.,2021),andQA(Jiangetal.,2021). cult,assuchaspecializeddomaincontainsesoteric
+PLMsimitateamorehigh-levelinformationstore, information not prevalent in the PLM’s training
+allowing for greater abstractness, flexibility, and data, and involves a higher degree of specialized
+generalizability. Theyarealsoabletobetterexploit reasoningtohandledomain-specificproblems.
+contextualinformationthansimpleretrieval. Healthcare is an important domain that deals
+Studies have also shown that as PLMs scale with human lives. It is a large application area
+up, they have have emergent abilities (Wei et al., for machine learning and NLP. The need for au-
+2022a), including reasoning. There has been in- tomation in healthcare rises, as countless studies
+creasingattentionontheircommonsensereasoning showthathealthcareworkersareoverworkedand
+throughworkslikeCOMET(Bosselutetal.,2019). burnedout,especiallyrecentlyduetotheCOVID-
+However,studiesshowthatevenlargePLMsstrug- 19pandemic(Portogheseetal.,2014;Brophyetal.,
+∗ WorkdonewhileatCMU. Code:https://github.com/styfeng/CHARD
+3202
+beF
+31
+]LC.sc[
+2v19140.0122:viXra
+2021;Couarrazeetal.,2021). Further,healthcare As an initial approach to CHARD, we use a
+resourceswillcontinuetobestrainedasthebaby templateinfillingformulation,wheregivenanin-
+boomergenerationages(Canizaresetal.,2016). put template that lays out the structure of the de-
+To this end, we propose CHARD: Clinical siredexplanation,themodel’sgoalistogenerate
+Health-AwareReasoningacrossDimensions(§2.1).
+acompleteexplanationofhowtheparticulardim
+This task is designed to explore the capability of attributerelatestothegivencondition. Inparticu-
+text generation models to act as implicit clinical lar,thetemplatesendwithan{explanation}span
+knowledgebasesandgeneratetextualexplanations thatthemodelsfillinbyexplainingtheappropriate
+about health-related conditions across several di- relationship. SomeexamplesareinTable1.
+mensions. The ultimate goal of CHARD is to
+2.2 CHARDatDataset
+eventuallyhaveamodelthatisknowledgeableand
+CollectionProcess: Wecollectadatasetforour
+insightfulacrossnumerousclinicaldimensionsand
+task called CHARDat (where DAT is short for
+reasoning pathways. For now, we focus on three
+data). Wecollectdataacrossthethreedimfor52
+relevant clinical dimensions using a template in-
+healthconditions,listedinAppendixA.Thisisa
+fillingapproach,andcollectanassociateddataset,
+manually curated list of health conditions which
+CHARDat, which includes information for 52
+rangefromcommonconditionssuchasmigraine
+healthconditionsacrossthesedimensions(§2.2).
+and acne to rare conditions such as Lyme dis-
+We perform extensive experiments on CHAR-
+ease and Paget–Schroetter. The conditions were
+Dat using two SOTA seq2seq models: BART
+also selected by volume of online activity (e.g.
+(Lewis et al., 2020) and T5 (Raffel et al., 2020)
+number of active subreddit users), treatable vs.
+(§3.1),withdataaugmentationusingbacktransla-
+chronic conditions, and whether a condition can
+tion(Sennrichetal.,2016)(§3.2,4.2). Webench-
+beself-diagnosedornot. Thisallowsustoassess
+markourmodelsthroughautomatic, human, and
+CHARDacrossavarietyofconditions.
+qualitativeanalyses(§5). Weshowthatourmodels
+Foreachdim,wemanuallycollectanexhaus-
+showstrongpotential,buthaveroomtoimprove,
+tivelistofdim-relatedattributes(e.g. riskfactors)
+andthatCHARDishighlychallengingwithroom
+foreachcondition. Byattribute,werefertoapar-
+foradditionalexploration. Lastly,wediscusssev-
+ticularexampleofthat dim(e.g. "obesity"). This
+eralpotentialdirectionsforimprovement(§6).
+was accomplished by searching through reliable
+andreputablemedically-reviewedsourcessuchas
+2 TaskandDataset
+MayoClinic,CDC,WebMD,andHealthline.
+2.1 The CHARDTask Wecollectthefinaltext(withexplanations)us-
+Our task, CHARD: Clinical Health-Aware ingAmazonMechanicalTurk(AMT).Weaskap-
+ReasoningacrossDimensions,investigatestheca- proved AMT workers (with strong qualifications
+pabilityoftextgenerationmodelstoproduceclin- andapprovalratingsonhealthcare-relatedtasks)to
+ical explanations about various health conditions writefactuallyaccurate,informative,andrelatively
+acrossseveralclinicaldimensions(dim). Essen- concisepassagesgivenaparticularconditionand
+tially, we assess how a PLM can be used as and
+dimattributetemplate(perHIT),whileencourag-
+reasonthroughanimplicitclinicalknowledgebase. ingthemtoconsulttheaforementionedhealthre-
+We focus on three dim: risk factors (RF), sources. Threeseparateannotationstudies(oneper
+treatment(TREAT),andprevention(PREV),as dim) with strict quality control were conducted
+they are important and relevant in the context of to collect an annotation per example.1 Annota-
+health. A risk factor refers to something that in- tionswereregularlyverifiedbyauthors,andalarge
+creasesthechanceofdevelopingacondition. For
+subsetofCHARDatwasmanuallyexaminedfor
+cancer,someexamplesareage,familyhistory,and medicalaccuracy. MoredetailsareinAppendixB.
+smoking. Treatmentreferstosomethingthathelps
+SomeexamplesfromCHARDatareinTable1.
+treatorcureacondition. Formigraines,someex- Splits and Statistics: We split CHARDat by
+amples are medication, stress management, and dim into train, val, and test splits of ≈
+meditation. Preventionreferstostrategiestostop
+orlowerthechanceofgettingacondition. Fordia-
+1ExplanationsforCHARDaretypicallyquitestandard-
+ized,andadditionalannotationswererepetitive.Differences
+betes,someexamplesareahealthydietandregular
+aremainlyinlanguage,soweinsteadoptforparaphrasing
+exercise. dataaugmentationtechniquessuchasbacktranslation(§3.2).
+DatasetStats Train Val Test
+(seen/unseen)
+#conditions=52 44 39 41(37/4)
+rf=52 44 26 26(22/4)
+treat=52 43 21 20(16/4)
+prev=44 35 11 21(17/4)
+#sentences=937 655 141 141(70/71)
+rf=457 319 69 69(32/37)
+treat=297 207 45 45(20/25)
+prev=183 129 27 27(18/9)
+Avglength=36.2 37.7 36.1 35(35.9/34.2)
+Table 2: CHARDat statistics. Differing #s bydim are Figure1: AnexampleoftheGooglesearchresultsforthe
+becausetherearemoreriskfactorsformostconditions,and query{asthma+riskfactor+smoking}highlighting:a)the
+somedonothavepreventionstrategies.Lengthisinwords. featuredsnippet,b)thetextbelowthefirstlink.
+70%/15%/15%,andcombinetheindividualsplits singlepieceoftext. AnexampleisinFigure1.
+per dim to form the final splits called CHAR- Theextractedtextapproximatesanexplanation,
+Dat tr, CHARDat val, and CHARDat test, re- which we then concatenate to the first part of the
+spectively. The individual dim splits are called associated template to form the final text, e.g. A
+dim tr, dim val, and dim test, where dim is a person with asthma has a/an smoking risk factor
+short-form of the particular dimension: rf, because/since/as {retrieved explanation}. RETR
+treat,or prev. Theindividualdimensionsub- leveragesGoogle’sstrongsearchandsummariza-
+setsof CHARDatarecalled CHARDat DIM. tioncapabilities,servingasausefulbaseline. Fur-
+For each dim’s test split, we ensure that ap- ther, Google Search is an evolving baseline that
+proximately half consist of examples from con- continuallychallengesourCHARDmodels.2
+ditions entirely unseen during training for that
+dim, called dim . This is to assess 3.2 DataAugmentation(DA)
+test−unseen
+whetherthemodelcangeneralizetounseencondi- Since CHARDat is relatively small, which is
+tions. Theotherhalfcontainsexamplesfromcon- mainlyafunctionofourtaskanddomain,i.e. there
+ditions seen during training called dim , arealimitednumberofnon-obscuremedicalcon-
+test−seen
+butthespecificconditionanddimattributecom- ditionsandassociateddimattributes,wehypothe-
+bination was unseen. The combined halves sizethatdataaugmentation(DA)techniques(Feng
+(across dim) are called CHARDat etal.,2021a,2020)maybeuseful.
+test−unseen
+andCHARDat . Wedothesameforthe As noted by Feng et al. (2021a), text genera-
+test−seen
+valsplittoensureconsistencyformodelselection tionandspecializeddomains(suchashealthcare)
+purposes. CHARDatstatisticsareinTable2. bothpresentseveralchallengesforDA.Inourcase,
+many explanations contain clinical or health jar-
+3 Methodology
+gonwhichmakestechniquesthatleveragelexical
+3.1 Models databasessuchasWordNet,e.g. synonymreplace-
+BART and T5: We experiment using two pre- ment(Fengetal.,2020),challengingorimpossible.
+trainedseq2seqmodels: BARTandT5(bothbase Wedecidetousebacktranslation(BT)(Sennrich
+andlargeversions). Thesearesuitableforourtask etal.,2016)toaugmentexamplesinCHARDat ,
+tr
+formulation(templateinfilling). T5(Raffeletal., apopularandeasyDAtechniquewhichtranslatesa
+2020) has strong multitask pretraining. BART sentenceintoanotherlanguageandbacktotheorig-
+(Lewisetal.,2020)istrainedtoreconstructoriginal inal language.3 This usually results in a slightly
+textfromnoisedtext(asadenoisingautoencoder). altered version (paraphrase) of the original text.
+WeusetheirHuggingFacecodebases. BTiseffectivehereashealthcare-relatedtermsare
+preserved relatively well, and the resulting para-
+RetrievalBaseline(RETR): Weusearetrieval-
+phrasedexplanationremainsrelativelyintact.
+basedapproachasabaseline. Wemanuallyquery
+Googleusing{condition+dim+dimattribute}, We use UDA (Xie et al., 2020) for BT, which
+translatessentencesfromEnglishtoFrench,then
+e.g. {asthma+riskfactor+smoking},andextract
+back to English. UDA is a DA method that uses
+eitherthefeaturedsnippetatthetopoftheresults
+unsuperviseddatathroughconsistencytrainingon
+page,orthetextbelowthefirstlinkifthereisno
+featured snippet. If the featured snippet is a list 2Wewillreleaseourcurrentbaselinedata.
+ortable,wemanuallyconcatenatetheitemsintoa 3Thisissometimesreferredtoasround-triptranslation.
+Tmp Text scenegraphsandcalculatesanF-scoreovergraph
+0 Apersonwithacnehasanavoidirritantspreventionbecauseusing
+oilyorirritatingpersonalcareproductsclogyourporescausingacne. tuples. CIDErcapturessentencesimilarity,gram-
+0.5 ifyouuseoilyorirritantpersonalcareproducts,youblockporesand maticality,saliency,importance,andaccuracy.4
+causeacne.
+0.7 usingoilyorirritatingpersonalcareproducts,youblockacnepores. We also use average word length (Len),
+0.9 useoilyandirritatingdisinfectantproductsfreezingyourporesto
+causetheAcnerestructurs. BERTScore (Zhang et al., 2019), and Perplex-
+0 ApersonwithMultipleSclerosishasastressmanagementprevention
+ity (PPL). BERTScore serves as a more seman-
+becausestressismorelikelytoexacerbatethesymptomsofMSand
+bringaboutaflareorrelapse. ticsimilaritymeasurebyassessingBERT(Devlin
+0.5 stressismorelikelytoexacerbateMSsymptomsandleadtoanout-
+breakorrelapse etal.,2019)embeddingssimilaritybetweenindi-
+0.7 stressismorelikelytoexacerbatesymptomsofMSandtriggeraflare
+vidualtokens. Wemultiplyby100whenreporting
+orrelapse.
+0.9 severemourningproblemsoccurredatVancouverHospital(Prince BERTScore. PPLapproximatelymeasuresfluency,
+EdwardIsland),BritishColumbia.(...)
+where lower values represent higher fluency. We
+Table 3: Examples of original (tmp=0) and BT text. The
+useGPT-2(Radfordetal.,2019)forPPL.Higher
+explanationportion(whichisbacktranslated)isitalicized.
+isbetterforallmetricsotherthanPPLandLen.
+ROUGE and BERTScore vs. Backtranslation Temperature
+4 ExperimentalSetup
+ROUGE-1 ROUGE-2 ROUGE-L BERTScore
+80
+4.1 ModelFinetuningandGeneration
+70
+Forthestandard(non-augmented)CHARDmod-
+60
+els,wetrainandevaluatefourversionsofeachon
+50 CHARDat, CHARDat , CHARDat ,
+RF TREAT
+40 and CHARDat , respectively. The first of
+PREV
+30 theseisacombinedmodelthatlearnstohandleall
+threedimatoncedependingonthedimgivenat
+20
+inference,whilethelatterthreearemodelstrained
+10
+0.4 0.5 0.6 0.7 0.8 0.9 oneachindividualdim. Wepredictthatwhilethe
+Backtranslation Temperature (tmp)
+latterthreemayperformbetterontheirparticular
+Figure2: Graphshowinghowavg.ROUGEandBERTScore
+ofBTvs.originaltextvarybyBTtmponCHARDat .
+dim,thefirstmodelismoreeffectiveoverallasit
+tr
+accomplishesourgoalofhavingasinglePLMthat
+(x,DA(x)) pairs. An advantage of UDA’s BT is can store knowledge and reason through several
+thatwecancontrolforthedegreeofvariationusing dim. Itisthusmoreadaptableandgeneralizable.
+atemperature(tmp)parameter, wherehigherval- FortrainingtheCHARDmodels,wekeepmost
+ues(e.g. 0.9)resultinmorevariedparaphrases. We hyperparameters static, other than learning rate
+only backtranslate the explanation portion of ex- (LR)whichistunedperindividualmodel. Foreach
+amples(concatenatingthembacktothepreceding model, we select the epoch that corresponds to
+part)aswewishtokeeptheprecedingpartintact. highestROUGE-2onCHARDat ,anddecode
+val
+FromtheexamplesinTable3, wecanseethat usingbeamsearch. SeeAppendixCformore.
+higher tmp typically results in more varied text,
+4.2 DataAugmentationExperiments
+albeit with issues with content preservation and
+WetryseveralbacktranslationDAexperiments.
+fluency. Forthesecondexample,thetmp=0.9BT
+iscompletelyunrelatedtotheoriginaltext. Thisis 2xDAwithDifferentTmp: Ourfirstsetofex-
+notentirelyundesirable,assomenoisemaymake periments involves 2x DA (backtranslating each
+ourtrainedmodelsmorerobust. FromFigure2,we CHARDat explanationonce,to2xtheoriginal
+tr
+see that the average ROUGE and BERTScore of trainingdata)usingdifferentBTtmpwhichwecall
+backtranslatedCHARDat tr textcomparedtothe BT-set: {0.4, 0.5, 0.6, 0.7, 0.8, 0.9}. We predict
+originaltextdecreaseastmpincreases,asexpected. thattheoptimaltmpliesinthe0.6-0.7range,asthe
+textismodifiedtoareasonabledegree.
+3.3 EvaluationMetrics
+Weuseseveralstandardtextgenerationevaluation Different DA Amounts (2x-10x): We also try
+metrics including reference-based token and se- further DA amounts: 3x, 4x, 5x, 7x, and 10x
+manticcomparisonmetricsusedinworkslikeLin the original amount of training data. We explore
+etal.(2020)suchasROUGE(LinandHovy,2003),
+4MatchingmetricsaresufficientasCHARDexplanations
+CIDEr(Vedantametal.,2015),andSPICE(Ander-
+are standardized (space for explanations is low) since our
+sonetal.,2016). SPICEtranslatestexttosemantic inputspresentaparticularconditionanddimattributecombo.
+whether the amount of augmentation affects per- Metric RETR BART-base BART-large T5-base T5-large
+ROUGE-1 43.30 51.37 51.54 50.00 50.66
+formance,andhypothesizethatperformancewill ROUGE-2 28.18 39.35 40.27 38.31 37.74
+ROUGE-L 39.03 49.55 49.88 48.07 48.05
+increase to a certain point and decline afterward. BLEU-1 32.20 31.20 28.40 32.60 34.30
+BLEU-2 25.20 27.10 24.90 28.10 29.20
+This is because the advantages of DA may taper
+BLEU-3 21.50 24.70 22.90 25.50 26.40
+offsincetheaugmenteddataarevariationsofthe BLEU-4 18.50 23.00 21.30 23.60 24.30
+METEOR 24.40 22.10 22.10 21.80 22.10
+original,andmodelsmayoverfitpastapoint. CIDEr 2.36 8.56 6.90 8.71 9.03
+SPICE 35.10 50.50 50.70 49.10 49.20
+BERTScore 39.54 60.04 60.78 59.80 59.00
+DA Amount Strategies (best-tmp vs. diff-tmp): PPL 65.27 61.00 87.45 56.78 52.52
+Len 52.80 20.16 18.60 21.35 22.23
+Wealsoinvestigatetwostrategiesforselectingeach
+successiveiterationofaugmentedexamples. The Table4: Avg.autoevalresultsofRETRandthebestmodels
+(forBARTandT5)onCHARDat .Boldcorrespondsto
+test
+first is best-tmp, where all the augmented data
+bestperformance.Forhumantext,PPL=67.86,Len=35.04.
+comes from BT of the tmp that performed best
+for2xDA(e.g. allfrom0.7).5
+andcondition. Informativenessreferstowhichis
+Thesecond is diff-tmp, whereeachsuccessive
+morecompleteandexplainsinsufficientdetail(in-
+iteration is the tmp that performed next best (e.g.
+cludingwhy?). Readabilityreferstowhichismore
+2x is the best tmp, 3x is additionally the second-
+readable,whichincludesfluency(natural-sounding
+best tmp, etc.). For the highest DA amounts (e.g.
+English)andconciseness/brevity(notoverlylong).
+10x),whenthesixtmpvaluesinBT-sethavebeen
+Thereare3choicesforeachevaluationaspect-
+exhausted,wegobacktothebesttmpandrepeat.
+O1: first is better, O2: second is better, O3: both
+Base vs. Large Models: For the base models areindistinguishable. Toaggregatemultipleanno-
+(BART-base and T5-base), we try all aforemen- tationsperexample,wefindtheoverallfractionof
+tioned tmp, DA amounts, and amount strategies. responsestowardseachoutcomevalue.
+Forthelargemodels,wetrythetopthreetemper-
+5 ResultsandAnalysis
+atures (for 2x DA) and amount strategy that per-
+formedbestonthecorrespondingbasemodel,and WereportautomaticresultsonCHARDat of
+test
+only3x,5x,7x,and10xDAamounts. thebestmodels(forBART-base,BART-large,T5-
+Note that BT tmp and DA amounts are both base, T5-large)trainedonCHARDatcompared
+hyperparameters,sowhilewetrainmodelscorre- toRETRinTable4. Thebestmodelsaretmp=0.9
+spondingtodifferentvaluesofthem,thefinalcho- 2xDAforBART(baseandlarge),5xDAwithdiff-
+senmodelscorrespondtotheonesthatperformed tmpforT5-base,andtmp=0.62xDAforT5-large.
+best on CHARDat . We then use these final Our best overall CHARD model is T5-large
+val
+modelstogenerateonCHARDat . Wereport based on automatic results and qualitative analy-
+test
+theresultsoftheoverallbestmodelsin§5. sis. WebreakdownresultsofT5-largeonCHAR-
+Dat andCHARDat inTable
+test−seen test−unseen
+4.3 HumanEvaluation
+5. We show results of T5-large compared to T5-
+WeconducthumanevaluationusingAMT.6Weask
+large (modelstrainedontheindividualdim)
+DIM
+twoapprovedannotators(withstrongqualifications
+in Table 6. We conduct human evaluation with
+and approval ratings on healthcare-related tasks)
+T5-large,andtheresultsareinTable7.
+toeachevaluateall141CHARDat examples.
+test Graphs displaying models’ ROUGE-2 on
+Our evaluation uses pairwise comparison of the CHARDat for 2x DA across various BT tmp
+val
+outputsfromtwomethods,splitintothreestudies
+anddifferentDAamountscanbefoundinFigures
+per dim: RETR vs. bestCHARDmodel,RETR
+3and4,respectively. Tables8and9containquali-
+vs. human,andhumanvs. bestCHARDmodel.
+tativeexamples,withmoreinAppendixE.
+Weaskannotatorstochoosewhichamongstthe
+twooutputs(presentedinarandomorderperexam- 5.1 AutomaticEvaluationResults
+ple)hasbetter1)medicalaccuracy(MedAcc),2) From Table 4, we see that all CHARD models
+informativeness(Inform),and3)readability(Read). perform better than RETR across most metrics.
+Medical accuracy refers to which explanation is RETR’saverageoutputsaremuchlongerthanthose
+moreclinicallycorrectforthegivendimattribute
+ofourmodelsandhumans. Amongourmodels,T5-
+largeandBART-largeperformbest,demonstrating
+5ThisispossiblebecauseUDAusessampling,soevenfor
+that larger models are more adept. T5-large per-
+thesametmp,thebacktranslationsdiffereachtime.
+6SeeAppendixDforfurtherhumanevaluationdetails. formsbestoverall(combinedwiththequalanalysis
+Metric testsplit(full) test-seen test-unseen Validation ROUGE-2 by DA Amount
+ROUGE-1 50.66 49.42 51.93
+ROUGE-2 37.74 37.04 38.35 BART-base (best-tmp) BART-large (best-tmp) T5-base (diff-tmp) T5-large (diff-tmp)
+ROUGE-L 48.05 46.98 49.12 39.5
+BLEU-1 34.30 33.50 35.20
+BLEU-2 29.20 28.60 29.90
+BLEU-3 26.40 25.90 27.00 39.0
+BLEU-4 24.30 23.80 24.80
+METEOR 22.10 21.60 22.60 38.5
+CIDEr 9.03 10.31 7.59
+SPICE 49.20 48.60 49.80
+BERTScore 59.00 57.79 60.18 38.0
+PPL 52.52 51.06 53.96
+Len 22.23 22.73 21.73
+37.5
+Table 5: Avg. auto eval results of T5-large on CHAR-
+Dat andthetest-seenandtest-unseenhalves.
+test 37.0
+1x 2x 3x 5x 7x 10x
+Validation ROUGE-2 for 2x DA by BT tmp DA Amount
+Figure4: Graphshowinghowavg. ROUGE-2onCHAR-
+BART-base BART-large T5-base T5-large Dat varies by DA amount. 1x essentially refers to no
+val
+39.5 DA.
+39.0
+effectively. FromFigure4,weseethatperformance
+38.5 generallyincreasesforeachmodeluptoacertain
+point(e.g. 2xor3xDA),andthendecreasesafter-
+38.0
+ward,aligningwithourhypothesisfrom§4.2.
+37.5
+5.2 HumanEvaluationResults
+37.0 FromTable7,weseethatboth RETRandT5-large
+0.4 0.5 0.6 0.7 0.8 0.9
+Backtranslation Temperature (tmp)
+are outperformed by humans, although RETR is
+Figure3: Graphshowinghowavg. ROUGE-2onCHAR- relativelycloseininformativenessandmedicalac-
+Dat valvariesbybacktranslationtemperaturefor2xDA. curacy,andT5-largeslightlyoutperformsonread-
+ability. RETR outperforms T5-large on medical
+accuracyandinformativeness,whichissomewhat
+in§5.3), withthelongestaverageoutputsamong
+expectedasitusesGoogleSearch. Itisworsethan
+our models. Some of our models achieve better
+T5-large on readability, as our models generate
+average fluency (PPL) compared to humans, but
+morefluent,concise,andreadabletext(see§5.3).
+theoutputsaregenerallynoticeablyshorter.
+FromTable5,weseethatT5-largesurprisingly 5.3 QualitativeAnalysis
+performsbetteronthetest-unseenhalf. Itappears
+We examine the qualitative examples in Tables 8
+that the model can generalize decently to unseen
+and9. Firstly,weseethatRETRisabletogenerally
+conditionswhentrainedonCHARDat. Thismay
+perform well by extracting relevant information
+partiallybeduetosimilarexplanationsforpartic-
+(ex.1-alistofmedicationsforHyperhidrosis,ex.5
+ular dim attributes across conditions, e.g. why
+- that carbohydrates increase RA risk), which is
+sleephelpstreatsomeconditionsmaybesimilar.
+expectedusingGoogleSearch. However,itsome-
+FromTable6,weseethatformostdim(namely
+timesextractsalengthyamountofirrelevantinfor-
+RFandPREV),themodeltrainedonthatspecific mation. Forex.4, RETRextractsadifficult-to-read
+dim performs better on thatdim. However, our listofdifferentTREATstrategies,whichisforthe
+generalT5-largemodelperformsbetteronTREAT. wrongdim,anddoesnotnarrowdownonanex-
+ItmaybethattrainingonCHARDathasallowed planationforthespecificdimattributeintheinput.
+themodeltolearnfromdataofotherdim,improv-
+For ex.6, it extracts the info and beginning of a
+ingitsoverallknowledgeandgenerationcapabili- passage from a scientific article, ending abruptly
+ties(anadvantageofasinglecombinedmodel). andnotexplainingthegivendimattribute.
+From Figure 3, we see that the BART models Ourmodels,specificallyT5-large,aregenerally
+generallyincreaseinperformancewithhigherBT able to output more concise, readable, and some-
+tmp (upward trend), whereas T5 fluctuates. This timesrelevantexplanationscomparedtoRETR. For
+maybedueseveralreasons,e.g. differencesinthe ex.1,T5-largeoutputsalistofmedications,albeit
+architectureandpretrainingstrategiesofthemod- not for Hyperhidrosis - showing weaknesses in
+els, allowing BART to leverage noisy data more medicalaccuracy. Otherthanibuprofen,theother
+)noitadilav(
+2-EGUOR
+)noitadilav(
+2-EGUOR
+RiskFactors(RFtest) Treatment(TREATtest) Prevention(PREVtest)
+Metric T5-large T5-largeRF T5-large T5-largeTREAT T5-large T5-largePREV
+ROUGE-1 52.74 53.17 49.42 47.38 47.73 50.00
+ROUGE-2 40.52 41.88 36.12 36.69 33.00 36.10
+ROUGE-L 50.40 51.03 46.60 45.54 44.43 48.19
+BLEU-1 34.80 34.70 31.10 25.70 30.80 29.80
+BLEU-2 30.40 30.90 26.30 22.40 25.10 25.00
+BLEU-3 27.90 28.60 23.90 20.70 21.90 22.00
+BLEU-4 26.10 26.90 22.10 19.30 19.30 19.30
+METEOR 23.00 24.20 20.70 19.20 20.50 20.80
+CIDEr 13.50 10.57 5.06 5.98 5.88 5.83
+SPICE 49.90 51.50 46.60 45.30 46.50 46.60
+BERTScore 60.40 61.03 58.07 56.60 56.90 59.09
+PPL 40.90 58.92 52.13 86.15 84.06 110.66
+Len 22.30 20.28 22.09 19.82 22.27 20.52
+Table6: Breakdownoftheavg.autoevalresultsofT5-largecomparedtoT5-large models(trainedonthethreeindividual
+DIM
+dim)ontherespectivedimsubsetsofCHARDat .Boldcorrespondstobestperformanceperdim.
+test
+Methods Aspect O1 O2 O3 Method Text
+MedAcc 0.45 0.53 0.02 Input(4) ApersonwithCostochondritishasafiximproperposturepreventionbecause{ex-
+planation}
+RETRvs.Human Inform 0.45 0.53 0.02 Human ApersonwithCostochondritishasanfiximproperposturepreventionbecausebad
+Read 0.22 0.69 0.09 postureputsstressonjointsandtissues,causingjointstiffness,weakenedmuscles,
+MedAcc 0.72 0.24 0.04 andinflammationthatissocommoninCostochondritis.
+Humanvs.T5 Inform 0.72 0.25 0.03 RETR ApersonwithCostochondritishasafiximproperposturepreventionbecausewhat
+canIdotorelievecostochondritis? Lifestyleandhomeremedies. Nonprescrip-
+Read 0.41 0.49 0.10
+tionpainrelievers.Acetaminophen(Tylenol,others)ibuprofen(Advil,MotrinIB,
+MedAcc 0.73 0.25 0.02 others)ornaproxensodium(Aleve,others)(...)
+RETRvs.T5 Inform 0.73 0.26 0.01 T5-L ApersonwithCostochondritishasafiximproperposturepreventionbecausepoor
+Read 0.35 0.62 0.03 posturecanleadtopainandstiffness.
+Input(5) Apersonwithrheumatoidhasadietriskfactorbecause{explanation}
+Table 7: Avg. humanevalresultsonCHARDat . O1: Human Apersonwithrheumatoidhasadietriskfactorbecauseunhealthyfoodchoicescan
+test increaseinflammationfromrheumatoid
+firstmethodwins,O2:secondmethodwins,O3:indistinguish- RETR Apersonwithrheumatoidhasadietriskfactorbecausetheresultsofthisstudy
+able.Boldcorrespondstohigherfractionaloutcome.T5refers revealedthathighintakesofcarbohydrates(e.g.,potatoes)mightbeassociatedwith
+increasedRArisks.
+toT5-large.See§4.3andAppendixDforfurtherdetails. T5-L Apersonwithrheumatoidhasadietriskfactorbecausepeoplewhoeatahigh-fat
+dietareatahigherriskofdevelopingthedisease.
+BART-L Apersonwithrheumatoidhasadietriskfactorbecauseadietrichinredmeat,dairy
+Method Text products,anddairyproductscancauseinflammation
+Input(1) ApersonwithHyperhidrosishasamedicationtreatmentbecause{explanation} Input(6) Apersonwithdepressionhasalife-changingeventriskfactorbecause{explana-
+Human ApersonwithHyperhidrosishasamedicationtreatmentbecauseanticholinergics tion}
+medicinessuchasglycopyrrolate,oxybutynin,benztropine,propanthelineetcare Human Apersonwithdepressionhasalife-changingeventriskfactorbecauseapproxi-
+helpingtopreventthestimulationofsweatglandsand,thus,decreasingsweating. mately70%offirstdepressionepisodesand40%ofrecurrentepisodesofdepression
+RETR ApersonwithHyperhidrosishasamedicationtreatmentbecausethemostcom- areprecededbyaseverelifeevent
+m buo tn nm ote ld imic ia tt ei don ts o:us Ge ld ycto opm ya rn roa lg ae teex (Rce os bs ii nv ue ls ).w Oea xt yin bg uta yr ne ia nn (t Dic ih tro oli pn ae nr )g .ic Bs e, nin zc trl ou pd ii nn eg
+.
+RETR A anp de Prs so yn chw oi sth ocd ie ap lr Res iss kion Fah ca ts oa rsli ff oe r-c Rha en cug rin reg ne cv ee ·nt br yis Sk Lfac Bt uo rr cb ue sc aau ·s 2e 0p 0s 7yc ·h Co il to eg dic ba yl
+Propanthelinebromide. 1085—Thesefactorsincludeageatonsetofthefirstepisode,lifetimenumberof
+T5-L ApersonwithHyperhidrosishasamedicationtreatmentbecausemedicationssuch T5-L Apersonwithdepressionhasalife-changingeventriskfactorbecauseamajorlife
+asibuprofen,phenytoin,andphenobarbitalcanhelpreducetheamountofsweating event,suchasthedeathofalovedone,canincreasetheriskofdepression.
+inthebody.
+T5-B ApersonwithHyperhidrosishasamedicationtreatmentbecauseithelpstoreduce Table9: QualexamplesforCHARDat :human,
+theamountofbloodinthebodyandreducestheriskofabloodclot. test−unseen
+Input(2) ApersonwithAlzheimershasanengageinactivitypreventionbecause{explana- RETR,T5-large(L),BART-large(L).
+tion}
+Human ApersonwithAlzheimershasanengageinactivitypreventionbecauseengaging
+inactivitywillincreasenerveconnectionsinthebrainorreleasehormonesthatin-
+alizationcapabilitiesarelikelyfromacombination
+creasenervecellcreationandthishelpspreservenervecellsinthebrainandmental
+T5-L f Aun pc eti ro sn onwithAlzheimershasanengageinactivitypreventionbecauseactivi- ofpretrainingandCHARDat tr.
+tiessuchaswalking,jogging,swimming,andplayinggamescanhelpprevent
+Alzheimer’s Compared to humans, T5-large’s outputs are
+BART-B ApersonwithAlzheimershasanengageinactivitypreventionbecauseaperson
+withAlzheimer’sdiseaseismorelikelytodevelopdementia lacking. Humanexplanationsaretypicallylonger
+Input(3) ApersonwithProstatitishasaninfectionriskfactorbecause{explanation}
+Human ApersonwithProstatitishasaninfectionriskfactorbecausetheconditioniscaused andmoreinformative,explainingtheexactreason
+b dy ucc to ivm em syo sn tes mtr sai tn os io nf feb ca tc ate nr dia inw flh ai mch es tp hr ee pad rof sr to am teo reth sue lr tip na grt is no pf rt oh se tau tr ii tn isa .ryorrepro- (why?) aspecificdimattributerelatestothegiven
+T5-L ApersonwithProstatitishasaninfectionriskfactorbecauseinfectionsofthe
+prostate,urethra,andgenitaltractcanleadtoprostatitis. condition. Forex.2,itexplainshowactivitiescan
+Table 8: QualexamplesforCHARDat : human, help"preservenervecellsinthebrainandmental
+test−seen
+RETR,T5-large(L),T5-base(B),BART-base(B). function",whereasT5-largesimplylistsactivities.
+Thissimilarlyoccursforex.3-5. Humanexplana-
+medications are not in CHARDat , showing tions are also typically more medically accurate,
+tr
+that these were likely already known to T5-large e.g. for ex.1, the listed medications are correct.
+throughpretraining. Forex.2,itgeneratesareason- However,wedoseethatsomeofT5-large’soutputs
+ablelistofactivitiestohelppreventAlzheimer’s, (forex.1,2,4)aremorereadable. Further,T5-large
+and for ex.3, it lists correct body parts where an sometimespresentsmoreinformation,e.g. anex-
+infectioncanoccurtocauseProstatitis. Itcangen- actlistofactivitiesforex.2,aspecifictypeofdiet
+eralizewelltounseenconditions,asshownthrough ("high-fat")forex.5(humanjustsays"unhealthy"),
+ex.4-6. Itreasonsthatpoorposturecanleadtopain andanexampleofalife-changingeventforex.6.
+andstiffness,high-fatdietscanincreasethechance BART-largealsoperformsdecently. Inex.5, it
+ofrheumatoid,andthatamajorlifeevent("death lists several specific and correct types of foods
+ofalovedone")cancausedepression. Thesegener- ("red meat, dairy products"). The base models
+performmuchworse. Forex.1,T5-basetalksabout 7 RelatedWork
+medication reducing "blood clots", unrelated to
+Hyperhydrosis. Forex.2,BART-basewritesanex- ConstrainedTextGeneration: Therehavebeen
+planationcompletelyirrelevanttotheinputdim. severalworksonconstrainedtextgeneration. For
+creativetextgeneration,Gangaletal.(2022)intro-
+6 DirectionsforImprovement duce narrative reordering (NAREOR) to edit the
+temporality of narratives. Keh et al. (2022) and
+We see that our models are decent and generate
+Kehetal.(2023)explorethegenerationofperson-
+readabletext,butcanimproveonmedicalaccuracy
+ifications and tongue twisters, respectively. Don-
+and informativeness. While they are not nearly
+ahueetal.(2020)introduceandinvestigatethetask
+readyforreal-worlduse,theyshowpotential.
+of infilling. Feng et al. (2019) propose Semantic
+Asstated,thepurposeof CHARDistoassess Text Exchange to adjust topic-level text seman-
+thecapabilitiesofPLMstoactasimplicitclinical ticsusinginfilling. Rajagopaletal.(2021)investi-
+knowledge bases that can reason through several gatecross-domainreasoningusingaprompt-tuning
+dimensions. Howcanweimproveourmodels,and setup. Ourworkdistinctlyinvestigatestemplatein-
+possiblyourdatasetandtaskformulation? fillingforclinicalreasoningalongdimensions.
+Dataset and task formulation: We introduce
+Commonsense Reasoning for Models: One
+CHARDandinitiallyframethetaskusingatem-
+largecommonsenseKGisCOMET,whichtrains
+plateinfillingapproachwhichismoreconstrained.
+onKGedgestolearnconnectionsbetweenwords
+Moreflexibleformulationsmaybetterleveragethe
+andphrases. COSMIC(Ghosaletal.,2020)uses
+knowledgeandgenerationcapabilitiesofPLMs.
+COMETtoinjectcommonsenseintomodels. Com-
+Ourcurrentapproachinvolvesgeneratingexpla-
+monGen (Lin et al., 2020) assesses the common-
+nationsaboutasingleconditionanddimattribute
+sensereasoningoftextgenerationmodels. Several
+at a time. We can possibly improve CHARDat
+works investigate CommonGen, including SAP-
+byannotatingformorecomplicatedinputqueries.
+PHIRE (Feng et al., 2021b) and VisCTG (Feng
+ThisisbecauseaPLMmaybemoreeffectiveatan-
+etal.,2022),thelatterofwhichusesvisualground-
+sweringmorecomplicatedqueries,e.g. comparing
+ing. Unliketheseworks,CHARDdistinctlyinves-
+andcontrastingconditionsanddimandmulti-hop
+tigatesreasoningfortheclinical/healthdomain.
+reasoning. Itislikelyeasiertomakecomplicated
+inferencesandconnectionsovertheabstractPLM
+Reasoning for Clinical/Health Domain: Most
+embeddingspacethanoverretrievedtextpassages.
+existingworkhereinvolvesretrievalorextraction.
+Further,wecanexpandCHARDattoinclude
+MIMICause (Khetan et al., 2022) extracts causal
+moredimensionsandtopicsinthehealthdomain.
+medicalinformationfromelectronichealthrecords
+Theseimprovementsmayallowforthetrainingof
+tohelpunderstandnarrativesinclinicaltexts. Ahne
+a single system that is able to make complicated
+etal.(2022)extractacausalgraphandreasonabout
+clinicalinferencesacrossvarioustopicsanddim.
+diabetesdistressforbetterunderstandingtheopin-
+ions,feelings,andobservationsofthediabeteson-
+Model improvements: We can explore models
+linecommunityfromacausalityperspective.
+such as GPT-3 (Brown et al., 2020) and PALM
+(Chowdhery et al., 2022) for CHARD that are Forgeneration,Moramarcoetal.(2021)inves-
+largerwithstrongerpretraining. Wecanalsoinves- tigate the use of LMs to simplify medical text.
+tigateenhancingPLMswithinformationretrieval, Abahoetal.(2022)probefactualknowledgefrom
+e.g. using a retrieval approach to obtain relevant LMs to elicit answers related to treatment out-
+scientificliteratureasevidence, combinedwitha comes. CHARDhasadifferentgoal: ratherthan
+text summarization system to digest the content. simplyprobeforfactualknowledge,weassesshow
+Ourmodelcanthenconductitsclinicalreasoning LMs can act as and reason through an implicit
+onthisdigestedcontent. Userscanpotentiallytake knowledge base. Meng et al. (2022) investigate
+advantage of such a system to automatically ver- probing biomedical knowledge by introducing a
+ifythemedicalaccuracyofgeneratedexplanations, benchmark, MedLAMA, that focuses on 19 rela-
+andthenimprovethegenerationmodelitselfusing tions. CHARDinsteadfocusesonclinicalknowl-
+thisfeedbackloop(i.e. aself-improvingsystem). edgereasoningalongdifferentdimensions.
+8 ConclusionandFutureWork consistent with terms of use of any sources and
+intellectual property and privacy rights of AMT
+In conclusion, we proposed and investigated
+the task of CHARD: Clinical Health-Aware crowdworkers.
+Ourcollecteddataset, CHARDat,consistsof
+ReasoningacrossDimensions,toexplorethecapa-
+general clinical information, where explanations
+bility of text generation models to act as implicit
+areimpersonal. Wealsomanuallyexaminedalarge
+clinicalknowledgebasesandgenerateexplanations
+subsetofthedata,andensuredtherewerenoissues
+acrossseveralhealthdimensions. Wepresenteda
+dataset, CHARDat, and conducted experiments withrespecttoprivacyandotherethicalconcerns,
+e.g. offensive words, profanities, racism, gender
+withBARTandT5. Extensiveevaluationandqual-
+bias,andothermaliciouslanguage.
+itativeanalysisdemonstratedthatourmodelsare
+Weacknowledgetheweaknessesof CHARD
+decent,especiallyforgeneratingconciseandread-
+modelsandthepotentialrisksiftheyareusedfor
+abletext,butcanbeimprovedonmedicalaccuracy
+and informativeness, and that CHARD is chal- real-worldpurposes. Wewillneveruseourmodels
+orencouragetheiruseforreal-worldpurposes,at
+lengingwithmuchpotentialforfurtherexploration.
+leastintheircurrentstate,andalsoemphasizethis
+We highly encourage the research community to
+furtherinvestigateandimproveuponCHARD. inthepaper. Aswenoted,wepropose CHARD
+andconductourinitialexperimentspurelyforin-
+Futuredirectionsarediscussedin§6. Someaddi-
+vestigation purposes and to test our hypotheses.
+tionalideasincludetryingmoredataaugmentation
+Our paper presents an important contribution to
+strategiesanddecodingstrategiesfortextinfilling.
+theML,NLP,andhealthcarecommunities,andwe
+Limitations encourageresearcherstofurtherimproveuponit.
+Our task, models, dataset, and accompanying
+Wediscusssomelimitationsofourworkandpoten-
+publicationareintendedonlyforresearchpurposes
+tialdirectionsforimprovementin§6. Specifically,
+andtoassessthecapabilitiesoftextgenerators.
+ourtemplate-infillingapproachislessflexible,and
+wecanexpandtomorecomplicatedinputqueries
+to better leverage the power of PLMs in future References
+work. Further,CHARDatfocusesonthreemain
+Micheal Abaho, Danushka Bollegala, Paula
+clinicaldimensions,whichcanbeexpandedupon Williamson, and Susanna Dodd. 2022. Position-
+toincludemoredimensionsandtopicsinthefuture. basedpromptingforhealthoutcomegeneration. In
+Proceedings of the 21st Workshop on Biomedical
+Ourseq2seqmodelsarealsorelativelyweakercom-
+LanguageProcessing,pages26–36,Dublin,Ireland.
+pared to GPT-3, PALM, and recent larger PLMs,
+AssociationforComputationalLinguistics.
+whichmayperformmoreeffectivelyonCHARD.
+AdrianAhne,VivekKhetan,XavierTannier,MdImbe-
+Wearealsoinvestigatingacompletelygenerative
+sat Hassan Rizvi, Thomas Czernichow, Fran-
+approach,andcombininggenerationwithretrieval
+cisco Orchard, Charline Bour, Andrew Fano, and
+in interesting ways may be more effective. Over- Guy Fagherazzi. 2022. Extraction of explicit
+all, our current CHARD models have room to and implicit cause-effect relationships in patient-
+reporteddiabetes-relatedtweetsfrom2017to2021:
+improveonmedicalaccuracyandinformativeness,
+Deep learning approach. JMIR Med Inform,
+andarenotnearlyreadyforreal-worlduse.
+10(7):e37201.
+However,wenoteagainthatwearethefirstto
+propose CHARD, and our work is the first step PeterAnderson,BasuraFernando,MarkJohnson,and
+Stephen Gould. 2016. Spice: Semantic proposi-
+towards longer-term goals regarding clinical rea-
+tionalimagecaptionevaluation. InEuropeanconfer-
+soningusingPLMs. Weareaftermoreofthecom- enceoncomputervision,pages382–398.Springer.
+monsensemedicalreasoningfornow,ratherthan
+AntoineBosselut,HannahRashkin,MaartenSap,Chai-
+very deep medical knowledge. In this paper, we
+tanya Malaviya, Asli Celikyilmaz, and Yejin Choi.
+seehowfaronecangetwithastandardtaskformu- 2019. COMET:Commonsensetransformersforau-
+lation, NLPmethods, seq2seqmodels, andAMT tomaticknowledgegraphconstruction. InProceed-
+ings of the 57th Annual Meeting of the Association
+annotations. Astheysay,"walkbeforeyourun"!
+for Computational Linguistics, pages 4762–4779,
+Florence, Italy. Association for Computational Lin-
+Ethics
+guistics.
+We collected CHARDat and conducted our hu-
+James T. Brophy, Margaret M. Keith, Michael Hurley,
+man evaluation studies using AMT, in a manner and Jane E. McArthur. 2021. Sacrificed: Ontario
+healthcare workers in the time of covid-19. NEW for Computational Linguistics: Human Language
+SOLUTIONS: A Journal of Environmental and Oc- Technologies, Volume 1 (Long and Short Papers),
+cupational Health Policy, 30(4):267–281. PMID: pages4171–4186,Minneapolis,Minnesota.Associ-
+33174768. ationforComputationalLinguistics.
+TomB.Brown,BenjaminMann,NickRyder,Melanie ChrisDonahue,MinaLee,andPercyLiang.2020. En-
+Subbiah, Jared Kaplan, Prafulla Dhariwal, Arvind ablinglanguagemodelstofillintheblanks. InPro-
+Neelakantan,PranavShyam,GirishSastry,Amanda ceedings of the 58th Annual Meeting of the Asso-
+Askell, Sandhini Agarwal, Ariel Herbert-Voss, ciation for Computational Linguistics, pages 2492–
+Gretchen Krueger, Tom Henighan, Rewon Child, 2501, Online. Association for Computational Lin-
+Aditya Ramesh, Daniel M. Ziegler, Jeffrey Wu, guistics.
+Clemens Winter, Christopher Hesse, Mark Chen,
+Steven Y. Feng, Varun Gangal, Dongyeop Kang,
+Eric Sigler, Mateusz Litwin, Scott Gray, Benjamin
+TerukoMitamura,andEduardHovy.2020. GenAug:
+Chess, Jack Clark, Christopher Berner, Sam Mc-
+Dataaugmentationforfinetuningtextgenerators. In
+Candlish, Alec Radford, Ilya Sutskever, and Dario
+ProceedingsofDeepLearningInsideOut(DeeLIO):
+Amodei.2020. Languagemodelsarefew-shotlearn-
+The First Workshop on Knowledge Extraction and
+ers.
+Integration for Deep Learning Architectures, pages
+Mayilee Canizares, Monique Gignac, Sheilah Hogg- 29–42, Online. Association for Computational Lin-
+Johnson, Richard Glazier, and Badley Elizabeth. guistics.
+2016. Do baby boomers use more healthcare ser-
+StevenY.Feng,VarunGangal,JasonWei,SarathChan-
+vices than other generations? longitudinal trajecto-
+dar, Soroush Vosoughi, Teruko Mitamura, and Ed-
+riesofphysicianserviceuseacrossfivebirthcohorts.
+uard Hovy. 2021a. A survey of data augmentation
+BMJOpen,6.
+approachesforNLP. InFindingsoftheAssociation
+Aakanksha Chowdhery, Sharan Narang, Jacob Devlin, for Computational Linguistics: ACL-IJCNLP 2021,
+Maarten Bosma, Gaurav Mishra, Adam Roberts, pages 968–988, Online. Association for Computa-
+Paul Barham, Hyung Won Chung, Charles Sutton, tionalLinguistics.
+Sebastian Gehrmann, Parker Schuh, Kensen Shi,
+Steven Y. Feng, Jessica Huynh, Chaitanya Prasad
+Sasha Tsvyashchenko, Joshua Maynez, Abhishek
+Narisetty, Eduard Hovy, and Varun Gangal. 2021b.
+Rao, Parker Barnes, Yi Tay, Noam Shazeer, Vin-
+SAPPHIRE: Approaches for enhanced concept-to-
+odkumar Prabhakaran, Emily Reif, Nan Du, Ben
+textgeneration. InProceedingsofthe14thInterna-
+Hutchinson, Reiner Pope, James Bradbury, Jacob
+tionalConferenceonNaturalLanguageGeneration,
+Austin, Michael Isard, Guy Gur-Ari, Pengcheng
+pages 212–225, Aberdeen, Scotland, UK. Associa-
+Yin, Toju Duke, Anselm Levskaya, Sanjay Ghe-
+tionforComputationalLinguistics.
+mawat, Sunipa Dev, Henryk Michalewski, Xavier
+Garcia, Vedant Misra, Kevin Robinson, Liam Fe-
+Steven Y. Feng, Aaron W. Li, and Jesse Hoey. 2019.
+dus, Denny Zhou, Daphne Ippolito, David Luan,
+Keepcalmandswitchon! preservingsentimentand
+HyeontaekLim,BarretZoph,AlexanderSpiridonov,
+fluency in semantic text exchange. In Proceedings
+RyanSepassi,DavidDohan,ShivaniAgrawal,Mark
+of the 2019 Conference on Empirical Methods in
+Omernick,AndrewM.Dai,ThanumalayanSankara-
+Natural Language Processing and the 9th Interna-
+narayana Pillai, Marie Pellat, Aitor Lewkowycz,
+tional Joint Conference on Natural Language Pro-
+Erica Moreira, Rewon Child, Oleksandr Polozov,
+cessing(EMNLP-IJCNLP),pages2701–2711,Hong
+KatherineLee,ZongweiZhou,XuezhiWang,Bren-
+Kong, China. Association for Computational Lin-
+nanSaeta,MarkDiaz,OrhanFirat,MicheleCatasta,
+guistics.
+Jason Wei, Kathy Meier-Hellstern, Douglas Eck,
+Jeff Dean, Slav Petrov, and Noah Fiedel. 2022. Steven Y. Feng, Kevin Lu, Zhuofu Tao, Malihe
+Palm: Scalinglanguagemodelingwithpathways. Alikhani, Teruko Mitamura, Eduard Hovy, and
+Varun Gangal. 2022. Retrieve, caption, generate:
+SébastienCouarraze,LouisDelamarre,FouadMarhar,
+Visual grounding for enhancing commonsense in
+Binh Quach, Jiao Jiao, Raimundo Avilés Dorl-
+text generation models. Proceedings of the AAAI
+hiac, Foued Saadaoui, Andy Su-I Liu, Benoït
+ConferenceonArtificialIntelligence,36(10):10618–
+Dubuis, Samuel Antunes, Nicolas Andant, Bruno
+10626.
+Pereira, Ukadike C. Ugbolue, Julien S. Baker,
+The COVISTRESS network, Maëlys Clinchamps, Varun Gangal, Steven Y. Feng, Malihe Alikhani,
+and Frédéric Dutheil. 2021. The major worldwide TerukoMitamura,andEduardHovy.2022. Nareor:
+stress of healthcare professionals during the first The narrative reordering problem. Proceedings
+wave of the covid-19 pandemic – the international of the AAAI Conference on Artificial Intelligence,
+covistresssurvey. PLOSONE,16(10):1–16. 36(10):10645–10653.
+Jacob Devlin, Ming-Wei Chang, Kenton Lee, and Deepanway Ghosal, Navonil Majumder, Alexander
+Kristina Toutanova. 2019. BERT: Pre-training of Gelbukh,RadaMihalcea,andSoujanyaPoria.2020.
+deep bidirectional transformers for language under- Cosmic: Commonsense knowledge for emotion
+standing. In Proceedings of the 2019 Conference identification in conversations. arXiv preprint
+of the North American Chapter of the Association arXiv:2010.02795.
+Zhengbao Jiang, Jun Araki, Haibo Ding, and Graham biomedicalknowledgeofpre-trainedlanguagemod-
+Neubig. 2021. How can we know when language els. In Proceedings of the 60th Annual Meeting of
+models know? on the calibration of language mod- the Association for Computational Linguistics (Vol-
+elsforquestionanswering. TransactionsoftheAsso- ume1:LongPapers),pages4798–4810,Dublin,Ire-
+ciationforComputationalLinguistics,9:962–977. land.AssociationforComputationalLinguistics.
+SedrickScottKeh,StevenY.Feng,VarunGangal,Mal- Francesco Moramarco, Damir Juric, Aleksandar
+ihe Alikhani, and Eduard Hovy. 2023. Pancetta: Savkov, Jack Flann, Maria Lehl, Kristian Boda,
+Phoneme aware neural completion to elicit tongue Tessa Grafen, Vitalii Zhelezniak, Sunir Gohil,
+twisters automatically. In Proceedings of the 17th Alex Papadopoulos Korfiatis, and Nils Hammerla.
+ConferenceoftheEuropeanChapteroftheAssocia- 2021. Towards more patient friendly clinical notes
+tionforComputationalLinguistics(EACL2023). throughlanguagemodelsandontologies.
+SedrickScottKeh,KevinLu,VarunGangal,StevenY. Igor Portoghese, Maura Galletta, Ross Coppola,
+Feng,HarshJhamtani,MaliheAlikhani,andEduard Gabriele Finco, and Marcello Campagna. 2014.
+Hovy.2022. PINEAPPLE:PersonifyingINanimate Burnout and workload among health care workers:
+entities by acquiring parallel personification data The moderating role of job control. Safety and
+for learning enhanced generation. In Proceedings HealthatWork,5:152–157.
+of the 29th International Conference on Computa-
+tionalLinguistics,pages6270–6284,Gyeongju,Re- Alec Radford, Jeff Wu, Rewon Child, David Luan,
+public of Korea. International Committee on Com- DarioAmodei,andIlyaSutskever.2019. Language
+putationalLinguistics. modelsareunsupervisedmultitasklearners.
+VivekKhetan,MdImbesatRizvi,JessicaHuber,Paige
+Colin Raffel, Noam Shazeer, Adam Roberts, Kather-
+Bartusiak, Bogdan Sacaleanu, and Andrew Fano.
+ine Lee, Sharan Narang, Michael Matena, Yanqi
+2022. MIMICause: Representation and automatic
+Zhou, Wei Li, and Peter J. Liu. 2020. Exploring
+extraction of causal relation types from clinical
+thelimitsoftransferlearningwithaunifiedtext-to-
+notes. In Findings of the Association for Com-
+text transformer. Journal of Machine Learning Re-
+putational Linguistics: ACL 2022, pages 764–773,
+search,21(140):1–67.
+Dublin,Ireland.AssociationforComputationalLin-
+guistics.
+Dheeraj Rajagopal, Vivek Khetan, Bogdan Sacaleanu,
+AnatoleGershman,AndrewFano,andEduardHovy.
+Mike Lewis, Yinhan Liu, Naman Goyal, Mar-
+2021. Cross-domainreasoningviatemplatefilling.
+jan Ghazvininejad, Abdelrahman Mohamed, Omer
+Levy, Veselin Stoyanov, and Luke Zettlemoyer.
+Rico Sennrich, Barry Haddow, and Alexandra Birch.
+2020. BART:Denoisingsequence-to-sequencepre-
+2016. Improving neural machine translation mod-
+trainingfornaturallanguagegeneration,translation,
+els with monolingual data. In Proceedings of the
+andcomprehension. InProceedingsofthe58thAn-
+54thAnnualMeetingoftheAssociationforCompu-
+nual Meeting of the Association for Computational
+tationalLinguistics(Volume1: LongPapers),pages
+Linguistics, pages 7871–7880, Online. Association
+86–96, Berlin, Germany. Association for Computa-
+forComputationalLinguistics.
+tionalLinguistics.
+BillYuchenLin, WangchunshuZhou, MingShen, Pei
+Alon Talmor, Yanai Elazar, Yoav Goldberg, and
+Zhou,ChandraBhagavatula,YejinChoi,andXiang
+JonathanBerant.2020. oLMpics-onwhatlanguage
+Ren. 2020. CommonGen: A constrained text gen-
+modelpre-trainingcaptures. TransactionsoftheAs-
+eration challenge for generative commonsense rea-
+sociationforComputationalLinguistics,8:743–758.
+soning. InFindingsoftheAssociationforComputa-
+tionalLinguistics: EMNLP2020,pages1823–1840,
+RamakrishnaVedantam,CLawrenceZitnick,andDevi
+Online.AssociationforComputationalLinguistics.
+Parikh. 2015. Cider: Consensus-based image de-
+Chin-Yew Lin and Eduard Hovy. 2003. Auto- scription evaluation. In Proceedings of the IEEE
+conferenceoncomputervisionandpatternrecogni-
+matic evaluation of summaries using n-gram co-
+occurrencestatistics. InProceedingsofthe2003Hu- tion,pages4566–4575.
+manLanguageTechnologyConferenceoftheNorth
+American Chapter of the Association for Computa- Jason Wei, Yi Tay, Rishi Bommasani, Colin Raf-
+tionalLinguistics,pages150–157. fel, Barret Zoph, Sebastian Borgeaud, Dani Yo-
+gatama,MaartenBosma,DennyZhou,DonaldMet-
+PengfeiLiu,WeizheYuan,JinlanFu,ZhengbaoJiang, zler,EdH.Chi,TatsunoriHashimoto,OriolVinyals,
+Hiroaki Hayashi, and Graham Neubig. 2021. Pre- Percy Liang, Jeff Dean, and William Fedus. 2022a.
+train, prompt, and predict: A systematic survey of Emergentabilitiesoflargelanguagemodels.
+promptingmethodsinnaturallanguageprocessing.
+Jason Wei, Xuezhi Wang, Dale Schuurmans, Maarten
+Zaiqiao Meng, Fangyu Liu, Ehsan Shareghi, Yix- Bosma,BrianIchter,FeiXia,EdChi,QuocLe,and
+uan Su, Charlotte Collins, and Nigel Collier. 2022. Denny Zhou. 2022b. Chain of thought prompting
+Rewire-then-probe:Acontrastiverecipeforprobing elicitsreasoninginlargelanguagemodels.
+Qizhe Xie, Zihang Dai, Eduard Hovy, Thang Luong,
+and Quoc Le. 2020. Unsupervised data augmenta-
+tion for consistency training. Advances in Neural
+InformationProcessingSystems,33.
+Tianyi Zhang, Varsha Kishore, Felix Wu, Kilian Q
+Weinberger,andYoavArtzi.2019. Bertscore: Eval-
+uating text generation with bert. arXiv preprint
+arXiv:1904.09675.
+A FullListofHealthConditions search with a beam size of 5, decoder early stop-
+ping, a decoder length penalty of 0.6, and a de-
+See Table 10 for a list of all health conditions in
+coderminimumlengthof1. Wesetthemaximum
+CHARDat.
+encoderanddecoderlengthsdependingonvalues
+that can fit all examples in CHARDat , which
+B CHARDatAnnotationDetails tr
+ended up being 32 and 128 (for encoder and de-
+Humanannotationfor CHARDatwasdonevia coder,respectively)fortheBARTmodels,and35
+paidcrowdworkersonAMT,whowerefromAn- and 128 for the T5 models. Models are trained
+glophonecountries. Theywereselectedthrougha usingfp16,andAdamoptimizerwithepsilon=1e-
+seriesofqualificationtestsonasmallsubsetofthe 08. We use a training seed of 42 for all models,
+samples,andhaveahistoryofhighapprovalrates and a random seed of 42 for all other scripts that
+(> 95%) and good performance on related tasks. involved randomization. Decoding is done using
+Based on initial annotations and performance on beamsearchwithabeamwidthof5.
+thequalificationtests,workerswereonlyre-hired Formodeltraining,weuseabatchsizeofeither
+if their performance was sufficient over time and 64or32forT5-baseandBART-base,andeither8
+theyreliablyfollowedthegiveninstructions. The or16forBARTandT5-large(dependingonGPU
+annotatorswerepaidvariableamounts(withperi- memory). ForT5-baseandBART-base,weuse400
+odicbonusesovertime)dependingontheirperfor- warmupsteps,500forBART-large,and1200for
+manceandconsistency,andthepayforallworkers T5-large. We train all models up to a reasonable
+exceedstheminimumwagefortheUSA. number of epochs (e.g. 20 to 30 for base models
+Theworkerswereaskedtowritepassages(that and10to15forlargemodels). Thelearningrates
+includeexplanations)thatareasspecificandfactu- for CHARDmodelsweredeterminedbytryinga
+allyaccurateaspossible,describinghowaspecific rangeofvalues(e.g. from1e-8to5e-1),andfinding
+dimensionattributerelatestothegivencondition. oneswhichledtogoodconvergencebehavior. For
+EachHIT(annotationpage)containsasinglecon- thebest-performingmodels, learningratesareas
+dition+dimensionattributecombination,andthey follows: BART-base=5e-06,BART-large=1e-05,
+writeasinglepassagethatfillsinthegiventemplate T5-base=1e-03,T5-large=1e-05.
+with an explanation. In the instructions, we de- Training was done using single GTX 1080 Ti,
+scribeeachdimensionindetail,andincludeseveral TITAN RTX, RTX 2080 Ti, and GTX TITAN X
+examplesofcorrectandincorrectpassages(regard- GPUs. Model training time varied depending on
+ing medical/factual accuracy, brevity/readability, themodeltype+sizeandamountofdataaugmenta-
+andinformativeness). Wealsoencouragethemto tion,andvariedbetween5minutesto3hours.
+consultusefulandtrustedclinicalresourcessuch
+asMayoClinic,CDC,WebMD,andHealthline,if D FurtherHumanEvaluationDetails
+necessary,whilewritingtheexplanation.
+Humanevaluationwasdoneviapaidcrowdwork-
+Annotationsweremanuallyexaminedbytheau-
+ersonAMT,whowerefromAnglophonecountries.
+thorsastheycamein,andannotatorswereasked
+Theywereselectedthroughqualificationtestsand
+toimprovetheirexplanationsifnecessary. Annota-
+haveahistoryofhighapprovalrates(> 95%)and
+torswithconsistentlypoorannotationswereasked
+good performance on related tasks. Each exam-
+tostopannotating,andtheircompletedannotations
+plewasevaluatedby2annotators. Thetimegiven
+werere-annotatedbyothers. Attheendofthedata
+for each AMT task instance or HIT was 1 hour
+collectionprocess,theauthorsmanuallyexamined
+maximumforanapproximately1-minutetask. Suf-
+alargesubsetof CHARDat,ensuringsufficiently
+ficient time to read instructions, as calibrated by
+highqualityofannotationsintermsofmedicalac-
+authors,wasalsoconsidered. Annotatorswerepaid
+curacy,informativeness,andreadability.
+20 cents per HIT. This rate ($12/hr) exceeds the
+minimumwagefortheUSA($7.25/hr)andconsti-
+C FurtherModelFinetuningand
+tutesfairpay. Workerswhoperformedwellwere
+GenerationDetails
+alsopaidperiodicbonusesbasedonthetimeliness
+T5-largeconsistsof770Mparams,T5-base220M andqualityoftheirannotations.
+params, BART-large 406M params, and BART- Thehumanevaluationwassplitinto9studies: 3
+base139Mparams. Forallmodels,weusebeam pairwisemethodcomparisons(RETR vs. T5-large,
+Dysthymia cfs ibs Narcolepsy bulimia
+Hypothyroidism Costochondritis psychosis CysticFibrosis POTS
+MultipleSclerosis Gastroparesis gout adhd diabetes
+CrohnsDisease lupus rheumatoid Sinusitis thyroidcancer
+Hyperhidrosis gerd AnkylosingSpondylitis endometriosis schizophrenia
+asthma bipolar depression pcos covid19
+acne anxiety dementia ptsd dystonia
+Epilepsy ErectileDysfunction Herpes insomnia Anemia
+LymeDisease migraine ocd parkinsons Alzheimers
+hpv Prostatitis backpain Sciatica Fibromyalgia
+bpd PagetSchroetter
+Table10: Alistofall52healthconditionsusedin CHARDat.
+RETRvs. human,andhumanvs. T5-large)by3di-
+mensions(riskfactors,treatment,andprevention).
+Each HIT or task page presented a given condi-
+tion, the associated dimension attribute, and two
+explanations(fromthetwomethodsofthestudy)
+inarandomorder. Theyareaskedtoselectamong
+thethreechoices(firstexplanationisbetter,second
+explanation is better, hard to prefer one over the
+other)forthethreeevaluationaspectsofmedical
+accuracy,informativeness,andreadability. Inthe
+instructions,wedescribetheclinicaldimensionand
+eachevaluationaspectindetailwithpositiveand
+negativeexamplesofeach,andencouragedthem
+toconsultusefulandtrustedclinicalresourcessuch
+asMayoClinic,CDC,WebMD,andHealthline,if
+necessary,whileevaluatingtheexplanations.
+E FurtherQualitativeExamples
+SeeTables11and12formorequalitativeexamples
+on CHARDat .
+test
+Method Text
+Input ApersonwithHyperhidrosishasa/aninfectionriskfactorbecause/since/as{explanation}
+Human ApersonwithHyperhidrosishasaninfectionriskfactorbecausesomekindsofinfectionsliketuberculosis,HIV,
+boneinfectioncausehyperhidrosis
+RETR ApersonwithHyperhidrosishasa/aninfectionriskfactorbecause/since/asthisincreasestheriskofskinconditions
+suchasathlete’sfootandmoresevereconditionssuchasbacterialinfectionsorpittedkeratolysis.Studyresults
+reportanearly30%greaterriskofskininfectionsinpatientswithhyperhidrosiscomparedwithhealthycontrols.
+T5-L ApersonwithHyperhidrosishasaninfectionriskfactorbecauseinfectionssuchasstaph,typhoid,hepatitisand
+poliocancauseexcessivesweating.
+T5-B ApersonwithHyperhidrosishasaninfectionriskfactorbecauseapersonwhohasaviralinfectionismorelikely
+tohaveavirusinfection.
+BART-L ApersonwithHyperhidrosishasaninfectionriskfactorbecauseinfectioncancausehyperhidrosis
+BART-B ApersonwithHyperhidrosishasaninfectionriskfactorbecauseapersonwithhyperhidrosisismorelikelytohave
+aninfection.
+Input ApersonwithAnkylosingSpondylitishasa/anageriskfactorbecause/since/as{explanation}
+Human ApersonwithAnkylosingSpondylitishasanageriskfactorbecauseabout80percentofpeoplefirstdevelop
+ankylosingspondylitissymptomsunderage30
+RETR ApersonwithAnkylosingSpondylitishasa/anageriskfactorbecause/since/asabout80percentofpeoplefirst
+developankylosingspondylitissymptomsunderage30
+T5-L ApersonwithAnkylosingSpondylitishasanageriskfactorbecausepeopleover50yearsofageareatahigherrisk
+ofdevelopingthedisease
+T5-B A person with AnkylosingSpondylitis has an age risk factor because older adults are more likely to develop
+ankylosis.
+BART-L ApersonwithAnkylosingSpondylitishasanageriskfactorbecausetheriskofdevelopingankylosisincreaseswith
+age
+BART-B ApersonwithAnkylosingSpondylitishasanageriskfactorbecauseolderpeoplearemorelikelytodevelopthe
+disease
+Input Apersonwithrheumatoidhasa/anregularexercisetreatmentbecause/since/as{explanation}
+Human Apersonwithrheumatoidhasa/anregularexercisetreatmentbecauseithelpsreducethedisabilityoftenassociated
+withrheumatoidarthritisandboostsstrengthandflexibility
+RETR Apersonwithrheumatoidhasa/anregularexercisetreatmentbecause/since/asbutexerciseisoneofthekey
+treatmentstohelpreducethedisabilityoftenassociatedwithrheumatoidarthritis. Regularexercisecanboost
+strengthandflexibilityinpeoplewhohaverheumatoidarthritis.Strongermusclescanbettersupportyourjoints,
+whileimprovedflexibilitycanaidjointfunction.
+T5-L Apersonwithrheumatoidhasaregularexercisetreatmentbecauseexercisecanhelpreduceinflammationand
+improvebloodflowtothejoints.
+T5-B Apersonwithrheumatoidhasaregularexercisetreatmentbecauseregularexercisecanhelpreducethesymptoms
+ofthedisease.
+BART-L Apersonwithrheumatoidhasaregularexercisetreatmentbecauseexercisecanhelpreduceinflammationandpain
+BART-B Apersonwithrheumatoidhasaregularexercisetreatmentbecauseregularexercisecanhelpreduceinflammation
+andinflammationinthebody.
+Table11: MorequalexamplesforCHARDat test:human,RETR,T5-large(L),T5-base(B),BART-large(L),BART-base(B)
+Method Text
+Input Apersonwiththyroidcancerhasa/anchemotherapytreatmentbecause/since/as{explanation}
+Human ApersonwiththyroidcancerhasachemotherapytreatmentbecauseChemotherapy(chemo)usesanti-cancerdrugs
+thatareinjectedintoaveinoraretakenbymouth.Chemotherapyissystemictherapy,whichmeansthatthedrug
+entersthebloodstreamandtravelsthroughoutthebodytoreachanddestroycancercellsandstopscancergrowth.
+RETR Apersonwiththyroidcancerhasa/anchemotherapytreatmentbecause/since/aschemotherapyisseldomhelpfulfor
+mosttypesofthyroidcancer,butfortunatelyitisnotneededinmostcases.Itisoftencombinedwithexternalbeam
+radiationtherapyforanaplasticthyroidcancerandissometimesusedforotheradvancedcancersthatnolonger
+respondtoothertreatments.
+T5-L Apersonwiththyroidcancerhasachemotherapytreatmentbecausechemotherapydestroysthecellsthatcausethe
+cancer.
+T5-B Apersonwiththyroidcancerhasachemotherapytreatmentbecausechemotherapyreducestheriskofthyroid
+cancer.
+BART-L Apersonwiththyroidcancerhasachemotherapytreatmentbecausechemotherapycanslowdownthegrowthof
+thyroidcancer
+BART-B Apersonwiththyroidcancerhasachemotherapytreatmentbecausechemotherapycanhelpreducetheriskof
+thyroidcancer
+Input Apersonwithdepressionhasa/anmedicalconditionsriskfactorbecause/since/as{explanation}
+Human Apersonwithdepressionhasamedicalconditionsriskfactorbecausethepainandstressthatcomewithcertain
+conditions, including cancer, stroke, or heart disease, can take a toll on a person’s mental state resulting in
+depression.
+RETR Apersonwithdepressionhasa/anmedicalconditionsriskfactorbecause/since/asmorecommonlystudiedwere
+theconnectionsbetweendepressionandcardiovasculardisease,metabolicsyndrome,biochemicalalterations,
+diabetes,dementia,cognitiveimpairment,Alzheimer’sdisease,somatizationandchronicpain,asthma,arthritis,
+andhyperlipidemia.
+T5-L Apersonwithdepressionhasamedicalconditionsriskfactorbecausedepressioncanbecausedbyanumberof
+medicalconditions,suchasdiabetes,heartdisease,highbloodpressure,highcholesterolandhighbloodsugar.
+T5-B Apersonwithdepressionhasamedicalconditionsriskfactorbecausemedicalconditionssuchasdiabetes,heart
+disease,diabetes,AIDS,andotherconditionsthatcausedepression,suchascancer,arelinkedtodepression.
+BART-L Apersonwithdepressionhasamedicalconditionsriskfactorbecausedepressioncanbecausedbyavarietyof
+medicalconditions.
+BART-B Apersonwithdepressionhasamedicalconditionsriskfactorbecausedepressioncanbeacauseofdepression.
+Input Apersonwithdepressionhasa/angriefriskfactorbecause/since/as{explanation}
+Human Apersonwithdepressionhasagriefriskfactorbecausegriefassociatedwithlossofdearonegreatlyincreasesthe
+riskofpsychiatriccomplicationssuchasdepression
+RETR Apersonwithdepressionhasa/angriefriskfactorbecause/since/asriskFactors·Genetics:Ahistoryofdepression
+inyourfamilymaymakeitmorelikelyforyoutogetit.·Deathorloss:Sadnessandgriefare...
+T5-L Apersonwithdepressionhasagriefriskfactorbecausepeoplewhohaveexperiencedalossofalovedoneare
+morelikelytodevelopdepression.
+T5-B Apersonwithdepressionhasagriefriskfactorbecausegriefisthemostcommoncauseofdepression.
+BART-L Apersonwithdepressionhasagriefriskfactorbecausegriefcancausedepression
+BART-B Apersonwithdepressionhasagriefriskfactorbecausegriefisassociatedwithdepression.
+Table12: MorequalexamplesforCHARDat test:human,RETR,T5-large(L),T5-base(B),BART-large(L),BART-base(B)

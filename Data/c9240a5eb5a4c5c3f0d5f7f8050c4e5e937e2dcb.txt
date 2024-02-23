@@ -1,0 +1,940 @@
+HOLM: Hallucinating Objects with Language Models for Referring
+Expression Recognition in Partially-Observed Scenes
+VolkanCirik1 Louis-PhilippeMorency1 TaylorBerg-Kirkpatrick2
+1CarnegieMellonUniversity 2UniversityofCaliforniaSanDiego
+{vcirik,morency}@cs.cmu.edu {tberg}@eng.ucsd.edu
+Abstract
+AI systems embodied in the physical world ↗
+face a fundamental challenge of partial ob-
+servability;operatingwithonlyalimitedview
+and knowledge of the environment. This cre-
+ateschallengeswhenAIsystemstrytoreason
+about language and its relationship with the
+environment: objects referred to through lan- ↗ ↗
+guage(e.g. givingmanyinstructions)are not
+immediatelyvisible. ActionsbytheAIsystem
+mayberequiredtobringtheseobjectsinview.
+A good benchmark to study this challenge
+isDynamicReferringExpressionRecognition ↗
+(dRER) task where the goal is to find a tar-
+Figure1:Illustrationofourmaincontribution:Halluci-
+getlocationbydynamicallyadjustingthefield
+of view (FoV) in a partially observed 360◦ natingObjects. Knowledgeaboutobjectrelationships
+ishelpfulwhennavigatinginanunknownandpartially
+scenes. In this paper, we introduce HOLM,
+observed environment. In the example above, the TV
+HallucinatingObjectswithLanguageModels,
+isnotvisible,butthecouchhintsthataTVmightbein
+to address the challenge of partial observabil-
+frontofitbecauseusuallycouchesfaceTVs.
+ity. HOLM uses large pre-trained language
+models(LMs)toinferobjecthallucinationsfor
+the unobserved part of the environment. Our to specific contexts (Torralba et al., 2006). Gen-
+core intuition is that if a pair of objects co- eral knowledge about kitchens can help to know
+appear in an environment frequently, our us- approximately where to look for pans or utensils
+age of language should reflect this fact about
+inakitchenthathasneverbeenseenbefore. How
+theworld. Basedonthisintuition,weprompt
+canan AIsystem buildgeneral knowledge about
+language models to extract knowledge about
+objectsandtheirenvironmenttohelpwithasimilar
+object affinities which gives us a proxy for
+task? Evenmoreinterestingly,canwegatherthis
+spatial relationships of objects. Our experi-
+ments show that HOLM performs better than informationfromlanguage,usingreadilyavailable
+thestate-of-the-artapproachesontwodatasets resources such as language models trained on a
+fordRER;allowingtostudygeneralizationfor largecollectionofunlabeledtext?
+bothindoorandoutdoorsettings.
+In this paper, we introduce a method called
+HOLM, Hallucinating Objects with Language
+1 Introduction
+Models,forreasoningabouttheunobservedparts
+One of the fundamental challenges in building of the environment. Inspired by the recent suc-
+AI systems physically present in the world is ad- cessesoflargepre-trainedlanguagemodels(LM)
+dressingtheissueofpartialobservability,thephe- extractingknowledgeabouttherealworld,wepro-
+nomenonwheretheentirestateoftheenvironment pose a methodology based on spatial prompts to
+is not known or available to the system. People extract knowledge from language models about
+copewithpartialobservabilitybyreasoningabout object. HOLM extracts spatial knowledge about
+what is not immediately visible (see example in objectsintheformofaffinityscores,i.e.,howoften
+Figure 1). People combine their general knowl- apairofobjectsareobservedtogether. Thisknowl-
+edge about the world and adapt their knowledge edgeofobjectsarecombinedwithobservedspatial
+5440
+Proceedingsofthe60thAnnualMeetingoftheAssociationforComputationalLinguistics
+Volume1:LongPapers,pages5440-5453
+May22-27,2022(cid:13)c2022AssociationforComputationalLinguistics
+Figure2: IllustrationofthedRERtaskwithanexampleoflanguageinstructionanditsrecognitioninfour
+steps.
+TheagentadjustsitsFoVbylookingatdifferentdirectionsandnavigateonthegraphinthesphericalview. Note
+that objects mentioned in bold in the instruction are not visible at all until timestep 4. Thus, the agent needs to
+reasonaboutpossiblelocationsofthementionedobjectusingitspartialviewofthescene.
+layouttohallucinatewhatmightappearintheun- ofthesceneisvisibleinafieldofview. However,
+observedpartofthescene. WeevaluateourHOLM thesystemcanadjustthefieldofviewtofindthe
+approachonDynamicReferringExpressionRecog- describedpointinthescene. InFigure2,weillus-
+nition(dRER)taskwherethegoalistofindatarget tratethedRERtaskandmotivateourmethod. On
+locationbydynamicallyadjustingthefieldofview top, natural language instruction is given. In the
+(FoV)inpartiallyobserved360◦ scenes. Weexam- middle,thesphericalviewofthesceneisillustrated
+inehowHOLMcompareswiththestate-of-the-art – the agent explores only some portion of a 360◦
+approaches on two publicly available datasets to scene. FoVs on the sphere represented as square
+study generalization for both indoor and outdoor nodesformagraph. Bynavigatingtoaneighbor-
+settings. ingnode,theagentadjustsitsFoVandobservesa
+differentviewofthescene. Notethatobjectsmen-
+2 DynamicReferringExpression
+tionedintheinstruction“oven”and“rangehood”
+Recognition(dRER)Task
+arenotvisibleuntilthefourthtimestep. However,
+we can reason about where to look using visible
+dRERtaskisdesignedtolocalizeatargetlocation objectssuchastheairventorthefridge. Thus,to
+inadynamicallyobserved360◦scenegivennatural performwellonthistask,itisessentialtoreason
+languageinstruction. Unlikeconventionalreferring aboutwhereobjectsmightappear.
+expression recognition, which refers to an object ThedRERtaskcanbeformulatedasaMarkov
+inastaticvisualinput,indRER,onlyasmallpart Decision Process (MDP) (Howard, 1960) M =
+5441
+Figure 3: HOLM for the dRER task. (Top) We use language models trained on a large amount of text by
+prompting with the spatial relationship of objects to calculate co-occurrence statistics of objects. (Bottom) The
+flowofourhallucinationmethod. Wedetermineobjectsofinterestforeachaction. Then,wecombineobjectsof
+interestandco-occurrencetabletohallucinateobjects,i.e. whatmightappearafterperforminganaction.
+(cid:104)S,A,P ,r(cid:105)whereS isthevisualstatespace, A lihoodestimation(MLE):
+s
+is the discrete action space 1, P is the unknown
+s
+maxL (X,T),where
+environment probability distribution from which θ
+θ
+the next state is drawn, and r ∈ R is the reward
+L (X,T) = logπ (T|X)
+θ θ
+function. Foratimestept,theagentobservesan (1)
+M
+images ∈ S,andperformsandactiona ∈ A. As 1 (cid:88)
+t t L (X,T) = logπ (τk|xk)
+θ θ
+a result of this action, the environment generates M
+k=1
+a new observation s ∼ P (· | s ,a ) as the
+t+1 s t t
+nextstate. Thisinteractioncontinuessequentially 3 HOLM
+andendswhentheagentperformsaspecialSTOP
+IndRER,thesystemobservesthecurrentFoVand
+actionorapre-definedmaximumepisodelengthis
+does not see the resulting FoV before taking any
+reached. Theresolutionprocessissuccessfulifthe
+actions. Thus,itisessentialtoreasonwhatmight
+agentendstheepisodeatthetargetlocation.
+appear in a future observation using what is cur-
+rentlyvisibletothesystem. Ourcoreintuitionis
+In dRER, instructions are represented as N se- that objects visible in the current FoV and their
+quence of sentences represented as x = {x i}N i=1. locations in the FoV give us a clue about what
+Eachinstructionsentencex i consistsofasequence mightappearifaparticularactionistaken. Here,
+ofL i words,x i = [x i,1,x i,2,...,x i,Li,]. Thetrain- weproposeanapproachforreasoningaboutfuture
+ing datasetD E = {X,T} consistsof M pairs of observationsusingwhatisvisibleandsomeback-
+theinstructionsequencex ∈ X anditscorrespond- ground knowledge of objects. Let us go through
+ing expert trajectory τ ∈ T. The agent learns to the illustration in Figure 3 to explain our HOLM
+navigatebylearningapolicyπ viamaximumlike- method. Inthetoppanel,wefeedspatialprompts
+to pre-trained language models to extract knowl-
+edgeaboutobjectsintheformofaffinityscores. In
+the bottom panel, we see the input of the system
+where there are natural language instructions, an
+FoVofthescene,anddetectedobjects. Next,we
+calculatewhichobjectsarerelevanttoeachaction.
+1Forcomputationalefficiency,wepickeddiscreteaction
+space.Itcouldbecontinuousaswell. Forinstance,couchdetectionsareontherightside;
+5442
+thus,theyarerelevanttotherightaction. Similarly, after performing an action a. We calculate p as
+a
+thefridgeisrelevantfortheleftactionbecauseit follows:
+isontheleftside. Thenonthethirdstep,usingthe
+affinityscoreofapairofobjects,wepredictwhat p = (p (cid:12)1 )C (3)
+a FoV a
+mightappearafterperforminganaction. Forright
+action, our model hallucinates a tv and tv-stand Wherep ∈ R|O|isavectorofconfidenceval-
+FoV
+mightappearbecausethecouchandtvhaveahigh uesforobjectsdetectedinthecurrentFoV.Weuse
+affinityscoreaccordingtotheLM. anoff-the-shelfobjectdetectionsystem(Anderson
+et al., 2018a) to calculate p . C is the affinity
+FoV
+3.1 AffinityScoresfromLanguageModels
+scoresofsize|O|×|O|. C representshowoftena
+Languagemodelsprocessalargeamountoftextto pairofobjectappearinaspatialrelationshipand
+learnregularitiesinnaturallanguage. Theydoso represents the background knowledge of objects.
+bypredictingthenextwordormaskedtokengiven 1 ∈ {0,1}|O| isabinaryvectorrepresentingspa-
+a
+asequenceofwords. Ourintuitionisthatobjects tiallyrelatedobjectsforadirectiona. Thisvector
+thatfrequentlyappearinanenvironmentcloseto is calculated with an indicator function to deter-
+eachotherwillhavesimilarlanguageusage. Thus, minewhetheranobjectisspatiallyrelatedtoaction
+wehypothesizethatlanguagemodels’capabilityof a.
+learningaffinityscoresofwordsinlanguagealso We calculate the indicator function as follows.
+reflects objects’ spatial properties. In Figure 3’s First,weseparatetheFoVinto4imaginaryregions
+toppanel,weillustratehowweextractthiscapabil- calledquadrantswhereeachquadrantdetermines
+ity. Wequerylanguagemodelstrainedonalarge howaregioninobservedFoVisspatiallyrelevant
+amountoffree-formtextwithspatialrelationship forcanonicaldirections(i.e.,up,down,left,right).
+prompts. Thesespatialpromptsaimtocapturethe Inotherwords,quadrantsare“hot-spots”foreach
+usage of words when they appear together in the direction i.e., the left side of the image is more
+world. An example of these prompt templates is relevant to the right side of the image if we are
+“Near the o 1, there is ___” where o 1 ∈ O is an interestedinwhatmightappearontheleft. For8
+objectlabelwhereO isasetofobjectlabels. Ifob- directions(left,right,down,up,down-left,down-
+jecto 1 co-occurswitho 2 withhighfrequency,the right, up-left, up-right), we calculate how much
+languagemodelwouldprovideahighprobability each objects’ bounding box overlaps with these
+forthephrase“Neartheo 1,thereiso 2”. Usingall quadrants. If intersection-over-union is above a
+pairsinO andK2 spatialtemplates, wegenerate fixedthresholdwekeepthisobjectforthehalluci-
+queriesq. WethencalculateaffinityscoresC o1,o2, nationprocess.
+i.e.,observingo wheno ispresentasfollows:
+2 1
+4 Experiments
+K
+(cid:88)
+C = p (o |q ) (2)
+o1,o2 LM 2 i Wedesignedourexperimentstostudyandevaluate
+i=1 ourproposedHOLMapproachunderfivedifferent
+Wherep LM(o 2|q)isalanguagemodelthatcalcu- researchquestions. RQ1: Whatistheperformance
+latestheprobabilityofobservingatokeno given ofHOLMwhencomparedtootherstate-of-the-art
+2
+aprefixsequenceoftokensq. approaches? RQ2: whatistheimpactofLMasa
+sourceofknowledgeforHOLMwhencompared
+3.2 ObjectHallucination
+toothermoreconventionalsources(e.g.,images)?
+Our main idea behind HOLM is to reason about RQ3: How essential are external sources of data
+what might be observed in a future observation forlearningknowledgeaboutobjectscomparedto
+bycombining(1)whichobjectsarevisibleinthe in domain data? RQ4: How accurate is HOLM
+current observation and (2) what we know about forpredictingobjectsinfutureobservations? RQ5:
+thespatialpropertiesofthoseobjects. Weexplain Howdoannotation-freelanguage-basedknowledge
+thedetailsofourapproachinthissection. sourcesi.e.,LMsandwordembeddingscompare
+Let p a ∈ R|O| be the vector of probabilities of forHOLM?
+observing an object among a set of all objects O Thefollowingsectionexplainsthedetailsofex-
+perimental setup. Our results are presented and
+2PleaseseeAppendixA.1forthefulllistofspatialprompt
+templates. discussedinSection4.2.
+5443
+4.1 ExperimentalSetup • LingUNet (Misra et al., 2018) is an image-
+to-imageencoder-decodermodelforlearning
+To study the research questions previously men-
+image-to-imagemappingsconditionedonlan-
+tioned,weusedtwopubliclyavailabledatasetsand
+guage. Weshouldemphasizethat,unlikethe
+state-of-the-art methods as baselines to compare
+previousmethods,LingUNetisnotanaviga-
+with.
+tion model; instead, it predicts regions over
+Datasets. Weselectedthefollowingtwodatasets animage.
+to see if our method generalizes to both indoor
+andoutdoorsettings. TheRefer360◦ dataset(Cirik • RANDOMagentrandomlypicksanaction.
+et al., 2020) consists of 17K natural language in-
+• STOPagentpredictsthestartingFoVasthe
+structionsandground-truthtrajectorypairsforlo-
+targetFoV.
+calizingatargetpointin360◦ scenes. Theground-
+truthtrajectories areannotated byhumanannota- Forafaircomparison,thesamemodelwasused
+tors in the form of successive FoVs in partially asthebasisforallthecomparedmodels. Forour
+observed 360◦ scenes. The dataset uses a subset proposedapproachHOLMisusedtoenhancethe
+of the SUN360 dataset (Xiao et al., 2012) as the SMNAbaselinebyhallucinatingobjectsforunseen
+source of scenes and these scenes are from both regions. Aftergettingobjecthallucinationsforeach
+indoorandtwooutdoorlocations. neighboringFoVs,weusethesumofwordembed-
+Touchdown (Chen et al., 2018) consists of 9K dingsforobjectlabelsastheinputrepresentation
+natural language instruction and ground-truth lo- fortheneighboringFoV.Intheoracle“NextFoV”
+cationpairsfor360◦ scenesonGoogleStreetview. scenario,weuseground-truthFoVstodothesame
+UnliketheRefer360◦ dataset,Touchdowndoesnot process. Forafaircomparison,weuseSMNAas
+have expert trajectories – only expert predictions thebaseagentforlearningtorecoverfromamis-
+forthetargetlocationareprovided. Thus,wegener- takeduringnavigationprocesswithFASTandas
+atedground-truthtrajectoriesbycalculatingshort- the follower model for pragmatic reasoning with
+estpathtrajectoriesbetweenarandomlyselected Speaker-Follower.
+startingpoint3 andthetargetlocation.
+EvaluationMetrics. Ourmainevaluationmetric
+BaselinesModels. Wecompareourmethodwith for methods is FoV accuracy: the percentage of
+the state-of-the-art models and also few simple the time the target location is visible in the final
+baselines(i.e.,noparameterlearning). FoV. The FoV accuracy sets an upper bound on
+the localization accuracy for predicting the pixel
+• The Self Monitoring Navigation Agent locationofthetargetpoint,i.e.,ifthetargetisnot
+(SMNA) (Ma et al., 2019) model is trained visible,itisimpossibletopredicttheexactlocation.
+with a co-grounding module where both vi- Thus,wefocusonthismetrictocomparesystems.
+sualandtextualinputisattendedatthesame
+Implementation. All models are trained for
+time. The agent also measures its progress
+100K iterations. We use Adam (Kingma and Ba,
+withaprogressmonitormodule.
+2015)foroptimizationwithalearningrate0.0001
+• FAST (Ke et al., 2019) stands for Frontier and weight decay parameter 0.0005 (Krogh and
+AwareSearchwithbackTracking. TheFAST Hertz,1992). Foreachmodel,weperformagrid-
+modellearnstoscorepartialtrajectoriesofan searchovertheirhyperparameters(e.g.,numberof
+agentforefficientlybacktrackingtoaprevious hiddenunits,numberoflayers,dropoutrate)and
+locationafteramistake. pickthebestperformingmodelbasedonvalidation
+score4. AllmodelsareimplementedusingPyTorch
+• Speaker-Follower (Fried et al., 2018) uses a (Paszkeetal.,2019)andpubliclyavailable5.
+sequence-to-sequence speaker model to re-
+To speed up the training procedure, we used
+rank a follower model’s candidate trajecto- fixed a grid of FoVs for all 360◦ images where
+ries. Thispragmaticreasoningmodelhasbeen
+each FoV is connected to its neighboring FoVs.
+showntoimprovenavigationagents’perfor-
+This grid forms the navigation graph depicted in
+mancesignificantly.
+4ForRefer360◦weusevalidationunseensplit.Touchdown
+3Following(Ciriketal.,2020),wesettheinitialrandom doesnothaveseen-unseendistinction.
+pointtobeafixheadingandrandomyaw. 5https://github.com/volkancirik/HOLM
+5444
+Method Oracle Refer360◦ Touchdown Method BeamSearch Refer360◦ Touchdown
+StopAgent 14.1 0.0 BaselineSMNA(Maetal.,2019) 27.1 45.9
+RandomAgent 12.1 6.8 +HOLM(thiswork) +5.1 +3.9
++FAST(Keetal.,2019) (cid:33) -6.4 +4.7
+SMNA(Maetal.,2019) 27.1 45.9
++Speaker-Follower(Friedetal.,2018) (cid:33) -4.6 -11.1
++HOLM(thiswork) 32.2 49.8
+SMNA(Maetal.,2019) NextFoV 33.5 50.2 Table2:FoVaccuracyresultsforRefer360◦andTouch-
+LingUNet*(Chenetal.,2018) FullPanorama 21.4 47.2
+down for methods using beam search or single candi-
+Table1:FoVaccuracyresultsforRefer360◦andTouch- datetrajectory. HOLMconsistentlyimprovesthebase-
+down with no hallucination baseline, best performing lineanddoesnotusemultipletrajectories.
+models,andNextFoVoraclemodel,i.e. theabilityto
+lookaheadforneighborFoVs,andobservingfull360◦
+erate many trajectories before performing action.
+scenes. Our method outperforms the baseline models
+fromtheliterature. HOLM,ontheotherhandcompletesthetaskona
+single trajectory while predicting possible future
+states. FASTimprovesSMNAforTouchdownbut
+the Figure 2. We use 30◦ of separation between not for Refer360◦ , which might be due to the
+successiveFoVswhichprovidesenoughoverlapto richnessofscenesinRefer360◦ whereasinTouch-
+revealrelevantinformationaboutsuccessiveFoVs down,thescenesarealwaysinthesamedomain.
+yetdistantenoughsothatthemodelneedstorea- Speaker-Model’s decreases the score for SMNA
+sonaboutfuturesteps. Wethenpre-calculatedthe possibly due to the Speaker models’ poor perfor-
+rectilinear projection of each of the FoVs on the mancewheretheBLEUscoreisaround6. HOLM
+gridforallscenes. consistently improves for both datasets and does
+notperformanyexpensivelook-aheadoperations
+4.2 ResultsandDiscussion
+suchasbeamsearch.
+Inthissectionwepresentanddiscussexperimental
+KnowledgeType HumanAnnotation AffinityScores Refer360◦ Touchdown
+resultsandanalyses.
+Baseline (cid:33) Uniform 27.8 45.2
+(RQ1) HOLM Improves performance. Our Baseline (cid:33) Identity 29.3 45.9
+Visual (cid:33) VisualGenome 30.8 48.4
+main results are presented in Table 1. In the first KnowledgeBase (cid:33) WordNet 29.5 48.4
+row block, we see that simple non-learning base- Pre-trainedLM XLM 32.2 49.8
+lines fail to perform on the dRER. In the second
+Table3:FoVaccuracyresultsforRefer360◦andTouch-
+rowblock,wecompareourmethodwiththebase- down for different methods for calculating affinity
+linewheretheagentdoesnothaveanyvisualinput scores for HOLM. XLM-based affinity scores achieve
+fromthenextFoVs. HOLMimprovesthebaseline thebestperformance.
+byhallucinatingobjectsforthenextFoVs. Inthe
+thirdrowblock,weprovideresultsfororaclesce- (RQ2)Pre-trainedLMproducesbetteraffin-
+narios. ForSMNA,wefeedground-truthFoVas ityscorescomparedtoothersources. InTable3,
+theinputofthesystem. Thisresultsetstheupper we compare several baseline methods for calcu-
+boundonHOLM,becauseitcannotachievebetter lating the affinity scores. First, we use uniform
+hallucinationthantheground-truthFoVs. However, (i.e., each objectpairhas thesameaffinity score)
+HOLMachievesprettyclosetothisupperbound and identity (i.e., object x can only have affinity
+andshowthatitcanprovideusefulpredictionsfor scorewithitself)baselines. Wealsostudycalculat-
+this task. For LingUNet, we feed the full 360◦ ingaffinityscoresusingdataannotatedbyhumans.
+scenesasthevisualinput. SinceLingUNetisnot First,weuseobjectannotationsinVisualGenome
+anavigationagenti.e. predictsthetargetlocation (Krishna et al., 2017). VisualGenome provides a
+usingfull360◦ scenes,wecalculateFoVaccuracy largecollectionoffine-grainedannotationsforob-
+by drawing an FoV around the prediction, which jectsandtheirspatialrelationships. Second,ideally
+explains‘*’. we would like to use human annotations for cal-
+In Table 2, we compare HOLM with FAST culatingtheaffinityscore. However,thisrequires
+andSpeaker-Followermethods,bothofwhichuse annotationof|O|2 annotations. Instead,asaproxy,
+beamsearch. Duringthebeamsearch,thesemeth- weuseWordNet(Miller,1995),aknowledge-base
+ods use multiple trajectories while deciding on hierarchy annotated by experts. We use NLTK
+a trajectory. However, this is not plausible in a (Bird et al., 2009) to calculate the WordNet sim-
+real-world scenario, i.e. a robot would not gen- ilarity to extract the affinity scores between ob-
+5445
+jects. XLM-basedHOLMachievesthebestresults is above 1 , we count that as a prediction of an
+|O|
+amongthesebaselines. Thisresultshowsthatwith- objectintheneighboringFoVafterperformingac-
+outusinghumanannotations,wecanextractuseful tiona. InTable5,weprovideprecision,recall,and
+knowledgeaboutobjectsusingpre-trainedLMs. F1scorefortheperformanceofdifferentmethods
+for calculating affinity scores for HOLM. XLM
+Method DataSource Refer360◦ Touchdown achievesthebestperformanceamongthemethods
+HOLMwithXLM External 32.2 49.8
+wecompare. Weconcludethattheperformancefor
+HOLMwithObjectsCounts Internal 30.3 48.7
+Hallucinatingwith3-LayerMLP Internal 27.5 46.3 the intrinsic task (i.e., predicting the presence of
+objects)translatestodRERperformance.
+Table4:FoVaccuracyresultsforRefer360◦andTouch-
+down when task data is used for object hallucination.
+Method Model Refer360◦ Touchdown
+Thelimitationofthedomaindatacanbeaddressedus-
+Baseline SMNA 27.1 45.9
+ingexternalresourcessuchaspre-trainedLMs.
++HOLMwithFastText(Mikolovetal.,2018) 31.6 46.8
++HOLMwithGloVe(Penningtonetal.,2014) 31.0 49.2
++HOLMwithword2vec(Mikolovetal.,2013) 29.3 46.2
+(RQ3) External sources may provide better
++HOLMwithGPT3(Brownetal.,2020) 31.1 46.3
+information compared to task data. In Table 4, +HOLMwithRoberta(Liuetal.,2019c) 30.3 46.0
++HOLMwithXLM(ConneauandLample,2019) 32.2 49.8
+wecomparemethodsthatonlyusetaskdataforob-
+jecthallucinationandHOLMwithexternalsources
+Table6:FoVaccuracyresultsforRefer360◦andTouch-
+down for models processing unlabeled text. WE and
+such as pre-trained LM. For the second row in
+LM are abbreviations for word embeddings and lan-
+the table), we use the BUTD model (Anderson
+guage models. All hallucination-based methods per-
+etal.,2018a)toannotatetrainingimageswithob-
+form better than the baseline. XLM achieves the best
+ject bounding boxes. Using bounding boxes of
+performanceinbothdatasets.
+objects,wecalculateaffinityscores. Forthethird
+rowinthetable,wedesignamodelthattakesFoV (RQ5) Both word embeddings and LMs are
+and an object type as an input and predicts a di- goodsourcesofgeneralknowledgeofobjectsIn
+rection(i.e.,hallucinatewhereitmightappear)as Table6,wecomparewordembeddingmethodsand
+output. We pass the final feature map layer of differentlanguagemodels. Weusecosinesimilari-
+152-layer ResNet (He et al., 2016) as input to a tiesbetweenpairsofobjectstocalculatetheaffinity
+3-layerfeed-forwardneuralnetworktopredictob- scores. For language models, we compare Open
+jectsthatmightappearinneighboringFoVs. This AI’sGPT3(Brownetal.,2020)usingtheironline
+model achieves an F1 score of 40.3 for direction API6. We use Transformers Library (Wolf et al.,
+prediction. Both of these methods improve over 2020)forRoBERTa(Liuetal.,2019c)andXLM
+the SMNA baseline but are worse than the pre- (Conneau and Lample, 2019). All methods con-
+trainedLM.Thisresultindicatesthattaskdatamay sistentlyimproveoverthebaselineSMNAmodel,
+havelimitations,andexternalsourcessuchasapre- however, we achieve the best performance using
+trained LM may provide a signal for knowledge XLM.Thisresultindicatesthatwecanextractuse-
+aboutobjects. fulknowledgeaboutobjectswithmethodsrelying
+onlargeamountofunlabeledtext.
+KnowledgeType AffinityScores Refer360◦ Touchdown
+Visual VisualGenome P1.4R55.3F12.7 P1.5R55.2F12.9 5 RelatedWork
+KnowledgeBase WordNet P1.3R55.4F12.6 P1.4R55.3F12.8
+Pre-trainedLM XLM P2.0R49.5F13.9 P2.2R63.2F14.3
+Our work on dRER is closely related to previous
+Table 5: Precision (P), Recall (R), and F1 scores for studies focusing on Referring Expression Recog-
+Refer360◦ andTouchdownforhallucinatingobjectsin nition (RER), Vision-and-Language Navigation
+neighboring FoVs. Similar to the downstream task re-
+(VLN),andmethodsweproposearerelatedtopre-
+sults,pre-trainedLMperformsthebest.
+traininglanguagemodelsforvision-and-language
+tasks,model-basedreinforcementlearning,andco-
+(RQ4) Accuracy of HOLM translates to
+occcurrence modeling for computer vision. We
+dRER So far, we measure the performance of
+reviewthesestudiesinthissection.
+HOLM for the downstream dRER task. We can
+RERisthetaskoflocalizingatargetobjector
+alsomeasurehowaccurateHOLMisatpredicting
+a point in an image described by a natural lan-
+thepresenceofanobjectinneighboringFoVs. We
+guage expression. The most of existing datasets
+annotateeachneighboringground-truthFoVswith
+detectionsfromBUTD.Ifthepi
+a
+forobjecto
+i
+∈ O 6https://beta.openai.com/
+5446
+EW
+ML
+poses the task in 2D images with objects as be- findingthegoallocation.
+ingthetarget(Kazemzadehetal.,2014;Yuetal.,
+Pre-trainedmodelsforVision-and-Language
+2016;Maoetal.,2016;Strubetal.,2017;Liuetal.,
+hasbeenrecentlystudiedafterthehugesuccessof
+2019a;Akulaetal.,2020;Chenetal.,2020). Sev-
+transformer-basedmodels(Vaswanietal.,2017)in
+eral lines of work are proposed to address RER
+NLP (Devlin et al., 2018; Liu et al., 2019c; Con-
+(Maoetal.,2016;Nagarajaetal.,2016;Yuetal.,
+neauandLample,2019;Sunetal.,2019b;Poerner
+2016;Huetal.,2016;Fukuietal.,2016;Luoand
+etal.,2020;Raffeletal.,2020;Brownetal.,2020).
+Shakhnarovich, 2017; Liu et al., 2017; Yu et al.,
+Numerousstudiesextendtheseapproachestothe
+2017;Zhangetal.,2018;Zhuangetal.,2018;Deng
+multimodal domain (Tan and Bansal, 2019; Lu
+etal.,2018;Yuetal.,2018;Ciriketal.,2018;Liu
+et al., 2019; Sun et al., 2019a; Su et al., 2020; Li
+etal.,2019b).
+etal.,2020;Qietal.,2020a;HuandSingh,2021).
+InTouchdown(Chenetal.,2018)andRefer360◦ Theyachievethe-state-of-the-artresultsinseveral
+(Ciriketal.,2020)thetargetisapointnotanobject tasks such as image captioning, text-to-image re-
+in a 360◦ image. In the dRER setup, we also use trieval, or referring expression recognition. Our
+360◦ images of Touchdown and Refer360◦ , but work differs from these studies in the sense that
+wedonotprovidethefullpanoramicviewofthe the previous approaches use large scaled paired
+scene. Instead, in a more realistic scenario, the image-textdata(Chenetal.,2013;Divvalaetal.,
+agentobservesapartialanddynamicviewofthe 2014; Sadeghi et al., 2015; Radford et al., 2021;
+scene, i.e. the agent needs to adjust its FoV to Jia et al., 2021) to learn efficient representations
+find the target location. Closer to our work, in (Fromeetal.,2013;Kotturetal.,2016)forvisual
+REVERIE(Qietal.,2020b)anembodiedsetupis andtextualmodalitieswhereasweareinterestedin
+proposedwheretheagentneedstofirstnavigateto spatialinformationlearnedinunimodaltextrepre-
+alocationwherethetargetobjectisvisible. Similar sentations.
+toTouchdownandRefer360◦ ,atthefinalposition,
+Language priors for vision were explored in
+the full 360◦ view is visible to the agent. Unlike
+recent studies. Lu et al. (2016) use word embed-
+oursandsimilarto2Dimage-basedRER,thetarget
+dingsinalanguagemoduletolearnarepresenta-
+isanobjectratherthanapointinthescene.
+tionforaobject-predicate-objecttripletforvisual
+VLN is a vision-and-language task where an relationshipdetectiontask. Kielaetal.(2019)pro-
+agentinasimulatedenvironmentobservesavisual poseanapproachtoextendpre-trainedtransformer-
+input and is given a natural language instruction based LMs for multimodal tasks. Similarly, Lu
+to navigate to a target location. The earlier work etal.(2021);Tsimpoukellietal.(2021)showthat
+(MacMahonetal.,2006;ShimizuandHaas,2009; pre-trainedLMscanbefinetunedtoperformwellin
+ChenandMooney,2011)studiesthetaskwithsyn- few-shotsettingsforimageclassificationandopen-
+thetic images or in a very small scale (Vogel and domainVisualQuestionAnswering(Marinoetal.,
+Jurafsky,2010). Andersonetal.(2018b)proposes 2019). Marinoetal.(2021)alsoshowthatmulti-
+Room-to-room(R2R)benchmarkandrevisitVLN modal transformer architectures capture implicit
+task with a modern look. In R2R, the agent ob- knowledgeforapairofobjects. Ourworkdiffers
+serves panoramic scans of a house (Chang et al., fromthesestudies(1)weuseonlyunimodalmod-
+2017)andneedstocarryoutthenaturallanguage els,(2)wedonotfinetunemodels–wedonotup-
+instruction. EnvDrop (Tan et al., 2019) model datemodelsduringtraining. Themostsimilarwork
+shows generalization to unseen environments by toours,Scialometal.(2020)showthatpre-trained
+droppingvisualfeatures. PREVALENT(Haoetal., LMscanperformreasonablywellonVisualQues-
+2020)tacklesthedatasparsityproblemwithapre- tionGenerating(Yangetal.,2015;Mostafazadeh
+training scheme. Hong et al. (2021) show that a etal.,2016)outofthebox. Onedifferenceisthat
+pre-trained multi-modal can be enhanced with a weuseobjectlabelsratherthanobjectfeaturesor
+memorystatefortheVLNtaskbyrecurrentlyfeed- the appearance of objects to query the language
+ing a contextualized state feature after each time model; however, they use object features as a vi-
+step. dRERalsoposesanavigationtaskwherelo- sualtokentothelanguagemodel. Promptsweuse
+cations in physical space in VLN correspond to in our work shares similarities with prompts de-
+FoVsinafixedlocation. IndRER,atrajectoryof signed in PIQA (Paranjape et al., 2021), but our
+theagentcorrespondstoitsresolutionprocessfor work is evaluated in a multimodal setup. In con-
+5447
+trast,PIQAisevaluatedfortextualcommonsense mation could improve the hallucination accuracy
+reasoningtasks. bygettingmoretargetedinformationfromthelan-
+Hallucination idea is also related the work on guagemodel. Second,weassumeafixedlexicon
+predictingfutureobservationsinlonghorizons(Vil- ofobjectlabelsforhallucination. Forboththevi-
+legas et al., 2019) which has been studied in the sualsidei.e.,theobjectdetector,andthelanguage
+contextoflearningplanning(Hafneretal.,2019) side i.e., the language model, when an unknown
+andacquiringskillsforcontrolproblems(Hafner objectappearsthesystemcannotusethisobjectfor
+etal.,2020),andefficientpolicylearning(Haand hallucination. Anotherissueisthescalability,i.e,
+Schmidhuber,2018),andvision-and-languagenav- the affinity scores scale with O(N2) where N is
+igation(Kohetal.,2021). Alltheseapproachesare the number of objects, which might be challeng-
+interestedinlongerhorizons;however,inourwork, ingwhenN islarge. Wehopethefollow-upwork
+westudypredictingsingle-stepfutureobservation. couldaddresstheselimitations.
+Morerecentwork(Huetal.,2021;Rombachetal., Futureworkwillexploretheuseofbackground
+2021; Rockwell et al., 2021) study view synthe- knowledge in other domains such as vision-and-
+sisfromasinglevisualobservation. Unlikethese languagenavigation(Andersonetal.,2018c)and
+approaches,HOLMdoesnotgeneratepixel-level dialog (Thomason et al., 2020). We also believe
+views rather abstractions of views with object la- backgroundknowledgeofobjectswouldbehandy
+bels. in complex scenarios such as manipulating ob-
+Affinity scores are mainly studied in com- jects in a simulated environment (Shridhar et al.,
+puter vision tasks in the form of object co- 2020). Our method examines extracting back-
+occurrences. Previous studies have shown that groundknowledgeinazero-shotmanner. However,
+objectco-occurrencesareefficientrepresentations the literature shows that learning how to prompt
+ofvisualpriorforobjectcategorizationforobject couldbehelpfulinfindingbetter(Liuetal.,2021).
+segmentation(Rabinovichetal.,2007;Galleguil- Westrictlycomparedunimodalapproachesforhal-
+los et al., 2008; Ladicky et al., 2010) and zero lucination. Futureworkextendourworkbycom-
+shotobject-recognition(Mensinketal.,2014),and paringmultimodalmodels(TanandBansal,2019;
+sceneunderstanding(Wuetal.,2014). Ourwork Luetal.,2019;Sunetal.,2019a;Suetal.,2020;Li
+differs from these studies: we do not calculate etal.,2020;Qietal.,2020a;HuandSingh,2021).
+co-occurrence statistics, i.e. we do not count the
+Anotherinterestingdirectionwouldbetostudy
+frequency of times they appear together; instead,
+the capability of transferring knowledge from in-
+wecalculateaprobabilitymeasureusinglanguage
+door to outdoor settings and vise versa. Finally,
+models.
+the success of PREVALENT (Hao et al., 2020)
+andotherpre-trainingapproachesforVLNcould
+6 Conclusion
+stem from their ability to implicitly encode prior
+knowledgeaboutobjects. Hopefully,futurestudies
+Inthispaper,weintroducedHOLM–amodelthat
+examinesthisphenomenon.
+can extract prior knowledge about objects from
+LMsandhallucinateobjectsinfutureobservations.
+OurexperimentsshowedthatHOLMapproachim- Acknowledgements
+proves over various baselines from the literature.
+Surprisingly, our model which used background This material is based upon work partially sup-
+knowledgefromLMsoutperformedmodelswith ported by National Science Foundation awards
+knowledge from human-annotated data showing 1722822and1750439, andNationalInstitutesof
+thatLMslearnusefulknowledgeabouttheworld Health awards R01MH125740, R01MH096951
+withoutrequiringanyvisualobservations. Wealso andU01MH116925. Anyopinions,findings,con-
+showed that out approach generalizes to both in- clusions, or recommendations expressed in this
+doorandoutdoorscenarios. materialarethoseoftheauthor(s)anddonotnec-
+Ourworkhaslimitationsinthefollowingways. essarily reflect the views of the sponsors, and no
+First,thehallucinationprocesssolelyconditionson official endorsement should be inferred. We also
+thecurrentfieldofview. However,theinstruction thank anonymous reviewers of ACL Rolling Re-
+andthepreviousobservationsareavailabletothe viewfortheirvaluablefeedback.
+system. Conditioning on these sources of infor-
+5448
+References Natural language navigation and spatial reason-
+ing in visual street environments. arXiv preprint
+Arjun R Akula, Spandana Gella, Yaser Al-Onaizan,
+arXiv:1811.12354.
+Song-Chun Zhu, and Siva Reddy. 2020. Words
+aren’tenough,theirordermatters:Ontherobustness XinleiChen,AbhinavShrivastava,andAbhinavGupta.
+of grounding visual referring expressions. arXiv 2013. Neil: Extractingvisualknowledgefromweb
+preprintarXiv:2005.01655. data. InProceedingsoftheIEEEinternationalcon-
+ferenceoncomputervision,pages1409–1416.
+PeterAnderson,XiaodongHe,ChrisBuehler,Damien
+Teney, Mark Johnson, Stephen Gould, and Lei Zhenfang Chen, Peng Wang, Lin Ma, Kwan-Yee K
+Zhang. 2018a. Bottom-up and top-down attention Wong, and Qi Wu. 2020. Cops-ref: A new dataset
+forimagecaptioningandvisualquestionanswering. andtaskoncompositionalreferringexpressioncom-
+In Proceedings of the IEEE Conference on Com- prehension. In Proceedings of the IEEE/CVF Con-
+puter Vision and Pattern Recognition, pages 6077– ference on Computer Vision and Pattern Recogni-
+6086. tion,pages10086–10095.
+Peter Anderson, Qi Wu, Damien Teney, Jake Bruce, Volkan Cirik, Taylor Berg-Kirkpatrick, and Louis-
+MarkJohnson,NikoSünderhauf,IanReid,Stephen PhilippeMorency.2018. Usingsyntaxtogroundre-
+Gould, and Anton van den Hengel. 2018b. Vision- ferring expressions in natural images. Proceedings
+and-language navigation: Interpreting visually- of the AAAI Conference on Artificial Intelligence,
+grounded navigation instructions in real environ- 32.
+ments. In Proceedings of the IEEE Conference on
+Volkan Cirik, Taylor Berg-Kirkpatrick, and Louis-
+ComputerVisionandPatternRecognition(CVPR).
+PhilippeMorency.2020. Refer360: Areferringex-
+Peter Anderson, Qi Wu, Damien Teney, Jake Bruce, pression recognition dataset in 360: A referring ex-
+MarkJohnson,NikoSünderhauf,IanReid,Stephen pression recognition dataset in 360 images images.
+Gould, and Anton van den Hengel. 2018c. Vision- In Proceedings of the 58th Annual Meeting of the
+and-language navigation: Interpreting visually- Association for Computational Linguistics, pages
+grounded navigation instructions in real environ- 7189–7202.
+ments. In Proceedings of the IEEE Conference
+Alexis Conneau and Guillaume Lample. 2019. Cross-
+onComputerVisionandPatternRecognition,pages
+lingual language model pretraining. Advances in
+3674–3683.
+Neural Information Processing Systems, 32:7059–
+7069.
+Steven Bird, Ewan Klein, and Edward Loper. 2009.
+Natural language processing with Python: analyz-
+Chaorui Deng, Qi Wu, Qingyao Wu, Fuyuan Hu, Fan
+ingtextwiththenaturallanguagetoolkit. "O’Reilly
+Lyu, andMingkuiTan.2018. Visualgroundingvia
+Media,Inc.".
+accumulated attention. In Proceedings of the IEEE
+conferenceoncomputervisionandpatternrecogni-
+TomB.Brown,BenjaminMann,NickRyder,Melanie
+tion,pages7746–7755.
+Subbiah, Jared Kaplan, Prafulla Dhariwal, Arvind
+Neelakantan,PranavShyam,GirishSastry,Amanda
+Jacob Devlin, Ming-Wei Chang, Kenton Lee, and
+Askell, Sandhini Agarwal, Ariel Herbert-Voss,
+KristinaToutanova.2018. Bert:Pre-trainingofdeep
+Gretchen Krueger, Tom Henighan, Rewon Child,
+bidirectional transformers for language understand-
+Aditya Ramesh, Daniel M. Ziegler, Jeffrey Wu,
+ing. arXivpreprintarXiv:1810.04805.
+Clemens Winter, Christopher Hesse, Mark Chen,
+Eric Sigler, Mateusz Litwin, Scott Gray, Benjamin Santosh K Divvala, Ali Farhadi, and Carlos Guestrin.
+Chess, Jack Clark, Christopher Berner, Sam Mc- 2014. Learning everything about anything: Webly-
+Candlish, Alec Radford, Ilya Sutskever, and Dario supervisedvisualconceptlearning. InProceedings
+Amodei.2020. Languagemodelsarefew-shotlearn- oftheIEEEConferenceonComputerVisionandPat-
+ers. ternRecognition,pages3270–3277.
+Angel Chang, Angela Dai, Thomas Funkhouser, Ma- Daniel Fried, Ronghang Hu, Volkan Cirik, Anna
+ciejHalber,MatthiasNiessner,ManolisSavva,Shu- Rohrbach, JacobAndreas, Louis-PhilippeMorency,
+ranSong,AndyZeng,andYindaZhang.2017. Mat- Taylor Berg-Kirkpatrick, Kate Saenko, Dan Klein,
+terport3d: Learning from rgb-d data in indoor envi- andTrevorDarrell.2018. Speaker-followermodels
+ronments. International Conference on 3D Vision for vision-and-language navigation. In S. Bengio,
+(3DV). H. Wallach, H. Larochelle, K. Grauman, N. Cesa-
+Bianchi, and R. Garnett, editors, Advances in Neu-
+David Chen and Raymond Mooney. 2011. Learning ralInformationProcessingSystems31,pages3314–
+tointerpretnaturallanguagenavigationinstructions 3325.CurranAssociates,Inc.
+fromobservations. InProceedingsoftheAAAICon-
+ferenceonArtificialIntelligence,volume25. Andrea Frome, Greg S Corrado, Jonathon Shlens,
+SamyBengio,JeffreyDean,Marc’AurelioRanzato,
+Howard Chen, Alane Shur, Dipendra Misra, Noah and Tomas Mikolov. 2013. Devise: a deep visual-
+Snavely, and Yoav Artzi. 2018. Touchdown: semantic embedding model. In Proceedings of
+5449
+the 26th International Conference on Neural Infor- Ronghang Hu, Huazhe Xu, Marcus Rohrbach, Jiashi
+mation Processing Systems-Volume 2, pages 2121– Feng,KateSaenko,andTrevorDarrell.2016. Natu-
+2129. ral language object retrieval. In Proceedings of the
+IEEE Conference on Computer Vision and Pattern
+Akira Fukui, Dong Huk Park, Daylen Yang, Anna Recognition(CVPR).
+Rohrbach, Trevor Darrell, and Marcus Rohrbach.
+2016. Multimodal compact bilinear pooling for vi- Chao Jia, Yinfei Yang, Ye Xia, Yi-Ting Chen, Zarana
+sual question answering and visual grounding. In Parekh, Hieu Pham, Quoc V Le, Yunhsuan Sung,
+Proceedings of the 2016 Conference on Empirical Zhen Li, and Tom Duerig. 2021. Scaling up
+Methods in Natural Language Processing, pages visual and vision-language representation learn-
+457–468, Austin, Texas. Association for Computa- ing with noisy text supervision. arXiv preprint
+tionalLinguistics. arXiv:2102.05918.
+Carolina Galleguillos, Andrew Rabinovich, and Serge Sahar Kazemzadeh, Vicente Ordonez, Mark Matten,
+Belongie. 2008. Object categorization using co- and Tamara L. Berg. 2014. Referit game: Refer-
+occurrence,locationandappearance. In2008IEEE ringtoobjectsinphotographsofnaturalscenes. In
+ConferenceonComputerVisionandPatternRecog- EMNLP.
+nition,pages1–8.IEEE.
+Liyiming Ke, Xiujun Li, Yonatan Bisk, Ari Holtz-
+David Ha and Jürgen Schmidhuber. 2018. Recurrent
+man, Zhe Gan, Jingjing Liu, Jianfeng Gao, Yejin
+worldmodelsfacilitatepolicyevolution. InProceed-
+Choi, and Siddhartha Srinivasa. 2019. Tactical
+ingsofthe32ndInternationalConferenceonNeural
+rewind: Self-correction via backtracking in vision-
+InformationProcessingSystems,pages2455–2467.
+and-language navigation. In Proceedings of the
+IEEE/CVFConferenceonComputerVisionandPat-
+DanijarHafner,TimothyLillicrap,JimmyBa,andMo-
+ternRecognition,pages6741–6749.
+hammad Norouzi. 2020. Dream to control: Learn-
+ing behaviors by latent imagination. In Interna-
+DouweKiela,SuvratBhooshan,HamedFirooz,Ethan
+tionalConferenceonLearningRepresentations.
+Perez, and Davide Testuggine. 2019. Supervised
+multimodal bitransformers for classifying images
+DanijarHafner, TimothyLillicrap, IanFischer, Ruben
+andtext. arXivpreprintarXiv:1909.02950.
+Villegas,DavidHa,HonglakLee,andJamesDavid-
+son. 2019. v. In International Conference on Ma-
+Diederik P Kingma and Jimmy Ba. 2015. Adam: A
+chineLearning,pages2555–2565.PMLR.
+methodforstochasticoptimization. InInternational
+ConferenceonLearningRepresentations.
+WeituoHao,ChunyuanLi,XiujunLi,LawrenceCarin,
+andJianfengGao.2020. Towardslearningageneric
+Jing Yu Koh, Honglak Lee, Yinfei Yang, Jason
+agent for vision-and-language navigation via pre-
+Baldridge,andPeterAnderson.2021. Pathdreamer:
+training. In Proceedings of the IEEE/CVF Confer-
+Aworldmodelforindoornavigation.
+ence on Computer Vision and Pattern Recognition,
+pages13137–13146.
+Satwik Kottur, Ramakrishna Vedantam, José MF
+Moura, and Devi Parikh. 2016. Visual word2vec
+KaimingHe,XiangyuZhang,ShaoqingRen,andJian
+(vis-w2v): Learningvisuallygroundedwordembed-
+Sun.2016. Deepresiduallearningforimagerecog-
+dings using abstract scenes. In Proceedings of the
+nition. In Proceedings of the IEEE Conference on
+IEEE Conference on Computer Vision and Pattern
+Computer Vision and Pattern Recognition (CVPR),
+Recognition,pages4985–4994.
+pages770–778.
+YicongHong,QiWu,YuankaiQi,CristianRodriguez- Ranjay Krishna, Yuke Zhu, Oliver Groth, Justin John-
+Opazo, and Stephen Gould. 2021. A recurrent son, Kenji Hata, Joshua Kravitz, Stephanie Chen,
+vision-and-languagebertfornavigation. InCVPR. YannisKalantidis,Li-JiaLi,DavidAShamma,etal.
+2017. Visualgenome: Connectinglanguageandvi-
+Ronald A Howard. 1960. Dynamic programming and sion using crowdsourced dense image annotations.
+markovprocesses. Internationaljournalofcomputervision,123(1):32–
+73.
+Ronghang Hu, Nikhila Ravi, Alexander C Berg, and
+Deepak Pathak. 2021. Worldsheet: Wrapping the Anders Krogh and John A Hertz. 1992. A simple
+world in a 3d sheet for view synthesis from a sin- weight decay can improve generalization. In Ad-
+gle image. In Proceedings of the IEEE/CVF In- vances in neural information processing systems,
+ternational Conference on Computer Vision, pages pages950–957.
+12528–12537.
+Lubor Ladicky, Chris Russell, Pushmeet Kohli, and
+Ronghang Hu and Amanpreet Singh. 2021. Unit: Philip HS Torr. 2010. Graph cut based inference
+Multimodal multitask learning with a unified trans- with co-occurrence statistics. In European confer-
+former. arXivpreprintarXiv:2102.10772. enceoncomputervision,pages239–253.Springer.
+5450
+XiujunLi,XiYin,ChunyuanLi,PengchuanZhang,Xi- Matt MacMahon, Brian Stankiewicz, and Benjamin
+aowei Hu, Lei Zhang, Lijuan Wang, Houdong Hu, Kuipers.2006. Walkthetalk: Connectinglanguage,
+Li Dong, Furu Wei, et al. 2020. Oscar: Object- knowledge, and action in route instructions. Def,
+semantics aligned pre-training for vision-language 2(6):4.
+tasks. InEuropeanConferenceonComputerVision,
+pages121–137.Springer. JunhuaMao,JonathanHuang,AlexanderToshev,Oana
+Camburu, Alan L Yuille, and Kevin Murphy. 2016.
+JingyuLiu,LiangWang,andMing-HsuanYang.2017. Generationandcomprehensionofunambiguousob-
+Referringexpressiongenerationandcomprehension ject descriptions. In Proceedings of the IEEE Con-
+via attributes. In Proceedings of the IEEE Interna- ferenceonComputerVisionandPatternRecognition
+tionalConferenceonComputerVision,pages4856– (CVPR),pages11–20.
+4864.
+Kenneth Marino, Xinlei Chen, Devi Parikh, Abhinav
+Gupta, and Marcus Rohrbach. 2021. Krisp: Inte-
+PengfeiLiu,WeizheYuan,JinlanFu,ZhengbaoJiang,
+grating implicit and symbolic knowledge for open-
+Hiroaki Hayashi, and Graham Neubig. 2021. Pre-
+domainknowledge-basedvqa. InProceedingsofthe
+train, prompt, and predict: A systematic survey of
+IEEE/CVFConferenceonComputerVisionandPat-
+prompting methods in natural language processing.
+ternRecognition,pages14111–14121.
+arXive-prints,pagesarXiv–2107.
+Kenneth Marino, Mohammad Rastegari, Ali Farhadi,
+RuntaoLiu,ChenxiLiu,YutongBai,andAlanLYuille.
+and Roozbeh Mottaghi. 2019. Ok-vqa: A visual
+2019a. Clevr-ref+: Diagnosing visual reasoning
+question answering benchmark requiring external
+with referring expressions. In Proceedings of the
+knowledge. In Proceedings of the IEEE/CVF Con-
+IEEE/CVFConferenceonComputerVisionandPat-
+ference on Computer Vision and Pattern Recogni-
+ternRecognition,pages4185–4194.
+tion,pages3195–3204.
+Xihui Liu, Zihao Wang, Jing Shao, Xiaogang Wang, Thomas Mensink, Efstratios Gavves, and Cees GM
+and Hongsheng Li. 2019b. Improving referring Snoek.2014. Cosrarta: Co-occurrencestatisticsfor
+expression grounding with cross-modal attention- zero-shotclassification. InProceedingsoftheIEEE
+guided erasing. In Proceedings of the IEEE/CVF conferenceoncomputervisionandpatternrecogni-
+ConferenceonComputerVisionandPatternRecog- tion,pages2441–2448.
+nition,pages1950–1959.
+Tomas Mikolov, Edouard Grave, Piotr Bojanowski,
+YinhanLiu,MyleOtt,NamanGoyal,JingfeiDu,Man- Christian Puhrsch, and Armand Joulin. 2018. Ad-
+dar Joshi, Danqi Chen, Omer Levy, Mike Lewis, vances in pre-training distributed word representa-
+Luke Zettlemoyer, and Veselin Stoyanov. 2019c. tions. In Proceedings of the International Confer-
+Roberta: A robustly optimized bert pretraining ap- enceonLanguageResourcesandEvaluation(LREC
+proach. arXivpreprintarXiv:1907.11692. 2018).
+TomasMikolov,IlyaSutskever,KaiChen,GregSCor-
+Cewu Lu, Ranjay Krishna, Michael Bernstein, and
+rado, and Jeff Dean. 2013. Distributed representa-
+LiFei-Fei.2016. Visualrelationshipdetectionwith
+tionsofwordsandphrasesandtheircompositional-
+language priors. In European Conference on Com-
+ity. In Advances in neural information processing
+puterVision,pages852–869.Springer.
+systems,pages3111–3119.
+Jiasen Lu, Dhruv Batra, Devi Parikh, and Stefan
+GeorgeAMiller.1995. Wordnet:alexicaldatabasefor
+Lee. 2019. Vilbert: Pretraining task-agnostic visi-
+english. Communications of the ACM, 38(11):39–
+olinguistic representations for vision-and-language
+41.
+tasks. arXivpreprintarXiv:1908.02265.
+DipendraMisra,AndrewBennett,ValtsBlukis,Eyvind
+Kevin Lu, Aditya Grover, Pieter Abbeel, and Igor Niklasson, Max Shatkhin, and Yoav Artzi. 2018.
+Mordatch. 2021. Pretrained transformers as Mappinginstructionstoactionsin3Denvironments
+universal computation engines. arXiv preprint with visual goal prediction. In Proceedings of the
+arXiv:2103.05247. 2018 Conference on Empirical Methods in Natu-
+ral Language Processing, pages 2667–2678, Brus-
+Ruotian Luo and Gregory Shakhnarovich. 2017. sels, Belgium. Association for Computational Lin-
+Comprehension-guided referring expressions. In guistics.
+Proceedings of the IEEE Conference on Computer
+VisionandPatternRecognition(CVPR). NasrinMostafazadeh,IshanMisra,JacobDevlin,Mar-
+garet Mitchell, Xiaodong He, and Lucy Vander-
+Chih-Yao Ma, Jiasen Lu, Zuxuan Wu, Ghassan Al- wende. 2016. Generating natural questions about
+Regib, Zsolt Kira, Richard Socher, and Caiming animage. InProceedingsofthe54thAnnualMeet-
+Xiong. 2019. Self-monitoring navigation agent via ingoftheAssociationforComputationalLinguistics
+auxiliaryprogressestimation. InProceedingsofthe (Volume1: LongPapers),pages1802–1813,Berlin,
+International Conference on Learning Representa- Germany. Association for Computational Linguis-
+tions(ICLR). tics.
+5451
+VarunK.Nagaraja,VladI.Morariu,andLarryS.Davis. transformer. JournalofMachineLearningResearch,
+2016. Modeling context between objects for refer- 21(140):1–67.
+ringexpressionunderstanding. InECCV.
+Chris Rockwell, David F. Fouhey, and Justin Johnson.
+Bhargavi Paranjape, Julian Michael, Marjan 2021. Pixelsynth: Generatinga3d-consistentexpe-
+Ghazvininejad, Hannaneh Hajishirzi, and Luke riencefromasingleimage. InICCV.
+Zettlemoyer. 2021. Prompting contrastive explana-
+tionsforcommonsensereasoningtasks. InFindings Robin Rombach, Patrick Esser, and Björn Ommer.
+of the Association for Computational Linguistics: 2021. Geometry-freeviewsynthesis: Transformers
+ACL-IJCNLP 2021, pages 4179–4192, Online. and no 3d priors. In Proceedings of the IEEE/CVF
+AssociationforComputationalLinguistics. InternationalConferenceonComputerVision,pages
+14356–14366.
+Adam Paszke, Sam Gross, Francisco Massa, Adam
+Lerer, James Bradbury, Gregory Chanan, Trevor FereshtehSadeghi,SantoshKKumarDivvala,andAli
+Killeen, Zeming Lin, Natalia Gimelshein, Luca Farhadi.2015. Viske: Visualknowledgeextraction
+Antiga, Alban Desmaison, Andreas Kopf, Edward andquestionansweringbyvisualverificationofrela-
+Yang, ZacharyDeVito, MartinRaison, AlykhanTe- tionphrases. InProceedingsoftheIEEEconference
+jani,SasankChilamkurthy,BenoitSteiner,LuFang, on computer vision and pattern recognition, pages
+Junjie Bai, and Soumith Chintala. 2019. Py- 1456–1464.
+torch: An imperative style, high-performance deep
+learning library. In H. Wallach, H. Larochelle, ThomasScialom,PatrickBordes,Paul-AlexisDray,Ja-
+A.Beygelzimer,F.d'Alché-Buc,E.Fox,andR.Gar- copo Staiano, and Patrick Gallinari. 2020. What
+nett, editors, Advances in Neural Information Pro- bert sees: Cross-modal transfer for visual question
+cessingSystems32,pages8024–8035.CurranAsso- generation. InProceedingsofthe13thInternational
+ciates,Inc. ConferenceonNaturalLanguageGeneration,pages
+327–337.
+JeffreyPennington,RichardSocher,andChristopherD
+Manning. 2014. Glove: Global vectors for word
+NobuyukiShimizuandAndrewHaas.2009. Learning
+representation. InEMNLP,volume14,pages1532–
+tofollownavigationalrouteinstructions. InTwenty-
+1543.
+FirstInternationalJointConferenceonArtificialIn-
+telligence.
+Nina Poerner, Ulli Waltinger, and Hinrich Schütze.
+2020. E-bert: Efficient-yet-effective entity embed-
+Mohit Shridhar, Jesse Thomason, Daniel Gordon,
+dings for bert. In Proceedings of the 2020 Con-
+Yonatan Bisk, Winson Han, Roozbeh Mottaghi,
+ferenceonEmpiricalMethodsinNaturalLanguage
+Luke Zettlemoyer, and Dieter Fox. 2020. Alfred:
+Processing: Findings,pages803–818.
+Abenchmarkforinterpretinggroundedinstructions
+foreverydaytasks. InProceedingsoftheIEEE/CVF
+Di Qi, Lin Su, Jia Song, Edward Cui, Taroon Bharti,
+conferenceoncomputervisionandpatternrecogni-
+and Arun Sacheti. 2020a. Imagebert: Cross-
+tion,pages10740–10749.
+modalpre-trainingwithlarge-scaleweak-supervised
+image-textdata. arXivpreprintarXiv:2001.07966.
+Florian Strub, Harm de Vries, Jeremie Mary, Bilal
+Piot,AaronC.Courville,andOlivierPietquin.2017.
+Yuanka Qi, Qi Wu, Peter Anderson, Xin Wang,
+End-to-endoptimizationofgoal-drivenandvisually
+William Yang Wang, Chunhua Shen, and Anton
+grounded dialogue systems. In International Joint
+van den Hengel. 2020b. Reverie: Remote embod-
+ConferenceonArtificialIntelligence(IJCAI).
+ied visual referring expression in real indoor envi-
+ronments. In Proceedings of the IEEE Conference
+Weijie Su, Xizhou Zhu, Yue Cao, Bin Li, Lewei Lu,
+onComputerVisionandPatternRecognition.
+Furu Wei, and Jifeng Dai. 2020. Vl-bert: Pre-
+Andrew Rabinovich, Andrea Vedaldi, Carolina Gal- training of generic visual-linguistic representations.
+leguillos,EricWiewiora,andSergeBelongie.2007. In International Conference on Learning Represen-
+Objectsincontext. In2007IEEE11thInternational tations.
+ConferenceonComputerVision,pages1–8.IEEE.
+Chen Sun, Austin Myers, Carl Vondrick, Kevin Mur-
+AlecRadford,JongWookKim,ChrisHallacy,Aditya phy, and Cordelia Schmid. 2019a. Videobert: A
+Ramesh, Gabriel Goh, Sandhini Agarwal, Girish joint model for video and language representation
+Sastry,AmandaAskell,PamelaMishkin,JackClark, learning. In Proceedings of the IEEE/CVF Interna-
+et al. 2021. Learning transferable visual models tionalConferenceonComputerVision,pages7464–
+from natural language supervision. arXiv preprint 7473.
+arXiv:2103.00020.
+YuSun,ShuohuanWang,YukunLi,ShikunFeng,Xuyi
+ColinRaffel,NoamShazeer,AdamRoberts,Katherine Chen, Han Zhang, Xin Tian, Danxiang Zhu, Hao
+Lee, Sharan Narang, Michael Matena, Yanqi Zhou, Tian, and Hua Wu. 2019b. Ernie: Enhanced rep-
+Wei Li, and Peter J Liu. 2020. Exploring the lim- resentation through knowledge integration. arXiv
+its of transfer learning with a unified text-to-text preprintarXiv:1904.09223.
+5452
+Hao Tan and Mohit Bansal. 2019. Lxmert: Learning JianxiongXiao,KristaAEhinger,AudeOliva,andAn-
+cross-modality encoder representations from trans- tonioTorralba.2012. Recognizingsceneviewpoint
+formers. InProceedingsofthe2019Conferenceon usingpanoramicplacerepresentation. InComputer
+EmpiricalMethodsinNaturalLanguageProcessing VisionandPatternRecognition(CVPR),2012IEEE
+andthe9thInternationalJointConferenceonNatu- Conferenceon,pages2695–2702.IEEE.
+ralLanguageProcessing(EMNLP-IJCNLP),pages
+5100–5111. Yezhou Yang, Yi Li, Cornelia Fermuller, and Yiannis
+Aloimonos. 2015. Neural self talk: Image under-
+HaoTan,LichengYu,andMohitBansal.2019. Learn- standing via continuous questioning and answering.
+ing to navigate unseen environments: Back transla- arXivpreprintarXiv:1512.03460.
+tionwithenvironmentaldropout. InProceedingsof
+the 2019 Conference of the North American Chap- Licheng Yu, Zhe Lin, Xiaohui Shen, Jimei Yang, Xin
+teroftheAssociationforComputationalLinguistics: Lu, Mohit Bansal, and Tamara L Berg. 2018. Mat-
+Human Language Technologies, Volume 1 (Long tnet:Modularattentionnetworkforreferringexpres-
+andShortPapers),pages2610–2621. sion comprehension. In Proceedings of the IEEE
+ConferenceonComputerVisionandPatternRecog-
+JesseThomason,MichaelMurray,MayaCakmak,and nition(CVPR).
+LukeZettlemoyer.2020. Vision-and-dialognaviga-
+tion. InConferenceonRobotLearning,pages394– LichengYu,PatrickPoirson,ShanYang,AlexanderC
+406.PMLR. Berg, and Tamara L Berg. 2016. Modeling context
+in referring expressions. In European Conference
+Antonio Torralba, Aude Oliva, Monica S Castelhano, onComputerVision,pages69–85.Springer.
+andJohnMHenderson.2006. Contextualguidance
+ofeyemovementsandattentioninreal-worldscenes: Licheng Yu, Hao Tan, Mohit Bansal, and Tamara L
+theroleofglobalfeaturesinobjectsearch. Psycho- Berg. 2017. A joint speaker-listener-reinforcer
+logicalreview,113(4):766. model for referring expressions. In Proceedings of
+the IEEE Conference on Computer Vision and Pat-
+Maria Tsimpoukelli, Jacob Menick, Serkan Cabi, ternRecognition(CVPR).
+SM Eslami, Oriol Vinyals, and Felix Hill. 2021.
+Multimodalfew-shotlearningwithfrozenlanguage HanwangZhang,YuleiNiu,andShih-FuChang.2018.
+models. arXivpreprintarXiv:2106.13884. Groundingreferringexpressionsinimagesbyvaria-
+tional context. In Proceedings of the IEEE Confer-
+Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob ence on Computer Vision and Pattern Recognition,
+Uszkoreit, Llion Jones, Aidan N Gomez, Łukasz pages4158–4166.
+Kaiser, and Illia Polosukhin. 2017. Attention is all
+you need. In Advances in neural information pro- Bohan Zhuang, Qi Wu, Chunhua Shen, Ian Reid, and
+cessingsystems,pages5998–6008. Anton Van Den Hengel. 2018. Parallel attention:
+A unified framework for visual object discovery
+RubenVillegas, ArkanathPathak, HariniKannan, Du-
+through dialogs and queries. In Proceedings of the
+mitru Erhan, Quoc V Le, and Honglak Lee. 2019.
+IEEE Conference on Computer Vision and Pattern
+High fidelity video prediction with large stochastic
+Recognition,pages4252–4261.
+recurrent neural networks. Advances in Neural In-
+formationProcessingSystems,32:81–91.
+A Appendix
+AdamVogelandDanJurafsky.2010. Learningtofol-
+This section presents details omitted in the main
+low navigational directions. In Proceedings of the
+48thAnnualMeetingoftheAssociationforCompu- document.
+tationalLinguistics,pages806–814.
+A.1 SpatialPrompts
+Thomas Wolf, Lysandre Debut, Victor Sanh, Julien
+Weuseafixedsetofspatialpromptstoquerypre-
+Chaumond, ClementDelangue, AnthonyMoi, Pier-
+ric Cistac, Tim Rault, Rémi Louf, Morgan Funtow- trainedlanguagemodels. ThelistisinTable7
+icz, Joe Davison, Sam Shleifer, Patrick von Platen,
+Clara Ma, Yacine Jernite, Julien Plu, Canwen Xu, neartheobjectthereis
+Teven Le Scao, Sylvain Gugger, Mariama Drame, neartheobjectIseea
+Quentin Lhoest, and Alexander M. Rush. 2020. neartheobjectthereshouldbea
+Transformers: State-of-the-artnaturallanguagepro-
+theobjectneartheobjectis
+ontheleftofobjectthereis
+cessing. InProceedingsofthe2020Conferenceon
+ontherightofobjectthereis
+EmpiricalMethodsinNaturalLanguageProcessing:
+ontopofobjectthereis
+SystemDemonstrations,pages38–45,Online.Asso-
+undertheobjectthereis
+ciationforComputationalLinguistics. acrosstheobjectthereis
+closetheobjectthereis
+Chia-Chien Wu, Farahnaz Ahmed Wick, and Marc
+Pomplun.2014. Guidanceofvisualattentionbyse-
+Table7: SpatialPromptTemplates
+mantic information in real-world scenes. Frontiers
+inpsychology,5:54.
+5453

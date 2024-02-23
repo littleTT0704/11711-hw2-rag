@@ -1,0 +1,813 @@
+Where Are We in Discourse Relation Recognition?
+KatherineAtwell JunyiJessyLi MaliheAlikhani
+Dept. ofComputerScience Dept. ofLinguistics Dept. ofComputerScience
+UniversityofPittsburgh TheUniversityofTexasatAustin UniversityofPittsburgh
+kaa139@pitt.edu jessy@austin.utexas.edu malihe@pitt.edu
+Abstract Thisdiscourseshowstheclassicpatternofimplicit
+information. TheoverallpointisthatAlicehada
+Discourse parsers recognize the intentional
+negativeopinionofthestory: theunderlyingexpla-
+and inferential relationships that organize ex-
+nationisthatthestorywasnotinterestingbecause
+tendedtexts. Theyhavehadagreatinfluence
+on a variety of NLP tasks as well as theoreti- ithadnosurprises. Butgivenavailablelexicalre-
+calstudiesinlinguisticsandcognitivescience. sourcesandsentimentdetectionmethods,wecan
+However it is often difficult to achieve good capture such inferences systematically by recog-
+resultsfromcurrentdiscoursemodels,largely
+nizingthattheyfollowcommongeneralpatterns,
+due to the difficulty of the task, particularly
+knownas“discourserelations”,andareguidedby
+recognizing implicit discourse relations. Re-
+shallowcues.
+cent developments in transformer-based mod-
+An example of an instance in which discourse
+els have shown great promise on these analy-
+ses, but challenges still remain. We present analysiscanproduceinsightsthatmaybemissedby
+a position paper which provides a systematic employingotherNLPmethodsisthisexamplefrom
+analysisofthestateoftheartdiscourseparsers. Taboada(2016),wherewithoutdiscourserelations
+Weaimtoexaminetheperformanceofcurrent itmaybedifficulttocapturesentiment:
+discourse parsing models via gradual domain
+shift: within the same corpus, on in-domain (2) “While this book is totally different from
+texts,andonout-of-domaintexts,anddiscuss any other book he has written to date, it
+thedifferencesbetweenthetransformer-based didnotdisappointmeatall.”
+modelsandthepreviousmodelsinpredicting
+different types of implicit relations both inter- This represents a Concession relation according
+and intra-sentential. We conclude by describ- tobothRhetoricalStructureTheoryandthePenn
+ing several shortcomings of the existing mod- Discourse Treebank (where it is notated as Com-
+elsandadiscussionofhowfutureworkshould
+parison.Concession),resolvingtheincongruityofthe
+approachthisproblem.
+first clause being negative and the second clause
+1 Introduction beingpositivebyillustratinghowthenegativestate-
+ment in the subordinate clause is reversed by the
+DiscourseanalysisisacrucialanalyticlevelinNLP.
+positiveoneinthemainclause.
+Innaturallanguagediscourse,speakersandwriters
+The importance of discourse has led to active
+oftenrelyonimplicitinferencetosignalthekind
+research based on predicting what coherence re-
+ofcontributiontheyaremakingtotheconversation,
+lationsarepresentintextbasedonshallowinfor-
+aswellaskeyrelationshipsthatjustifytheirpoint
+mation. The predicted relations are then used to
+of view. While early AI literature is full of case
+draw inferences from the text. The value of pre-
+studies suggesting that this inference is complex,
+dictingthesemanticclassesofcoherencerelations
+open-endedandknowledge-heavy(e.g.,Charniak
+hasbeendemonstratedinseveralapplications,in-
+(1973);SchankandAbelson(1977)),recentwork
+cluding sentiment analysis (Marcu, 2000; Bhatia
+oncomputationaldiscoursecoherenceoffersadif-
+etal.,2015),machinecomprehension(Narasimhan
+ferentapproach. Takethefollowingexamplefrom
+andBarzilay,2015),summarization(Cohanetal.,
+PitlerandNenkova(2008):
+2018;Marcu,1999;Xuetal.,2019;Kikuchietal.,
+(1) “Alice thought the story was predictable. 2014),andpredictinginstructorinterventioninan
+Shefounditboring.” online course discussion forum (Chandrasekaran
+etal.,2017). However,itisstillthecasethatfew structureandvocabulary.
+workshavesofarfounddiscourserelationsaskey Additionally,aspartofourevaluation,weasked
+features (Zhong et al., 2020). We argue that one linguiststoperformmanualannotation,whichal-
+reasonforthisgapbetweentheoryandempirical lowedustoevaluatetheaccuracyoftheseparsers
+evidenceisthequalityoftheparsersexacerbated on plain, unlabeled text, and gain some insight
+bythedistributionalshiftsinthetextstheyneedto aboutthemistakesmadebytheparsers. Duringthe
+applyto. annotationprocess,weuncoveredinformationthat
+canguidefutureresearch,includingbutnotlimited
+Thenecessityofdiscourseresearchhasresulted
+tothecriticalroleofcontextforimplicitdiscourse
+inseveralsharedtasks(Xueetal.,2015,2016)and
+senseclassification. Wediscussthisneedforcon-
+corporadevelopmentinmultiplelanguages(Zeyrek
+text, hypothesize what scenarios may cause two
+andWebber,2008;Meyeretal.,2011;Danlosetal.,
+argumentstoneedadditionalcontext,andprovide
+2012;Zhouetal.,2014;Zeyreketal.,2020). Yet
+someexamplesforwhichthisisthecase. Weurge
+shallow discourse parsing is a very difficult task;
+futureresearcherstoconsiderdevelopingcontext-
+more than 10 years after the introduction of the
+awaremodelsforshallowdiscourseparsingmov-
+PennDiscourseTreebank(EleniMiltsakaki,2004),
+ing forward. We release our dataset to facilitate
+performance for English implicit discourse rela-
+furtherdiscourseanalysisunderdomainshift. 1
+tionrecognitionhasgonefrom40.2F-1(Linetal.,
+2009) to 47.8 (Lee et al., 2020), less than 8 per-
+2 RelatedWork
+centagepoints;asimilarstorycouldbesaidabout
+therelationpredictionperformanceofRSTparsers.
+Therearevariousframeworksforstudyinginferen-
+Suchperformancehindersthewiderapplicationof
+tiallinksbetweendiscoursesegments,fromlocal
+parsers. Ifdownstreamtasksaretousepredicted
+shallow relations between discourse segments in
+relationsenses,thedatatowhichthesystemsare
+PDTB(RashmiPrasad,2008)tohierarchicalcon-
+applied is typically different from their training
+stituentstructuresinRST(Carlsonetal.,2003)or
+data—the Wall Street Journal (WSJ) in a 3-year
+discourse graphs in Segmented Discourse Repre-
+window—tovaryingdegrees. Thistendstofurther
+sentationTheory(SDRT)(Asheretal.,2003)and
+aggravatethelowperformanceobserved. Asare-
+theDiscourseGraphbank(WolfandGibson,2005).
+sult, often we find that adding parsed discourse
+RhetoricalStructureTheory(RST)(Mannand
+relationsintomodelsareunhelpful.
+Thompson,1987)providesahierarchicalstructure
+Although domain difference is a recognized foranalyzingtextthatdescribesrelationsbetween
+issue in shallow discourse parsing by existing text spans known as elementary discourse units
+work (Braud et al., 2017; Liu et al., 2016), we (EDUs). The RST Discourse Treebank (Carlson
+stillhavelittleunderstandingofthetypesofdistri- etal.,2003)contains385WallStreetJournalarti-
+butionalshiftthatmatterandbyhowmuch,even clesfromthePennTreebank(Marcusetal.,1993)
+withinonelanguage. Thispositionpaperseeksto which have been split into elementary discourse
+shed some light on our current state in discourse unitsandannotatedaccordingtoRhetoricalStruc-
+parsing in English. Surprisingly, we found that ture Theory, where discourse relations are anno-
+parsers have some issues even within the same tatedinatreestructureacrossthewholedocument.
+news source as the training set (WSJ); the differ- AfulllistoftheserelationscanbefoundinCarlson
+encesinaccuracywerenotsignificantbetweenin- andMarcu(2001).
+domainandout-of-domaindataforthequalitative The Penn Discourse Treebank (PDTB)
+examplesthatwelookedat,althoughthedistribu- (Eleni Miltsakaki, 2004; Rashmi Prasad, 2008;
+tionoferrorstendtobedifferent. Thisdiffersfrom Prasadetal.,2018),whichalsousesPennTreebank
+otherNLPtaskssuchasentityrecognition,where Wall Street Journal articles, contains discourse
+trainingondatainthetargetdomainincreasedthe relationsannotatedinashallow,non-hierarchical
+F1scorebyover20points(Bammanetal.,2019). manner. Foreachrelationbetweentwoarguments,
+We further found that parsers perform differ- eachargumentandthediscourseconnective(word
+ently on implicit discourse relations held within or phrase that indicates the discourse relation)
+vs.acrosssentences. Webelievethesefindingsare are labeled. The PDTB also annotates whether a
+strongevidenceforthesensitivityofexistingmod-
+1Our data is located here: https://github.com/
+elstodistributionalshiftintermsofbothlinguistic katherine-atwell/discourse-domain-shift
+relation is explicit or non-explicit, the latter type provedevaluationprotocolforthePDTB-2(Kim
+of which has three subtypes: Implicit, AltLex, etal.,2020). Incontrast,ourworkaimstoanalyze
+and EntRel. In this paper, we focus on implicit andevaluateexistingdiscourseparsersviagradual
+relations, where a connective can be inserted domain shift. We provide a comparative genre-
+between the two arguments that indicates a basedanalysisondistributionallyshiftedtextdata
+discourserelation. Theserelationsareconsidered andpresentaqualitativeanalysisoftheimpactof
+extremely challenging for discourse parsers to thepracticalchoicesthatthesemodelsmakewhile
+automaticallyidentify. doingdiscourseparsingacrossframeworks.
+There is a need to examine the performance
+3 Whereareweindiscourseparsing?
+of the proposed discourse parsers, their represen-
+tational choices, their generalizability, and inter-
+3.1 Experiments
+pretabilitybothacrossdomains,distributions,and
+Data. Westartbyfocusingonpossibledistribu-
+frameworks. One recently developed framework
+tional shifts in a shallow parser’s application, by
+is the PDTB-3. Since its release in 2019, several
+consideringdifferentlinguistictypesofimplicitdis-
+papershaveevaluatedtheperformanceofimplicit
+courserelations(inter-vsintra-sentential)(Liang
+senseclassifiersonthisnewcorpus,whichincludes
+etal.,2020). Todothis,weevaluateperformance
+newlyannotatedintra-sententialimplicitdiscourse
+onthePDTB-2andPDTB-3,aswellastheintra-
+relations. In addition to proposing a new evalua-
+sententialrelationsinthePDTB-3specifically.
+tionframeworkforPDTB,Kimetal.(2020)eval-
+uate the performance of pretrained encoders for We then evaluate the performance of three
+implicit sense classification on the PDTB-2 and widelyusedorstate-of-the-artmodelsundergrad-
+thePDTB-3. Liangetal.(2020)identifylocating ual shift of the domain of texts, noting that users
+thepositionofrelationsasanewchallengeinthe who would want to use a parser will be applying
+PDTB-3,duetothesignificantlyincreasednumber itondatathatvarieslinguisticallytodifferentde-
+ofintra-sententialimplicitrelationsannotated. greesfromtheparser’strainingdata(afixed3-year
+window of WSJ articles). The data we examine
+Techniquesofdiscourseparsingrangefromsu-
+is: WSJtextsoutsideofthePennTreebank,other
+pervised(Liuetal.,2019;Mabonaetal.,2019;Lin
+news texts, and the GUM corpus (Zeldes, 2017).
+et al., 2019; Zhang et al., 2020; Kobayashi et al.,
+Note that none of these texts contain gold PDTB
+2020)andweaklysupervisedandunsupervisedap-
+annotations, and only the GUM corpus contains
+proaches(Leeetal.,2020;NishidaandNakayama,
+goldRSTannotations.
+2020;KurfalıandO¨stling,2019);recentdevelop-
+ments such as word/contextual embeddings have
+Setup. Toexaminetheimpactofchangingthelin-
+improvedparserperformance,althoughnotassig-
+guisticdistributionbyintroducingintra-sentential
+nificantlyasothertasks(ShiandDemberg,2019;
+discourserelations,werunthemodeldevelopedby
+Chenetal.,2019)Yetmostworkshavemadesim-
+Chenetal.(2019)usingthesametrain-testsplitas
+plifyingassumptionsconcerningthelinguistican-
+theauthorsandtraining/testingondiscoursesenses
+notations for practical purposes that affect their
+whichcontain10ormoreexamples. Togetresults
+evaluationandgenerality. Forinstance,mostshal-
+for the PDTB-2, we train and test the model on
+lowdiscourseparsersuseonlytheargumentpairs
+thePDTB-2;togetresultsforthePDTB-3andin-
+todeterminethediscoursesensewithoutconsider-
+trasententialrelationsinthePDTB-3,wetrainthe
+ingfurthercontext. Additionally,inRSTparsing,
+modelonthePDTB-3andevaluateitsperformance
+standardpracticeinvolvesclassifyingonlythe18
+onbothofthesesets.
+top-levelRSTclasses(Hernaultetal.,2010;Feng
+To parse plain-text documents for PDTB rela-
+and Hirst, 2014; Morey et al., 2017). Thus, all
+tions, we use the Wang and Lan (2015) parser as
+Elaboration relations are lumped together, mak-
+our end-to-end parser and the Chen et al. (2019)
+ingitahugeclass. Werevealfindingsaboutthese
+DiscoEval parser as our implicit sense classifier.
+assumptionsinSection4.
+The former is needed in order to parse unlabeled
+Otherworksevaluatingdiscourseparsersinclude text,andthelatterisamoreaccurateBERT-based
+DiscoEval(Chenetal.,2019),atestsuiteofeval- implicitsenseclassifier(implicitsenseclassifica-
+uationtasksthattesttheeffectivenessofdifferent tion is the most difficult PDTB parsing task). To
+sentenceencodersfordiscourseparsers,andanim- evaluatetheseparsers,welookatquantitativeas-
+PDTB-2 PDTB-3 PDTB-3 constituents. Additionally,theyoftenco-occurwith
+Intra-Sent explicitrelations.
+Table 1 shows the accuracies of the base and
+Base 0.4236 0.4897 0.6251
+large BERT model (Chen et al., 2019) on the im-
+Large 0.4358 0.5094 0.6251
+plicit relations in the two versions of the PDTB.
+TheresultsonthePDTB-3aresignificantlybetter
+Table1: AccuracyoftheBERT-basedmodeldescribed
+thanthoseofthePDTB-2,andthemodeltestedon
+inChenetal.(2019)onimplicitrelationsinthePDTB.
+thePDTB-3intra-sententialrelationssignificantly
+outperformedboth(p<0.01,t>11.172). Thismir-
+pects of their output (e.g. the distributions) and
+rors the results found from running the baseline
+qualitativeaspects(manualannotationandinspec-
+modelinLiangetal.(2020)onthePDTB-2,PDTB-
+tionofparseroutput).
+3,andPDTB-3intra-sententialrelations.
+For our RST experiments, we use the state-of-
+Figure1showstheaccuracyoftheWangetal.
+the-art(Wangetal.,2017)parser. Weevaluatethe
+(2017) parser on the inter-sentential and intra-
+performance of this parser on the standard RST
+sentential relations in the RST, respectively. For
+DiscourseTreebanktestsetwitha90-10split(347
+theinter-sententialrelations,wesampledonlythe
+training documents and 38 test documents). We
+relationsbetweentwosentencestohavea“fairer”
+alsoevaluateitonthegoldlabelsfromtheGUM
+comparison(itiswellknownthatperformancesuf-
+corpus (but trained on the RST). Because GUM
+fers on higher levels of the RST tree). As with
+is annotated with 20 different discourse relations
+the PDTB, these results show a significant im-
+whichdonotpreciselymaptotheconventional18
+provement in performance when run on only the
+typesusedintheWangetal.(2017)parser,wemap
+intra-sententialrelationscomparedtoonlytheinter-
+theonesthatdon’tmatchthesetypesorthemore
+sententialrelations.
+fine-grainedrelationsinthefollowingmanner,fol-
+Theseresultsdrivehometheinfluenceofthelin-
+lowingBraudetal.(2017): preparationtoBACK-
+guisticandstructuraldifferencesbetweenintra-and
+GROUND, justify and motivation to EXPLANA-
+inter-sentenceimplicitrelationsontheperformance
+TION,andsolutionhood toTOPIC-COMMENT.
+of the parsers. We initially found this surprising
+Fortheplain-textnewsarticlesfromoutsideof
+sinceintra-sentenceonescontainargumentswith
+the PDTB corpus, we mirror the PDTB experi-
+less information than their (full-sentence) inter-
+ments on these documents by parsing them with
+sentencecounterparts. However,oneexplanation
+the(Wangetal.,2017)parser,thenexaminingthe
+forthisisthat, whilelookingforrelationswithin
+resultingdistributionsandmanuallyinspectingthe
+sentence boundaries is a problem that has been
+parseroutput.
+very explored, and to some extent solved, in var-
+iousNLPtasks(e.g. syntacticparsing), thereare
+3.2 Findings
+not as many rules regarding relations that occur
+Transformer-based models perform better on
+across sentence boundaries. Regardless of the
+linguisticallydifferentintra-sententialrelations
+cause, these results illustrate that future shallow
+than they do on inter-sentential relations. As
+discourseparsersmaybenefitfromaccountingfor
+mentionedabove,weaimtoexaminetheresultsof
+suchlinguisticdifferencesexplicitly.
+distributionalshiftsinbothvocabularyandlinguis-
+tic structure. Here, we look at shifts in linguistic Parsers struggle to identify implicit relations
+structure,namely,inter-vs.intra-sentenceimplicit fromlessfrequentclasses. Theseconddistribu-
+discourserelations(Hobbs,1985). Thelatterwas tionalshiftweexamineisashiftinvocabulary. In
+introducedinthePDTB-3(Liangetal.,2020)from ordertocapturethis,wemeasuretheperformance
+whichweshowthefollowingexample: acrossseveraldomainshiftsfromthePDTB-2us-
+ing three datasets: WSJ articles from the COHA
+(3) ...Exxon Corp. built the plant but (Im-
+corpus (Davies, 2012), other news articles from
+plicit=then)closeditin1985
+COHA,andtheGUMcorpus(Zeldes,2017). The
+Unlike the inter-sentence relations that were an- WSJ articles are completely within the domain
+notated across adjacent sentences, implicit intra- of the PDTB, but more shifted in timeline than
+sentencerelationsdonotoccuratwell-definedpo- the PDTB test set. The other news articles are
+sitions,butratherbetweenvariedtypesofsyntactic in-domain as well, but not from the same source
+Figure1:F-1scoresforrunningtheWangetalRSTparserontheRSTDiscourseTreebankforinter-sentential(yel-
+low)andintra-sentential(blue)relations(*denotesthatthisrelationwasnotincludedinthesetofinter-sentential
+relations). We can see from this graph that the performance of the parser was improved for the intra-sentential
+relationscomparedtotheinter-sententialrelations.
+publication,andthusmaybelinguisticallydiffer- These results show us that if PDTB parsers are
+ent. TheGUMcorpus,ourout-of-domaindataset, runonplaintextdocuments,whetherin-domainor
+containsdatafromeightdomains: Academic,Bio, slightlyshifted,theresultsarelikelytobeovercon-
+Fiction, Interview, News, Travel, How-to guides, fidentwithmajorityclassesandunlikelytopredict
+andForumDiscussions. ItcontainsgoldRSTan- minorityclasses.
+notationsbutnoPDTBannotations.
+To quantitatively evaluate the performance of Wangetal. Level-2Predictions
+theseparsingmodels,weexaminethedistribution
+Sense WSJ other GUM
+oftheparserpredictionsandhowfrequentlydiffer-
+news
+entsensesarepredicted. Fromthis,wenoticedthat
+articles
+only 5 out of the 16 PDTB-2 level 2 senses were
+Expansion.Conjunction 15.2 22.7 12.1
+predicted at all by the Wang and Lan parser, and
+Expansion.Instantiation 2.4 1.5 0.7
+only7outof16werepredictedbytheDiscoEval
+Expansion.Restatement 30.9 36.1 29.5
+parser. Oftheseclasses,severalwerepredictedless
+Comparison.Contrast 0.3 0.9 0.9
+than2%ofthetime(Table6).
+Contingency.Cause 51.3 38.7 56.7
+We can also see that in Tables 2 and 3, the
+Wang et al parser predicted at least 38.7% Con-
+Table 2: Percentages of Level-2 senses predicted by
+tingency.Cause for all datasets and the DiscoEval
+theWangandLan(2015)parseronthePennDiscourse
+parser predicted at least 44% Contingency.Cause,
+TreebankonWallStreetJournalarticles,othernewsar-
+althoughthesepercentageswereoftenmuchhigher.
+ticles, and the GUM corpus. All other 11 senses not
+Because only 24.9% of the total relations con- includedinthistablewerenotpredictedbytheparser
+tained in the PDTB are Contingency, this over- atall.
+representationofContingency.Causeinthepredic-
+tionsindicatesastrongbiastowardsContingency. Wealsoobtainedthepredicteddistributionsof
+Indeed, many of the errors found during annota- the RST relations (Table 4) on the COHA news
+tion occurred when the parser predicted Contin- articles; we examined these results for the set of
+gency.Cause,themostcommonlevel2sense,overa WSJarticlesaswellastheothernewsarticles. We
+lessrepresentedclasssuchasComparison.Contrast; foundthatrelationsthatarehighlyrepresentedin
+theprecisionforContingency.Causewas0.33,0.14, theRSTDiscourseTreebanksuchasElaboration,
+and0.33forWSJarticles,non-WSJnewsarticles, Attribution, and Same Unit were predicted much
+andtheGUMcorpusrespectively. Thislikelycon- morefrequentlythantheyappearintheRST.How-
+tributedtothelowaccuracyforthesedocuments. ever, more minority classes were represented in
+BERTLevel-2Predictions WSJArticles OtherNews GUMCorpus
+Level Wang Disco Wang Disco Wang Disco
+Sense WSJ other GUM
+Correct etal Eval etal Eval etal Eval
+news
+None 46.7 60.0 35.3 41.2 43.8 23.8
+articles
+Level1 20.0 6.7 29.4 44.4 21.9 28.1
+Level2 33.3 33.3 35.3 29.4 34.4 28.1
+Temporal.Asynchronous 1.3 1.6 4.2
+Expansion.Conjunction 16.4 20.9 19.6
+Table5:Resultingaccuraciesfromannotatingasample
+Expansion.Instantiation 2.1 2.3 1.0 ofimplicitPDTBrelationsandcomparingtheseanno-
+Expansion.List .7 .4 2.8 tationstotheoutputoftheWangandDiscoEvalparsers
+Expansion.Restatement 22.9 27.2 21.8
+Comparison.Contrast 2.1 3.1 1.0
+alyzetheeffectsofachangeinthedistributionof
+Comparison.Concession 0 .02 0
+vocabulary by qualitatively analyzing the results
+Contingency.Cause 54.3 44.4 49.1
+of our discourse parsers through manual inspec-
+tion. To qualitatively evaluate the results of the
+Table 3: Level-2 senses predicted by the BERT-based PDTB parsers across domains, we randomly se-
+modeldescribedinChenetal.(2019)onthePennDis-
+lected64implicitrelationspredictedbytheparsers
+course Treebank on Wall Street Journal articles, other
+andaskedtwoexpertlinguists(afacultymember
+newsarticles,andtheGUMcorpus. Allother9senses
+andagraduatestudentatalinguisticsdepartment)
+not included in this table were not predicted by the
+to annotate them. These annotations allow us to
+parseratall,andthuswerepredicted0%ofthetime.
+evaluate the accuracy of the parsers, since none
+of the documents we are looking at (Wall Street
+thesepredictionsthaninthePDTBparser’s.
+JournalarticlesintheCOHAdataset,othernews
+articles,andtheGUMcorpus)havePDTBannota-
+PredictedRSTRelationPercentages
+tions. Moredetailsaboutourannotationprotocol
+WSJArti- Other areprovidedatthebeginningofSection4.
+cles News TheannotationresultsareinTable5,wherethe
+Texts resultsoftheparsersarecomparedtotheground
+truthlabelsbytheannotators.
+Attribution 22.02 21.38
+Acrossthethreecorpora,theannotatorsnoticed
+Background 2.66 2.98
+that in many cases the relation type was labeled
+Cause 0.94 0.79
+as EntRel or NoRel when it shouldn’t have been,
+Comparison 0.90 0.49
+or vice versa. This led to discourse senses being
+Condition 2.96 1.93
+predictedforrelationsthatdidnothaveadiscourse
+Contrast 4.69 3.86
+sense and vice versa. The parsers also often had
+Elaboration 31.47 32.92
+issueswithargumentsegmentation. FortheGUM
+Enablement 4.58 4.20
+corpus,segmentationwasespeciallyanissueinthe
+Evaluation 0.04 0.01
+travelgenre,whereheadersorcaptionswouldbe
+Explanation 0.56 0.71
+labeledaspartofanargument.
+Joint 9.49 9.21
+AsisshowninTable5,thepercentageofimplicit
+Manner-Means 1.13 1.04
+relations that the parsers got right on the second
+Same-Unit 17.2 19.31
+levelappearedtodecreaseonaverageasthedomain
+Temporal 1.31 1.18
+shifted. However,thiswasaveryslightdecrease;
+Table4: Distributionofrelationspredictedbyrunning theyhadroughlythesamelevelofaccuracyacross
+the Wang et al. (2017) parser on COHA news articles. all datasets, which was very low. In fact, for all
+The4relationsnotlistedherewerenotpredictedatall parsingmodelsanddatasets,alargerpercentageof
+bytheparser. relationswaspredictedcompletelyincorrectly.
+,
+Theresultsofrunningthestate-of-the-artWang
+etal.(2017)parseronthegoldlabelsoftheRST
+Modelsfailtogeneralizetobothin-domainand and GUM corpus are shown in Figure 2. These
+out-of-domain data, and different errors are resultsmakeitclearthattheRSTparserperforms
+seenfordifferentdomains. Wecontinuetoan- muchworseonout-of-domaindatathanitdoeson
+Figure 2: F-1 scores for running the Wang et al RST parser on the RST Discourse Treebank (* indicates that a
+relationwasnotannotatedontheGUMcorpus). Formostrelations,weseethattheparserperformedmuchbetter
+ontheRSTtestsetthanontheGUMarticles.
+WangandLan BERT 4.1 AnnotationDetails
+Forthequalitativeanalysis,weasktwoannotators
+WSJ Other GUM WSJ Other GUM
+(a faculty member and a graduate student from
+Max 51.3 38.7 56.7 54.3 44.4 49.1
+linguisticsdepartments)toprovideannotationsfor
+Std.dev 14.1 13.0 15.4 14.0 12.6 12.9
+the data, as none of the texts contain gold PDTB
+0% 11 11 11 9 8 8
+labels and only the GUM corpus contains gold
+0-2% 1 2 2 2 3 3
+RST labels. The annotators were trained on, and
+2-5% 1 0 0 2 2 2
+provided with, the PDTB 2.0 annotation manual
+>5% 3 3 3 3 3 3
+(Prasadetal.,2007).
+Inorderfortheannotatorstoannotatethiscor-
+Table6: SummarystatsforrunningtheWangandLan
+pus, discourse relations were randomly chosen
+parser and BERT parser on WSJ articles, other news
+from Wall Street Journal articles, other news ar-
+articles,andGUM.Westudythe%ofpredictedLevel
+2PDTBrelations,reportingthemaximum,thestandard ticles,andtheGUMcorpus. 64ofthesediscourse
+deviation,and#ofsensetypesthatwerepredicted0% relations were implicit, and are the only ones re-
+ofthetime,0-2%,etc. portedinthispaper. Theannotatorsweregiventhe
+sentence(s) containing both arguments, with the
+argumentslabeled,andtheyalsohadaccesstothe
+RST corpus data. This is expected; it unsurpris-
+article text if they ever needed to reference back
+ingly does not generalize as well for text outside
+toit. Toassesstheinter-rateragreement,wedeter-
+ofitsdomainasforthenewstextcontainedwithin
+mineCohen’sκvalue(Cohen,1960). Werandomly
+the corpus test set due to a change in vocabulary.
+selected25samplesfromthePDTBandassigned
+However,inorderfordiscourseparserstobeuseful
+eachtotheannotators. WeobtainedaCohen’sκof
+forapplicationsoutsideofthenewsdomain,mod-
+0.88,whichindicatesalmostperfectagreement.
+elsthatcanmoreeasilyadapttothetargetdomain
+mustbedeveloped.
+4.2 Findings
+Morecontextthanthetwoargumentsisneeded
+4 Insightsformodeldevelopment to determine the correct discourse relation in
+manycases Onepotentialwaytomitigatetheim-
+Whileinspectingtheresultsoftheannotations,we pactofdomainshiftontheperformanceofshallow
+found several helpful phenomena for developing discourse parsers is to incorporate context. With
+future models, including observations regarding a few exceptions (Dai and Huang, 2018; Shi and
+theroleofcontextinshallowdiscourseparsingand Demberg,2019;Zhangetal.,2021),existingmod-
+errorsthatcurrentRSTparsersaremaking. els for shallow discourse parsing mostly do not
+Figure3: RSTparsetreecontainingasegmentoftherelationsthatwereexaminedinthequalitativeanalysis. The
+discourse sense labels on this tree that were examined in our analysis are marked red and green, where green is
+correctandredisincorrect
+use input beyond the two adjacent sentences that ingthedaybefore–andthatduringacou-
+comprisetheargumentsoftherelation(Kishimoto pleofhours,notknowingfromoneminute
+etal.,2020;Chenetal.,2019). Wefoundthatonly tothenextwhattimethepoweriscoming
+considering these two sentences is not sufficient on. ” In this northern latitude it does n’t
+even for our expert linguist annotators. Specifi- getdarkinsummeruntilabout10:30p.m.
+cally, while annotating the PDTB, the annotators solightingisoperateexceptatsomecrazy
+foundseveralexampleswhere,whentheylookedat time like 11:45 at night , whenever there
+thelargercontextbehindtheargumentsandthesen- ispower,unlesstheyhavestand-bydiesel
+tenceswheretheargumentswerecontained,their generators. There ’s a year ’s supply of
+annotations changed. Below, we describe a few dieseloilhere.
+examples that demonstrate the mistakes that can
+bemadewithoutthefullcontextandtheirimplica- Theadditionalcontext,thatpeopleinthecountry
+tions: describedaredealingwithelectricityissuesdespite
+therebeingayear’sworthofdieselsupply,isnow
+(4) In this northern latitude it does n’t get
+madeclearinthispassage. Thuswecanconclude
+darkinsummeruntilabout10:30p.m. so
+thatthecorrectrelationhereisComparison.Contrast.
+lighting is operate except at some crazy
+Withoutgettingthiscontextandjustseeingthetwo
+time like 11:45 at night , whenever there
+sentences in which the arguments are contained,
+ispower,unlesstheyhavestand-bydiesel
+it is difficult to discern this as an annotator. This
+generators. There ’s a year ’s supply of
+showsthatbyjustgettingexposuretothetwoargu-
+dieseloilhere.
+ments, without additional context, the sense may
+bemarkedincorrectly. TheWangandLan(2015)
+This example is from the Wall Street Journal. At
+parserandtheDiscoEvalparserbothpredictedthis
+first glimpse, one would think to annotate this as
+incorrectly,withtheWangandLan(2015)parser
+Contingency.Factualpresentcondition,butthisdoesnot
+predicting it as Contingency.Cause and the BERT
+capturethefullcontext,whichisshownbelow:
+parserpredictingitasExpansion.Conjunction.
+(5) One housewife says : ” With an electric Similarly,thefollowingexample,alsocontained
+kitchenIhavetodomywholeday’scook- inthispassage,hasadifferenttrueannotationthan
+onewouldthinkfromonlyseeingthearguments: tachmentissuecanleadtoerrorpropagationwhere
+theaccuracyoftheattachmentsfurtherinthetreeis
+(6) One housewife says : ” With an electric
+impactedbythatofthecurrentone. Reducingthis
+kitchenIhavetodomywholeday’scook-
+errorisoftheutmostimportanceforfutureparsers.
+ingthedaybefore–andthatduringacou-
+pleofhours,notknowingfromoneminute 5 Conclusionandfuturework
+to the next what time the power is com-
+ing on . ” In this northern latitude it Discourseparsingfortexthasseenarecentsurge
+doesn’tgetdarkinsummeruntilabout inexperimentalapproaches. Inthisworkwepre-
+10:30 p.m. so lighting is operate except sented a detailed analysis of the performance of
+at some crazy time like 11:45 at night thestateoftheartdiscourseparsersandanalysed
+, whenever there is power , unless they their weaknesses and strength. The conclusions
+havestand-bydieselgenerators. drawnabovefromtheseexperimentsmakeitclear
+thatdiscourseparsing,thoughithascomealong
+TherelationmaybedeemedasExpansion. Instanti- wayinthepastdecadeorso,stillhasalongwayto
+ation. However,byreadingthefulltext,itisclear
+go,particularlywithrespecttoparsingonout-of-
+thatitshouldbelabeledasContingency.Cause. Like
+domaintextsandaddressingissuesofclassimbal-
+the lastexample, a clearerviewof thefull text is
+ances,althoughtheBERT-basedmodelhasmade
+neededtodeterminetheproperannotation,notsim-
+someimprovementsinthisarea. Additionally,we
+plythetwoarguments.
+investigatedhowandwhenPDTB-3canhelpinim-
+These observations provide insights as to why provingthepredictionofintra-sententialimplicit
+contextualembeddingswithdocumentcontextsuch
+relations.
+as the next sentence prediction task helps with
+There are several promising future directions
+implicitdiscourserelationclassification(Shiand
+for the area of discourse parsing. A model that
+Demberg,2019). Moregenerally,webelievefuture
+detectsintra-sententialimplicitrelationsisneces-
+workondiscourseparsingshouldlookbeyondonly
+sary in order to be able to parse on the PDTB-3.
+the arguments of a relation because of the differ-
+Exploring new neural parsing strategies is also a
+entinterpretationsonewouldgivewhentakingthe
+must. Weobservedthatneuralparsersareignorant
+relation in vs. out of context. We believe that ar-
+about what they do not know and overconfident
+gumentpairswithlowspecificityandoneormore
+whentheymakeuninformedpredictions. Quantify-
+pronouns may be especially in need of this extra
+ingpredictionuncertaintydirectlybytrainingthe
+context,butmoreexperimentationwillhavetobe
+modeltooutputhighuncertaintyforthedatasam-
+donetoconfirmthishypothesis.
+plesclosetoclassboundariescanresultsinparsers
+that can make better decisions. One takeaway of
+Attachmentissuestendtooccurthroughoutthe
+our empirical analysis was the importance of the
+RSTparsetree,andrelationsareoftenmisclas-
+roleofcontextinidentifyingthecorrectdiscourse
+sified as Same-Unit and Elaboration. Regard-
+relations. This observation suggests the need for
+ing insights for the RST Discourse Treebank, a
+new computational experiments that can identify
+piece of the RST tree for this paragraph can be
+the right context window that is required for the
+seen in 3. Here, the EDU “One housewife says”
+modeltoaccuratelypredictrelations.
+should attach to the EDU after it, “With an elec-
+Anotherusefuldirectionisdesigningmodelsthat
+trickitchenIhavetodomywholeday’scooking
+canlearndiscourserelationsontheirownwithout
+the day before”. However, it instead attaches to
+thehelpofannotatedcorpora. Thereareseveralun-
+EDUs from the preceding sentences, which is in-
+supervisedmodels(Kobayashietal.,2019;Nishida
+correct,asthesetwosentencesdonotcontainwhat
+andNakayama,2020)thatareusedfordetermining
+the housewife says. We saw several other attach-
+thestructureofdiscourseparsetreesbutfewthat
+mentissues inthetext, includingacouple where
+infertherelationsthemselves.
+theattachmentshouldgoup/downbyseverallevels.
+Wealsosawseveralinstancesoftherelationbeing
+Acknowledgements
+incorrectly tagged as Same-Unit or Elaboration,
+someofwhichcanbeseeninthediagram. Wewouldliketothankthereviewers,DianeLitman
+Attachmentissuesareaparticularproblemfor andMatthewStoneforprovidinghelpfulfeedback
+RSTparsingduetoitshierarchicalnature;oneat- forthiswork.
+References Jacob Cohen. 1960. A coefficient of agreement for
+nominalscales. Educationalandpsychologicalmea-
+Nicholas Asher, Nicholas Michael Asher, and Alex surement,20(1):37–46.
+Lascarides. 2003. Logics of Conversation. Cam-
+bridgeUniversityPress. Zeyu Dai and Ruihong Huang. 2018. Improving im-
+plicit discourse relation classification by modeling
+David Bamman, Sejal Popat, and Sheng Shen. 2019. inter-dependenciesofdiscourseunitsinaparagraph.
+Anannotateddatasetofliteraryentities. InProceed- InProceedingsofthe2018ConferenceoftheNorth
+ingsofthe2019ConferenceoftheNorthAmerican American Chapter of the Association for Computa-
+Chapter of the Association for Computational Lin- tional Linguistics: Human Language Technologies,
+guistics: Human Language Technologies, Volume 1 Volume1(LongPapers).
+(LongandShortPapers),pages2138–2144.
+Laurence Danlos, Die´go Antolinos-Basso, Chloe´
+Parminder Bhatia, Yangfeng Ji, and Jacob Eisenstein. Braud, and Charlotte Roze. 2012. Vers le fdtb:
+2015. Better document-level sentiment analysis French discourse tree bank. In TALN 2012:
+from RST discourse parsing. In Proceedings of 19e`me confe´rence sur le Traitement Automatique
+the 2015 Conference on Empirical Methods in Nat- des Langues Naturelles, volume 2, pages 471–478.
+ural Language Processing, pages 2212–2218, Lis- ATALA/AFCP.
+bon, Portugal. Association for Computational Lin-
+guistics. Mark Davies. 2012. Expanding horizons in historical
+linguisticswiththe400-millionwordCorpusofHis-
+Chloe´ Braud,MaximinCoavoux,andAndersSøgaard. toricalAmericanEnglish. Corpora,7(2):121–157.
+2017. Cross-lingualRSTdiscourseparsing. InPro-
+ceedings of the 15th Conference of the European Aravind Joshi Bonnie Webber Eleni Miltsakaki,
+Chapter of the Association for Computational Lin- Rashmi Prasad. 2004. The Penn Discourse Tree-
+guistics: Volume1,LongPapers,pages292–304. bank. Proceedings of the Fourth International
+ConferenceonLanguageResourcesandEvaluation
+LynnCarlsonandDanielMarcu.2001. Discoursetag- (LREC’04).
+gingreferencemanual. ISITechnicalReportISI-TR-
+545,54:56. Vanessa Wei Feng and Graeme Hirst. 2014. A linear-
+time bottom-up discourse parser with constraints
+Lynn Carlson, Daniel Marcu, and Mary Ellen andpost-editing. InProceedingsofthe52ndAnnual
+Okurowski. 2003. Building a discourse-tagged cor- Meeting of the Association for Computational Lin-
+pusintheframeworkofRhetoricalStructureTheory. guistics(Volume1: LongPapers),pages511–521.
+InCurrentandnewdirectionsindiscourseanddia-
+logue,pages85–112.Springer. Hugo Hernault, Helmut Prendinger, Mitsuru Ishizuka,
+et al. 2010. HILDA: A discourse parser using sup-
+Muthu Kumar Chandrasekaran, Carrie Epp, Min-Yen portvectormachineclassification. Dialogue&Dis-
+Kan,andDianeLitman.2017. Usingdiscoursesig- course,1(3).
+nalsforrobustinstructorinterventionprediction. In
+ProceedingsoftheAAAIConferenceonArtificialIn- JerryR.Hobbs.1985. Onthecoherenceandstructure
+telligence,volume31. ofdiscourse. Technicalreport,CenterfortheStudy
+ofLanguageandInformation,StanfordUniversity.
+EugeneCharniak.1973. JackandJanetinsearchofa
+theoryofknowledge. InIJCAI,pages337–343. YutaKikuchi,TsutomuHirao,HiroyaTakamura,Man-
+abu Okumura, and Masaaki Nagata. 2014. Single
+Mingda Chen, Zewei Chu, and Kevin Gimpel. 2019. documentsummarizationbasedonnestedtreestruc-
+Evaluation benchmarks and learning criteria for ture. InProceedingsofthe52ndAnnualMeetingof
+discourse-aware sentence representations. In Pro- the Association for Computational Linguistics (Vol-
+ceedingsofthe2019ConferenceonEmpiricalMeth- ume2: ShortPapers),pages315–320.
+odsinNaturalLanguageProcessingandthe9thIn-
+ternational Joint Conference on Natural Language Najoung Kim, Song Feng, Chulaka Gunasekara, and
+Processing(EMNLP-IJCNLP),pages649–662. LuisLastras.2020. Implicitdiscourserelationclas-
+sification: Weneedtotalkaboutevaluation. InPro-
+Arman Cohan, Franck Dernoncourt, Doo Soon Kim, ceedings of the 58th Annual Meeting of the Asso-
+Trung Bui, Seokhwan Kim, Walter Chang, and Na- ciation for Computational Linguistics, pages 5404–
+zli Goharian. 2018. A discourse-aware attention 5414.
+model for abstractive summarization of long docu-
+ments. In Proceedings of the 2018 Conference of Yudai Kishimoto, Yugo Murawaki, and Sadao Kuro-
+the North American Chapter of the Association for hashi. 2020. Adapting BERT to implicit discourse
+ComputationalLinguistics: HumanLanguageTech- relationclassificationwithafocusondiscoursecon-
+nologies, Volume 2 (Short Papers), pages 615–621, nectives. In Proceedings of The 12th Language
+New Orleans, Louisiana. Association for Computa- ResourcesandEvaluationConference,pages1152–
+tionalLinguistics. 1158.
+Naoki Kobayashi, Tsutomu Hirao, Hidetaka Kami- Joint Conference on Natural Language Processing
+gaito,ManabuOkumura,andMasaakiNagata.2020. (EMNLP-IJCNLP),pages2284–2295.
+Top-downRSTparsingutilizinggranularitylevelsin
+documents. InProceedingsoftheAAAIConference William C. Mann and Sandra A. Thompson. 1987.
+on Artificial Intelligence, volume 34, pages 8099– Rhetorical Structure Theory: a theory of text
+8106. organization. Technical Report RS-87-190,
+USC/InformationSciencesInstitute. Reprintseries.
+Naoki Kobayashi, Tsutomu Hirao, Kengo Naka-
+mura, Hidetaka Kamigaito, Manabu Okumura, and Daniel Marcu. 1999. Discourse trees are good indica-
+Masaaki Nagata. 2019. Split or merge: Which is tors of importance in text. Advances in automatic
+better for unsupervised RST parsing? In Proceed- textsummarization,293:123–136.
+ings of the 2019 Conference on Empirical Methods
+in Natural Language Processing and the 9th Inter- DanielMarcu.2000. TheTheoryandPracticeofDis-
+nationalJointConferenceonNaturalLanguagePro- courseParsingandSummarization. MITpress.
+cessing(EMNLP-IJCNLP),pages5801–5806.
+Mitchell Marcus, Beatrice Santorini, and Mary Ann
+MurathanKurfalıandRobertO¨stling.2019. Zero-shot Marcinkiewicz. 1993. Building a large annotated
+transferforimplicitdiscourserelationclassification. corpusofEnglish: ThePennTreebank.
+InProceedingsofthe20thAnnualSIGdialMeeting
+Thomas Meyer, Andrei Popescu-Belis, Sandrine Zuf-
+onDiscourseandDialogue,pages226–231.
+ferey, andBrunoCartoni.2011. Multilingualanno-
+Haejun Lee, Drew A Hudson, Kangwook Lee, and tation and disambiguation of discourse connectives
+Christopher D Manning. 2020. SLM: Learning a for machine translation. In Association for Com-
+discourselanguagerepresentationwithsentenceun- putational Linguistics-Proceedings of 12th SIGdial
+shuffling. InProceedingsofthe2020Conferenceon MeetingonDiscourseandDialogue,CONF.
+EmpiricalMethodsinNaturalLanguageProcessing
+Mathieu Morey, Philippe Muller, and Nicholas Asher.
+(EMNLP),pages1551–1562.
+2017. How much progress have we made on RST
+LiLiang,ZhengZhao,andBonnieWebber.2020. Ex- discourse parsing? a replication study of recent re-
+tendingimplicitdiscourserelationrecognitiontothe sultsontheRST-DT.
+PDTB-3. In Proceedings of the First Workshop
+on Computational Approaches to Discourse, pages Karthik Narasimhan and Regina Barzilay. 2015. Ma-
+chine comprehension with discourse relations. In
+135–147.
+Proceedingsofthe53rdAnnualMeetingoftheAsso-
+Xiang Lin, Shafiq Joty, Prathyusha Jwalapuram, and ciationforComputationalLinguisticsandthe7thIn-
+M Saiful Bari. 2019. A unified linear-time frame- ternational Joint Conference on Natural Language
+work for sentence-level discourse parsing. In Pro- Processing (Volume 1: Long Papers), pages 1253–
+ceedings of the 57th Annual Meeting of the Asso- 1262.
+ciation for Computational Linguistics, pages 4190–
+4200. NorikiNishidaandHidekiNakayama.2020. Unsuper-
+vised discourse constituency parsing using Viterbi
+Ziheng Lin, Min-Yen Kan, and Hwee Tou Ng. 2009. EM. Transactions of the Association for Computa-
+RecognizingimplicitdiscourserelationsinthePenn tionalLinguistics,8:215–230.
+Discourse Treebank. In Proceedings of the 2009
+Conference on Empirical Methods in Natural Lan- EmilyPitlerandAniNenkova.2008. Revisitingread-
+guageProcessing,pages343–351. ability:Aunifiedframeworkforpredictingtextqual-
+ity. InProceedingsofthe2008conferenceonempir-
+Linlin Liu, Xiang Lin, Shafiq Joty, Simeng Han, and icalmethodsinnaturallanguageprocessing,pages
+LidongBing.2019. Hierarchicalpointernetparsing. 186–195.
+InProceedingsofthe2019ConferenceonEmpirical
+Methods in Natural Language Processing and the RashmiPrasad,EleniMiltsakaki,NikhilDinesh,Alan
+9th International Joint Conference on Natural Lan- Lee, andAravindJoshi.2007. ThePennDiscourse
+guage Processing (EMNLP-IJCNLP), pages 1006– Treebank2.0annotationmanual.
+1016.
+Rashmi Prasad, Bonnie Webber, and Alan Lee. 2018.
+Yang Liu, Sujian Li, Xiaodong Zhang, and Zhifang DiscourseannotationinthePDTB:Thenextgenera-
+Sui. 2016. Implicit discourse relation classification tion. InProceedings14thJointACL-ISOWorkshop
+via multi-task neural networks. In Proceedings of onInteroperableSemanticAnnotation,pages87–97,
+the AAAI Conference on Artificial Intelligence, vol- SantaFe,NewMexico,USA.AssociationforCom-
+ume30. putationalLinguistics.
+Amandla Mabona, Laura Rimell, Stephen Clark, and Alan Lee Eleni Miltsakaki Livio Robaldo Aravind
+Andreas Vlachos. 2019. Neural generative rhetor- JoshiBonnieWebberRashmiPrasad,NikhilDinesh.
+ical structure parsing. In Proceedings of the 2008. The Penn Discourse Treebank 2.0. Proceed-
+2019 Conference on Empirical Methods in Natu- ings of the Sixth International Conference on Lan-
+ral Language Processing and the 9th International guageResourcesandEvaluation(LREC’08).
+RC Schank and RP Abelson. 1977. Plans, goals aid LongyinZhang, YuqingXing, FangKong, PeifengLi,
+understanding: An inquiry into human knowledge andGuodongZhou.2020. Atop-downneuralarchi-
+structures. tecturetowardstext-levelparsingofdiscourserhetor-
+ical structure. In Proceedings of the 58th Annual
+Wei Shi and Vera Demberg. 2019. Next sentence pre- Meeting of the Association for Computational Lin-
+diction helps implicit discourse relation classifica- guistics,pages6386–6395.
+tion within and across domains. In Proceedings of
+the 2019 Conference on Empirical Methods in Nat- Yingxue Zhang, Fandong Meng, Peng Li, Ping Jian,
+uralLanguageProcessingandthe9thInternational and Jie Zhou. 2021. Context tracking network:
+Joint Conference on Natural Language Processing Graph-based context modeling for implicit dis-
+(EMNLP-IJCNLP),pages5794–5800. course relation recognition. In Proceedings of the
+2021ConferenceoftheNorthAmericanChapterof
+the Association for Computational Linguistics: Hu-
+Maite Taboada. 2016. Sentiment analysis: An
+manLanguageTechnologies,pages1592–1599.
+overviewfromlinguistics.
+Yang Zhong, Chao Jiang, Wei Xu, and Junyi Jessy Li.
+Jianxiang Wang and Man Lan. 2015. A refined end-
+2020. Discourse level factors for sentence deletion
+to-enddiscourseparser. InProceedingsoftheNine-
+in text simplification. In Proceedings of the AAAI
+teenth Conference on Computational Natural Lan-
+Conference on Artificial Intelligence, volume 34,
+guageLearning-SharedTask,pages17–24.
+pages9709–9716.
+Yizhong Wang, Sujian Li, and Houfeng Wang. 2017. Yuping Zhou, Jill Lu, Jennifer Zhang, and Nian-
+Atwo-stageparsingmethodfortext-leveldiscourse wen Xue. 2014. Chinese Discourse Treebank 0.5
+analysis. In Proceedings of the 55th Annual Meet- ldc2014t21. WebDownload.Philadelphia: Linguis-
+ingoftheAssociationforComputationalLinguistics ticDataConsortium.
+(Volume2: ShortPapers),pages184–188.
+FlorianWolfandEdwardGibson.2005. Representing
+discoursecoherence:Acorpus-basedstudy. Compu-
+tationallinguistics,31(2):249–287.
+Jiacheng Xu, Zhe Gan, Yu Cheng, and Jingjing Liu.
+2019. Discourse-aware neural extractive text sum-
+marization. arXivpreprintarXiv:1910.14142.
+NianwenXue,HweeTouNg,SameerPradhan,Rashmi
+Prasad,ChristopherBryant,andAttapolRutherford.
+2015. The CoNLL-2015 shared task on shallow
+discourse parsing. In Proceedings of the Nine-
+teenth Conference on Computational Natural Lan-
+guageLearning-SharedTask,pages1–16,Beijing,
+China.AssociationforComputationalLinguistics.
+Nianwen Xue, Hwee Tou Ng, Sameer Pradhan, At-
+tapolRutherford,BonnieWebber,ChuanWang,and
+HongminWang.2016. ConLL2016sharedtaskon
+multilingualshallowdiscourseparsing. InProceed-
+ingsoftheCoNLL-16sharedtask,pages1–19.
+Amir Zeldes. 2017. The GUM corpus: Creating mul-
+tilayer resources in the classroom. Language Re-
+sourcesandEvaluation,51(3):581–612.
+Deniz Zeyrek, Ama´lia Mendes, Yulia Grishina, Mu-
+rathan Kurfalı, Samuel Gibbon, and Maciej Ogrod-
+niczuk. 2020. TED Multilingual Discourse Bank
+(TED-MDB): A parallel corpus annotated in the
+PDTB style. Language Resources and Evaluation,
+54:587–613.
+Deniz Zeyrek and Bonnie Webber. 2008. A discourse
+resource for Turkish: Annotating discourse connec-
+tivesintheMETUcorpus. InProceedingsofthe6th
+workshoponAsianlanguageresources.

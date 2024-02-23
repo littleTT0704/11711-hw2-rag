@@ -1,0 +1,604 @@
+Towards Efficient Simultaneous Speech Translation:
+CUNI-KIT System for Simultaneous Track at IWSLT 2023
+PeterPolák1 and DanniLiu2 and Ngoc-QuanNgoc2
+JanNiehues2 and AlexanderWaibel2,3 and OndrˇejBojar1
+polak@ufal.mff.cuni.cz
+1 CharlesUniversity2 KarlsruheInstituteofTechnology
+3 CarnegieMellonUniversity
+Abstract theonlineCTCpolicycanbeusedtoonlinizethe
+offline models achieving a 45% improvement in
+Inthispaper,wedescribeoursubmissiontothe
+real time factor (RTF) as well as to improve the
+SimultaneousTrackatIWSLT2023. Thisyear,
+qualityofthestreamingblockwisemodels(Tsunoo
+wecontinuewiththesuccessfulsetupfromthe
+et al., 2021). Aside from improving the online
+last year, however, we adopt the latest meth-
+policy, wealsoadoptthe novel improvedstream-
+odsthatfurtherimprovethetranslationquality.
+Additionally,weproposeanovelonlinepolicy ing beam search (Polák et al., 2023) that further
+for attentional encoder-decoder models. The improvesthetranslationquality.
+policypreventsthemodeltogeneratetransla- Ourcontributionsareasfollows:
+tionbeyondthecurrentspeechinputbyusing
+anauxiliaryCTCoutputlayer. Weshowthat • Weadoptthelatestonlinedecodingalgorithm
+the proposed simultaneous policy can be ap-
+thatimprovesthetranslationqualityofrobust
+pliedtobothstreamingblockwisemodelsand
+offlinemodelsinthesimultaneousregime,
+offline encoder-decoder models. We observe
+significantimprovementsinquality(upto1.1
+• Weproposeanovelonlinepolicythatsignifi-
+BLEU)andthecomputationalfootprint(upto
+cantly
+45%relativeRTF).
+– lowersthecomputationalcomplexityof
+1 Introduction
+the online decoding with robust offline
+models while maintaining the same or
+Simultaneousspeechtranslation(SST)isthetask
+onlyslightlyworsetranslationquality,
+of translating speech into text in a different lan-
+guage before the utterance is finished. The goal – improves the translation quality of the
+ofSSTistoproduceahigh-qualitytranslationin streamingblockwisemodelswhilemain-
+real-timewhilemaintaininglowlatency. However, tainingthesamelatency,
+thesetwoobjectivesareconflicting. Ifwedecrease
+• Wedemonstratethatoursystemscanrunon
+thelatency,thetranslationqualityalsodrops. Last
+hardwareaccessibletoawideaudience.
+year’sIWSLTevaluationcampaign(Anastasopou-
+los et al., 2022) showed that current methods for
+2 Methods
+simultaneousspeechtranslationcanapproachthe
+translation quality of human interpreters (Polák In our submission, we use two different model
+et al., 2022). The disadvantage is a higher com- architectures — a traditional offline ST architec-
+putation footprint that might make a widespread tureandablockwisesimultaneousSTarchitecture
+applicationprohibitive. (Tsunooetal.,2021). Inthissection,wedescribe
+ThispaperdescribestheCUNI-KITsubmission the methods applied to achieve simultaneous ST
+to the Simultaneous translation track at IWSLT usingthesearchitectures.
+2023 (Agarwal et al., 2023). Following our last
+2.1 IncrementalBlockwiseBeamSearchwith
+year’ssubmission(Poláketal.,2022),wecontinue
+ControllableQuality-LatencyTradeoff
+in our effort to onlinize the robust offline speech
+translationmodels. However,themaingoalofthis TousethetraditionalofflineSTmodelinasimulta-
+submission is to improve the computational foot- neousregime,Liuetal.(2020)proposedchunking,
+print. Tothisend,weproposeanovelonlinepolicy i.e.,splittingtheaudiosourceutteranceintosmall
+based on CTC. As we experimentally document, constant-lengthchunksthatarethenincrementally
+389
+Proceedingsofthe20thInternationalConferenceonSpokenLanguageTranslation(IWSLT2023),pages389–396
+July13-14,2023 c2023AssociationforComputationalLinguistics
+(cid:13)
+fedintothemodel. Astranslationqualitytendsto with the <eos> token, the algorithm allows gen-
+diminishtowardtheendoftheunfinishedsource, erating a hypothesis with a score lower than the
+anonlinepolicyisemployedtocontrolthelatency- unreliablescoreifitwasseenduringthedecoding
+quality tradeoff in the generated output. Popular ofpreviousblocks.
+online policies include wait-k (Ma et al., 2019), Finally, the algorithm removes two instead of
+shared prefix (Nguyen et al., 2020), hold-n and one token in the current beam (see Line 20). Re-
+local agreement (Liu et al., 2020). In Polák et al. moving thelasttwotokensmitigates theissue of
+(2022),weshowedthatthetradeoffcouldbecon- low-qualitytranslationtowardtheendofthecon-
+trolledbyvaryingthechunklength. text.1
+To generate the translation, a standard beam
+searchistypicallyapplied(Sutskeveretal.,2014). 2.2 RethinkingOnlinePoliciesfor
+Whilethisdecodingalgorithmenablesthemodel Attention-basedSTModels
+to generate a complete translation for the current
+Whiletheimprovedincrementalblockwisebeam
+input,italsosuffersfromovergeneration(i.e.,hallu-
+searchimprovestheperformance,itstillrequiresa
+cinatingtokensbeyondsoundspresentintheinput
+strongonlinepolicysuchashold-norlocalagree-
+segment)andlow-qualitytranslationstowardsthe
+ment (Liu et al., 2020). A common property of
+endofthesourcecontext(Dongetal.,2020;Polák
+these online policies is that they require multiple
+etal.,2022).
+re-generations of the output translation. For ex-
+To tackle this issue, we adopt an improved in-
+ample, the local agreement policy must generate
+cremental blockwise beam search (Polák et al.,
+eachtokenatleasttwicetoshowittotheuser,as
+2023). We outline the algorithm in Algorithm 1
+each token must be independently generated by
+andhighlightthemaindifferencesfromtheorigi-
+two consecutive contexts to be considered stable.
+nalapproachusedinPoláketal.(2022)withred.
+Dependingonthemodelarchitecture,thegenera-
+tion might be the most expensive operation. Ad-
+Algorithm 1: Incremental blockwise
+ditionally,thesequence-to-sequencemodelstend
+streamingbeamsearchalgorithmforincre-
+tosufferfromexposurebias(i.e.,themodelisnot
+mentalST
+exposedtoitsownerrorsduringthetraining)(Ran-
+Input :Alistofblocks,anSTmodel
+Output:Asetofhypothesesandscores zatoetal.,2015;WisemanandRush,2016). The
+1 Seen ;
+←∅ exposurebiasthencausesalowertranslationqual-
+2 foreachblockdo
+3 EncodeblockusingtheSTmodel; ity,andsometimesleadstohallucinations(i.e.,gen-
+4 Stopped ;
+←∅
+5 minScore ; erationofcoherentoutputnotpresentinthesource)
+←−∞
+6 while#activebeams>0andnotmax.lengthdo
+7 Extendbeamsandcomputescores; (Leeetal.,2018;Mülleretal.,2019;Dongetal.,
+8 foreachactivebeambdo 2020). Finally,attentionalencoder-decodermodels
+9 ifbendswith<eos>or(score minScore
+≤
+andb /Seen) then are suspected to suffer from label bias (Hannun,
+∈
+10 minScore max(minScore,score);
+11 Stopped ← Stopped b; 2020).
+← ∪
+12 Removebfromthebeamsearch;
+Agoodcandidatetoaddresstheseproblemsis
+13 end
+14 end CTC (Graves et al., 2006). For each input frame,
+15 end
+16 Seen Seen Stopped; CTCpredictseitherablanktoken(i.e.,nooutput)
+← ∪
+17 SortStoppedbylength-normalizedscore; oroneoutputtokenindependentlyfromitsprevious
+18 SetthebesthypothesisfromStoppedasactivebeam;
+19 Applytheincrementalpolicy; predictions, which better matches the streaming
+20 Removethelasttwotokensfromtheactivebeam;
+translation and reduces the risk of hallucinations.
+21 end
+BecausetheCTC’spredictionsforeachframeare
+conditionally independent, CTC does not suffer
+In Algorithm 1, the overgeneration problem
+from the label bias problem (Hannun, 2020). Al-
+is addressed by stopping unreliable beams (see
+though, the direct use of CTC in either machine
+Line9). Theunreliablebeamisdefinedasabeam
+endingwith<eos>tokenorhavingascorelower or speech translation is possible, yet, its quality
+lags behind autoregressive attentional modeling
+orequaltoanyotherunreliablebeamdetectedso
+(LibovickýandHelcl,2018;Chuangetal.,2021).
+far. Thismeans,thatwestopanybeamthathasa
+scorelowerthananybeamendingwith<eos>to-
+1Initialexperimentsshowedthatremovingmorethantwo
+ken. Sincetheremightbeahypothesisthatwould
+tokensleadstohigherlatencywithoutanyqualityimprove-
+always score lower than some hypothesis ending ment.
+390
+Anotherway,howtoutilizetheCTCisjointde- The disadvantage of this definition is that
+coding(Watanabeetal.,2017;Dengetal.,2022). p (... X) must be computed for every vocab-
+ctc
+|
+In the joint decoding setup, the model has two ulary entry separately and one evaluation costs
+decoders: thenon-autoregressiveCTC(usuallya (T),i.e., ( T)intotal. ContemporaryST
+O O |V|·
+singlelinearlayeraftertheencoder)andtheatten- systems use vocabularies in orders of thousands
+tionalautoregressivedecoder. Thejointdecoding items making this definition prohibitively expen-
+istypicallyguidedbytheattentionaldecoder,while sive. Since the CTC is used together with the
+the CTC output is used for re-scoring. Since the label-synchronous decoder, we can approximate
+CTCpredictshardalignment,therescoringisnot thedenominatorwithasinglevocabularyentryc
+att
+straightforward. Tothisend,Watanabeetal.(2017) predictedbytheattentionaldecoderp :
+att
+proposedtousetheCTCprefixprobability(Graves,
+2008)definedasacumulativeprobabilityofallla-
+p (g <eos> X)
+belsequencesthathavethecurrenthypothesishas Odds (g) ctc ⊕ | , (5)
+end
+≈ p (g c X)
+theirprefix: ctc att
+⊕ |
+wherec = argmax p (g c X).
+p ctc(h,...) = p ctc(h ⊕ν |X), (1) Nowtheevat at luationofOc ∈ dV d/ s{ en< de (o gs )> }
+is
+att (T)⊕
+.
+If|
+we
+ν + O
+X∈V considerthatthebaselinemodelalreadyusesCTC
+where is output vocabulary (including the rescoring,thenevaluatingOdds (g)amountsto
+V end
+<eos> symbol), is string concatenation, and aconstantnumberofextraoperationstoevaluate
+⊕
+X istheinputspeech. Tocalculatethisprobability p (g <eos> X).
+ctc
+⊕ |
+effectively,Watanabeetal.(2017)introducevari- Finally,tocontrolthelatencyoftheonlinedecod-
+(b) (n)
+ables γ (h) and γ (h) that represent forward ing,wecomparethelogarithmofOdds (g)with
+t t end
+probabilitiesofhattimet,wherethesuperscript atunableconstantC . IflogOdds (g) > C ,
+end end end
+denotes whether the CTC paths end with a blank westopthebeamsearchanddiscardthelasttoken
+ornon-blankCTCsymbol. Ifthehypothesishisa fromg. WefoundvaluesofC between-2and2
+end
+completehypothesis(i.e.,endswiththe<eos>to- toworkwellacrossallmodelsandlanguagepairs.
+ken),thentheCTCprobabilityofh = g <eos>
+⊕
+is: 3 ExperimentsandResults
+3.1 Models
+(b) (n)
+p (h X) = γ (g)+γ (g), (2)
+ctc | T T Our offline multilingual ST models are based on
+whereT isthefinaltimestamp.
+attentionalencoder-decoderarchitecture. Specifi-
+Ifh = g cisnotfinal,i.e.,c = <eos>,then
+cally,theencoderisbasedonWavLM(Chenetal.,
+⊕ ̸
+theprobabilityis: 2022), and the decoder is based on multilingual
+BART (Lewis et al., 2019) or mBART for short.
+ThemodelisimplementedintheNMTGMinorli-
+T
+p (h X) = Φ (g) p(z = c X), (3) brary.2 For details on the offline model see KIT
+ctc t t
+| · |
+submissiontoIWSLT2023Multilingualtrack(Liu
+t=1
+X
+etal.,2023).
+where
+Thesmallsimultaneousspeechtranslationmod-
+elsforEnglish-to-GermanandEnglish-to-Chinese
+0 last(g) = c
+Φ (g) = γ(b) (g)+ language pairs follow the blockwise streaming
+t t 1 (n)
+− (γ t 1(g) otherwise. Transformerarchitecture(Tsunooetal.,2021)im-
+−
+plemented in ESPnet-ST-v2 (Yan et al., 2023).
+2.3 CTCOnlinePolicy
+Specifically,theencoderisablockwiseConformer
+Based on the the definition of p ctc(h X) in Equa- (Gulati et al., 2020) with a block size of 40 and
+|
+tions(2)and(3),wecandefinetheoddsofg being look-ahead of 16, with 18 layers, and a hidden
+attheendofcontextT: dimensionof256. Thedecoderisa6-layerTrans-
+formerdecoder(Vaswanietal.,2017). Toimprove
+the training speed, we initialize the encoder with
+p (g <eos> X)
+ctc
+Odds (g) = ⊕ | . (4)
+end
+p (g c X) 2https://github.com/quanpn90/NMTGMinor
+c / <eos> ctc ⊕ |
+∈V { }
+P 391
+weights pretrained on the ASR task. Further, we Lang Decoding AL ↓ AL CA↓ RTF ↓ BLEU ↑
+employ ST CTC (Deng et al., 2022; Yan et al., En-De BWBS 1922 3121 0.46 30.6
+IBWBS 1977 3277 0.52 31.7
+2022)aftertheencoderwithweight0.3duringthe
+BWBS 1992 3076 0.50 15.5
+training. Duringthedecoding,weuse0.3forEn- En-Ja
+IBWBS 1935 3264 0.64 15.6
+glish to German, and 0.4 for English to Chinese.
+BWBS 1948 2855 0.41 26.5
+We preprocess the audio with 80-dimensional fil- En-Zh
+IBWBS 1945 3031 0.48 26.5
+terbanks. Asoutputvocabulary,weuseunigram
+models (Kudo, 2018) of size 4000 for English to Table1: IncrementalSSTwiththeoriginalBWBSand
+German,and8000forEnglishtoChinese. IBWBS.Betterscoresinbold.
+3.2 Evaluation
+putethedecoderstatesaftereachsourceincrement.
+Inallourexperimentswiththeofflinemodels,we
+SincetheIBWBSsometimeswaitsformoresource
+usebeamsearchofsize8exceptfortheCTCpol-
+chunkstooutputmoretokens,theunnecessaryde-
+icyexperimentswhereweusegreedysearch. For
+coderstaterecomputationsmightincreasethecom-
+experiments with the blockwise models, we use
+putationalcomplexity.
+the beam search of 6. For experiments with the
+improvedblockwisebeamsearch,wefollowPolák
+3.4 CTCOnlinePolicy
+etal.(2023)andremovetherepetitiondetectionin
+InFigure1,wecomparetheimprovedblockwise
+theunderlyingofflinemodels,whilewekeepthe
+beamsearch(IBWBS)withtheproposedCTCpol-
+repetitiondetectiononforallexperimentswiththe
+icy using the blockwise streaming models. The
+blockwisemodels.
+tradeoff curves for English-to-German (see Fig-
+For evaluation, we use Simuleval (Ma et al.,
+2020)toolkitandtst-COMMONtestsetofMuST- ure 1a) and English-to-Chinese (see Figure 1b)
+showthattheproposedCTCpolicyimprovesthe
+C (Cattoni et al., 2021). To estimate transla-
+quality (up to 1.1 BLEU for En De, and 0.8
+tionquality,wereportdetokenizedcase-sensitive
+→
+BLEUforEn Zh),whileitisabletoachievethe
+BLEU(Post,2018),andforlatency,wereportav-
+→
+samelatencies.
+erage lagging (Ma et al., 2019). To realistically
+assess the inference speed, we run all our experi-
+3.5 CTCOnlinePolicyforLargeOffline
+mentsonacomputerwithInteli7-10700CPUand
+Models
+NVIDIA GeForce GTX 1080 with 8 GB graphic
+memory. WewerealsointerestedinwhethertheCTCpolicy
+can be applied to large offline models. Unfortu-
+3.3 IncrementalBlockwiseBeamSearchwith nately,duetolimitedresources,wewerenotable
+ControllableQuality-LatencyTradeoff totrainalargeofflinemodelwiththeCTCoutput.
+In Table 1, we compare the performance of the Hence,wedecidedtoutilizetheCTCoutputsofthe
+onlinizedversionofthebaselineblockwisebeam online blockwise models and used them to guide
+search(BWBS)withtheimprovedblockwisebeam thelargeofflinemodel. Sincethemodelshavevery
+search(IBWBS;Poláketal.,2023). Aswecansee differentvocabularies,3 wedecidedtoexecutethe
+in the table, the improved beam search achieves CTCpolicyafterawholewordisgeneratedbythe
+higher or equal BLEU scores than the baseline offlinemodel(ratherthanaftereverysub-wordto-
+beam search across all language pairs. We can ken). Fortheverysamereason,wedonotuseCTC
+observe the highest improvement in English-to- forrescoring.
+German (1.1 BLEU), while we see an advantage We report the results in Table 2. Unlike in the
+of0.1BLEUforEnglish-to-Japanese. andnoim- blockwisemodels(seeSection3.4),theCTCpolicy
+provementinEnglish-to-Chinese. doesnotimprovethequalityinEn De,andhasa
+→
+In Table 1, we also report the real-time factor slightlyworsequality(by0.7BLEU)inEn Zh.
+→
+(RTF),andthecomputation-awareaveragelagging This is most probably due to the delayed CTC-
+(AL ). Interestingly, we observe a higher com- attentionsynchronizationthatisnotpresentforthe
+CA
+putational footprint of the IBWBS compared to blockwisemodels(asbothdecoderstheresharethe
+the baseline beam search by 13, 28, and 17 %
+3Theblockwisemodelshaveavocabularysizeof4000
+onEn {De,Ja,Zh},resp.,whenmeasuredwith
+→ forEn Deand8000forEn Zh,andtheofflinemodelhas
+RTF.Thismightbeduetothefactthatwerecom- 250k.→ →
+392
+25.5
+25 23.5
+CTC
+24.5 IBWBS
+CTC 23
+24 IBWBS
+1,750 2,000 2,250 2,500 1,750 2,000 2,250
+AL (ms) AL (ms)
+↓ ↓
+(a)EnglishtoGerman (b)EnglishtoChinese
+Figure 1: Comparison of the improved blockwise beam search (IBWBS) and the proposed CTC policy using
+blockwisestreamingmodels.
+samevocabularyandthemodelscomputetheCTC theBLEUscoresforthe2022modelunreliable.
+policyaftereachtokenratherthanword). However,
+Lang Model AL AL BLEU
+westillobserveasignificantreductionincomputa- ↓ CA↓ ↑
+2022 1991 3138 31.8
+tionallatency,namelyby45and34%relativeRTF En-De
+2023 1955 3072 31.4
+forEn DeandEn Zh,respectively.
+→ → 2022 1906 3000 15.5
+En-Ja
+2023 1982 3489 15.3
+Lang Decoding AL AL RTF BLEU
+↓ CA↓ ↓ ↑
+BWBS 1922 3121 0.46 30.6 2022 1984 3289 26.8
+En-Zh
+En-De IBWBS 1977 3277 0.52 31.7 2023 1987 3508 26.6
+CTC 1946 2518 0.21 30.6
+Table3: Submittedonlinizedlargeofflinemodels.
+BWBS 1948 2855 0.41 26.5
+En-Zh IBWBS 1945 3031 0.48 26.5
+CTC 1981 2515 0.28 25.8
+We also submit the system based on the large
+model onlinized using the CTC policy. The sys-
+Table2: Comparisonofonlinizationofthelargeoffline
+modelusingchunkingwiththelocalagreementpolicy temsaresummarizedinTable4. Unfortunately,we
+(LA-2)andwiththeproposedCTCpolicy. werenotawareofthetrainingandtestdataoverlap
+duringtheevaluationperiod,sowedecidedtouse
+our2022modelalsothisyear.
+4 Submission
+In this section, we summarize our submission to Lang Model AL ↓ AL CA↓ BLEU ↑
+the Simultaneous track at IWSLT 2023. In total, En-De 2022 1959 2721 31.4
+En-Zh 2022 1990 2466 26.3
+wesubmit10systemsforallthreelanguagepairs.
+Table4: Submittedlargeofflinemodelsonlinizedusing
+4.1 OnlinizedOfflineModels
+theproposedCTCpolicy.
+Followingourlastyear’ssubmission,weonlinize
+two large offline models (our models for IWSLT
+2022OfflineSTtrackandIWSLT2023Multilin-
+4.2 BlockwiseOnlineModels
+gual track). This year, however, we utilize the
+Finally,wesubmitsmallblockwisemodels. Their
+improved blockwise beam search to yield higher
+advantage is that they are able to run on a CPU
+BLEUscores. Wesubmitsystemsforalllanguage
+faster than real time (more than 5 faster). We
+pairsbasedonthelastyear’smodel,andournew ×
+reporttheirperformanceinTable5.
+model. Wesummarizethesubmittedmodelsand
+theirperformanceinTable3. Aswecanobserve
+Lang AL AL RTF BLEU
+in Table 3, the 2023 model appears to perform ↓ CA↓ ↓ ↑
+En-De 1986 2425 0.19 25.4
+worse. However,welearnedduringthewritingof En-Zh 1999 2386 0.19 23.8
+thispaperthattherewassomeoverlapbetweenthe
+trainingandtestdataforthe2022model4,making Table5: Submittedsmallblockwisemodelsusingthe
+proposedCTConlinepolicy.
+4(ZhangandAo,2022)foundanoverlapbetweenST-TED
+trainingcorpusandtst-COMMONsetofMuST-Cdataset.
+393
+UELB
+↑
+UELB
+↑
+5 ConclusionandFutureWork Naˇdejde, Satoshi Nakamura, Matteo Negri, Jan
+Niehues, Xing Niu, John Ortega, Juan Pino, Eliz-
+In this paper, we present the CUNI-KIT submis- abeth Salesky, Jiatong Shi, Matthias Sperber, Se-
+siontotheSimultaneoustrackatIWSLT2023. We bastianStüker,KatsuhitoSudoh,MarcoTurchi,Yo-
+gesh Virkar, Alexander Waibel, Changhan Wang,
+experimentedwiththelatestdecodingmethodsand
+andShinjiWatanabe.2022. FindingsoftheIWSLT
+proposed a novel CTC online policy. We experi-
+2022 evaluation campaign. In Proceedings of the
+mentallyshowedthattheproposedCTConlinepol- 19thInternationalConferenceonSpokenLanguage
+icysignificantlyimprovesthetranslationqualityof Translation (IWSLT 2022), pages 98–157, Dublin,
+Ireland(in-personandonline).AssociationforCom-
+theblockwisestreamingmodels. Additionally,the
+putationalLinguistics.
+proposedCTCpolicysignificantlylowersthecom-
+putational footprint of the onlinized large offline
+RoldanoCattoni,MattiaAntoninoDiGangi,LuisaBen-
+models. Unawareofadataoverlapissuein2022, tivogli,MatteoNegri,andMarcoTurchi.2021. Must-
+weeventuallychosetouseourlastyears’models c: Amultilingualcorpusforend-to-endspeechtrans-
+lation. ComputerSpeech&Language,66:101155.
+intheofficialevaluationalsothisyear.
+Sanyuan Chen, Chengyi Wang, Zhengyang Chen,
+Acknowledgments
+YuWu,ShujieLiu,ZhuoChen,JinyuLi,Naoyuki
+Kanda, Takuya Yoshioka, Xiong Xiao, et al. 2022.
+This work has received support from the
+Wavlm: Large-scaleself-supervisedpre-trainingfor
+project “Grant Schemes at CU” (reg. no. full stack speech processing. IEEE Journal of Se-
+CZ.02.2.69/0.0/0.0/19_073/0016935),thegrant19- lectedTopicsinSignalProcessing,16(6):1505–1518.
+26934X(NEUREM3)oftheCzechScienceFoun-
+Shun-Po Chuang, Yung-Sung Chuang, Chih-Chiang
+dation,andbyCharlesUniversity,projectGAUK
+Chang,andHung-yiLee.2021. Investigatingthere-
+No244523.
+orderingcapabilityinCTC-basednon-autoregressive
+end-to-end speech translation. In Findings of the
+Association for Computational Linguistics: ACL-
+References IJCNLP2021,pages1068–1077,Online.Association
+forComputationalLinguistics.
+Milind Agarwal, Sweta Agrawal, Antonios Anasta-
+sopoulos, Ondˇrej Bojar, Claudia Borg, Marine
+KeqiDeng,ShinjiWatanabe,JiatongShi,andSiddhant
+Carpuat,RoldanoCattoni,MauroCettolo,Mingda
+Arora.2022. BlockwiseStreamingTransformerfor
+Chen, William Chen, Khalid Choukri, Alexandra
+SpokenLanguageUnderstandingandSimultaneous
+Chronopoulou,AnnaCurrey,ThierryDeclerck,Qian-
+SpeechTranslation. InProc.Interspeech2022,pages
+qian Dong, Yannick Estève, Kevin Duh, Marcello
+1746–1750.
+Federico,SouhirGahbiche,BarryHaddow,Benjamin
+Hsu, Phu Mon Htut, Hirofumi Inaguma, Dávid Ja-
+LinhaoDong,ChengYi,JianzongWang,ShiyuZhou,
+vorský,JohnJudge,YasumasaKano,TomKo,Rishu
+Shuang Xu, Xueli Jia, and Bo Xu. 2020. A com-
+Kumar, Pengwei Li, Xutail Ma, Prashant Mathur,
+parisonoflabel-synchronousandframe-synchronous
+EvgenyMatusov,PaulMcNamee,JohnP.McCrae,
+end-to-end models for speech recognition. arXiv
+KentonMurray,MariaNadejde,SatoshiNakamura,
+preprintarXiv:2005.10113.
+MatteoNegri,HaNguyen,JanNiehues,XingNiu,
+AtulOjhaKr.,JohnE.Ortega,ProyagPal,JuanPino,
+AlexGraves.2008. Supervisedsequencelabellingwith
+LonnekevanderPlas, PeterPolák, ElijahRippeth,
+recurrentneuralnetworks. Ph.D.thesis,Technical
+ElizabethSalesky,JiatongShi,MatthiasSperber,Se-
+UniversityMunich.
+bastian Stüker, Katsuhito Sudoh, Yun Tang, Brian
+Thompson,KevinTran,MarcoTurchi,AlexWaibel,
+AlexGraves,SantiagoFernández,FaustinoGomez,and
+MingxuanWang,ShinjiWatanabe,andRodolfoZe-
+JürgenSchmidhuber.2006. Connectionisttemporal
+vallos.2023. FindingsoftheIWSLT2023Evaluation
+classification: labellingunsegmentedsequencedata
+Campaign. InProceedingsofthe20thInternational
+withrecurrentneuralnetworks. InProceedingsofthe
+ConferenceonSpokenLanguageTranslation(IWSLT
+23rdinternationalconferenceonMachinelearning,
+2023).AssociationforComputationalLinguistics.
+pages369–376.
+Antonios Anastasopoulos, Loïc Barrault, Luisa Ben-
+tivogli,MarcelyZanonBoito,OndˇrejBojar,Roldano Anmol Gulati, James Qin, Chung-Cheng Chiu, Niki
+Cattoni,AnnaCurrey,GeorgianaDinu,KevinDuh, Parmar,YuZhang,JiahuiYu,WeiHan,ShiboWang,
+Maha Elbayad, Clara Emmanuel, Yannick Estève, ZhengdongZhang,YonghuiWu,andRuomingPang.
+Marcello Federico, Christian Federmann, Souhir 2020. Conformer: Convolution-augmented Trans-
+Gahbiche, Hongyu Gong, Roman Grundkiewicz, formerforSpeechRecognition. InProc.Interspeech
+Barry Haddow, Benjamin Hsu, Dávid Javorský, 2020,pages5036–5040.
+Ve˘raKloudová,SurafelLakew,XutaiMa,Prashant
+Mathur, Paul McNamee, Kenton Murray, Maria AwniHannun.2020. Thelabelbiasproblem.
+394
+Taku Kudo. 2018. Subword regularization: Improv- Peter Polák, Ngoc-Quan Pham, Tuan Nam Nguyen,
+ingneuralnetworktranslationmodelswithmultiple DanniLiu,CarlosMullov,JanNiehues,OndˇrejBo-
+subwordcandidates. InProceedingsofthe56thAn- jar,andAlexanderWaibel.2022. CUNI-KITsystem
+nualMeetingoftheAssociationforComputational forsimultaneousspeechtranslationtaskatIWSLT
+Linguistics(Volume1: LongPapers),pages66–75, 2022. InProceedingsofthe19thInternationalCon-
+Melbourne,Australia.AssociationforComputational ference on Spoken Language Translation (IWSLT
+Linguistics. 2022), pages 277–285, Dublin, Ireland (in-person
+andonline).AssociationforComputationalLinguis-
+KatherineLee,OrhanFirat,AshishAgarwal,ClaraFan-
+tics.
+njiang,andDavidSussillo.2018. Hallucinationsin
+neuralmachinetranslation. Peter Polák, Brian Yan, Shinji Watanabe, Alexander
+Waibel,andOndrejBojar.2023. IncrementalBlock-
+Mike Lewis, Yinhan Liu, Naman Goyal, Marjan
+wiseBeamSearchforSimultaneousSpeechTransla-
+Ghazvininejad,AbdelrahmanMohamed,OmerLevy,
+tionwithControllableQuality-LatencyTradeoff. In
+VesStoyanov,andLukeZettlemoyer.2019. Bart:De-
+Proc.Interspeech2023.
+noisingsequence-to-sequencepre-trainingfornatural
+languagegeneration,translation,andcomprehension. MattPost.2018. AcallforclarityinreportingBLEU
+arXivpreprintarXiv:1910.13461. scores. InProceedingsoftheThirdConferenceon
+MachineTranslation: ResearchPapers,pages186–
+JindˇrichLibovickýandJindˇrichHelcl.2018. End-to-
+191, Brussels, Belgium. Association for Computa-
+end non-autoregressive neural machine translation
+tionalLinguistics.
+with connectionist temporal classification. In Pro-
+ceedingsofthe2018ConferenceonEmpiricalMeth-
+Marc’Aurelio Ranzato, Sumit Chopra, Michael Auli,
+ods in Natural Language Processing, pages 3016–
+andWojciechZaremba.2015. Sequenceleveltrain-
+3021,Brussels,Belgium.AssociationforComputa-
+ingwithrecurrentneuralnetworks. arXivpreprint
+tionalLinguistics.
+arXiv:1511.06732.
+Danni Liu, Ngoc-Quan Pham, Tuan Nam Nguyen,
+Ilya Sutskever, Oriol Vinyals, and Quoc V Le. 2014.
+Thai-BinhNguyen, DanniLiu, CarlosMullov, Jan
+Sequencetosequencelearningwithneuralnetworks.
+Niehues, and Alexander Waibel. 2023. KIT sub-
+Advancesinneuralinformationprocessingsystems,
+mission to multilingual track at IWSLT 2023. In
+27.
+Proceedingsofthe20thInternationalConferenceon
+SpokenLanguageTranslation(IWSLT2023).Associ-
+EmiruTsunoo,YosukeKashiwagi,andShinjiWatanabe.
+ationforComputationalLinguistics.
+2021. Streaming transformer asr with blockwise
+synchronous beam search. In 2021 IEEE Spoken
+DanniLiu,GerasimosSpanakis,andJanNiehues.2020.
+LanguageTechnologyWorkshop(SLT),pages22–29.
+Low-LatencySequence-to-SequenceSpeechRecog-
+IEEE.
+nitionandTranslationbyPartialHypothesisSelec-
+tion. InProc.Interspeech2020,pages3620–3624.
+Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob
+MingboMa,LiangHuang,HaoXiong,RenjieZheng, Uszkoreit, Llion Jones, Aidan N Gomez, Łukasz
+Kaibo Liu, Baigong Zheng, Chuanqiang Zhang, Kaiser,andIlliaPolosukhin.2017. Attentionisall
+ZhongjunHe,HairongLiu,XingLi,HuaWu,and youneed. Advancesinneuralinformationprocessing
+HaifengWang.2019. STACL:Simultaneoustrans- systems,30.
+lationwithimplicitanticipationandcontrollablela-
+ShinjiWatanabe, TakaakiHori, SuyounKim, JohnR
+tencyusingprefix-to-prefixframework. InProceed-
+Hershey, and Tomoki Hayashi. 2017. Hybrid
+ingsofthe57thAnnualMeetingoftheAssociationfor
+ctc/attentionarchitectureforend-to-endspeechrecog-
+Computational Linguistics, pages 3025–3036, Flo-
+nition. IEEE Journal of Selected Topics in Signal
+rence,Italy.AssociationforComputationalLinguis-
+Processing,11(8):1240–1253.
+tics.
+XutaiMa,MohammadJavadDousti,ChanghanWang, SamWisemanandAlexanderMRush.2016. Sequence-
+JiataoGu,andJuanPino.2020. SIMULEVAL:An to-sequence learning as beam-search optimization.
+evaluation toolkit for simultaneous translation. In In Proceedings of the 2016 Conference on Empiri-
+Proceedings of the 2020 Conference on Empirical calMethodsinNaturalLanguageProcessing,pages
+Methods in Natural Language Processing: System 1296–1306.
+Demonstrations,pages144–150,Online.Association
+BrianYan,SiddharthDalmia,YosukeHiguchi,Graham
+forComputationalLinguistics.
+Neubig, Florian Metze, Alan W Black, and Shinji
+MathiasMüller,AnnetteRios,andRicoSennrich.2019. Watanabe.2022. Ctcalignmentsimproveautoregres-
+Domain robustness in neural machine translation. sivetranslation. arXivpreprintarXiv:2210.05200.
+arXivpreprintarXiv:1911.03109.
+BrianYan,JiatongShi,YunTang,HirofumiInaguma,
+Thai-SonNguyen,SebastianStüker,andAlexWaibel. YifanPeng,SiddharthDalmia,PeterPolák,Patrick
+2020. Super-human performance in online low- Fernandes, Dan Berrebbi, Tomoki Hayashi, et al.
+latencyrecognitionofconversationalspeech. arXiv 2023. Espnet-st-v2: Multipurposespokenlanguage
+preprintarXiv:2010.03449. translationtoolkit. arXivpreprintarXiv:2304.04596.
+395
+ZiqiangZhangandJunyiAo.2022. TheYiTransspeech
+translation system for IWSLT 2022 offline shared
+task. InProceedingsofthe19thInternationalCon-
+ference on Spoken Language Translation (IWSLT
+2022), pages 158–168, Dublin, Ireland (in-person
+andonline).AssociationforComputationalLinguis-
+tics.
+396

@@ -1,0 +1,792 @@
+Automatic Event Salience Identification
+ZhengzhongLiu ChenyanXiong TerukoMitamura EduardHovy
+LanguageTechnologiesInstitute
+CarnegieMellonUniversity
+Pittsburgh,PA15213,USA
+{liu, cx, teruko, hovy}@cs.cmu.edu
+Abstract
+Identifying the salience (i.e. importance) of
+discourse units is an important task in lan-
+guage understanding. While events play im-
+portantrolesintextdocuments,littleresearch
+existsonanalyzingtheirsaliencystatus. This
+paper empirically studies the Event Salience
+taskandproposestwosaliencedetectionmod-
+elsbasedoncontentsimilaritiesanddiscourse
+relations. The first is a feature based salience
+modelthatincorporatessimilaritiesamongdis- Figure1: Examplesannotations. Underlyingwords
+course units. The second is a neural model areannotatedeventtriggers;theredboldonesare
+thatcapturesmorecomplexrelationsbetween
+annotatedassalient.
+discourse units. Tested on our new large-
+scale event salience corpus, both methods Researchers are aware of the need to identify
+significantly outperform the strong frequency centraleventsinapplicationslikedetectingsalient
+baseline, while our neural model further im- relations(Zhangetal.,2015),andidentifyingcli-
+proves the feature based one by a large mar-
+maxinstoryline(VossenandCaselli,2015). Gener-
+gin. Our analyses demonstrate that our neu-
+ally,thesalienceofdiscourseunitsisimportantfor
+ralmodelcapturesinterestingconnectionsbe-
+language understanding tasks, such as document
+tween salience and discourse unit relations
+(e.g.,scriptsandframestructures). analysis(BarzilayandLapata,2008),information
+retrieval (Xiong et al., 2018), and semantic role
+1 Introduction
+labeling(ChengandErk,2018). Thus,propermod-
+Automatic extraction of prominent information elsforfindingimportanteventsaredesired.
+from text has always been a core problem in lan- Inthiswork,westudythetaskofeventsalience
+guageresearch. Whiletraditionalmethodsmostly detection,tofindeventsthataremostrelevantto
+concentrate on the word level, researchers start themaincontentofdocuments. Tobuildasalience
+to analyze higher-level discourse units in text, detectionmodel,onecoreobservationisthatsalient
+such as entities (Dunietz and Gillick, 2014) and discourseunitsareformingdiscourserelations. In
+events(Choubeyetal.,2018). Figure 1, the “trial” event is connected to many
+Events are important discourse units that form other events: “charge” is pressed before “trial”;
+the backbone of our communication. They play “trial”isbeing“delayed”.
+variousrolesindocuments. Somearemorecentral Wepresenttwosaliencedetectionsystemsbased
+indiscourse: connectingotherentitiesandevents, ontheobservations. Firstisafeaturebasedlearn-
+or providing key information of a story. Others ingtorankmodel. Beyondbasicfeatureslikefre-
+arelessrelevant,butnoteasilyidentifiablebyNLP quencyanddiscourselocation,wedesignfeatures
+systems. Henceitisimportanttobeabletoquantify using cosine similarities among events and enti-
+the“importance”ofevents. Forexample,Figure1 ties,toestimatethecontentorganization(Grimes,
+is a news excerpt describing a debate around a 1975): how lexical meaning of elements relates
+jurisdictionprocess: “trial”iscentralasthemain to each other. Similarities from within-sentence
+discussingtopic,while“war”isnot. oracrossthewholedocumentareusedtocapture
+interactionsonbothlocalandglobalaspects(§4). 2 RelatedWork
+Themodelsignificantlyoutperformsastrong“Fre-
+Eventshavebeenstudiedonmanyaspectsdueto
+quency”baselineinourexperiments.
+theirimportanceinlanguage. Tonameafew: event
+However,thereareotherdiscourserelationsbe-
+detection(Lietal.,2013;NguyenandGrishman,
+yondlexicalsimilarity. Figure1showcasessome:
+2015; Peng et al., 2016), coreference (Liu et al.,
+the script relation (Schank and Abelson, 1977)1
+2014; Lu and Ng, 2017), temporal analysis (Do
+between “charge” and “trial”, and the frame re-
+et al., 2012; Chambers et al., 2014), sequenc-
+lation(Bakeretal.,1998)between“attacks”and
+ing(Arakietal.,2014),scriptinduction(Chambers
+“trial”(“attacks”fillsthe“charges”roleof“trial”).
+andJurafsky,2008;Balasubramanianetal.,2013;
+Sinceitisunclearwhichonescontributemoreto
+Rudingeretal.,2015;PichottaandMooney,2016).
+salience,wedesignaKernelbasedCentralityEsti-
+However, studies on event salience are prema-
+mation(KCE)model(§5)tocapturesalientspecific
+ture. Somepreviousworkattemptstoapproximate
+interactionsbetweendiscourseunitsautomatically.
+event salience with word frequency or discourse
+InKCE,discourseunitsareprojectedtoembed-
+position (Vossen and Caselli, 2015; Zhang et al.,
+dings, which are trained end-to-end towards the
+2015). Paralleltoours,Choubeyetal.(2018)pro-
+saliencetasktocapturerichsemanticinformation.
+poseatasktofindthemostdominanteventinnews
+A set of soft-count kernels are trained to weigh
+articles. They draw connections between event
+salientspecificlatentrelationsbetweendiscourse
+coreferenceandimportance,onhundredsofclosed-
+units. Withthecapacitytomodelricherrelations,
+domaindocuments, usingseveraloracleeventat-
+KCE outperforms the feature-based model by a
+tributes. Incontrast,ourproposedmodelsarefully
+largemargin(§7.1). OuranalysisshowsthatKCE
+learnedandappliedonmoregeneraldomainsand
+is exploiting several relations between discourse
+atalargerscale. Wealsodonotrestricttoasingle
+units: including script and frames (Table 5). To
+mostimportanteventperdocument.
+furtherunderstandthenatureofKCE,weconduct
+There is a small but growing line of work on
+anintrusiontest(§6.2),whichrequiresamodelto
+entitysalience(DunietzandGillick,2014;Dojchi-
+identify events from another document. The test
+novskietal.,2016;Xiongetal.,2018;Ponzaetal.,
+shows salient events form tightly related groups
+2018). Inthiswork,westudythecaseforevents.
+withrelationscapturedbyKCE.
+Text relations have been studied in tasks like
+Thenotionofsalienceissubjectiveandmayvary textsummarization,whichmainlyfocusedonco-
+frompersontoperson. Wefollowtheempiricalap- hesion (Halliday and Hasan, 1976). Grammati-
+proachesusedinentitysalienceresearch(Dunietz calcohesionmethodsmakeuseofdocumentlevel
+andGillick,2014). Weconsiderthesummarization structuressuchasanaphorarelations(Baldwinand
+test: an event is considered salient if a summary Morton, 1998) and discourse parse trees (Marcu,
+written by a human is likely to include it, since 1999). Lexical cohesion based methods focus on
+events about the main content are more likely to repetitionsandsynonymsonthelexicallevel(Sko-
+appearinasummary. Thisapproachallowsusto rochod’ko, 1971; Morris and Hirst, 1991; Erkan
+createalarge-scalecorpus(§3). and Radev, 2004). Though sharing similar intu-
+Inthispaper,wemakethreemaincontributions. itions,ourproposedmodelsaredesignedtolearn
+First,wepresenttwoeventsaliencedetectionsys- richersemanticrelationsintheembeddingspace.
+tems,whichcapturerichrelationsamongdiscourse Comparingtothetraditionalsummarizationtask,
+units. Second,weobserveinterestingconnections wefocusonevents,whichareatadifferentgranu-
+between salience and various discourse relations larity. Ourexperimentsalsounveilinterestingphe-
+(§7.1andTable5),implyingpotentialresearchon nomenaamongeventsandotherdiscourseunits.
+these areas. Finally, we construct a large scale
+3 TheEventSalienceCorpus
+event salience corpus, providing a testbed for fu-
+ture research. Our code, dataset and models are
+Thissectionintroducesourapproachtoconstructa
+publiclyavailable2.
+large-scaleeventsaliencecorpus,includingmeth-
+ods for finding event mentions and obtaining
+1Scriptsareprototypicalsequencesofevents:arestaurant
+saliencylabels. ThestudiesarebasedontheAnno-
+scriptnormallycontainseventslike“order”,“eat”and“pay”.
+tatedNewYorkTimescorpus(Sandhaus,2008),a
+2https://github.com/hunterhector/
+EventSalience newswirecorpuswithexpert-writtenabstracts.
+3.1 AutomaticCorpusCreation Train Dev Test
+EventMentionAnnotation: Despitemanyanno-
+#Documents 526126 64000 63589
+tationattemptsonevents(Pustejovskyetal.,2002;
+Avg. #Word 794.12 790.27 798.68
+Brownetal.,2017),automaticlabelingofthemin
+general domain remains an open problem. Most Avg. #Events 61.96 60.65 61.34
+ofthepreviousworkfollowsempiricalapproaches.
+Avg. #Entities 197.63 196.95 198.40
+Forexample,ChambersandJurafsky(2008)con-
+sider all verbs together with their subject and ob- Avg. #Salience 8.77 8.79 8.90
+ject as events. Do et al. (2011) additionally in-
+Table1: DatasetStatistics.
+cludenominalpredicates,usingthenominalform
+Times Annotated Corpus, we extract event men-
+ofverbsandlexicalitemsundertheEventframein
+tions. Wethenlabelaneventmentionassalientif
+FrameNet(Bakeretal.,1998).
+wecanfinditslemmainthecorrespondingabstract
+Therearetwomainchallengesinlabelingevent
+(Mitamuraetal.(2015)showedthatlemmamatch-
+mentions. First, we need to decide which lexi-
+ingisastrongbaselineforeventcoreference.). For
+cal items are event triggers. Second, we have to
+example,inFigure1,eventmentionsinboldand
+disambiguatethewordsensetocorrectlyidentify
+redarefoundintheabstract,thuslabeledassalient.
+events. For example, the word “phone” can re-
+DatasplitisdetailedinTable1and§6.
+fer to an entity (a physical phone) or an event (a
+phonecallevent). WeuseFrameNettosolvethese
+3.2 AnnotationQuality
+problems. We first use a FrameNet based parser:
+While the automatic method enables us to create
+Semafor(DasandSmith,2011),tofindanddisam-
+adatasetatscale,itisimportanttounderstandthe
+biguatetriggersintoframeclasses. Wethenusethe
+quality of the dataset. For this purpose, we have
+FrameNetontologytoselecteventmentions.
+conductedtwosmallmanualevaluationstudy.
+Our frame based selection method follows the
+Our lemma-based salience annotation method
+Vendler classes (Vendler, 1957), a four way clas-
+is based on the assumption that lemma matching
+sificationofeventuality: states,activities,accom-
+being a strong detector for event coreference. In
+plishmentsandachievements. Thelastthreeclasses
+ordertovalidatethisassumption,oneoftheauthors
+involvestatechange,andarenormallyconsidered
+manually examined 10 documents and identified
+as events. Following this, we create an “event-
+82coreferentialeventmentionspairsbetweenthe
+evokingframe”listusingthefollowingprocedure:
+textbodyandtheabstract. Theautomaticlemma
+1. WekeepframesthataresubframesofEvent
+ruleidentifies72suchpairs: 64ofthesematches
+andProcessintheFrameNetontology.
+human decision, producing a precision of 88.9%
+2. Wediscardframesthataresubframesofstate,
+(64/72)andarecallof78%(64/82). Thereare18
+entityandattributeframes,suchasEntity,At-
+coreferentialpairsmissedbytherule.
+tributes,Locale,etc.
+Thenextquestionis: isaneventreallyimportant
+3. Wemanuallyinspectframesthatarenotsub-
+ifitismentionedintheabstract? Althoughprior
+framesoftheabove-mentionedones(around
+work(DunietzandGillick,2014)showsthattheas-
+200)tokeepeventrelatedones(includingsub-
+sumptiontobevalidforentities,westudythecase
+frames),suchasArson,Delivery,etc.
+forevents. Weaskedtwoannotatorstomanually
+Thisgivesusatotalof569frames. Weparsethe
+annotate10documents(around300events)using
+documentswithSemaforandconsiderpredicates
+a 5-point Likert scale for salience. We compute
+that trigger a frame in the list as candidates. We
+theagreementscoreusingCohen’sKappa(Cohen,
+finishtheprocessbyremovingthelightverbs3 and
+1960). We find the task to be challenging for hu-
+reporting events4 from the candidates, similar to
+man: annotators don’t agree well on the 5-point
+previousresearch(Recasensetal.,2013).
+scale(CohensKappa=0.29). However,ifwecol-
+SalienceLabeling: Forallarticleswithahuman
+lapsethescaletobinarydecisions,theKappabe-
+writtenabstract(around664,911)intheNewYork
+tween the annotators raises to 0.67. Further, the
+3Lightverbscarrylittlesemanticinformation: “appear”, Kappa between each annotator and automatic la-
+“be”,“become”,“do”,“have”,“seem”,“do”,“get”,“give”, bels are 0.49 and 0.42 respectively. These agree-
+“go”,“have”,“keep”,“make”,“put”,“set”,“take”.
+mentscoresarealsoclosetothosereportedinthe
+4Reportingverbsarenormallyassociatedwiththenarrator:
+“argue”,“claim”,“say”,“suggest”,“tell”. entitysaliencetasks(DunietzandGillick,2014).
+While errors exist in the automatic annotation theitheventinadocumentd. Itssaliencescoreis
+processinevitably,wefindtheerrorratetoberea- computedas:
+sonableforalarge-scaledataset. Further,ourstudy
+indicates the difficulties for human to rate on a
+f(ev ,d) = W ·F(ev ,d)+b (1)
+finerscaleofsalience. Weleavetheinvestigation i f i
+ofcontinuoussaliencescorestofuturework.
+where F(ev ,d) is the features for ev in d (Ta-
+i i
+ble2);W andbaretheparameterstolearn.
+4 Feature-BasedEventSalienceModel f
+Themodelistrainedwithpairwiseloss:
+Thissectionpresentsthefeature-basedmodel,in- (cid:88) max(0,1−f(ev+,d)+f(ev−,d)), (2)
+cludingthefeaturesandthelearningprocess.
+ev+,ev−∈d
+w.r.t.y(ev+,d)=+1&y(ev−,d)=−1.
+4.1 Features
+OurfeaturesaresummarizedinTable2.
+(cid:40)
+Basic Discourse Features: We first use two ba- +1, ife isasaliententityind,
+y(e ,d)= i
+sicfeaturessimilartoDunietzandGillick(2014): i −1, otherwise.
+Frequency and Sentence Location. Frequency is
+the lemma count of the mention’s syntactic head whereev+ andev− representthesalientandnon-
+word (Manning et al., 2014). Sentence Loca- salient events; y is the gold standard function.
+tion is the sentence index of the mention, since Learning can be done by standard gradient meth-
+the first few sentences are normally more impor- ods.
+tant. Thesetwofeaturesareoftenusedtoestimate
+salience (Barzilay and Lapata, 2008; Vossen and 5 NeuralEventSalienceModel
+Caselli,2015).
+Asdiscussedin§1,thesalienceofdiscourseunits
+ContentFeatures: Wethendesignseverallexical
+is reflected by rich relations beyond lexical simi-
+similarityfeatures,toreflectGrimes’contentrelat-
+larities,forexample,script(“charge”and“trial”)
+edness(Grimes,1975). Inadditiontoevents, the
+and frame (a “trial” of “attacks”). The relations
+relations between events and entities are also im-
+between these words are specific to the salience
+portant. Forexample,Figure1showssomerelated
+task, thus difficult to be captured by raw cosine
+entitiesinthelegaldomain,suchas“prosecutors”
+scoresthatareoptimizedforwordsimilarities. In
+and“court”. Ideally,theyshouldhelppromotethe
+thissection,wepresentaneuralmodeltoexploit
+saliencestatusforevent“trial”.
+theembeddingspacemoreeffectively,inorderto
+Lexical relations can be found both within-
+capturerelationsforeventsalienceestimation.
+sentence (local) or across sentence (global) (Hal-
+liday and Hasan, 1976). We compute the local 5.1 Kernel-basedCentralityEstimation
+partbyaveragingsimilarityscoresfromotherunits
+Inspiredbythekernelrankingmodel(Xiongetal.,
+in the same sentence. The global part is com-
+2017),weproposeKernel-basedCentralityEstima-
+puted by averaging similarity scores from other tion(KCE),tofindandweightsemanticrelations
+units in the document. All similarity scores are
+ofinterests,inordertobetterestimatesalience.
+computedusingcosinesimilaritiesonpre-trained Formally, given a document d, the set of anno-
+embeddings(Mikolovetal.,2013). tatedeventsV = {ev ,...ev ...,ev },KCEfirst
+1 i n
+Theseleadto3contentfeatures: EventVoting, Emb −→
+embed an event into vector space: ev −−−→ ev .
+i i
+theaveragesimilaritytoothereventsinthedocu-
+The embedding function is initialized with pre-
+ment; Entity Voting, the average similarity to en-
+trained embeddings. It then extract K features
+tities in the document; Local Entity Voting, the
+foreachev :
+i
+averagesimilaritytoentitiesinthesamesentence.
+Local event voting is not used since a sentence
+Φ (ev ,V)={φ (− e→ v ,V),..., (3)
+oftencontainsonly1event. K i 1 i
+φ (− e→ v ,V),...,φ (− e→ v ,V)},
+k i K i
+4.2 Model φ (− e→ v ,V)= (cid:88) exp(cid:32) −(cos(− e→ v i,− e→ v j)−µ k)2(cid:33) .
+k i 2σ2
+A Learning to Rank (LeToR) model (Liu, 2009) evj∈V k
+is used to combine the features. Let ev denote (4)
+i
+Name Description
+Frequency Thefrequencyoftheeventlemmaindocument.
+Sentence Location Thelocationofthefirstsentencethatcontainstheevent.
+Event Voting Averagecosinesimilaritywithothereventsindocument.
+Entity Voting Averagecosinesimilaritywithotherentitiesindocument.
+Local Entity Voting Averagecosinesimilaritywithentitiesinthesentence.
+Table2: EventSalienceFeatures.
+en is the ith entity in document d. KCE extracts
+i
+φ (− e→ v ,V)isthek-thGaussiankernelwithmean thekernelfeaturesaboutentity-eventrelationsas
+k i
+µ andvarianceσ2. Itmodelstheinteractionsbe- follows:
+k k
+tweeneventsinitskernelrangedefinedbyµ and
+k
+σ k. Φ K(ev i,V) enforces multi-level interactions Φ (ev ,E)={φ (− e→ v ,E),..., (7)
+K i 1 i
+amongevents—relationsthatcontributesimilarly φ (− e→ v ,E),...,φ (− e→ v ,E)},
+k i K i
+tosalienceareexpectedtobegroupedintothesame
+kernels. Suchinteractionsgreatlyimprovetheca- φ (− e→ v ,E)= (cid:88)
+exp(cid:32) −(cos(− e→
+v
+i,− en→
+j)−µ
+k)2(cid:33)
+k i 2σ2
+pacityofthemodelwithnegligibleincreaseinthe enj∈E k
+(8)
+numberofparameters. Empiricalevidences(Xiong
+etal.,2017)haveshownthatkernelsinthisform
+Emb −→
+similarly, en is embedded by: en −−−→ en ,
+areeffectivetolearnweightsfortask-specificterm i i i
+which is initialized by pre-trained entity embed-
+pairs.
+dings.
+Thefinalsaliencescoreiscomputedas:
+WereachthefullKCEmodelbycombiningall
+f(ev ,d) = W ·Φ (ev ,V)+b, (5) thevectorsusingalinearlayer:
+i v K i
+whereW islearnedtoweightthecontributionof
+v
+thecertainrelationscapturedbyeachkernel. f(ev ,d) = W ·Φ (ev ,E)+W ·Φ (ev ,V)
+i e K i v K i
+We then use the exact same learning objective +W ·F(ev ,d)+b (9)
+f i
+asinequation(2). Thepairwiselossisfirstback-
+propagatedthroughthenetworktoupdatetheker- Themodelisagaintrainedbyequation(2).
+nelweightsW ,assigninghigherweightstorele-
+v
+6 ExperimentalMethodology
+vant regions. Then the kernels use the gradients
+toupdatetheembeddings,inordertocapturethe
+Thissectiondescribesourexperimentsettings.
+meaningfuldiscourserelationsforsalience.
+SincethefeaturesandKCEcapturedifferentas- 6.1 EventSalienceDetection
+pects, combining them may give superior perfor-
+Dataset: We conduct our experiments on the
+mance. This can be done by combining the two
+salience corpus described in §3. Among the
+vectorsinthefinallinearlayer:
+664,911 articles with abstracts, we sample 10%
+ofthedataasthetestsetandthenrandomlyleave
+f(ev ,d)=W ·Φ (ev ,V)+W ·F(ev ,d)+b (6) outanother10%documentsfordevelopment. Over-
+i v K i f i
+all,thereare4359distincteventlexicalitems,ata
+5.2 IntegratingEntitiesintoKCE
+similarscalewithpreviouswork(ChambersandJu-
+KCE is also used to model the relations between rafsky,2008;Doetal.,2011). Thecorpusstatistics
+events and entities. For example, in Figure 1, aresummarizedinTable1.
+theentity“court”isaframeelementoftheevent Input: The inputs to models are the documents
+“trial”; “United States” is a frame element of the andtheextractedevents. Themodelsarerequired
+event“war”. Itisnotclearwhichpaircontributes toranktheeventsfromthemosttoleastsalience.
+moretosalience. WeagainletKCEtolearnit. Baselines: Three methods from previous re-
+Formally,letEbethelistofentitiesinthedoc- searches are used as baselines: Frequency, Loca-
+ument, i.e. E = {en ,...,en ,...,en }, where tion and PageRank. The first two are often used
+1 i n
+to simulate saliency (Barzilay and Lapata, 2008; intrusion test, following the word intrusion test
+VossenandCaselli,2015). TheFrequencybaseline used to assess topic model quality (Chang et al.,
+ranks events based on the count of the headword 2009).
+lemma; the Location baseline ranks events using Event Intrusion Test: The test will present to a
+the order of their appearances in discourse. Ties model a set of events, including: the origins, all
+arebrokenrandomly. events from one document; the intruders, some
+SimilartoentitysaliencerankingwithPageRank eventsfromanotherdocument. Intuitively,ifevents
+scores(Xiongetal.,2018),ourPageRankbaseline inside a document are organized around the core
+runsPageRankonafullyconnectedgraphwhose content, a model capturing their relations well
+nodesaretheeventsindocuments. Theedgesare shouldeasilyidentifytheintruder(s).
+weighted by the embedding similarities between Specifically,wetakeabagofunorderedevents
+eventpairs. WeconductsupervisedPageRankon {O ,O ,...,O },fromadocumentO,astheori-
+1 2 p
+this graph, using the same pairwise loss setup as gins. We insert into it intruders, events drawn
+inKCE.Wereportthebestperformanceobtained from another document, I: {I ,I ,...,I }. We
+1 2 q
+bylinearlycombiningFrequencywiththescores ask a model to rank the mixed event set M =
+obtainedafteraone-steprandomwalk. {O ,I ,O ,I ,...}. We expect a model to rank
+1 1 2 2
+Evaluation Metric: Since the importance of theintrudersI i belowtheoriginsO i.
+events is on a continuous scale, the boundary be- Intrusion Instances: From the development set,
+tween “important” and “not important” is vague. werandomlysample15,000originandintruding
+Hence we evaluate it as a ranking problem. The documentpairs. Tosimplifytheanalysis,weonly
+metrics are the precision and recall value at 1, 5 takedocumentswithatleast5salientevents. The
+and 10 respectively. It is adequate to stop at 10 intruder events, together with the entities in the
+since there are less than 9 salient events per doc- samesentences,areaddedtotheorigindocument.
+umentonaverage(Table1). WealsoreportArea Metrics: AUCisusedtoquantifyrankingquality,
+UnderCurve(AUC).Statisticalsignificancevalues whereeventsinO arepositiveandeventsinI are
+aretestedbypermutation(randomization)testwith negative. Toobservetherankingamongthesalient
+p < 0.05. origins,wecomputeaseparateAUCscorebetween
+Implementation Details: We pre-trained word theintrudersandthesalientorigins,denotedasSA-
+embeddings with 128 dimensions on the whole AUC. Inotherwords,SA-AUCistheAUCscore
+Annotated New York Times corpus using onthelistwithnon-salientoriginsremoved.
+Word2Vec(Mikolovetal.,2013). Entitiesareex- ExperimentsDetails: WetakethefullKCEmodel
+tractedusingtheTagMeentitylinkingtoolkit(Fer- tocomputesalientscoresforeventsinthemixed
+raginaandScaiella,2010). Wordsorentitiesthat event set M, which are directly used for ranking.
+appearonlyonceintrainingarereplacedwithspe- Frequencyisrecounted. Allotherfeatures(Table2)
+cial“unknown”tokens. aresetto0toemphasizetherelationalaspects,
+Thehyper-parametersoftheKCEkernelsfollow Weexperimentwithtwosettings: 1.addingonly
+previous literature (Xiong et al., 2017). There is thesalientintruders. 2.addingonlythenon-salient
+one exact match kernel (µ = 1,σ = 1e−3) and intruders. Under both settings, the intruders are
+tensoft-matchkernelsevenlydistributedbetween addedonebyone,allowingustoobservethescore
+(−1,1), i.e. µ ∈ {−0.9,−0.7,...,0.9}, with the change regarding the number of intruders added.
+sameσ = 0.1. Forcomparison,weaddaFrequencybaseline,that
+directlyrankseventsbytheFrequencyfeature.
+Theparametersofthemodelsareoptimizedby
+Adam (Kingma and Ba, 2015), with batch size
+7 EvaluationResults
+128. The vectors of entities are initialized by the
+pre-trained embeddings. Event embeddings are
+Thissectionpresentstheevaluationsandanalyses.
+initializedbytheirheadwordembedding.
+7.1 EventSaliencePerformance
+6.2 TheEventIntrusionTest: AStudy
+WesummarizethemainresultsinTable3.
+KCEisdesignedtoestimatesaliencebymodeling Baselines: Frequencyisthebestperformingbase-
+relationsbetweendiscourseunits. Tobetterunder- line. Itsprecisionat1and5arehigherthan40%.
+standitsbehavior,wedesignthefollowingevent PageRank performs worse than Frequency on all
+Method P@01 P@05 P@10 AUC
+Location 0.3555 – 0.3077 – 0.2505 – 0.5226 –
+PageRank 0.3628 – 0.3438 – 0.3007 – 0.5866 –
+Frequency 0.4542 – 0.4024 – 0.3445 – 0.5732 –
+LeToR 0.4753† +4.64% 0.4099† +1.87% 0.3517† +2.10% 0.6373† +11.19%
+KCE (-EF) 0.4420 −2.69% 0.4038 +0.34% 0.3464† +0.54% 0.6089† +6.23%
+KCE (-E) 0.4861†‡ +7.01% 0.4227†‡ +5.04% 0.3603†‡ +4.58% 0.6541†‡ +14.12%
+KCE 0.5049†‡ +11.14% 0.4277†‡ +6.29% 0.3638†‡ +5.61% 0.6557†‡ +14.41%
+Method R@01 R@05 R@10 W/T/L
+Location 0.0807 – 0.2671 – 0.3792 – –/–/–
+PageRank 0.0758 – 0.2760 – 0.4163 – –/–/–
+Frequency 0.0792 – 0.2846 – 0.4270 – –/–/–
+LeToR 0.0836† +5.61% 0.2980† +4.70% 0.4454† +4.31% 8037/48493/6770
+KCE (-EF) 0.0714 −9.77% 0.2812 −1.18% 0.4321† +1.20% 6936/48811/7553
+KCE (-E) 0.0925†‡ +16.78% 0.3172†‡ +11.46% 0.4672†‡ +9.41% 11676/43294/8330
+KCE 0.0946†‡ +19.44% 0.3215†‡ +12.96% 0.4719†‡ +10.51% 12554/41461/9285
+Table3: Eventsalienceperformance. (-E)and(-F)marksremovingEntityinformationandFeaturesfrom
+thefullKCMmodel. TherelativeperformancedifferencesarecomputedagainstFrequency. W/T/L
+arethenumberofdocumentsamethodwins,ties,andlosescomparedtoFrequency. †and‡markthe
+statisticallysignificantimprovementsoverFrequency†,LeToR‡ respectively.
+FeatureGroups P@1 P@5 P@10 R@1 R@5 R@10 AUC
+Loc 0.3548 0.3069 0.2497 0.0807 0.2671 0.3792 0.5226
+Frequency 0.4536 0.4018 0.3440 0.0792 0.2846 0.4270 0.5732
++Loc 0.4734 0.4097 0.3513 0.0835 0.2976 0.4436 0.6354
++Loc+Event 0.4726 0.4101† 0.3516 0.0831 0.2969 0.4431 0.6365†
++Loc+Entity 0.4739 0.4100 0.3518 0.0812 0.2955 0.4418 0.6374
++Loc+Entity+Event 0.4739 0.4100 0.3518† 0.0832 0.2974 0.4452† 0.6374†
++Loc+Entity+Event+Local 0.4754† 0.4100 0.3517† 0.0837 0.2981 0.4454† 0.6373†
+Table4: FeatureAblationResults. +signindicatestheadditionalfeaturestoFrequency. Locisthe
+sentencelocationfeature. Eventistheeventvotingfeature. Entityistheentityvotingfeature. Local
+isthelocalentityvotingfeature. †marksthestatisticallysignificantimprovementsover+Loc.
+theprecisionandrecallmetrics. Locationperforms cantoverFrequency+Location.
+theworst.
+Kernel Centrality Estimation: The KCE model
+FeatureBased: LeToRoutperformsthebaselines further beats LeToR significantly on all metrics,
+significantly on all metrics. Particularly, its P@1 byaround5%onAUCandprecisionvalues,andby
+valueoutperformstheFrequencybaselinethemost around10%ontherecallvalues. Notably,theP@1
+(4.64%), indicating a much better estimation on score is much higher, reaching 50%. The large
+the most salient event. In terms of AUC, LeToR relativegainonalltherecallmetricsandthehigh
+outperformsFrequencybyalargemargin(11.19% performance on precision show that KCE works
+relativegain). reallywellonthetopoftheranklist.
+FeatureAblation: Tounderstandthecontribution KernelAblation: Tounderstandthesourceofper-
+ofindividualfeatures,weconductanablationstudy formance gain of KCE, we conduct an ablation
+of various feature settings in Table 4. We gradu- study by removing its components: -E removes
+allyaddfeaturegroupstotheFrequencybaseline. ofentitykernels; -EFremovestheentitykernels
+The combination of Location (sentence location) andthefeatures. Weobserveaperformancedrop
+andFrequencyalmostsetstheperformanceforthe in both cases. Without entities and features, the
+wholemodel. Addingeachvotingfeatureindividu- modelonlyusingeventinformationstillperforms
+allyproducesmixedresults. However,addingall similarlytoFrequency. Thedropsarealsoareflec-
+votingfeaturesimprovesallmetrics. Thoughthe tionofthesmallnumberofevents(≈60perdocu-
+marginissmall,4ofthemarestatisticallysignifi- ment)comparingtoentities(≈200perdocument).
+Word2Vec KCE raw similarity values are now placed in the same
+bin. ThepairsinTable3exhibitinterestingtypes
+attack kill 0.69 0.3
+ofrelations: e.g.,“arrest-charge”and“attack-kill”
+arrest charge 0.53 0.3
+formscript-likechains;“911attack”formsaquasi-
+USA(E) war 0.46 0.3
+identity relation (Recasens et al., 2010) with “at-
+911attack(E) attack 0.72 0.3
+tack”;“business”and“increase”arecandidatesas
+attack trade 0.42 0.9
+frame-argumentstructure. Whilethesepairshave
+hotel(E) travel 0.49 0.9
+differentrawcosinesimilarities,theyarealluseful
+charge murder 0.49 0.7
+inpredictingsalience. KCElearnstogatherthese
+business(E) increase 0.43 0.7
+relations into bins assigned with higher weights,
+attack walk 0.44 -0.3
+which is not achieved by pure embedding based
+people(E) work 0.40 -0.3
+methods. The KCE has changed the embedding
+Table 5: Similarities between event entity pairs. spaceandthescoringfunctionssignificantlyfrom
+Word2vec shows the cosine similarity in pre- theoriginalspaceaftertraining. Thispartiallyex-
+trainedembeddings. KCEliststheirclosestkernel plainswhytherawvotingfeaturesandPageRank
+meanaftertraining. (E)marksentities. arenotaseffective.
+Thestudyindicatesthattherelationalsignalsand
+7.2 IntrusionTestResults
+featurescontaindifferentbutbothimportantinfor-
+mation.
+Figure3plotsresultsoftheintrusiontest. Theleft
+Discussion: The superior results of KCE demon-
+figure shows the results of setting 1: adding non-
+strate its effectiveness in predicting salience. So
+salient intruders. The right one shows the results
+whatadditionalinformationdoesitcapture? Were-
+ofsetting2: addingsalientintruders. TheAUCis
+visitthechangesmadebyKCE:1.itadjuststheem-
+0.493andtheSA-AUCis0.753ifallintrudersare
+beddingsduringtraining. 2.itintroducesweighted
+added.
+soft count kernels. However, the PageRank base-
+TheleftfigureshowsthatKCEsuccessfullyfinds
+linealsodoesembeddingtuningbutproducespoor
+thenon-salientintruders. TheSA-AUCishigher
+results,thusthesecondchangeshouldbecrucial.
+than 0.8. Yet the AUC scores, which include the
+WeplotthelearnedkernelweightsofKCEinFig-
+rankings of non-salience events, are rather close
+ure 2. Surprisingly, the salient decisions are not
+to random. This shows that the salient events in
+linearly related, nor even positively correlated to
+theorigindocumentsformamorecohesivegroup,
+the weights. In fact, besides the “Exact Match”
+makingthemmorerobustagainsttheintruders;the
+bin, the highest absolute weights actually appear
+non-salientonesarenotascohesive.
+at0.3and-0.3. Thisimpliesthatembeddingsim-
+Inbothsettings,KCEproduceshigherSA-AUC
+ilarities do not directly imply salience, breaking
+thanFrequencyatthefirst30%. However, inset-
+someassumptionsofthefeaturebasedmodeland
+ting2,KCEstartstoproducelowerSA-AUCthan
+PageRank.
+Frequencyafter30%,thengraduallydropsto0.5
+(random). Thisphenomenonisexpectedsincethe
+asymmetry between origins and intruders allow
+KCE to distinguish them at the beginning. When
+all intruders are added, KCE performs worse be-
+causeitreliesheavilyontherelations,whichcan
+bealsoformedbythesalientintruders. Thisphe-
+nomenonisobservedonlyonthesalientintruders,
+which again confirms the cohesive relations are
+foundamongsalientevents.
+Figure2: LearnedKernelWeightsofKCE Inconclusion,weobservethatthesalientevents
+form tight groups connected by discourse rela-
+Case Study: We inspect some pairs of events tionswhilethenon-salienteventsarenotasrelated.
+and entities in different kernels and list some ex- The observations imply that the main scripts in
+amples in Table 5. The pre-trained embeddings documents are mostly anchored by small groups
+are changed a lot. Pairs of units with different of salient events (such as the “Trial” script in
+Figure3: Intruderstudyresults. X-axisshowsthepercentageofintrudersinserted. Y-axisistheAUCscore
+scale. Theleftandrightfiguresareresultsfromsalientandnon-salientintrudersrespectively. Theblue
+barisAUC. TheorangeshadedbarisSA-AUC. ThelineshowstheSA-AUCofthefrequencybaseline.
+Example 1). Other events may serve as “back- themainscriptsofdocuments.
+grounds”(Cheungetal.,2013). Similarly,Choubey This paper empirically reveals many interest-
+et al.(2018) find thatrelations like event corefer- ingconnectionsbetweendiscoursephenomenaand
+enceandsequenceareimportantforsaliency. salience. Theresultsalsosuggestthatcorescript
+informationmayresidemostlyinthesalientevents.
+8 Conclusion
+Limitedbythedataacquisitionmethod,thispaper
+onlymodelsdiscoursesalienceasbinarydecisions.
+We propose two salient detection models, based
+However, salience value may be continuous and
+onlexicalrelatednessandsemanticrelations. The
+may even have more than one aspects. In the fu-
+feature-basedmodelwithlexicalsimilaritiesisef-
+ture,weplantoinvestigatethesecomplexsettings.
+fective,butcannotcapturesemanticrelationslike
+Anotherdirectionofstudyislarge-scalesemantic
+scripts and frames. The KCE model uses kernels
+relationdiscovery,forexample,framesandscripts,
+and embeddings to capture these relations, thus
+withafocusonsalientdiscourseunits.
+outperformsthebaselinesandfeature-basedmod-
+els significantly. All the results are tested on our
+Acknowledgement
+newly created large-scale event salience dataset.
+Whiletheautomaticmethodinevitablyintroduces This research was supported by DARPA grant
+noisestothedataset,thescaleenablesustostudy FA8750-18-2-0018 funded under the AIDA pro-
+complexeventinteractions,whichisinfeasiblevia gramandNationalScienceFoundation(NSF)grant
+costlyexpertlabeling. IIS-1422676. Anyopinions,findings,andconclu-
+Our case study shows that the salience model sionsinthispaperaretheauthorsanddonotnec-
+finds and utilize a variety of discourse relations: essarilyreflectthesponsors.Wethanktheanony-
+script chain (attack and kill), frame argument re- mousreviewerswhosesuggestionshelpedclarify
+lation(businessandincrease),quasi-identity(911 thispaper.
+attackandattack). Suchcomplexrelationsarenot
+as prominent in the raw word embedding space.
+Thecoremessageisthatasaliencedetectionmod- References
+ule automatically discovers connections between
+JunAraki,ZhengzhongLiu,EduardHovy,andTeruko
+salienceandrelations. Thisgoesbeyondpriorcen- Mitamura. 2014. Detecting Subevent Structure for
+tering analysis work that focuses on lexical and Event Coreference Resolution. In Proceedings of
+syntaxandprovideanewsemanticviewfromthe the Ninth International Conference on Language
+Resources and Evaluation (LREC’14), pages 4553–
+scriptandframeperspective.
+4558,Reykjavik,Iceland.
+In the intrusion test, we observe that the small
+number of salient events are forming tight con- CF Baker, CJ Fillmore, and JB Lowe. 1998. The
+nectedgroups. WhileKCEcapturestheserelations berkeleyframenetproject. ProceedingACL’98Pro-
+ceedings of the 36th Annual Meeting of the Associ-
+quiteeffectively, itcanbeconfused bysalientin-
+ation for Computational Linguistics and 17th Inter-
+trusionevents. Thephenomenonindicatesthatthe
+national Conference on Computational Linguistics,
+salient events are tightly connected, which form pages86–90.
+Niranjan Balasubramanian, Stephen Soderland, and EmpiricalMethodsinNaturalLanguageProcessing,
+OE Mausam. 2013. Generating Coherent Event pages294–303.
+SchemasatScale. InProceedingsofthe2013Con-
+QuangXuanDo,WeiLu,andDanRoth.2012. JointIn-
+ferenceonEmpiricalMethodsinNaturalLanguage
+ference for Event Timeline Construction. EMNLP-
+Processing.
+CoNLL ’12 Proceedings of the 2012 Joint Confer-
+BreckBaldwinandThomasSMorton.1998. Dynamic ence on Empirical Methods in Natural Language
+Coreference-BasedSummarization. Proceedingsof Processing and Computational Natural Language
+theThirdConferenceonEmpiricalMethodsinNat- Learning,(July):677–687.
+uralLanguageProcessing(EMNLP-3),pages1–6.
+M. Dojchinovski, D. Reddy, T. Kliegr, T. Vitvar, and
+H. Sack. 2016. Crowdsourced corpus with entity
+Regina Barzilay and Mirella Lapata. 2008. Modeling
+salienceannotations. InProceedingsofthe10thIn-
+Local Coherence: An Entity-Based Approach. In
+ternationalConferenceonLanguageResourcesand
+Proceedingsofthe43rdAnnualMeetingoftheACL,
+Evaluation,LREC,pages3307–3311.
+volume34,pages1–34.
+Jesse Dunietz and Daniel Gillick. 2014. A New En-
+SusanWindischBrown,ClaireBonial,LeoObrst,and
+tity Salience Task with Millions of Training Exam-
+MarthaPalmer.2017. TheRichEventOntology. In
+ples. In Proceedings of the European Association
+Proceedings of the Events and Stories in the News
+forComputationalLinguistics,pages205–209.
+Workshop,pages87–97.
+Gu¨nesErkanandDragomirRRadev.2004. LexRank:
+Nathanael Chambers, Taylor Cassidy, Bill McDowell,
+Graph-based Lexical Centrality as Salience in Text
+and Steven Bethard. 2014. Dense Event Ordering
+Summarization. Journal of Artificial Intelligence
+withaMulti-PassArchitecture. Transactionsofthe
+Research,22:457–479.
+Association for Computational Linguistics, 2:273–
+284. Paolo Ferragina and Ugo Scaiella. 2010. Tagme:
+on-the-fly annotation of short text fragments (by
+Nathanael Chambers and Dan Jurafsky. 2008. Unsu-
+wikipediaentities). InCIKM2010.
+pervised Learning of Narrative Event Chains. In
+ACL ’08 Meeting of the Association for Computa- JosephEvansGrimes.1975. TheThreadofDiscourse.
+tionalLinguistics,pages789–797. NewYork.
+Jonathan Chang, Sean Gerrish, Chong Wang, and MichaelHallidayandRuqaiyaHasan.1976. Cohesion
+DavidMBlei.2009. ReadingTeaLeaves: HowHu- inEnglish.
+mans Interpret Topic Models. Advances in Neural
+Diederik P. Kingma and Jimmy Lei Ba. 2015. Adam:
+InformationProcessingSystems22,pages288–296.
+A Method for Stochastic Optimization. In ICLR
+2015.
+PengxiangChengandKatrinErk.2018. ImplicitArgu-
+mentPredictionwithEventKnowledge. InNAACL
+QiLi,HengJi,andLiangHuang.2013. JointEventEx-
+2018,2012.
+traction via Structured Prediction with Global Fea-
+tures. In Proceedings of the 51st Annual Meet-
+JCKitCheung,HPoon,andLucyVanderwende.2013.
+ingoftheAssociationforComputationalLinguistics
+ProbabilisticFrameInduction. InProceedingsofthe
+(ACL2013).
+2013ConferenceoftheNorthAmericanChapterof
+the Association for Computational Linguistics: Hu- Tie-YanLiu.2009. Learningtorankforinformationre-
+manLanguageTechnologies(NAACL/HLT2013). trieval. Foundations and Trends in Information Re-
+trieval,3(3):225–331.
+Prafulla Kumar Choubey, Kaushik Raju, and Ruihong
+Huang.2018. IdentifyingtheMostDominantEvent ZhengzhongLiu,JunAraki,EduardHovy,andTeruko
+inaNewsArticlebyMiningEventCoreferenceRe- Mitamura. 2014. Supervised Within-Document
+lations. InNAACL2018. Event Coreference using Information Propagation.
+In Proceedings of the Ninth International Con-
+Jacob Cohen. 1960. A coefficient of agreement for ference on Language Resources and Evaluation
+nominal scales. Educational and Psychological (LREC’14),pages4539–4544,Reykjavik,Iceland.
+Measurement,20(1):37–46.
+Jing Lu and Vincent Ng. 2017. Joint Learning for
+DipanjanDasandNoahSmith.2011. Semi-Supervised Event Coreference Resolution. In Proceedings of
+Frame-Semantic Parsing for Unknown Predicates. the55thAnnualMeetingoftheAssociationforCom-
+In HLT ’11 Proceedings of the 49th Annual Meet- putationalLinguistics,pages90–101.
+ing of the Association for Computational Linguis-
+tics:HumanLanguageTechnologies-Volume1,vol- ChristopherDManning, MihaiSurdeanu, JohnBauer,
+ume1,pages1435–1444. Jenny Finkel, Steven J Bethard, and David Mc-
+Closky.2014. TheStanfordCoreNLPNaturalLan-
+QuangXuanDo,YeeSengChan,andDanRoth.2011. guageProcessingToolkit. Proceedingsof52ndAn-
+Minimally supervised event causality identification. nual Meeting of the ACL: System Demonstrations,
+In EMNLP ’11 Proceedings of the Conference on pages55–60.
+DanielMarcu.1999. DiscourseTreesareGoodIndica- Learning to predict script events from domain-
+tors of Importance in Text. Advances in Automatic specific text. In Proceedings of the Fourth Joint
+TextSummarization,pages123–136. Conference on Lexical and Computational Seman-
+tics,pages205–210.
+TomasMikolov,IlyaSutskever,KaiChen,GregSCor-
+rado, and Jeff Dean. 2013. Distributed representa- EvanSandhaus.2008. TheNewYorkTimesAnnotated
+tionsofwordsandphrasesandtheircompositional- Corpus.
+ity. In Proceedings of the 2tth Advances in Neural
+Information Processing Systems 2013 (NIPS 2013), RogerCSchankandRobertPAbelson.1977. Scripts,
+pages3111–3119. Plans, Goals and Understanding. Lawrence Erl-
+baumAssociates.
+TerukoMitamura,ZhengzhongLiu,andEduardHovy.
+ESkorochod’ko.1971. AdaptiveMethodofAutomatic
+2015. Overview of TAC KBP 2015 Event Nugget
+Abstracting and Indexing. In Proceedings of the
+Track. InTACKBP2015,pages1–31.
+IFIPCongress71.
+Jane Morris and Graeme Hirst. 1991. Lexical cohe-
+ZenoVendler.1957. Verbsandtimes. ThePhilosophi-
+sioncomputedbythesauralrelationsasanindicator
+calReview,66(2):143–160.
+of the structure of text. Computational Linguistics,
+17:21–48.
+Piek Vossen and Tommaso Caselli. 2015. Storylines
+forstructuringmassivestreamsofnews. InProceed-
+ThienHuuNguyenandRalphGrishman.2015. Event
+ingsoftheFirstWorkshoponComputingNewsStory
+Detection and Domain Adaptation with Convolu-
+Lines,pages40–49.
+tionalNeuralNetworks. InProceedingsofthe53rd
+Annual Meeting of the Association for Computa-
+Chenyan Xiong, Zhengzhong Liu, Jamie Callan, and
+tional Linguistics and the 7th International Joint
+Tie-YanLiu.2018. TowardsBetterTextUnderstand-
+Conference on Natural Language Processing (Vol-
+ing and Retrieval through Kernel Entity Salience
+ume2: ShortPapers),pages365–371.
+Modeling. InSIGIR2018.
+Haoruo Peng, Yangqi Song, and Dan Roth. 2016. ChenyangXiong, ZhuyunDai, JamieCallan, Zhiyuan
+EventDetectionandCo-referencewithMinimalSu- Liu, and Russell Power. 2017. End-to-End Neural
+pervision. InEMNLP2016. Ad-hoc Ranking with Kernel Pooling. In Proceed-
+ings of the 40th International ACM SIGIR Confer-
+Karl Pichotta and Raymond J. Mooney. 2016. Using
+ence on Research and Development in Information
+Sentence-LevelLSTMLanguageModelsforScript
+Retrieval,pages55–64.
+Inference. InProceedingsofthe54thAnnualMeet-
+ingoftheAssociationforComputationalLinguistics, CongleZhang,StephenSoderland,andDanielSWeld.
+pages279–289. 2015. Exploiting Parallel News Streams for Unsu-
+pervised Event Extraction. volume 3, pages 117–
+Marco Ponza, Paolo Ferragina, and Francesco Pic- 129.
+cinno.2018. SWAT:ASystemforDetectingSalient
+WikipediaEntitiesinTexts.
+James Pustejovsky, Patrick Hanks, Roser Saur´ı, An-
+drew See, Robert Gaizauskas, Andrea Setzer, Beth
+Sundheim, David Day, Lisa Ferro, and Dragomir.
+2002. TheTIMEBANKCorpus. NaturalLanguage
+Processing and Information Systems, 4592:647–
+656.
+Marta Recasens, Matthew Can, and Daniel Jurafsky.
+2013. Same Referent, Different Words: Unsu-
+pervised Mining of Opaque Coreferent Mentions.
+Proceedings of the 2013 Conference of the North
+American Chapter of the Association for Computa-
+tional Linguistics: Human Language Technologies,
+(June):897–906.
+Marta Recasens, Eduard Hovy, and M. Anto`nia Mart´ı.
+2010. A Typology of Near-Identity Relations for
+Coreference (NIDENT). 7th International Con-
+ference on Language Resources and Evaluation
+(LREC-2010),(i):149–156.
+Rachel Rudinger, Vera Demberg, Ashutosh Modi,
+Benjamin Van Durme, and Manfred Pinkal. 2015.

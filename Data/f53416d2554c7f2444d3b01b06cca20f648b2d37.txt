@@ -1,0 +1,511 @@
+TIAGE: A Benchmark for Topic-Shift Aware Dialog Modeling
+HuiyuanXie1 ZhenghaoLiu2 ChenyanXiong3 ZhiyuanLiu4 AnnCopestake1
+1DepartmentofComputerScienceandTechnology,UniversityofCambridge,UK
+2DepartmentofComputerScienceandTechnology,NortheasternUniversity,China
+3MicrosoftResearch,UnitedStates
+4DepartmentofComputerScienceandTechnology,TsinghuaUniversity,China
+{hx255,aac10}@cl.cam.ac.uk, liuzhenghao@cse.neu.edu.cn
+chenyan.xiong@microsoft.com, liuzy@tsinghua.edu.cn
+Abstract
+Hi, how are you?
+I am doing great. Spook is fine too.
+Humanconversationsnaturallyevolvearound
+different topics and fluently move between Sorry, who is Spook again? I forgot.
+them. Inresearchondialogsystems, theabil- My cat. He is my favorite. Topic A
+ity to actively and smoothly transition to new
+Glad he is well.
+topics is often ignored. In this paper we in-
+Yeah. What have you been
+troduce TIAGE, a new topic-shift aware dia- up to recently?
+logbenchmarkconstructedutilizinghumanan-
+Topic B I finally had some spare time,
+notations on topic shifts. Based on TIAGE, so I tended my rose garden.
+we introduce three tasks to investigate differ-
+entscenariosoftopic-shiftmodelingindialog Figure1:Anexampleoftopic-shiftbehaviorsinhuman
+settings: topic-shift detection, topic-shift trig- conversations. Topic-shiftutterancesarehighlightedin
+geredresponsegenerationandtopic-awaredi- greenandinitalic. Changingthetopichelpskeepthe
+alog generation. Experiments on these tasks conversationgoingon.
+showthatthetopic-shiftsignalsinTIAGEare
+usefulfortopic-shiftresponsegeneration. On
+theotherhand,dialogsystemsstillstruggleto shift topics away from tired topics, chatbots risk
+decide when to change topic. This indicates generatingdullresponsesorrepeatingthemselves
+furtherresearchisneededintopic-shiftaware
+regardingaspecifictopic.
+dialogmodeling.1
+Tofacilitateresearchontopic-shiftdialogmodel-
+1 Introduction ing,wecurateaTopic-shIftAwaredialoGdatasEt
+(TIAGE)byaugmentingthePersonaChatdataset
+Existing dialog models (Ghandeharioun et al., (Zhang et al., 2018) with topic-shift annotations.
+2019; Einolghozati et al., 2019; Liu et al., 2018) To the best of our knowledge, TIAGE is the
+havebeenreportedtoperformwellingenerating first dataset that focuses on topic-shift behaviors
+on-topicutterancesindialogscenarios. However, in open-domain dialog data. TIAGE contains
+those models still struggle to proactively gener- a human annotated dataset with 7,861 gold stan-
+ateappropriatetopic-shiftutterancesinconversa- dard topic-shift annotations, and a weak supervi-
+tions(Holtzmanetal.,2020;Zhangetal.,2020a). sion dataset to adapt pretrained NLG systems to
+It is beneficial for dialog systems to be able to PersonaChat-styledata. Theinter-annotatoragree-
+shifttopicsfluently. AsshowninFigure1,topic- mentfortopic-shiftannotationsinTIAGEis0.479.
+shiftbehaviorsarecommonlyobservedinhuman
+With TIAGE, we propose three tasks to study
+conversations(BrownandYule,1983). Fluenttopic
+topic-shiftbehaviors: topic-shiftdetection, topic-
+shifts therefore are crucial for dialog models to
+shifttriggeredresponsegenerationandtopic-aware
+beabletomodelormimichumanconversational
+dialog generation. The topic-shift detection task
+patterns. Proactively using topic shifts can help
+asksmodelstodetectwhethertheongoingtopichas
+chatbots guide conversations to a pre-defined tar-
+shiftedorshouldshift. Theothertwotasksfocuson
+get (Tang et al., 2019). Furthermore, switching
+modelingtopic-shiftbehaviorsinresponsegenera-
+topicsallowschatbotstomaintainengagingconver-
+tion. Specifically,thetopic-shifttriggeredresponse
+sationswithusers. Withouttheabilitytoactively
+generatorreceivesafixedtopic-shiftsignaltogen-
+eratetopic-shiftresponses,whilstthetopic-aware
+1Codeanddataavailableat:https://github.com/HuiyuanX
+ie/tiage. dialog generationtask requiresdialog systems to
+predictthetopic-shifttriggerbythemselves. WEAKSUPOtrain WEAKSUPOdev
+#Dialogs 7,939 1,000
+Our experiments reveal that the topic-shift sig-
+#Instances 108,711 13,788
+nals in TIAGE indeed improve dialog systems’ #AvgTurns 14.7 14.8
+abilitytogeneratetopic-shiftresponses. However,
+(a)Theweaksupervisiondatasplit.
+it is difficult for dialog models to predict when
+itisappropriatetochangetopics. Theseobserva-
+ANNOtrain ANNOdev ANNOtest
+#Dialogs 300 100 100
+tionshighlighttheneedforbettermodelingoftopic
+#Instances 4,767 1,546 1,548
+shiftsindialoggeneration. Wehopeourbenchmark #AvgTurns 15.6 15.5 15.6
+canmotivatefurtherresearchontopic-shiftaware (b)Thehumanannotateddatasplit.
+dialogmodeling.
+Table1:Datastatistics. #AvgTurnsdenotestheaverage
+2 RelatedWork numberofturnsperdialog. Eachinstanceisa(context,
+response)pairaroundaspecificdialogturn. Theaver-
+Existing work in dialog systems falls into two age number of tokens per utterance is 11.8. In the hu-
+broad categories. Task-oriented dialog systems manannotateddatasplit,theaveragenumberoftopic-
+shiftturnsperdialogis3.5. Thevocabularysizeofthe
+(Budzianowskietal.,2018;Liuetal.,2018)help
+entiredatasetisaround18K.
+users complete tasks in specific domains. Open-
+domaindialogsystems(ChenandGao,2017;Tang
+etal.,2019)allowagentstohaveopen-endedcon- narios,wherenaturalshiftsoftopicsaremorelikely
+versationswithusers. Mostexistingdialogmodels tohappen;(2)dialogsinthisdatasetcontainmore
+(Fangetal.,2018;Zhangetal.,2020b;Ghandehar- than 10 dialog turns, and longer dialog contexts
+iounetal.,2019)emphasizeend-to-endresponse tendtoexhibitaconversationalflowwithmoretop-
+generation,anddonotexplicitlyaddressthetopic- ics;and(3)despitethefactthatsomeparticipants
+shiftproblemindialoggeneration. inPersonaChatmayhaverushedintochangingtop-
+Earlyworkintopicdetectionandsegmentation ics to quickly exchange their profile information,
+(Hirschberg and Litman, 1993; Passonneau and weobservedthatmostoftheparticipantsstillman-
+Litman,1997)focusedonidentifyingcuephrases agetochangetopicsinamorenaturalandcoherent
+(suchasonadifferentnote)orexamininglexical way,makingthisdatasetafavorablechoicetostudy
+cohesion to segment topical chunks. Other work topic-shiftbehaviors.
+(FiscusandDoddington,2002)investigatedtopic
+Humanannotationprocess. Fortheannotation
+detectionandtracking(TDT)inastreamofbroad-
+pool,wehaveatotalnumberof25humanannota-
+cast news stories. More recent work (Glavas and
+tors. Werandomlyselected500dialogsfromthe
+Somasundaran,2020)hasexploredutilizingneural
+original PersonaChat dev/test datasets, resulting
+networkstoaddresstopicsegmentation. Although
+in 7,861 dialog turns to label. Each dialog turn
+some of the existing work (Galley et al., 2003;
+was randomly assigned to and independently la-
+Arnoldetal.,2019)hasinvestigatedtopicdetection
+beled by 2 annotators. For each dialog turn, we
+indialog-styledata,thegenerationaspectoftopic-
+asked annotators to indicate whether they think
+shiftmodelingindialogsettingsisstillunclear.
+the conversational topic is changed at that turn.
+Duringtheannotationprocess,allannotatorswere
+3 Topic-ShiftAwareDialogDataset
+talked through the general aim of this annotation
+In this section we introduce the rationale for our taskandgiventhesameannotationguidelines(see
+choice of data source, the human annotation pro- AppendixA.1fordetails).
+cessoftopic-shiftlabellinginTIAGEanditsdata Sincetopicisco-constructed,itisratherlimiting
+statistics. Wealsoanalyzethelinguisticpatternsof to analyze a turn for itself when trying to iden-
+topic-shiftutterancesin TIAGE. tifytopictransitions. Tofacilitatetherecognition
+Rationale for our choice of data source. We of slowly transitioned topics, we encouraged the
+constructTIAGEbyaugmentingthePersonaChat annotators to take into account both the previous
+dataset(Zhangetal.,2018)withtopic-shifthuman two turns and the following two turns of the tar-
+annotations. We view PersonaChat as a suitable get dialog turn to make a decision. This helped
+dataset for topic-shift annotation for the follow- decisionmakingforcaseswheretopicsareslowly
+ingreasons: (1)thePersonachatdatawascollected developedandtransitioned.
+onlineinatextualformbymimickingchit-chatsce- After annotating, we obtained a dialog dataset
+withgoldstandardtopic-shiftlabelsfor7,861dia- 4 TasksofTopic-ShiftModeling
+logturns. TheCohen’sKappascoreforallanno-
+Along with dialog utterances, TIAGE also pro-
+tationsis0.4792. Annotatedexamplesof TIAGE
+vides gold standard topic-shift labels for dialog
+dialogsareshowninAppendixA.2.
+turns. Thisenablesustomodeltopicshiftsindia-
+Datasetstatistics. AsshowninTable1,TIAGE logscenarios. Wefirstintroducetwotasks: topic-
+provides weak supervision data and human an- shift detection and topic-shift triggered response
+notated data to train dialog models. Weak su- generation. Theycanbeconsideredasintermediate
+pervision data is selected from the original Per- stepsofthetopic-awaredialoggenerationtask.
+sonaChat training set and helps adapt NLG mod-
+4.1 PreliminaryofResponseGeneration
+els to PersonaChat-style data. The weak supervi-
+siondataconsistsof8,939dialogsandissplitinto When considering a specific turn in a dialog, we
+two sets: WEAKSUPOtrain and WEAKSUPOdev. denotethecurrentutteranceandallitspreviousut-
+Humanannotateddataconsistsof500annotated terancesasthecontext X = {x ,...,x ,...,x }
+T 1 i N
+dialogs with topic-shift annotations at each dia- where x is the i-th utterance in the dialog his-
+i
+logturn. Wesplittheminto300 ANNOtrain,100 tory, and N is the context length. Then we ex-
+ANNOdev and100ANNOtest dialogsrespectively. pect the response to be generated after the cur-
+Aseachdialoghasmultipledialogturns,weextract rent utterance x . We denote a topic-shift re-
+N
+(context,response)pairsasinstancesforallturns sponse as s = {s ,...,s ,...,s } where s is
+TS 1 i T i
+ineachdialog. thei-thtokenintheresponseandT isthesentence
+length. Similarly,anon-topicresponseisdenoted
+Analysis of topic-shift patterns. We examine
+as¯s = {s¯ ,...,s¯,...,s¯ }wheres¯ isthei-th
+a number of topic-shift utterances labeled by hu- NTS 1 i M i
+tokenintheresponseandM isthesentencelength.
+man annotators. We find that many of the topic-
+shiftresponsesdemonstrateaninterestingpattern
+4.2 Topic-ShiftDetection
+of [comment; topic shift]. More specifically, the
+Topic-shiftdetectionisafundamentaltaskthateval-
+response that changes the conversational topic is
+uates models’ ability to detect topic-shift occur-
+typically a brief comment on the previous dialog
+renceatdialogturns.
+context,tailedbyatopic-shiftsentencewithadif-
+Taskdefinition. Weintroducetwosettingsfor
+ferentconversationalfocus. Thecommentusually
+thistask. Intheretrospectivesetting,modelshave
+correspondstothesentimentpreviouslyexpressed
+accesstoboththedialogcontextX andthecorre-
+inthedialog. T
+spondingresponse(eithers or¯s )todetect
+TS NTS
+Thispatternechoessomeofthefindingsinprag- topic-shiftoccurrence,whilstinthepredictiveset-
+maticsresearch(BrownandLevinson,1987;Gold- ting,modelsareaskedtomaketopic-shiftpredic-
+smith,2007). Whenspeakersintroduceanewtopic, tionsbasedonthecontextX only.
+T
+itisacommonpositivepolitenessstrategy(Leech, Topicshiftclassifiers. Wefirstimplementthree
+2014) to first respond to the content uttered by retrospective classifiers. We employ GenEnc
+other speakers. This pattern is potentially useful whichusestheGENEncoder(Zhangetal.,2019)
+fordialogsystemsseekingtogeneratetopic-shift toseparatelyencodedialogcontextandresponse
+utterances in a natural and coherent manner. Be- intoembeddingstoestimatethetopic-shiftintents.
+foreintroducinganewtopic,itisfavorablefordia- GenEncusesacosinesimilaritythresholdof0.25
+logsystemstofirstgenerateacommentregarding tofilterout(context,response)pairs,andclassify
+the previous topic that expresses either approba- them as topic-shift occurrences. Then we imple-
+tion(e.g.,“great”,“that’scool”)orsympathy(e.g., ment a BERT-Wiki727k model (Devlin et al.,
+“that’stoobad”or“I’msorrytohearthat”). This 2019)trainedontheWIKI-727Kdataset(Koshorek
+showsthattheyareattunedtotheusers’interests etal.,2018). WealsoemployaT5model(Raffel
+andneeds. etal.,2019)finetunedonthe ANNOtrain datawith
+topic-shiftlabelsasourretrospectiveT5topic-shift
+classifier(denotedasRetroTS-T5).
+For the predictive setting, we implement
+2TheCohen’sKappascorerangesfrom0.41to0.60indi-
+a T5-based topic-shift manager (denoted as
+catingmoderateagreement,whichconfirmsthequalityofthe
+humanannotationsofTIAGE. TSManager) and finetune it on the ANNOtrain
+data. ThemajordifferencebetweenRetroTS-T5 Approaches Precision Recall F1-score
+BERT-WIKI727K 0.412 0.020 0.038
+andTSManageristhatRetroTS-T5hasaccess
+GENENC 0.337 0.199 0.250
+toboththedialogcontextandtheresponse,while RETROTS-T5 0.709 0.657 0.682
+TSManagermakestopic-shiftpredictionsbased TSMANAGER 0.340 0.170 0.220
+solelyonthecontext. Human3 0.687 0.607 0.644
+Table 2: Model performance on the topic-shift detec-
+4.3 Topic-ShiftTriggeredResponse
+tiontask.
+Generation
+This task examines models’ ability to generate Model BLEU-2 METEOR ROUGE_L CIDEr
+DIALOGPT 0.060 0.077 0.125 0.104
+topic-shiftutteranceswhenaneedtochangetopics
+T5-NLG 0.079 0.086 0.161 0.170
+issignaled. T5-NLGTS 0.092 0.092 0.177 0.175
+Task definition. Given a dialog context X ,
+T
+Table 3: Evaluation results of topic-shift trig-
+the topic-shift triggered response generation task
+gered response generation on topic-shift instances in
+requestsmodelstodirectlygeneratearesponses
+TS ANNOtest.
+thatshiftstheconversationtoadifferenttopic.
+Topic-shift triggered generator. We build
+a T5-NLG response generator using the pre- and DialoGPT models finetuned on the WEAK-
+TS
+trained T5 model. We first train the T5 model
+SUPOtrain dataasbaselinesforcomparison.
+ontheWEAKSUPOtrain data,andthenfurtherfine-
+5 EvaluationResults
+tuneitonthetopic-shiftinstances(i.e.,wheretopic
+shiftsoccur)inthe ANNOtrain data. Wereportheretheevaluationresultsforbaseline
+Comparedapproaches. Wealsotryanumber systemsontheabovethreetasks.
+of topic-insensitive NLG models for comparison. Topic-shift detection. We test topic-shift clas-
+WetrainaT5-NLGmodelontheWEAKSUPOtrain sifiersontheannotated ANNOtest split. FromTa-
+data without any topic-shift signals. We use the ble2weobservethatRetroTS-T5outperforms
+DialoGPTmodel(Zhangetal.,2020b)finetuned other approaches by a large margin and is on par
+onthesamedataasanotherbaseline. withhumanperformance. Thisindicatesthattopic
+shifts in PersonaChat dialogs exhibit certain pat-
+4.4 Topic-AwareDialogGeneration terns, which can be captured from our human-
+labeled topic-shift annotations by our retrospec-
+Thethirdtaskweproposetargetsmoredifficultand
+tive T5 classifier. We also notice that there is a
+realistictopic-shiftmodelingindialoggeneration.
+clear gap in classification performance between
+Taskdefinition. Moreformally,givenadialog
+RetroTS-T5 and TSManager. The predictive
+contextX ,thegoalofthetopic-awaredialoggen-
+T
+setting of TSManager is inherently harder than
+eration task is to generate a topic-shift response
+RetroTS-T5,asitisaskedtopredicttopic-shift
+s ifachangeoftopicisneeded,oranon-topic
+TS
+labelsbasedsolelyondialogcontext.
+response ¯s if otherwise. The topic-aware di-
+NTS
+Topic-shifttriggeredresponsegeneration. In
+alog generation task asks models to identify the
+Table3wereportevaluationresults4 ofourtopic-
+needtochangetopicsbythemselvesandgenerate
+shift triggered response generator (T5-NLG )
+topic-shiftoron-topicresponsesaccordingtothe TS
+andtwotopic-insensitivemodels(DialoGPTand
+prediction.
+T5-NLG).Modelsaretestedonthetopic-shiftin-
+Topic-aware dialog system. Our topic-aware
+dialogsystem(TADial)isapipelinesystem. We
+stances in ANNOtest. We observe that T5-NLG
+yields better performance than DialoGPT. Fur-
+separatelytraintwoT5-basedresponsegenerators:
+thermore, T5-NLG achieves better evaluation
+T5-NLG andT5-NLG . Weswitchbetween TS
+TS NTS
+results on topic-shift test instances, outperform-
+the two response generators to produce either a
+ingT5-NLGby16.46%inBLEU-2and9.94%in
+topic-shift or on-topic response, guided by the
+ROUGE_L.ThebetterperformanceofT5-NLG
+topic-shiftsignalsfromTSManager. T5-NLG TS
+TS
+aims to generate topic-shift responses, while 2Weusetheannotationsfromoneannotatorasgoldstan-
+T5-NLG is finetuned on non-topic-shift in- dard references, and calculate human performance on the
+NTS
+annotationsfromtheotherannotator.
+stancestogenerateon-topicresponses.
+4Weusethenlg-evalpackageforautomaticevaluation.
+Compared approaches. We use the T5-NLG https://github.com/Maluuba/nlg-eval.
+Model BLEU-2 METEOR ROUGE_L CIDEr theUniversityofCambridgeandTsinghuaUniver-
+DIALOGPT 0.063 0.077 0.134 0.125
+sityfortheirhelpinannotatingthetopic-shiftlabels
+T5-NLG 0.082 0.087 0.159 0.175
+TADIAL 0.082 0.087 0.162 0.177 usedinthispaper. HuiyuanXieisgratefulforbe-
+ingsupportedbytheCSCCambridgeScholarship.
+Table4:Evaluationresultsoftopic-awaredialoggener-
+ZhenghaoLiuissupportedbyNationalNaturalSci-
+ationonallinstancesinANNOtest.
+enceFoundationofChina(NSFC)undergrantNo.
+61872074and61772122. Thisworkispartlysup-
+validatestheeffectivenessoftopic-shiftsignalsin portedbytheNationalKeyResearchandDevelop-
+improvingtopic-shiftresponsegeneration. Italso mentProgramofChina(No. 2020AAA0106501).
+provesthatexplicitlymodelingtopic-shiftbehav-
+iorscanpotentiallybenefitdialoggeneration.
+References
+Topic-aware dialog generation. We test
+TADial and two topic-insensitive baselines on Sebastian Arnold, Rudolf Schneider, Philippe Cudré-
+Mauroux,FelixA.Gers,andAlexanderLöser.2019.
+all instances in ANNOtest. From Table 4, we
+SECTOR: A neural model for coherent topic seg-
+canseethatTADialwithadedicatedtopic-shift
+mentationandclassification. TransactionsoftheAs-
+managementcomponentdoesnotyieldbetterper- sociationforComputationalLinguistics,pages169–
+formance over the T5-NLG model which is sim- 184.
+ply trained on dialog instances with no topic-
+GillianBrownandGeorgeYule.1983. Discourseanal-
+shift labels. This points out that due to the de- ysis. CambridgeUniversityPress.
+ficiency of TSManager signals, hard-wiring a
+PenelopeBrownandStephenCLevinson.1987. Polite-
+topic-shiftmanagementcomponentintothegener-
+ness: Someuniversalsinlanguageusage,volume4.
+ationpipelinefallsshorttoimprovegenerationre-
+CambridgeUniversityPress.
+sults. Itremainsachallengingtasktoproducewell-
+Paweł Budzianowski, Tsung-Hsien Wen, Bo-Hsiang
+timedandgood-qualitytopic-shiftsignalsbasedon
+Tseng, Iñigo Casanueva, Stefan Ultes, Osman Ra-
+dialog context only, which hinders overall topic-
+madan, and Milica Gašic´. 2018. MultiWOZ - a
+awaredialoggeneration. large-scale multi-domain Wizard-of-Oz dataset for
+task-orienteddialoguemodelling. InProceedingsof
+6 ConclusionandFutureWork EMNLP,pages5016–5026.
+Weconstructthe TIAGE datasetwithhumanan- Yun-Nung Chen and Jianfeng Gao. 2017. Open-
+domainneuraldialoguesystems. InProceedingsof
+notated topic-shift labels on the basis of the Per-
+IJCNLP,pages6–10.
+sonaChatdataset. BasedonTIAGE,weintroduce
+three tasks: topic-shift detection, topic-shift trig- Jacob Devlin, Ming-Wei Chang, Kenton Lee, and
+Kristina Toutanova. 2019. BERT: Pre-training of
+geredresponsegenerationandtopic-awaredialog
+deep bidirectional transformers for language under-
+generation. Empiricalresultsshowthattopic-shift
+standing. In Proceedings of NAACL-HLT, pages
+labelsinTIAGEareusefulfortopic-shiftresponse 4171–4186.
+generation. However,itremainsachallengingtask
+Arash Einolghozati, Sonal Gupta, Mrinal Mohit, and
+for dialog models to predict good-quality topic-
+Rushin Shah. 2019. Improving robustness of task
+shiftsignalsbasedondialogcontextonly. Further orienteddialogsystems. InProceedingsofConver-
+researchisneededonselectingappropriatetopics sationalAIWorkshopatNeurIPS.
+toshifttoamongmultiplereferences. Naturaltopic
+Hao Fang, Hao Cheng, Maarten Sap, Elizabeth Clark,
+shiftscanbebothaprecautionagainst,andarem-
+AriHoltzman,YejinChoi,NoahA.Smith,andMari
+edy to, dull and repetitive response generation in Ostendorf. 2018. Sounding board: A user-centric
+real-world dialog applications. TIAGE with its andcontent-drivensocialchatbot. InProceedingsof
+NAACL-HLT,pages96–100.
+topic-shiftannotationscanhelpdirectfutureinves-
+tigationontheincorporationoftopic-shifttacticsin JonathanFiscusandGeorgeDoddington.2002. Topic
+dialogmodels,whichallowsmoreeffectivecontrol detection and tracking evaluation overview. Topic
+Detection and Tracking: Event-based Information
+overtopic-shiftawaredialoggeneration.
+Organization,pages17–31.
+Acknowledgments
+Michel Galley, Kathleen R. McKeown, Eric Fosler-
+Lussier, and Hongyan Jing. 2003. Discourse seg-
+Wethanktheanonymousreviewersfortheircon-
+mentation of multi-party conversation. In Proceed-
+structivefeedback. Wethankourannotatorsfrom ingsofACL,pages562–569.
+Asma Ghandeharioun, Judy Hanwen Shen, Natasha Houyu Zhang, Zhenghao Liu, Chenyan Xiong, and
+Jaques, Craig Ferguson, Noah Jones, Àgata ZhiyuanLiu.2020a. Groundedconversationgenera-
+Lapedriza, and Rosalind W. Picard. 2019. Approx- tionasguidedtraversesincommonsenseknowledge
+imatinginteractivehumanevaluationwithself-play graphs. InProceedingsofACL,pages2031–2043.
+foropen-domaindialogsystems. InProceedingsof
+NeurIPS,pages13658–13669. Saizheng Zhang, Emily Dinan, Jack Urbanek, Arthur
+Szlam,DouweKiela,andJasonWeston.2018. Per-
+GoranGlavasandSwapnaSomasundaran.2020. Two- sonalizing dialogue agents: I have a dog, do you
+leveltransformerandauxiliarycoherencemodeling havepetstoo? InProceedingsofACL,pages2204–
+for improved text segmentation. In Proceedings of 2213.
+AAAI,pages7797–7804.
+YizheZhang,SiqiSun,MichelGalley,Yen-ChunChen,
+DaenaJGoldsmith.2007. Brownandlevinson’spolite- Chris Brockett, Xiang Gao, Jianfeng Gao, Jingjing
+nesstheory. Explainingcommunication: Contempo- Liu,andBillDolan.2020b. DialoGPT:Large-scale
+rarytheoriesandexemplars,pages219–236. generative pre-training for conversational response
+generation. InProceedingsofACL,pages270–278.
+Julia Hirschberg and Diane Litman. 1993. Empirical
+studiesonthedisambiguationofcuephrases. Com-
+putationalLinguistics,(3):501–530.
+AriHoltzman, JanBuys, LiDu, MaxwellForbes, and
+Yejin Choi. 2020. The curious case of neural text
+degeneration. InProceedingsofICLR.
+OmriKoshorek,AdirCohen,NoamMor,MichaelRot-
+man, and Jonathan Berant. 2018. Text segmenta-
+tion as a supervised learning task. In Proceedings
+ofNAACL-HLT,pages469–473.
+GeoffreyNLeech.2014. Thepragmaticsofpoliteness.
+OxfordUniversityPress.
+Bing Liu, Gokhan Tür, Dilek Hakkani-Tür, Pararth
+Shah,andLarryHeck.2018. Dialoguelearningwith
+human teaching and feedback in end-to-end train-
+abletask-orienteddialoguesystems. InProceedings
+ofNAACL-HLT,pages2060–2069.
+Rebecca J. Passonneau and Diane J. Litman. 1997.
+Discourse segmentation by human and automated
+means. ComputationalLinguistics,(1):103–139.
+ColinRaffel,NoamShazeer,AdamRoberts,Katherine
+Lee, Sharan Narang, Michael Matena, Yanqi Zhou,
+WeiLi, andPeterJLiu.2019. Exploringthelimits
+of transfer learning with a unified text-to-text trans-
+former. arXivpreprintarXiv:1910.10683.
+JianhengTang,TianchengZhao,ChenyanXiong,Xiao-
+danLiang,EricXing,andZhitingHu.2019. Target-
+guided open-domain conversation. In Proceedings
+ofACL,pages5624–5634.
+Thomas Wolf, Lysandre Debut, Victor Sanh, Julien
+Chaumond, ClementDelangue, AnthonyMoi, Pier-
+ric Cistac, Tim Rault, Remi Louf, Morgan Funtow-
+icz, Joe Davison, Sam Shleifer, Patrick von Platen,
+Clara Ma, Yacine Jernite, Julien Plu, Canwen Xu,
+Teven Le Scao, Sylvain Gugger, Mariama Drame,
+Quentin Lhoest, and Alexander Rush. 2020. Trans-
+formers: State-of-the-art natural language process-
+ing. InProceedingsofEMNLP,pages38–45.
+HongfeiZhang,XiaSong,ChenyanXiong,CorbyRos-
+set, Paul N. Bennett, Nick Craswell, and Saurabh
+Tiwary.2019. Genericintentrepresentationinweb
+search. InProceedingsofSIGIR,pages65–74.
+A Appendix Dialog TSLabel
+[Speaker1:] Hi!Howareyouthisevening? N/A
+A.1 HumanAnnotationGuidelines [Speaker2:] Good. I spent all afternoon 0
+walking my dogs. I’ve three
+Herewepresenttheannotationguidelinesusedfor Labradors.
+[Speaker1:] Cool, that’s a lot of dogs. Do 1
+thehumanannotationprocessinthiswork.
+youlikemusic?Iloveit.
+Task description. Chitchat systems are ex-
+pected to have the ability to proactively change Dialog TSLabel
+[Speaker1:] I think you are great. You are N/A
+conversational topics when necessary. For occa-
+mybestfriend.
+sions when a chat agent runs out of things to say [Speaker2:] Mybestfriendisabear,bears 0
+or thecurrent discussionis startingto getboring, don’t have friends, that’s why
+they’remyfavourite.
+topicshiftingisacommontactictokeepthecon-
+[Speaker1:] Webster’s dictionary defines 1
+versationgoingon. Inthiswork,weaimtomodel weddings as the fusing of two
+topic-shiftphenomenoninopen-domaindialogset- metalswithahottorch.
+tings. Toachievethis,weneedtoconstructanew
+Table6: AnnotateddialogexamplesinTIAGE.
+dialogdatasetwithtopic-shiftsignals.
+[Speaker1:] MydadworksfortheNewYorkTimes. Inconversations,theresponseofaspeakertothe
+[Speaker2:] Oh wow! You know, I dabble in pho-
+dialogcontextusuallyfallsintooneofthefollow-
+tography;maybeyoucanintroduceus
+sometime. ingcases(seeexamplesinTable5):
+[Speaker1:] Photography is the greatest art out
+(a) Commenting on what the other participant
+there.→notatopicshift
+justsaid(themostcommonscenario);
+(a)Commentingonthepreviouscontext.
+(b)Questionanswering;
+[Speaker1:] Doyouteachcooking? (c)Developingtheconversationtosub-topics;
+[Speaker2:] No, since I’m a native of Mexico, I (d)Introducingarelevantbutdifferenttopic;
+teachSpanish.→notatopicshift
+(e)Completelychangingthetopic.
+(b)Questionanswering. Other tips for data labeling. A number of
+words and phrases are often used as indicators
+[Speaker1:] Petsarecute!
+[Speaker2:] IheardthatHuskiesaredifficultdogs for topic shifts, including but not limited to: but,
+totakecareof.→notatopicshift
+speaking of, talking about, anyway, by the way,
+(c)Developingtheconversationtosub-topics. that reminds me, before I forget, I want to men-
+tion,let’stalkabout,weneedtodiscuss,funnyyou
+[Speaker1:] Youareanartist?Whatkindofart,Ido
+AmericanIndianstuff. shouldmentionthat,nottochangethesubjectbut,
+[Speaker2:] Yes, I love to draw. I love to eat too, changingthetopicslightly,totallyunrelated,ona
+sometimestoomuch.→topicshift
+different/relevantnote.
+(d)Introducingarelevantbutdifferenttopic.
+A.2 ExamplesofLabeledDatain TIAGE
+[Speaker1:] Whatdoyoudoforfun?
+[Speaker2:] I drive trucks so me and my buds go In Table 6 we showcase examples of labeled di-
+truckininthemud. alogsselectedfrom TIAGE.
+[Speaker1:] Mustbefun! Myversionofthat’srun-
+ningaroundalibrary!
+A.3 ImplementationDetails
+[Speaker2:] Do you have a favourite animal?
+Chickensaremyfavourite.Ilovethem. Forthetopic-shiftclassifiers,weusethebasever-
+→topicshift
+sionofBERTandT5models,initializedfromtheir
+(e)Completelychangingthetopic. pretrained weights. For the dialog response gen-
+eration experiments, we use the small version of
+Table5: Differentscenariosofdialogresponseincon-
+versations. DialoGPT and the base version of T5. Our im-
+plementationisbasedontheHuggingFaceTrans-
+Dataannotation. Foreachutteranceinadialog, formerslibrary(Wolfetal.,2020). Allmodelsare
+annotators are asked to decide whether the topic optimizedusingAdamwithalearningrateof5e-5
+oftheconversationchangeswhentransitingfrom andabatchsizeof64. Wesetthemaximuminput
+thecurrentutterancetothefollowingresponse. If sequencelengthto512. Thetrainingiscarriedout
+there is a topic shift, annotators should label the using1NvidiaRTX8000GPUandtakesaround
+responsewith“1”,otherwiselabelitwith“0”. 15hours.

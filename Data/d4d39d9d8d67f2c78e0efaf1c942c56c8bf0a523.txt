@@ -1,0 +1,533 @@
+ProceedingsoftheTwenty-SixthInternationalJointConferenceonArtificialIntelligence(IJCAI-17)
+Learning Conversational Systems that Interleave Task and Non-Task Content
+ZhouYu AlanWBlack AlexanderI.Rudnicky
+CarnegieMellonUniversity CarnegieMellonUniversity CarnegieMellonUniversity
+5000ForbesAvenue, 5000ForbesAvenue, 5000ForbesAvenue,
+Pittsburgh,PA,15213 Pittsburgh,PA,15213 Pittsburgh,PA,15213
+zhouyu@cs.cmu.edu awb@cs.cmu.edu air@cs.cmu.edu
+Abstract makingrestaurantreservations[Jurcıceketal.,2011]. These
+systemsdonotinvolvesocialcontentmainlybecausethetask
+Task-orienteddialogsystemshavebeenappliedin
+isrelativelysimpleandtheuserintentionandsystemcapabil-
+various tasks, such as automated personal assis-
+ityarewellcalibrated.
+tants,customerserviceprovidersandtutors.These
+Tomoveourcurrentsystemstotackletasksthataremore
+systemsworkwellwhenusershaveclearandex-
+complex and especially those where most users do not have
+plicit intentions that are well-aligned to the sys-
+clearintentions,weproposeadialogframeworktofusetask
+tems’ capabilities. However, they fail if users in-
+and non-task conversation content. To achieve the content
+tentionsarenotexplicit.Toaddressthisshortcom-
+transitionsmoothness, wetraineddialogpoliciesusingrein-
+ing, we propose a framework to interleave non-
+forcement learning algorithms. We built an example dialog
+task content (i.e. everyday social conversation)
+system, a movie promotion system that promotes a specific
+into task conversations. When the task content
+movieaccordingtousers’interestsandusessocialconversa-
+fails, the system can still keep the user engaged
+tion to engage users to complete the task. There are several
+withthenon-taskcontent. Wetrainedapolicyus-
+types of audience research conducted by film distributors in
+ingreinforcementlearningalgorithmstopromote
+connection with domestic theatrical releases [Martin, 2002].
+long-turnconversationcoherenceandconsistency,
+Such audience research can cost $1 million per movie, es-
+sothatthesystemcanhavesmoothtransitionsbe-
+peciallywhenscoresofTVadvertisementsaretestedandre-
+tweentaskandnon-taskcontent. Totesttheeffec-
+tested.Therefore,wearguethathavingconversationalsystem
+tivenessoftheproposedframework,wedeveloped
+toelicitaudienceinformationvoluntarilytoreplacepaidsur-
+a movie promotion dialog system. Experiments
+veyswouldreducethecostandimprovethesurveyquality.
+with human users indicate that a system that in-
+Wepublishedthesourcecodeofthesoftwareimplementa-
+terleavessocialandtaskcontentachievesabetter
+tionoftheframework,anexamplemoviepromotionsystem,
+tasksuccessrateandisalsoratedasmoreengag-
+and the conversation data collected with human users.1 The
+ingcomparedtoapuretask-orientedsystem.
+framework is general and applicable in different domains,
+such as political surveying, language learning, and public
+1 Introduction health education. The theoretical framework and the soft-
+ware implementation enables researchers and developers to
+The most familiar communication setting for people is talk-
+buildexampledialogsystemsindifferentdomains,hopefully
+ingtoanotherhuman.Therefore,normaluserswouldtransfer
+leadingtobigimpactbeyonddiscourseanddialogresearch.
+theirhuman-humanbehaviorpatternsandexpectationstoin-
+teractionswithasystem. Forexample,thoughusersquickly
+learned that Microsoft Cortana (a personal assistant) could 2 RelatedWork
+not handle social content, 30% of the total user utterances
+Current task-oriented dialog systems focus on completing a
+addressing it are social content [Jiang et al., 2015]. There-
+task together with the user. They can perform bus informa-
+fore,onepossiblewaytoimproveconversationalsystemper- tion search [Raux et al., 2005], flight booking [Zue et al.,
+formance is to imitate human behaviors. Countless obser- 1994], direction giving [Yu et al., 2015a], etc. However,
+vations suggest that human conversations usually interleave
+these systems can only focus on one task at a time. The
+social content with task content [Schegloff, 1968]. For ex-
+famous personal assistants, such as Apple’s Siri are com-
+ample, we usually open a conversation with “How are you
+posedofmanyofthesesingle-tasksystems.Thesesingle-task
+doing?”;wealsodiverttosocialtopicsduringmeetings;and
+systems’ underlying mechanisms are mainly frame-based or
+we would most likely end our workday conversations with agenda-based[RudnickyandXu,1999]. Thearchitectureof
+chitchatofourweekendplans. However, traditionalconver-
+traditionaldialogsystemsisslot-filling,whichpre-definesthe
+sationalsystemsaremainlytask-oriented. Thesesystemscan
+complete tasks such as booking airline tickets [Zue et al., 1https://github.com/echoyuzhou/ticktock_
+1994],searchingforbusinformation[Rauxetal.,2005],and text_api
+4214
+ProceedingsoftheTwenty-SixthInternationalJointConferenceonArtificialIntelligence(IJCAI-17)
+structureofadialogstateasasetofslotstobefilledduring
+theconversation. Foranairlinebookingsystem,anexample
+slotis“destinationcity”. Anexamplecorrespondingsystem
+utterancegeneratedfromthatslotis”Whichcityareyoufly-
+ing to?” Recently researchers have also started to look into
+end-to-end learning for task-oriented systems. Though the
+progress is still preliminary [Bordes and Weston, 2016], the
+premise of having a learning method that generalizes across
+domainsisappealing.
+Differing from task-oriented systems, non-task-oriented
+systemsdonothaveastatedgoaltoworktowards. Neverthe-
+less,theyareusefulforsocialrelationshipbondingandhave
+many other use cases, such as keeping elderly people com- Figure 1: Framework Architecture. Auserutteranceissentto
+pany [Higashinaka et al., 2014], facilitating language learn- bothalanguageunderstandingmoduleandanon-taskresponsegen-
+ing [Jia and Ruan, 2008], and simply entertaining users [Yu erator.Theunderstandingmodelthenextractsusefulinformationto
+helpataskresponsegeneratortoproducetask-orientedcandidates.
+etal.,2016a]. Becausenon-tasksystemsdonothaveagoal,
+Simultaneously,thenon-taskresponsegeneratoralsoproducesnon-
+they do not have a set of restricted states or slots to follow.
+taskcandidates. Finally,aresponseselectionpolicyselectsamong
+A variety of methods were therefore proposed to generate
+allthecandidatestoproduceasystemresponse.
+responses for them, such as machine translation [Ritter et
+al.,2011],retrieval-basedresponseselection[BanchsandLi,
+2012],andsequence-to-sequencemodelswithdifferentstruc- Wewilldiscusseachcomponentindetailsbelow.
+tures,suchas,vanillarecurrentneuralnetworks[Vinyalsand The language understanding module extracts information
+Le, 2015], hierarchical neural models [Serban et al., 2015], required by the task from user responses, and sends the in-
+andmemoryneuralnetworks[Dodgeetal.,2015]. formationtothetaskresponsegenerator. Therearemanyap-
+However, there is no research on combining these two proaches to perform language understanding. A rule-based
+types of dialog systems so far. Therefore, our work is the keyword-matching method is sufficient for simple tasks [He
+first attempt to create a framework that combines these two and Young, 1998], while learning-based methods perform
+typesofconversationsinanaturalandsmoothmannerforthe better in complex tasks. The understanding task can be for-
+purposeofimprovingconversationtasksuccessanduseren- mulatedasdifferentlearningproblems: forexampleasuper-
+gagement. Such a framework is especially useful to handle visedclassificationproblemthatcanbesolvedbyalgorithms,
+userswhodonothaveexplicitintentions. suchasSupportVectorMachines[Williamsetal.,2015];ora
+To combine these two types of conversation systems sequencelabelingproblemthatcanbesolvedbyalgorithms,
+smoothly, we trained a response selection policy with rein- suchasrecurrentneuralnetworks[Mesniletal.,2013].
+forcementlearningalgorithms. Reinforcementlearningalgo- The task response generator produces a list of task re-
+rithmshavebeenusedintraditionaltask-orientedsystemsto sponse candidates considering the information passed from
+track dialog states [Williams and Young, 2007]. They have the language understanding module. The most common
+alsobeenusedinnon-taskorientedsystems. TheQ-learning method to generate these candidates is pre-defined statisti-
+method was used to choose among a set of statistical tem- cal templates that are used in traditional slot-filling task ori-
+plates and several neural model generated responses in [Yu ented systems [Williams and Young, 2007]. Each template
+etal., 2016a], whilethepolicygradientmethodwasusedin intends to elicit information required by the task. While the
+[Lietal.,2016]. Differentfromthesepuretaskorpurenon- non-taskresponsegeneratorproducesalistofsocialresponse
+task systems, we applied reinforcement learning algorithms candidates. This component could be implemented by vari-
+totrainpoliciesthatchooseamongtaskandnon-taskcandi- ousmethodsmentionedintherelatedwork,suchasmachine
+dateresponsestooptimizetowardsacoherent,consistentand translation, sequence-to-sequence, keyword retrieval, or an
+informativeconversationwithrespecttodifferentusers. ensemble of these methods. The non-task content intends
+to make the conversation more coherent and engaging, thus
+keeping users in the conversation. Therefore, users would
+3 FrameworkDescription
+havemorechancetocompletethetask.
+The framework has four major components: a language un- Theresponseselectionpolicysequentiallychoosesamong
+derstanding module, a task response generator, a non-task all the response candidates (non-task or task candidates) to
+responsegeneratorandaresponseselectionpolicy. Figure1 optimize towards natural and engaging interactions. Differ-
+showstheinformationflowamongthesecomponents. Auser ent reinforcement learning algorithms could be applied to
+utterance is sent to both the language understanding mod- trainthepolicy,suchasQ-learning[SuttonandBarto,1998],
+ule and the non-task response generator. The understand- SARSA [Sutton and Barto, 1998], and policy gradient [Sut-
+ing model then extracts useful information to help the task tonandBarto,1998]. Differentreinforcementlearningalgo-
+response generator to produce task-oriented candidates. Si- rithms would be preferred with respect to other framework
+multaneously,thenon-taskresponsegeneratoralsoproduces components’ implementation. For instance, if the number
+non-taskcandidates.Finally,theresponseselectionpolicyse- of response candidates are limited and the dialog states can
+lectsamongallthecandidatestoproduceasystemresponse. berepresentedintabularforms,thenQ-learningissufficient.
+4215
+ProceedingsoftheTwenty-SixthInternationalJointConferenceonArtificialIntelligence(IJCAI-17)
+Whileifthestaterepresentationiscontinuous,thenthepolicy (cid:15) Promotethemovie:Thesystempromotestheintended
+gradientmethodispreferred. Inthenextsection,wewilluse movie.e.g.“Oneofmyfriendsjustsaw‘CaptainAmer-
+a movie promotion task as an example to describe example ica: Civil War’. He told me it is a really nice movie,
+algorithmsindetails. muchbetterthanthepreviousCaptainAmericamovie.”
+(cid:15) Invitetothemovie:Thesystemsuggeststoseethepro-
+4 ExampleDialogTask: MoviePromotion
+motedmovietogether,e.g.“DoyouwanttoseeCaptain
+Themoviepromotiontaskhasagoaltopromoteamovietak- America: CivilWartogether?”
+ing account of users’ preferences. To imitate human-human
+4.3 Non-TaskResponseGenerator
+conversation, the framework suggests to open conversations
+withanon-taskconversationtopicrelatedtothetask. There- Thenon-taskgeneratorprovidesthreetypesofcandidatere-
+fore, the movie promotion system starts a conversation say- sponsesviathreemethodsdescribedbelow.
+ing: “Hello, I really like movies. How about we talk about (cid:15) AkeywordretrievalmethodtrainedonaCNNinterview
+movies?” We then describe the implementation details of corpus[Yuetal.,2015b].
+eachcomponent.
+(cid:15) Askip-thoughtvectormodel[Kirosetal.,2015]trained
+4.1 LanguageUnderstandingModule on the Movie Subtitle dataset [Lison and Tiedemann,
+2016]
+Because the user responses’ sentence structure is relatively
+(cid:15) A set of conversation strategies that generated via sta-
+simple and the information to extracted is mainly ‘yes/no’
+tisticaltemplatesthatemulatehuman-humanconversa-
+andnamedentities,weusedashallowparsertoprovidefea-
+tionstrategies, inordertofosterusercoordination, un-
+tures,andthenasetofpre-designedrulesforeachtasktem-
+derstanding and adaptation. In particular, we designed
+plate. Forexample,fortheresponsetothe“IfSeenMovie?”
+three types of conversation strategies following [Yu et
+template, we simply used a key-word matching rule to clas-
+al.,2016a].
+sify the utterance to ‘yes’ or ‘no’ categories. The extracted
+information is then fed to the task response generator. The – Active participation strategies engage users by
+collectedinformationisalsousefulfortaskanalysis. actively contributing to the conversation, such
+as asking more information on the current topic
+4.2 TheTaskResponseGenerator [Wendler,2014].
+Thetaskresponsegeneratorproducesresponsecandidatesus- – Grounding strategies assist open-domain natu-
+ingasetsofpre-definedlanguagegenerationtemplatescon- ral language understanding. Grounding strate-
+sidering the information received from the language under- gies were automatically synthesized via leverag-
+standingmodule. Wedesignedthefollowingeighttemplates ing knowledge-base (e.g. Google Knowledge
+toapproachthegoalofpromotingamovie,suchas“Captain Graph)informationandnaturallanguageprocess-
+America: CivilWar”. ingalgorithms,suchasnamed-entitydetectionand
+statisticallanguagegeneration.
+(cid:15) Elicit movie type: The system elicits the user’s pre-
+ferredmovietype,e.g. “Doyoulikesuperheromovies – Personalizedstrategiessupportadaptionstousers
+orDisneymovies?”. byleveragingautomaticallyextractedinformation
+from individual user’s conversation history. An
+(cid:15) Introduce favorite superhero: The system expresses
+example personalized strategy is to suggest talk-
+its favorite superhero is Captain America, in order to
+ing more about a certain topic knowing that the
+lead to the movie for promotion, e.g. “My favorite su-
+userwaspreviouslyengagedinthattopic.
+perheroisCaptainAmerica.”
+(cid:15) Groundonsuperhero: Wecrawledwiki-webpagesto 4.4 ResponseSelectionPolicy
+build a superhero knowledge database that includes all The response selection policy is designed to select candi-
+thesuperheroes’details, suchasrealname, eyecolors, dates provided by the two response generators. Conversa-
+origin,etc. Iftheusermentionsanysuperhero,thesys- tionprocessescanbemodeledasMarkovDecisionProcesses
+tem will talk about some attributes of that superhero, (MDPs) [Williams and Young, 2007]. Therefore, we used
+e.g. “IreallylikeIronMan’sblueeyes.” reinforcementlearningalgorithmstotrainapolicythatopti-
+(cid:15) Discussrelevantmovie: Thesystemtalksaboutarele- mizestowardsconversationswithlong-termcoherence,con-
+vantmovietheusermentionedbefore,e.g. “Ireallylike sistency, variety, and continuity. Specifically, we used Q-
+thefirstAvengermovie,haveyouseenitbefore?” learning,amodel-freereinforcementlearningalgorithm. Be-
+causeithandlesdiscretestateswellandlearnsaQtablethat
+(cid:15) Discussmoviedetail: Thesystemfurtherelaborateson
+supports a model that makes both debugging and interpre-
+thedetailsofthementionedrelevantmovie,e.g.“Ireally
+tationeasier. AnotheradvantageofQ-learningisthatitalso
+liked the first Avenger movie. When Iron Man came
+makesencodingexpertknowledgeeasier,asitisamodel-free
+backalive,Icried.”
+algorithm. By encoding expert knowledge, the search space
+(cid:15) Saw the movie: The system asks the user if they saw canbereduced,thusmakingthealgorithmconvergefaster.In
+the movie for promotion, e.g.“Have you seen the new all,Q-learningisagoodchoicewithrespecttotheimplemen-
+superheromovie,‘CaptainAmerica: CivilWar’?” tationchoiceofothercomponentsofthesystem.
+4216
+ProceedingsoftheTwenty-SixthInternationalJointConferenceonArtificialIntelligence(IJCAI-17)
+In a reinforcement learning setting, we formulate the ence of the system’s response in each conversational
+problem as (S;A;R;(cid:13);(cid:11)), where S is a set of states that turn. For later experiments, we adopted the same an-
+represents the system’s environment, in this case the con- notation scheme in [Yu et al., 2016b] and used the ap-
+versation history so far. A is a set of actions available per propriateness predictor provided in [Yu et al., 2016a],
+state. In our setting, the actions are strategies available. By which trained on 1256 annotated turns. The perfor-
+performing an action, the agent can move from one state to manceoftheautomaticappropriatenessdetectoris0.73
+another. Executing an action in a specific state provides the inaccuracy(majorityvoteis0.5inaccuracy).
+agent with a reward (a numerical score), R(s;a). The goal
+(cid:15) Conversation depth (ConvDepth): reflects the num-
+of the agent is to maximize its total reward. It does this by
+berofconsecutiveutterancesthatsharethesametopic.
+learning which action is optimal to take for each state. The
+Wefollowedthesameannotationschemein[Yuetal.,
+action that is optimal for each state is the action that has
+2016a]: labelingconversationshavingtenormorecon-
+the highest long-term reward. This reward is a weighted
+secutiveturnstobedeepandothersasshallow.Weused
+sumoftheexpectedvaluesoftherewardsofallfuturesteps
+the predictor trained on 100 conversations from [Yu et
+starting from the current state, where the discount factor
+al.,2016a].Ithas72.7%inaccuracy,whilethemajority
+(cid:13) 2 (0;1) trades off the importance of sooner versus later
+votebaselineaccuracyis63.6%.
+rewards. (cid:13) may also be interpreted as the likelihood to
+succeed (or survive) at every step. The algorithm therefore (cid:15) Information gain (InfoGain): reflects the number of
+has a function that calculates the quantity of a state-action unique words that are introduced into the conversation
+combination, Q : S(cid:2)A ! R. The core of the algorithm fromboththesystemandtheuser. Webelievethatthe
+is a simple value iteration update. It assumes the old value more information the conversation has, the better the
+andmakesacorrectionbasedonthenewinformationateach conversationalqualityis.Thismetriciscalculatedauto-
+timestep,t. Thecriticalpartofthemodelingistodesignap- maticallybycountingthenumberofuniquewordsafter
+propriatestates,actionsandacorrespondingrewardfunction. theutteranceistokenized.
+(cid:15) Conversation Length (ConvLen): reflects how long
+State and Action Design It is difficult to design states the user want to stay in the conversation. We approx-
+forconversationalsystems, asoneslightchangefromauser imated it by the number of turns in the overall conver-
+responsemayleadtoacompletelydifferentconversation.We sation. Theassumptionisthatthemoretheuserswant
+reduced the state space by incorporating extra knowledge, tointeractwiththesystem,thebetterthesystemis.
+the statistics obtained from conversational data analysis.
+Following[Yuetal.,2016a],weincludefeatures: turnindex, 5 Experiments
+number of times each strategy executed, sentiment polarity
+of all previous utterances, coherence confidence of the Webuiltthreesystemsforthemoviepromotiontask.
+response, and most recently used strategy. We constructed (cid:15) Task-Global: This does not have a non-task response
+therewardtablebasedonthestatisticsprovidedin[Yuetal., generatorandthereforecanonlyoutputtaskresponses.
+2016a] . We utilized expert knowledge to construct rules to Its response selection policy is trained with the entire
+constraintherewardtable. Forexample,ifcertainstrategies conversationhistory.
+have been used before, then the reward of using it again
+(cid:15) Mix-Local: This has both the task and non-task gen-
+immediatelyisheavilypenalized. Pleaseseeadetailedlistof
+erators,andaresponseselectionpolicyconsidersthree
+constrains in the appendix. These constraints may result in
+previousturnsasinteractionhistory.
+lessoptimalsolutions,butreducethestateandactionsearch
+space considerably. The actions are simply all the response (cid:15) Mix-Global: This has both the task and non-task gen-
+candidatesproducedbybothtaskandnon-taskgenerators. erators,andaresponseselectionpolicytrainedwiththe
+entireinteractionhistory.
+Reward Function Design We designed the reward function We used another chatbot, A.L.I.C.E.2, which is powered
+to be a linear combination of four metrics: turn-level
+by rules, as a user simulator to train the response selection
+appropriateness (App), conversational depth (ConvDepth),
+policy for all systems. During training, we restart conversa-
+information gain (InfoGain), and conversation length
+tionsiftheusersimulatorrepeatsthesameutterance. Ittook
+(ConvLen). Exceptforthefirstmetricwhichisanimmediate
+200,1000,and8000conversationsrespectivelyfortheTask-
+reward, alltheothersaredelayedrewards. Wefirstinitiated
+Global,Mix-Local,andMix-Globalsystemstoconverge.
+weights associate to each metric manually, and refine them
+Besidestestingthesystemwiththeusersimulator,wealso
+in training later. One difficulty for interactive tasks is that
+recruitedhumanusersoncrowdsourcingplatforms(Amazon
+during training, we can not interrupt the interaction flow
+Mechanical Turk and Crowd Flower). We recruited crowd
+by asking users to give turn-by-turn immediate feedback.
+workersthatarelocatedintheU.S.andhaveaprevioustask
+To solve this problem, we used pre-trained predictors to
+approvalratethatishigherthan95%.Weaskedthemtointer-
+approximate these metrics, which is similar to inverse
+actwiththesystemforaslongastheywant. Theywereonly
+reinforcement learning. We will describe all the metrics
+allowed to interact with one of the three systems once, thus
+alongwithmethodstoapproximatetheminthedetailsbelow.
+preventing them exploiting the task. Within two days, 150
+(cid:15) Turn-levelappropriateness(App): reflectsthecoher- 2http://alice.pandorabots.com/
+4217
+ProceedingsoftheTwenty-SixthInternationalJointConferenceonArtificialIntelligence(IJCAI-17)
+crowd workers participated and produced 50 conversations 1Non-Task: Hello,Ireallylikemovies. Howaboutwetalk
+for each system. The users also reported their gender and aboutmovies?
+age range after the interaction. In addition, we asked them 2User: Ilikewatchingmoviestoo.
+to rate how engaged they were throughout the conversation 3Task: DoyoulikesuperheromoviesorDisneymovies?
+in a 1-5 Likert scale (a higher score indicates more engage- 4User: Ilikesuperheromovies.
+ment). Table1showsanexampleconversationproducedby 5Task: MyfavoritesuperheroisCaptainAmerica.
+theMix-Globalsystem.Weconsiderthetasktobesuccessful 6User: IlikeSpider-man.
+iftheuserreceivedallthetaskresponses.Apartfromthetask 7Non-Task: Doyouwatchthemwithyourkids?
+success rate, the self-reported user engagement score is also 8User: Idon’thaveanychildren.
+includedforevaluation. 9 Non-Task: What I meant to say was, what is it that you
+hate?
+10User: IhatedthelastFantasticFourmovie.
+6 ResultsandAnalysis
+11Non-Task: AreyoutalkingaboutFantasticFour,the2005
+Fromexperiments,wefoundthatthesystemthatinterleaves film.
+non-task content and considers the entire conversation 12User: Yes. Iam.
+historyinpolicytrainingperformsthebestinbothsimulated 13Task: IreallylikethefirstAvengermovie,haveyouseen
+andreal-worldsettings. Wediscussdetailedstatisticsbelow: itbefore?
+Finding 1: Involving non-task content makes the user more Table1:Anexampleconversationbetweenahumanuserand
+engagedandatthesametimeincreasesthetasksuccessrate. the Mix-Global system. Utterances 7, 9, and 11 are social
+Figure2showsthattheMix-Globalsystemoutperformedthe responsesthatselectedbythepolicytokeeptheconversation
+Task-Globalsystemwithrespecttoboththetasksuccessrate coherent,consistentandinformative.
+and the user self-reported engagement rating with statistical
+significance(t-test,p<0.001).Theaverageuserself-reported
+engagementis2.3(SD=0.42)fortheTask-Globalsystem,and policytrainedwithreinforcementlearningalgorithmsmakes
+4.4 (SD=0.21) for the Mix-Global system. The task success the transition between non-task and task smoother. We
+rateoftheMix-Globalsystemoutperformed(78%)theTask- suspect that is the major reason that users find the system
+Global system (23%) with a big margin. The good perfor- that interleaves non-task and task content more engaging .
+mance comes from the fact that in the Mix-Global system, However, the Mix-Global system still fails to engage some
+the non-task responses handled the user utterances that task users who do not have any interest in superhero movies.
+responsescouldnothandle. Thereforetheusercouldremain Forexample, oneuserreplied: “No, Ihaven’tseen[Captain
+intheconversation,providingthesystemwithmoreopportu- America: Civil War], I am not a stupid teenager or a stupid
+nitiestocompletethetask. robot.”andlefttheconversationearly.
+Finding 2: Incorporating longer interaction history engages
+users better and improves task success rate. Figure 3 shows
+that the user self-reported engagement of the Mix-Local
+system (4.0 (SD=0.32)) outperformed the Mix-Global sys-
+tem (4.4 (SD=0.21)) with a moderate statistical significance
+(p<0.05). The Mix-Global system also outperformed the
+Mix-Local system on task completion rate (70% VS. 78%).
+Therefore, statistics suggest that a system considers the
+entireconversationhistoryinplanningismoreengagingand
+completesthetaskmoreoften, comparedwithasystemthat
+only takes the previous three utterance history. The small
+margin is caused by the fact that the task conversation is
+not very long (8 responses in total). Therefore, we expect a
+strongerperformanceimpactfortasksthataremorecomplex
+Figure 2: The Mix-Global system outperformed the Task- thatrequirelongerconversations.
+Globalsystemonbothuserengagementandtasksuccess.
+Finding 3: We also found that the system interleaves social
+Table 1 shows an example conversation between the content and is powered by a policy trained with the entire
+Mix-Global system and a human user. Utterances 7, 9, and conversation history performs best in all the individual met-
+11 are system non-task responses. They were selected by rics in the reward function in both simulated and real-world
+thepolicyforyieldingcoherentandconsistentconversations. (interactingwithhumanusers)settings(seeTable2and3for
+Forexample, utterance9“WhatImeanttosaywas, whatis details). We follow the convention in [Yu et al., 2016a] to
+it that you hate?” was chosen to promote topic consistency considerconversationsthathave10ormoreconsistentturns
+and at the same time to preserve local coherence. Non-task onthesametopictobedeepconversations.BecausetheTask-
+content also contributes to content variety. Overall, the Globalsystemonlyproducesconversationswith8turns, we
+4218
+ProceedingsoftheTwenty-SixthInternationalJointConferenceonArtificialIntelligence(IJCAI-17)
+Menprefersuperheromovies. Amongthe150participants,
+102(57men)ofthemwereaskedifseenthepromotedmovie
+and42(41%)ofthemdid. Amongthem57.9%ofmensaw
+the film, while only 20.0% of women did. 90 participants
+were asked if they would like to see the promoted movie,
+and80%ofthemsaidyes. Menweremorelikelytogoalong
+withtheinvitationthanwomen(77.8%ofmenand68.3%of
+womensaidyes). Bothfindingsindicatethatmencompared
+towomenaremoreinterestedinthepromotedmovie.
+Twenty-year-olds like superhero movies most. We sep-
+arate the participants into five different age groups: below
+20, 20-30, 30-40, 40-50, and 50 above. People who had
+seen the promoted movie spread across all age groups,
+Figure 3: The Mix-Global system outperformed the Mix-
+and mostly concentrate in the 20-30 age group (27 out of
+Localsystemonbothuserengagementandtasksuccess.
+42). Even though our participants are mostly in this age
+group (78 out of 150), we still found that there are more
+donotcompareitontheconversationdepthmetric. Among participants in their 20s who have seen the promoted movie
+allthemetrics,wefoundresponsecoherence(App)improved compared to other groups with statistical significance (t-test
+most by incorporation social content, indicating the smooth p<0:05). Inaddition,comparedtoparticipantsinotherage
+transition has the biggest impact on the overall performance groups,participantsintheir20saremorelikelytoacceptthe
+improvement. However,wealsofoundthatallsystems’per- invitationtoseethepromotedmovietogether(39outof42).
+formanceisalwayslowerinthereal-worldsettingcompared
+tothesimulatedsetting. Probablybecausetheusersimulator Statistics reported by the Motion Picture Association of
+islimitedanditwaspoweredbyanextensivesetofrules. Americashowsasimilartrend. Theyfoundthatfemalesac-
+countedforonly42%oftheaudiencefor“CaptainAmerica:
+System App ConvDepth InfoGain ConvLen The Winter Soldier”, and 18-25 age group attended movie
+Task-Global 32.5% NA 34.5 5.7 mostpercapitaisthe18-25in2015[MPAA,2015].
+Mix-Local 76.3% 77% 52.4 13.7
+Mix-Global 80.1% 88% 66.8 17.4
+8 ConclusionandFutureWork
+Table 2: The Mix-Global system performed the best when
+Weproposedaframeworktodevelopconversationalsystems
+interactingwithasimulateduser.
+that interleave task content with non-task content in a nat-
+ural manner, in order to improve conversation task success
+System App ConvDepth InfoGain ConvLen anduserengagement. Theframeworkismainlypoweredby
+Task-Global 31.3% NA 39.3 5.3 astatisticalpolicythatselectsamongtaskandnon-taskcan-
+didateresponsestooptimizetowardslong-termconversation
+Mix-Local 73.0% 71% 62.4 13.0
+effectiveness. Thisframeworkisgeneralenoughtoapplyto
+Mix-Global 76.7% 79% 67.2 15.8
+manytasks,andisespeciallyusefulfortaskswhereusersof-
+tendonothaveanyconcreteintentions. Wealsodesignedan
+Table 3: The Mix-Global system performed the best when
+example system under the framework that promotes movies
+interactingwithhumanusers.
+to validate the framework. Through experiments conducted
+with both a simulator and real human users, we found the
+7 MoviePromotionTaskDataAnalysis
+systemthatinterleavesnon-taskcontentachievedbettertask
+To validate the usability of the example movie promotion successanduserengagement. Wealsovalidatedthesystems
+system, we conduct a brief analysis on the information usage by finding some interesting phenomena from the data
+collected by the system. We found three interesting sug- collected that correlates with statistics reported by theatrical
+gestive phenomena that would be of interest to the film associations. Although our participant sample size is small,
+industry,thoughtheusersamplepoolisrelativelysmall(150 we believe these statistics could still help movie makers un-
+participants)andbiased(crowdworkerslocatedintheU.S.). derstandtheirmarketsbetter.
+Whiletheexampletaskcentersonmoviepromotion,there
+ParticipantsprefersuperheromoviesoverDisneymovies. isnothingspecifictothetaskdesignwhichcouldnotbetrans-
+We found that 42% of participants preferred superhero ferredimmediatelytootherdomainssuchasproductrecom-
+movies, 22% of participants preferred Disney movies, and mendations, public health education, customer services and
+36%ofparticipantslikedbothorneither. Overall,superhero politicalsurveys. Futureworkwouldfurtherinvestigatedif-
+moviesaremorepopularthanDisneymoviesamongourpar- ferenttypesofrepresentationsforreinforcementlearningal-
+ticipants. Onepossibleexplanationisthatwesurveyedonly gorithmssoastomaketheframeworkgeneralizewellacross
+U.S.residents. domains.
+4219
+ProceedingsoftheTwenty-SixthInternationalJointConferenceonArtificialIntelligence(IJCAI-17)
+References [Rauxetal.,2005] Antoine Raux, Brian Langner, Dan Bo-
+hus,AlanWBlack,andMaxineEskenazi. Letsgopublic!
+[BanchsandLi,2012] RafaelEBanchsandHaizhouLi.Iris:
+takingaspokendialogsystemtotherealworld.IninProc.
+achat-orienteddialoguesystembasedonthevectorspace
+ofInterspeech2005.Citeseer,2005.
+model. InProceedingsoftheACL,2012.
+[Ritteretal.,2011] AlanRitter,ColinCherry,andWilliamB
+[BordesandWeston,2016] Antoine Bordes and Jason We-
+Dolan. Data-driven response generation in social media.
+ston. Learning end-to-end goal-oriented dialog. arXiv
+InProceedingsoftheconferenceonempiricalmethodsin
+preprintarXiv:1605.07683,2016.
+naturallanguageprocessing,pages583–593.Association
+[Dodgeetal.,2015] Jesse Dodge, Andreea Gane, Xiang forComputationalLinguistics,2011.
+Zhang,AntoineBordes,SumitChopra,AlexanderMiller,
+[RudnickyandXu,1999] AlexanderRudnickyandWeiXu.
+ArthurSzlam,andJasonWeston. Evaluatingprerequisite
+Anagenda-baseddialogmanagementarchitectureforspo-
+qualities for learning end-to-end dialog systems. arXiv
+kenlanguagesystems. InIEEEAutomaticSpeechRecog-
+preprintarXiv:1511.06931,2015.
+nitionandUnderstandingWorkshop,volume13,1999.
+[HeandYoung,1998] Agnes Weiyun He and Richard
+[Schegloff,1968] EmanuelASchegloff. Sequencingincon-
+Young. Languageproficiencyinterviews: Adiscourseap-
+versationalopenings1. Americananthropologist,1968.
+proach. Talkingandtesting: Discourseapproachestothe
+assessmentoforalproficiency,14:1–24,1998. [Serbanetal.,2015] Iulian V Serban, Alessandro Sordoni,
+Yoshua Bengio, Aaron Courville, and Joelle Pineau.
+[Higashinakaetal.,2014] Ryuichiro Higashinaka, Kenji
+Buildingend-to-enddialoguesystemsusinggenerativehi-
+Imamura, Toyomi Meguro, Chiaki Miyazaki, Nozomi
+erarchicalneuralnetworkmodels. arXiv,2015.
+Kobayashi, Hiroaki Sugiyama, Toru Hirano, Toshiro
+[SuttonandBarto,1998] Richard S Sutton and Andrew G
+Makino,andYoshihiroMatsuo. Towardsanopen-domain
+Barto. Reinforcement learning: An introduction, vol-
+conversational system fully based on natural language
+ume1. MITpressCambridge,1998.
+processing. InCOLING,pages928–939,2014.
+[VinyalsandLe,2015] OriolVinyalsandQuocLe.Aneural
+[JiaandRuan,2008] JiyouJiaandMeixianRuan. Usechat-
+conversationalmodel. InICMLWorkshop,2015.
+botcsiectofacilitatetheindividuallearninginenglishin-
+struction:Acasestudy.InInternationalConferenceonIn- [Wendler,2014] DanielWendler. Improveyoursocialskills.
+telligentTutoringSystems,pages706–708.Springer,2008. CreateSpaceIndependentPublishingPlatform,2014.
+[Jiangetal.,2015] Jiepu Jiang, Ahmed Hassan Awadallah, [WilliamsandYoung,2007] Jason D Williams and Steve
+Rosie Jones, Umut Ozertem, Imed Zitouni, Ranjitha Gu- Young. Partially observable markov decision processes
+runath Kulkarni, and Omar Zia Khan. Automatic online forspokendialogsystems. ComputerSpeech&Language,
+evaluationofintelligentassistants. InWWW,2015. 2007.
+[Jurcıceketal.,2011] Filip Jurcıcek, Simon Keizer, Milica [Williamsetal.,2015] Jason D Williams, Eslam Kamal,
+Gasˇic, Francois Mairesse, Blaise Thomson, Kai Yu, and Hani Amr Mokhtar Ashour, Jessica Miller, and Geoff
+Zweig. Fast and easy language understanding for dialog
+SteveYoung.Realuserevaluationofspokendialoguesys-
+tems using amazon mechanical turk. In Proceedings of systemswithmicrosoftlanguageunderstandingintelligent
+INTERSPEECH,volume11,2011. service(luis). InSIGDIAL,page159,2015.
+[Kirosetal.,2015] Ryan Kiros, Yukun Zhu, Ruslan R [Yuetal.,2015a] ZhouYu,DanBohus,andEricHorvitz.In-
+crementalcoordination: Attention-centricspeechproduc-
+Salakhutdinov, Richard Zemel, Raquel Urtasun, Antonio
+tioninaphysicallysituatedconversationalagent. InSIG-
+Torralba, and Sanja Fidler. Skip-thought vectors. In Ad-
+DIAL,page402,2015.
+vancesinneuralinformationprocessingsystems,2015.
+[Yuetal.,2015b] Zhou Yu, Alexandros Papangelis, and
+[Lietal.,2016] Jiwei Li, Will Monroe, Alan Ritter, Michel
+AlexanderRudnicky. Ticktock: Anon-goal-orientedmul-
+Galley, Jianfeng Gao, and Dan Jurafsky. Deep reinforce-
+timodal dialog system with engagement awareness. In
+mentlearningfordialoguegeneration. arXiv,2016.
+ProceedingsoftheAAAISpringSymposium,2015.
+[LisonandTiedemann,2016] Pierre Lison and Jo¨rg Tiede-
+[Yuetal.,2016a] Zhou Yu, Ziyu Xu, Alan Black, and Alex
+mann. Opensubtitles2016: Extracting large parallel cor-
+Rudnicky. Strategy and policy learning for non-task-
+porafrommovieandtvsubtitles. InLREC,2016.
+orientedconversationalsystems. InSIGDIAL,2016.
+[Martin,2002] J. R. Martin. Meaning beyond the clause:
+[Yuetal.,2016b] Zhou Yu, Ziyu Xu, Alan Black, and
+area: self-perspectives. Annual Review of Applied Lin-
+AlexanderRudnicky. Chatbotevaluationanddatabaseex-
+guistics22,2002.
+pansionviacrowdsourcing. InProceedingsofthechatbot
+[Mesniletal.,2013] Gre´goire Mesnil, Xiaodong He, workshopofLREC,2016.
+Li Deng, and Yoshua Bengio. Investigation of recurrent-
+[Zueetal.,1994] Victor Zue, Stephanie Seneff, Joseph Po-
+neural-network architectures and learning methods for
+lifroni, Michael Phillips, Christine Pao, David Goodine,
+spokenlanguageunderstanding. InInterspeech,2013.
+DavidGoddeau,andJamesGlass. Pegasus: Aspokendi-
+[MPAA,2015] MPAA. Theatricalmarketstatistics2015. In alogue interface for on-line air travel planning. Speech
+MotionPictureofAmericanAssociation,2015. Communication,15(3-4):331–340,1994.
+4220

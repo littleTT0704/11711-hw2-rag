@@ -1,0 +1,1132 @@
+Searchable Hidden Intermediates for End-to-End Models of
+Decomposable Sequence Tasks
+SiddharthDalmia BrianYan VikasRaunak FlorianMetze ShinjiWatanabe
+LanguageTechnologiesInstitute,CarnegieMellonUniversity,USA
+{sdalmia,byan}@cs.cmu.edu
+Abstract Similarly,manysequence-to-sequencetasksthat
+convertonesequenceintoanother(Sutskeveretal.,
+End-to-endapproachesforsequencetasksare 2014)canbedecomposedtosimplersequencesub-
+becoming increasingly popular. Yet for com-
+tasks in order to reduce the overall complexity.
+plex sequence tasks, like speech translation,
+For example, speech translation systems, which
+systems that cascade several models trained
+seektoprocessspeechinonelanguageandoutput
+on sub-tasks have shown to be superior, sug-
+gesting that the compositionality of cascaded textinanotherlanguage,canbenaturallydecom-
+systems simplifies learning and enables so- posedintothetranscriptionofsourcelanguageau-
+phisticated search capabilities. In this work, dio through automatic speech recognition (ASR)
+we present an end-to-end framework that ex- andtranslationintothetargetlanguagethroughma-
+ploitscompositionalitytolearnsearchablehid-
+chinetranslation(MT).Suchcascadedapproaches
+denrepresentationsatintermediatestagesofa
+have been widely used to build practical systems
+sequence model using decomposed sub-tasks.
+for a variety of sequence tasks like hybrid ASR
+These hidden intermediates can be improved
+(Hinton et al., 2012), phrase-based MT (Koehn
+using beam search to enhance the overall per-
+formance and can also incorporate external et al., 2007), and cascaded ASR-MT systems for
+modelsatintermediatestagesofthenetworkto speechtranslation(ST)(Phametal.,2019).
+re-score or adapt towards out-of-domain data.
+End-to-end sequence models like encoder-
+One instance of the proposed framework is
+decoder models (Bahdanau et al., 2015; Vaswani
+aMulti-Decodermodelforspeechtranslation
+etal.,2017),areattractiveinpartduetotheirsim-
+that extracts the searchable hidden intermedi-
+ates from a speech recognition sub-task. The plisticdesignandthereducedneedforhand-crafted
+modeldemonstratestheaforementionedbene- features. However, studies have shown mixed re-
+fits and outperforms the previous state-of-the- sultscomparedtocascadedmodelsparticularlyfor
+artbyaround+6and+3BLEUonthetwotest complexsequencetaskslikespeechtranslation(In-
+setsofFisher-CallHomeandbyaround+3and
+aguma et al., 2020) and spoken language under-
++4BLEUontheEnglish-GermanandEnglish-
+standing (Coucke et al., 2018). Although direct
+FrenchtestsetsofMuST-C.1
+target sequence prediction avoids the issue of er-
+rorpropagationfromonesystemtoanotherincas-
+1 Introduction
+cadedapproaches(TzoukermannandMiller,2018),
+Theprincipleofcompositionalitylooselystatesthat therearemanyattractivepropertiesofcascadedsys-
+acomplexwholeiscomposedofitspartsandthe tems, missing in end-to-end approaches, that are
+rulesbywhichthosepartsarecombined(Lakeand usefulincomplexsequencetasks.
+Baroni,2018). Thisprincipleispresentinengineer-
+Inparticular,weareinterestedin(1)thestrong
+ing,wheretaskdecompositionofacomplexsystem
+search capabilities of the cascaded systems that
+isrequiredtoassessandoptimizetaskallocations
+composethefinaltaskoutputfromindividualsys-
+(Levisetal.,1994),andinnaturallanguage,where
+tempredictions(Mohrietal.,2002;Kumaretal.,
+paragraph coherence and discourse analysis rely
+2006; Beck et al., 2019), (2) the ability to incor-
+ondecompositionintosentences(Johnson,1992;
+porateexternalmodelstore-scoreeachindividual
+Kuo,1995)andsentencelevelsemanticsrelieson
+system (Och and Ney, 2002; Huang and Chiang,
+decompositionintolexicalunits(Liuetal.,2020b).
+2007),(3)theabilitytoeasilyadaptindividualcom-
+ponents towards out-of-domain data (Koehn and
+1AllcodeandmodelsarereleasedaspartoftheESPnet
+toolkit:https://github.com/espnet/espnet. Schroeder,2007;Peddintietal.,2015),andfinally
+(4)theabilitytomonitorperformanceoftheindi- sequencetaskstolearnnextwordprediction,which
+vidualsystemstowardsthedecomposedsub-task outputs a distribution over the next target token
+(TillmannandNey,2003;Meyeretal.,2016). y l given the previous tokens y 1:l(cid:57)1 and the input
+Inthispaper,weseektoincorporatetheseproper- sequence x = (x ,x ,...,x ), where T is the
+1 t T
+tiesofcascadedsystemsintoend-to-endsequence inputsequencelength. Inthenextsub-sectionwe
+models. We first propose a generic framework detailthetrainingandinferenceofthesemodels.
+tolearnsearchablehiddenintermediatesusingan
+2.2 Auto-regressiveEncoder-DecoderModels
+auto-regressiveencoder-decodermodelforanyde-
+composable sequence task (§3). We then apply Training: In an auto-regressive encoder-decoder
+this approach to speech translation, where the in- model,the ENCODER mapstheinputsequencex
+termediatestageistheoutputofASR,bypassing toasequenceofcontinuoushiddenrepresentations
+continuoushiddenrepresentationsofdiscretetran- hE = (hE,hE,...,hE), where hE ∈ Rd. The
+1 t T t
+scriptsequencesfromtheASRsub-netdecoderto DECODERthenauto-regressivelymapshE andthe
+the MT sub-net encoder. By doing so, we gain precedingground-truthoutputtokens,yˆ 1:l(cid:57)1,tohD
+l
+,
+the ability to use beam search with optional ex- wherehD ∈ Rd. Thesequenceofdecoderhidden
+l
+ternal model re-scoring on the hidden intermedi- representationsformhD = (hD,hD,...,hD)and
+1 l L
+ates,whilemaintainingend-to-enddifferentiability. thelikelihoodofeachoutputtokeny isgivenby
+l
+Next,wesuggestmitigationstrategiesfortheerror SOFTMAXOUT,whichdenotesanaffineprojection
+propagationissuesinheritedfromdecomposition. ofhD toV followedbyasoftmaxfunction.
+l
+Weshowtheefficacyofsearchableintermediate
+representationsinourproposedmodel,calledthe
+hE = ENCODER(x)
+Multi-Decoder, on speech translation with a 5.4 hˆD
+l
+= DECODER(hE,yˆ 1:l(cid:57)1) (1)
+and2.8BLEUscoreimprovementovertheprevi-
+ousstate-of-the-artsforFisherandCallHometest
+P(y
+l
+| yˆ 1:l(cid:57)1,hE) = SOFTMAXOUT(hˆD
+l
+) (2)
+sets respectively (§6). We extend these improve-
+Duringtraining,theDECODERperformstokenclas-
+ments by an average of 0.5 BLEU score through
+sificationfornextwordpredictionbyconsidering
+theaforementionedbenefitofre-scoringtheinter-
+only the ground truth sequences for previous to-
+mediatesearchwithexternalmodelstrainedonthe kens yˆ. We refer to this hˆD as oracle decoder
+samedataset. Wealsoshowamethodformonitor-
+representations,whichwillbediscussedlater.
+ingsub-netperformanceusingoracleintermediates
+Inference: Duringinference,wecanmaximizethe
+that are void of search errors (§6.1). Finally, we
+likelihoodoftheentiresequencefromtheoutput
+showhowthesemodelscanadapttoout-of-domain
+spaceS bycomposingtheconditionalprobabilities
+speechtranslationdatasets,howourapproachcan
+ofeachstepfortheLtokensinthesequence.
+begeneralizedtoothersequencetaskslikespeech
+recognition,andhowthebenefitsofdecomposition hD
+l
+= DECODER(hE,y 1:l(cid:57)1) (3)
+persistevenforlargercorporalikeMuST-C(§6.2). P(y
+l
+| x,y 1:l(cid:57)1) = SOFTMAXOUT(hD
+l
+)
+2 BackgroundandMotivation L
+(cid:89)
+y˜ =argmax P(y
+i
+| x,y 1:i(cid:57)1) (4)
+2.1 CompositionalityinSequencesModels y∈S
+i=1
+Theprobabilisticspaceofasequenceiscombinato-
+Thisisanintractablesearchproblemanditcanbe
+rialinnature,suchthatasentenceofLwordsfrom
+approximatedbyeithergreedilychoosingargmax
+afixedvocabularyV wouldhaveanoutputspaceS
+ateachsteporusingasearchalgorithmlikebeam
+ofsize|V|L. Inordertodealwiththiscombinato-
+search to approximate y˜. Beam search (Reddy,
+rialoutputspace,anoutputsentenceisdecomposed
+1988)generatescandidatesateachstepandprunes
+into labeled target tokens, y = (y ,y ,...,y ),
+1 2 L thesearchspacetoatractablebeamsizeofB most
+wherey ∈ V.
+l likely sequences. As B → ∞, the beam search
+L resultwouldbeequivalenttoequation4.
+(cid:89)
+P(y | x) = P(y
+i
+| x,y 1:i(cid:57)1)
+i=1 GREEDYSEARCH := argmaxP(y l | x,y 1:l(cid:57)1)
+y
+Anauto-regressiveencoder-decodermodelusesthe l
+aboveprobabilisticdecompositioninsequence-to-
+BEAMSEARCH := BEAM(P(y
+l
+| x,y 1:l(cid:57)1))
+(a) Multi-Decoder ST Model (b) Multi-Sequence Attention
+Figure1:TheleftsidepresenttheschematicsandtheinformationflowofourproposedframeworkappliedtoST,in
+amodelwecalltheMulti-Decoder. OurmodeldecomposesSTintoASRandMTsub-nets,eachofwhichconsist
+ofanencoderanddecoder. TherightsidedisplaysaMulti-SequenceAttentionvariantofthe DECODER thatis
+ST
+conditionedonbothspeechinformationviatheENCODER andtranscriptioninformationviatheENCODER .
+ASR ST
+Inapproximatesearchforauto-regressivemodels, SUBA→BNET:
+likebeamsearch,theDECODERreceivesalternate
+candidates of previous tokens to find candidates
+hE = ENCODERA(A)
+with a higher likelihood as an overall sequence. hˆD
+l
+B = DECODERB(hE,yˆ 1B :l(cid:57)1)
+T Lh anis ga ul as go ea Mllo ow des lf so (r Lt Mhe )u os re Co of ne nx et ce tr in oa nl ism to Td ee mls poli rk ae
+l
+P(y lB | yˆ 1B :l(cid:57)1,hE) = SOFTMAXOUT(hˆD
+l
+B) (5)
+ClassificationModels(CTC)forre-scoringcandi- SUBB→CNET:
+dates(Horietal.,2017).
+P(C | hˆD
+l
+B) = SUBB→CNET(hˆD
+l
+B) (6)
+3 ProposedFramework Note that the final prediction, given by equation
+6, does not need to be a sequence and can be a
+Inthissection,wepresentageneralframeworkto categorical class like in spoken language under-
+exploit natural decompositions in sequence tasks standingtasks. Nextwewillshowhowthehidden
+whichseektopredictsomeoutputC fromaninput intermediatesbecomesearchableduringinference.
+sequenceA. IfthereisanintermediatesequenceB
+3.1 SearchableHiddenIntermediates
+forwhichA → B sequencetransductionfollowed
+Asstatedinsection§2.2,approximatesearchalgo-
+by B → C prediction achieves the original task,
+rithms maximize the likelihood, P(y | x), of the
+thentheoriginalA → C taskisdecomposable.
+entiresequencebyconsideringdifferentcandidates
+In other words, if we can learn P(B | A) then
+y at each step. Candidate-based search, particu-
+wecanlearntheoveralltaskofP(C | A)through l
+larly in auto-regressive encoder-decoder models,
+max (P(C | A, B)P(B | A)), approximated
+B alsoaffectsthedecoderhiddenrepresentation,hD,
+using Viterbi search. We define a first encoder-
+asthesearedirectlydependentonthepreviouscan-
+decoder SUBA→BNET to map an input sequence
+didate(refertoequations1and3). Thisimpliesthat
+A to a sequence of decoder hidden states, hDB.
+bysearchingforbetterapproximationsofthepre-
+T hh De Bn tw oe thd eefi fin ne aa ls pu rb os be aq bu ie lin st tiS cU oB uB tp→ uC tN spE aT ct eo om fa Cp
+.
+viouspredictedtokens,y l(cid:57)1 = (y BEAM) l(cid:57)1,wealso
+improvethedecoderhiddenrepresentationsforthe
+Therefore,wecallhDB hiddenintermediates. The
+next token, hD = (hD ) . As y → yˆ, the
+followingequationsshowsthetwosub-networksof l BEAM l BEAM
+decoderhiddenrepresentationstendtotheoracle
+our framework, SUBA→BNET and SUBB→CNET,
+decoderrepresentationsthathaveonlyerrorsfrom
+whichcanbetrainedend-to-endwhilealsoexploit-
+next word prediction, hD → hˆD. A perfect
+ingcompositionalityinsequencetasks.2 BEAM
+searchisanalogoustochoosingthegroundtruthyˆ
+ateachstep,whichwouldyieldhˆD.
+2Notethatthisframeworkdoesnotuselocally-normalized We apply this beam search of hidden interme-
+softmaxdistributionsbutratherthehiddenrepresentations, diates, thereby approximating hˆDB with hDB .
+therebyavoidinglabelbiasissueswhencombiningmultiple BEAM
+sub-systems(Bottouetal.,1997;WisemanandRush,2016). This process is illustrated in algorithm 1, which
+showsbeamsearchforhDB thataresubsequently quence of speech x and uses a sequence of text
+BEAM
+passed to the SUBB→CNET.3 In line 7, we show transcriptionsyASR asanintermediate. Inthiscase,
+howanexternalmodellikeanLMoraCTCmodel theSUBA→BNETinequation5isspecifiedasthe
+canbeusedtogenerateanalternatesequencelike- ASRsub-netandtheSUBB→CNETinequation6is
+lihood, P (yB), which can be combined with specifiedastheMTsub-net. SincetheMTsub-net
+EXT l
+the SUBA→BNET likelihood,P B(y lB | x),witha isalsoasequencepredictiontask,bothsub-netsare
+tunableparameterλ. encoder-decodermodelsinourarchitecture(Bah-
+danauetal.,2015;Vaswanietal.,2017). InFigure
+Algorithm 1 Beam Search for Hidden Interme-
+1 we illustrate the schematics of our transformer
+diates: We perform beam search to approximate
+basedMulti-DecoderSTmodelwhichcanalsobe
+the most likely sequence for the sub-task A →
+summarizedasfollows:
+B, yB , while collecting the corresponding
+DECOB DEA EM RB hidden representations, hD BEB AM. The hE ASR = ENCODER ASR(x) (7)
+outputhD BEB AM,ispassedtothefinalsub-networkto hˆD
+l
+ASR = DECODER ASR(hE ASR,yˆ 1A :S l(cid:57)R 1) (8)
+predictfinaloutputC andyB BEAM isusedformoni- hE ST = ENCODER (hˆD ASR) (9)
+ST
+toringperformanceonpredictingB.
+1: Initialize: BEAM ←{sos};k←beamsize;
+hˆD
+l
+ST = DECODER ST(hE ST,yˆ 1S :T l(cid:57)1) (10)
+2: hE A ← ENCODERA(x) As we can see from Equations 9 and 10, the MT
+3: forl=1tomax do sub-networkattendsonlytothedecoderrepresenta-
+STEPS
+4: fory lB (cid:57)1 ∈ BEAMdo tions,hˆD ASR,oftheASRsub-network,whichcould
+5: hD
+l
+B ← DECODERB(hEA,y lB (cid:57)1) leadtotheerrorpropagationissuesfromtheASR
+6: fory lB ∈ y lB (cid:57)1+{V}do sub-networktotheMTsub-networksimilartothe
+7: s l ← P A→B(y lB | x)1(cid:57)λP EXT(y lB)λ cascade systems, as mentioned in §1. To allevi-
+8 9:
+:
+enH dfo←
+r
+(s l,y lB ,hD
+l
+B) a Dte ECth Ois Dp Er Ro Sb Tle am tte, nw de sm too bd oif thy heq Eu Sa Tt aio nn d1 h0 Es Au SRc :hthat
+10: endfor hˆD
+l
+SS TA = DECODERS SA T(hE ST,hE ASR,yˆ 1S :T l(cid:57)1) (11)
+11: BEAM ← argkmax(H)
+We use the multi-sequence cross-attention dis-
+12: endfor
+cussed by Helcl et al. (2018), shown on the right
+13: (sB,yB ,hDB ) ← argmax(BEAM)
+BEAM BEAM sideofFigure1,toconditionthefinaloutputsgen-
+14: ReturnyB BEAM →SUBA→BNETMonitoring erated by hˆD ST on both speech and transcript in-
+15: ReturnhD BEB
+AM
+→Final SUBB→CNET
+formation
+inl
+an attempt to allow our network to
+recover from intermediate mistakes during infer-
+We can monitor the performance of the
+ence. We call this model the Multi-Decoder w/
+SUBA→BNET by comparing the decoded in-
+Speech-Attention.
+termediate sequence yB to the ground truth
+BEAM
+yˆB. We can also monitor the SUBB→CNET 4 BaselineEncoder-DecoderModel
+performance by using the aforementioned oracle
+For our baseline model, we use an end-to-end
+representations of the intermediates, hˆDB, which
+encoder-decoder (Enc-Dec) ST model with ASR
+can be obtained by feeding the ground truth yˆB
+joint training (Inaguma et al., 2020) as an aux-
+to DECODERB. BypassinghˆDB to SUBB→CNET,
+iliarly loss to the speech encoder. In other
+we can observe its performance in a vacuum, i.e.
+words, the model consumes speech input using
+voidofsearcherrorsinthehiddenintermediates.
+the ENCODERASR, to produce hE ASR, which is
+3.2 Multi-DecoderModel usedforcross-attentionbyDECODERASR andthe
+Inordertoshowtheapplicabilityofourend-to-end
+DECODERST. UsingthedecomposedASRtaskas
+anauxiliarylossalsohelpsthebaselineEnc-Dec
+frameworkweproposeourMulti-Decodermodel
+modelandprovidestrongbaselineperformance,as
+for speech translation. This model predicts a se-
+wewillseeinSection6.
+quence of text translations yST from an input se-
+5 DataandExperimentalSetup
+3Thealgorithmshownonlyconsidersasingletopapproxi-
+mationofthesearch;however,withaddedtime-complexity,
+thefinaltaskpredictionimproveswiththen-besthDB for Data: We demonstrate the efficacy of our pro-
+BEAM
+selectingthebestresultantC. posedapproachonSTintheFisher-CallHomecor-
+pus(Postetal.,2013)whichcontains170hoursof has an ENCODER consisting of 2 transformer
+ST
+Spanishconversationaltelephonespeech,transcrip- encoder blocks with the same configuration as
+tions, and English translations. All punctuations ENCODER , giving a total of 40.5M trainable
+ASR
+exceptapostropheswereremovedandresultsare parameters. Thetrainingconfigurationisalsothe
+reportedintermsofdetokenizedcase-insensitive sameasforthebaseline. FortheMulti-Decoderw/
+BLEU(Papinenietal.,2002;Post,2018). Wecom- Speech-Attentionmodel(42.1Mtrainableparame-
+pute BLEU using the 4 references in Fisher (dev, ters), weincreasetheattentiondropoutoftheST
+dev2, and test) and the single reference in Call- decoderto0.4anddropoutonallothercomponents
+Home(devandtest)(Postetal.,2013;Kumaretal., oftheSTdecoderto0.2whilekeepingdropouton
+2014;Weissetal.,2017). Weuseajointsourceand theremainingcomponentsat0.1. Weverifiedthat
+targetvocabularyof1Kbytepairencoding(BPE) increasing the dropout does not help the vanilla
+units(KudoandRichardson,2018). multi-decoderSTmodel.
+WepreparethecorpususingtheESPnetlibrary During inference, we perform beam search on
+andwefollowthestandarddatapreparation,where both the ASR and ST output sequences, as dis-
+inputsaregloballymean-variancenormalizedlog- cussed in §3. The ST beam search is identical
+melfilterbankandpitchfeaturesfromup-sampled tothatofthebaseline. FortheintermediateASR
+16kHzaudio(Watanabeetal.,2018). Wealsoap- beam search, we use a beam size of 16, length
+plyspeedperturbationsof0.9and1.1andtheSS penaltyof0.2,maxlengthratioof0.3. Insomeof
+SpecAugmentpolicy(Parketal.,2019). ourexperiments,wealsoincludefusionofasource
+language LM with a 0.2 weight and CTC with a
+Baseline Configuration: All of our models are 0.3weighttore-scoretheintermediateASRbeam
+implementedusingtheESPnetlibraryandtrained search (Watanabe et al., 2017). For the Speech-
+on3NVIDIATitan2080TiGPUsfor≈12hours. Attentionvariant,weincreaseLMweightto0.4.
+For the Baseline Enc-Dec baseline, discussed in Note that the ST beam search configuration
+§4, we use an ENCODER consisting of a con- remains constant across our baseline and Multi-
+ASR
+volutional sub-sampling by a factor of 4 (Watan- Decoderexperimentsasourfocusisonimproving
+abe et al., 2018) and 12 transformer encoder overallperformancethroughsearchableintermedi-
+blocks with 2048 feed-forward dimension, 256 ate representations. Thus, the various re-scoring
+attention dimension, and 4 attention heads. The techniquesappliedtotheASRbeamsearchareop-
+DECODER and DECODER both consist of 6 tionsnewlyenabledbyourproposedarchitecture
+ASR ST
+transformerdecoderblockswiththesameconfigu- andarenotusedintheSTbeamsearch.
+rationas ENCODER . Thereare37.9Mtrainable
+ASR
+parameters. Weapplydropoutof0.1forallcom- 6 Results
+ponents,detailedintheAppendix(A.1).
+Table 1 presents the overall ST performance
+We train our models using an effective batch-
+(BLEU) of our proposed Multi-Decoder
+sizeof384utterancesandusetheAdamoptimizer
+model. Our model improves by +2.9/+0.3
+(Kingma and Ba, 2015) with inverse square root
+(Fisher/CallHome)overthebestcascadedbaseline
+decaylearningrateschedule. Wesetlearningrate
+and by +5.6/+1.5 BLEU over the best published
+to12.5,warmupstepsto25K,andepochsto50. We
+end-to-end baselines. With Speech-Attention,
+usejointtrainingwithhybridCTC/attentionASR
+our model improves by +3.4/+1.6 BLEU over
+(Watanabeetal.,2017)bysettingmtl-alphato0.3
+the cascaded baselines and +7.1/+2.8 BLEU
+andasr-weightto0.5asdefinedbyWatanabeetal.
+over encoder-decoder baselines. Both the Multi-
+(2018). Duringinference,weperformbeamsearch
+DecoderandMulti-Decoderw/Speech-Attention
+(Seki et al., 2019) on the ST sequences, using a
+on average are further improved by +0.9/+0.4
+beamsizeof10,lengthpenaltyof0.2,maxlength
+BLEUthroughASRre-scoring.4
+ratioof0.3(Watanabeetal.,2018).
+Table1alsoincludesourimplementationofthe
+Multi-Decoder Configuration: For the Multi- Baseline Enc-Dec model discussed in §4. In this
+Decoder ST model, discussed in §3, we use way,weareabletomakeafaircomparisonwithour
+the same transformer configuration as the base- frameworkaswecontrolthemodelandinference
+line for the ENCODER ASR, DECODER ASR, and
+4WealsoevaluateourmodelsusingotherMTmetricsto
+DECODER . Additionally, the Multi-Decoder supplementtheseresults,asshownintheAppendix(A.2).
+ST
+UsesSpeech Fisher CallHome
+ModelType ModelName Transcripts dev(↑) dev2(↑) test(↑) dev(↑) test(↑)
+Cascade Inagumaetal.(2020) (cid:51) 41.5 43.5 42.2 19.6 19.8
+Cascade ESPnetASR+MT(2018) (cid:51) 50.4 51.2 50.7 19.6 19.2
+Enc-Dec Weissetal.(2017)♦ (cid:55) 46.5 47.3 47.3 16.4 16.6
+Enc-Dec Weissetal.(2017)♦ (cid:51) 48.3 49.1 48.7 16.8 17.4
+Enc-Dec Inagumaetal.(2020) (cid:51) 46.6 47.6 46.5 16.8 16.8
+Enc-Dec Guoetal.(2021) (cid:51) 48.7 49.6 47.0 18.5 18.6
+Enc-Dec OurImplementation (cid:51) 49.6 50.9 49.5 19.1 18.2
+Multi-Decoder OurProposedModel (cid:51) 52.7 53.3 52.6 20.5 20.1
+Multi-Decoder +ASRRe-scoring (cid:51) 53.3 54.2 53.7 21.1 20.8
+Multi-Decoder +Speech-Attention (cid:51) 54.6 54.6 54.1 21.7 21.4
+Multi-Decoder +ASRRe-scoring (cid:51) 55.2 55.2 55.0 21.7 21.5
+Table1: Resultspresentingtheoverallperformance(BLEU)ofourproposedmulti-decodermodel. Cascadeand
+Enc-DecresultsfrompreviouspapersandourownimplementationoftheEnc-Decareshownforcomparison. The
+bestperformingmodelsarehighlighted. ♦ImplementedwithLSTM,whileallothersareTransformer-based.
+23.8
+Overall Sub-Net Sub-Net
+Model ST(↑) ASR(↓) MT(↑) 52.6 23.6
+Multi-Decoder 52.7 22.6 64.9 52.4 Multi-Decoder BLEU 23.4
++Speech-Attention 54.6 22.4 66.6
+52.2 %WER
+23.2
+Table2:ResultspresentingtheoverallSTperformance
+52
+(BLEU)ofourMulti-Decodermodels,alongwiththeir 23
+sub-netASR(%WER)andMT(BLEU)performances. 51.8
+22.8
+AllresultsarefromtheFisherdevset.
+51.6
+22.6
+1 4 8 10 16
+configurations to be analagous. For instance, we
+ASRBeamSize
+keepthesamesearchparametersforthefinaloutput
+in the baseline and the Multi-Decoder to demon- Figure 2: Results studying the effect of the differ-
+ent ASR beam sizes in the intermediate representa-
+strateimpactoftheintermediatebeamsearch.
+tionsearchontheoverallSTperformance(BLEU)and
+theASRsub-netperformance(%WER)forourmulti-
+6.1 Benefits
+decodermodel. Beamof1issameasgreedysearch.
+6.1.1 Sub-networkperformancemonitoring
+Anaddedbenefitofourproposedapproachoverthe
+beamsizeof1,whichisagreedysearch,resultsin
+BaselineEnc-Decistheabilitytomonitortheindi-
+lowerASRsub-netandoverallSTperformances.
+vidualperformancesoftheASR(%WER)andMT
+Asbeamsizesbecomelarger,gainstaperoffascan
+(BLEU)sub-netsasshowninTable2. TheMulti-
+beseenbetweenbeamsizesof10and16.
+Decoderw/Speech-AttentionshowsagreaterMT
+sub-net performance than the Multi-Decoder as
+6.1.3 Externalmodelsforbettersearch
+wellasaslightimprovementoftheASRsub-net,
+ExternalmodelslikeCTCacousticmodelsandlan-
+suggestingthatSTcanpotentiallyhelpASR.
+guage models are commonly used for re-scoring
+6.1.2 Beamsearchforbetterintermediates encoder-decodermodels(Horietal.,2017),dueto
+The overall ST performance improves when a thedifferenceintheirmodelingcapabilities. CTC
+higherbeamsizeisusedintheintermediateASR directlymodelstranscriptswhilebeingcondition-
+search,andthisincreasecanbeattributedtotheim- allyindependentontheotheroutputsgiventhein-
+provedASRsub-netperformance. Figure1shows put,andLMspredictthenexttokeninasequence.
+thistrendacrossASRbeamsizesof1,4,8,10,16 BothvariantsoftheMulti-Decoderimprovedue
+while fixing the ST decoding beam size to 10. A toimprovedASRsub-netperformanceusingexter-
+)↑(erocSUELBTS )↓(REW%RSA
+40
+Overall Sub-Net
+BaselineEnc-Dec
+Model ST(↑) ASR(↓)
+33.2
+32.1 Multi-Decoder
+Multi-Decoder 52.7 22.6 29.9 Multi-Decoderw/SA
+30
++ASRRe-scoringw/LM 53.2 22.6
++ASRRe-scoringw/CTC 52.8 22.1
++ASRRe-scoringw/LM 53.3 21.7 20.1 21.2
+19.1
+20
+Multi-Decoderw/Speech-Attn. 54.6 22.4
++ASRRe-scoringw/LM 55.1 22.4
++ASRRe-scoringw/CTC 54.7 22.0
+10
++ASRRe-scoringw/LM 55.2 21.9
+5.4 5.8 5.6
+Table3:ResultspresentingtheoverallSTperformance
+(BLEU) and the sub-net ASR (% WER) of our Multi- <40% [40,80)% ≥80%
+DecodermodelswithexternalCTCandLMre-scoring
+ASR%WER(↓)
+in theASR intermediaterepresentation search. All re-
+sultsarefromtheFisherdevset.
+Figure 3: Results comparing the ST performances
+(BLEU)ofourBaselineEnc-Dec,Multi-Decoder,and
+Multi-Decoder w/ Speech-Attention across different
+nalCTCandLMmodelsforre-scoring,asshown
+ASRdifficultiesmeasuredusing%WERontheFisher
+inTable3. WeusearecurrentneuralnetworkLM
+dev set (1-ref). The buckets on the x-axis are de-
+trainedontheFisher-CallHomeSpanishtranscripts
+termined using the utterance level % WER using the
+withadevperplexityof18.8andtheCTCmodel Multi-DecoderASRsub-netperformance.
+from joint loss applied during training. Neither
+external model incorporates additional data. Al-
+thoughtheimpactoftheLM-onlyre-scoringisnot 6.2.1 RobustnessthroughDecomposition
+shownintheASR%WER,itreducessubstitution Like cascaded systems, searchable intermediates
+anddeletionratesintheASRandthisisobserved provide our model adaptability in individual sub-
+tohelptheoverallSTperformance. systemstowardsout-of-domaindatausingexternal
+in-domainlanguagemodel,therebygivingaccess
+6.1.4 Errorpropagationavoidance
+to more in-domain data. Specifically for speech
+As discussed in §3, our Multi-Decoder model in- translation systems, this means we can use in-
+herits the error propagation issue as can be seen domainlanguagemodelsinbothsourceandtarget
+in Figure 3. For the easiest bucket of utterances languages. We test the robustness of our Multi-
+with < 40% WER in Multi-Decoder’s ASR sub- Decoder model trained on Fisher-CallHome con-
+net,ourmodel’sSTperformance,asmeasuredby versationalspeechdatasetonreadspeechCoVost-2
+the corpus BLEU of the bucket, exceeds that of dataset(Wangetal.,2020b). InTable4weshow
+theBaselineEnc-Dec. Theinverseistrueforthe thatre-scoringtheASRsub-netwithanin-domain
+more difficult bucket of [40,80)%, showing that LMimprovesASRwitharound10.0%lowerWER,
+error propagation is limiting the performance of improvingtheoverallSTperformancebyaround
+ourmodel;however,weshowthatmulti-sequence +2.5 BLEU. Compared to an in-domain ST base-
+attention can alleviate this issue. For extremely line(Wangetal.,2020a),ourout-of-domainMulti-
+difficultutterancesinthe≥ 80%bucket,STperfor- Decoder with in-domain ASR re-scoring demon-
+manceforallthreeapproachesissuppressed. We stratestherobustnessofourapproach.
+alsoprovidequalitativeexamplesoferrorpropaga-
+tionavoidanceintheAppendix(A.3). 6.2.2 DecomposingSpeechTranscripts
+We apply our generic framework to another de-
+6.2 Generalizability
+composablesequencetask,speechrecognition,and
+In this section, we discuss the generalizability of showtheresultsofvariouslevelsofdecomposition
+our framework towards out-of-domain data. We inTable5. Weshowthatwithphoneme,character,
+alsoextendourMulti-Decodermodeltootherse- orbyte-pairencoding(BPE)sequencesasinterme-
+quencetaskslikespeechrecognition. Finally,we diates, the Multi-Decoder presents strong results
+applyourSTmodelstoalargercorpuswithmore on both Fisher and CallHome test sets. We also
+languagepairsandadifferentdomainofspeech. observe that the BPE intermediates perform bet-
+)↑(erocSUELBTS
+Overall Sub-Net En→De En→Fr
+Model ST(↑) ASR(↓) Model ST(↑) ST(↑)
+IN-DOMAINSTMODEL NeurST(Zhaoetal.,2020) 22.9 33.3
+Baseline(Wangetal.,2020b) 12.0 -
+FairseqS2T(Wangetal.,2020a) 22.7 32.9
++ASRPretrain(Wangetal.,2020b)♦ 23.0 16.0
+ESPnet-ST(Inagumaetal.,2020) 22.9 32.7
+OUT-OF-DOMAINSTMODEL Dual-Decoder(Leetal.,2020) 23.6 33.5
+Multi-Decoder 11.8 46.8
+Multi-Decoderw/Speech-Attn. 26.3 37.0
++ASRRe-scoringw/in-domainLM 14.4 36.7
+Multi-Decoderw/Speech-Attention 12.6 46.5 +ASRRe-scoring 26.4 37.4
++ASRRe-scoringw/in-domainLM 15.0 36.7
+Table6:ResultspresentingtheoverallSTperformance
+Table 4: Results presenting the overall ST perfor- (BLEU) of our Multi-Decoder w/ Speech-Attention
+mance(BLEU)andthesub-netASR(%WER)ofour models with ASR re-scoring across two language-
+Multi-Decoder models when tested on out-of-domain pairs, English-German (En→De) and English-French
+data. AllmodelsweretrainedontheFisher-CallHome (En→Fr). All results are from the MuST-C tst-
+Es→EncorpusandtestedonCoVost2Es→Encorpus. COMMONsets. Allmodelsusespeechtranscripts.
+♦Pretrainedwith364hoursofin-domainASRdata.
+approach across several dimensions of ST tasks.
+Fisher CallHome
+First,ourapproachconsistentlyimprovesoverbase-
+Model Intermediate ASR(↓) ASR(↓)
+linesacrossmultiplelanguage-pairs. Second,our
+Enc-Dec♦ - 23.2 45.3
+approachisrobusttothedistinctdomainsoftele-
+Multi-Decoder Phoneme 20.7 40.0 phone conversations from Fisher-CallHome and
+Multi-Decoder Character 20.4 39.9
+theTED-TalksfromMuST-C.Finally,byscaling
+Multi-Decoder BPE100 19.7 38.9
+from 170 hours of Fisher-CallHome data to 500
+Table 5: Results presenting the % WER ASR perfor- hoursofMuST-Cdata,weshowthatthebenefits
+mance when using the Multi-Decoder model on de- of decomposing sequence tasks with searchable
+composed ASR task with phoneme, character, and
+hiddenintermediatespersistevenwithmoredata.
+BPE100 as intermediates. All results are from the
+Furthermore, the performance of our Multi-
+Fisher-CallHomeSpanishcorpus.♦(Weissetal.,2017)
+DecodermodelstrainedwithonlyEnglish-German
+orEnglish-FrenchSTdatafromMuST-Ciscom-
+terthanphoneme/charactervariants,whichcould parabletoothermethodswhichincorporatelarger
+be attributed to the reduced search capabilities externalASRandMTdatainvariousways. Forin-
+ofencoder-decodermodelsusingbeamsearchon stance,Zhengetal.(2021)use4700hoursofASR
+longersequences(SountsovandSarawagi,2016) data and 2M sentences of MT data for pretrain-
+likeinphoneme/charactersequences. ingandmulti-tasklearning. Similarly,Baharetal.
+(2021)use2300hoursofASRdataand27Msen-
+6.2.3 ExtendingtoMuST-CLanguagePairs tencesofMTdataforpretraining. Ourcompetitive
+Inadditiontoourresultsusingthe170hoursofthe performancewithouttheuseofanyadditionaldata
+Spanish-English Fisher-CallHome corpus, in Ta- highlightsthedata-efficientnatureofourproposed
+ble6weshowthatourdecompositionalframework end-to-endframeworkasopposedtothebaseline
+is also effective on larger ST corpora. In particu- encoder-decodermodel,aspointedoutbySperber
+lar,weuse400hoursofEnglish-Germanand500 andPaulik(2020).
+hoursofEnglish-FrenchSTfromtheMuST-Ccor-
+7 DiscussionandRelationtoPriorWork
+pus (Di Gangi et al., 2019). Our Multi-Decoder
+modelimprovesby+2.7and+1.5BLEU,inGer-
+Compositionality: A number of recent works
+manandFrenchrespectively,overend-to-endbase-
+haveconstructedcomposableneuralnetworkmod-
+lines from prior works that do not use additional
+ules for tasks such as visual question answering
+trainingdata. WeshowthatASRre-scoringgives
+(Andreas et al., 2016), neural MT (Raunak et al.,
+anadditional+0.1and+0.4BLEUimprovement.5
+2019), and synthetic sequence-to-sequence tasks
+ByextendingourMulti-Decodermodelstothis
+(Lake,2019). Modulesthatarefirsttrained sepa-
+MuST-Cstudy,weshowthegeneralizabilityofour
+ratelycansubsequentlybetightlyintegratedintoa
+singleend-to-endtrainablemodelbypassingdiffer-
+5DetailsoftheMuST-Cdatapreparationandmodelpa-
+rametersaredetailedinAppendix(A.4). entiablesoftdecisionsinsteadofdiscretedecisions
+intheintermediatestage(Baharetal.,2021). Fur- impactingtheperformanceofboththetaskathand
+ther,evenasingleencoder-decodermodelcanbe and any downstream tasks. Our approach allevi-
+decomposedintomodularcomponentswherethe ates these problems through intermediate search,
+encoder and decoder modules have explicit func- external models for intermediate re-scoring, and
+tions(Dalmiaetal.,2019). multi-sequenceattention.
+JointTrainingwithSub-Tasks: End-to-endse- 8 ConclusionandFutureWork
+quence models been shown to benefit from intro-
+Wepresentsearchablehiddenintermediatesforend-
+ducing joint training with sub-tasks as auxiliary
+to-end models of decomposable sequence tasks.
+lossfunctionsforavarietyoftaskslikeASR(Kim
+WeshowtheefficacyofourMulti-Decodermodel
+et al., 2017), ST (Salesky et al., 2019; Liu et al.,
+on the Fisher-CallHome Es→En and MuST-C
+2020a; Dong et al., 2020; Le et al., 2020), SLU
+En→De and En→Fr speech translation corpora,
+(Haghanietal.,2018). Theyhavebeenshowntoin-
+achievingstate-of-the-artresults. Wepresentvar-
+ducestructure(Belinkovetal.,2020)andimprove
+iousbenefitsinourframework,includingsub-net
+the model performance (Toshniwal et al., 2017),
+performance monitoring, beam search for better
+but this joint training may reduce data efficiency
+hidden intermediates, external models for better
+ifsomesub-netsarenotincludedinthefinalend-
+search,anderrorpropagationavoidance. Further,
+to-end model (Sperber et al., 2019; Wang et al.,
+we demonstrate the flexibility of our framework
+2020c). Ourframeworkavoidsthissub-netwaste
+towards out-of-domain tasks with the ability to
+atthecostofcomputationalloadduringinference.
+adaptoursequencemodelatintermediatestagesof
+Speech Translation Decoders: Prior works decomposition. Finally,weshowgeneralizability
+haveusedASR/MTdecodingtoimprovetheover- bytrainingMulti-Decodermodelsforthespeech
+all ST decoding through synchronous decoding recognitiontaskatvariouslevelsofdecomposition.
+(Liuetal.,2020a),dualdecoding(Leetal.,2020), We hope insights derived from our study stim-
+andsuccessivedecoding(Dongetal.,2020). These ulateresearchontighterintegrationsbetweenthe
+workspartiallyorfullydecodeASRtranscriptsand benefitsofcascadedandend-to-endsequencemod-
+usediscreteintermediatestoassistMTdecoding. els. Exploiting searchable intermediates through
+Tu et al. (2017) and Anastasopoulos and Chiang beamsearchisjustthetipoftheicebergforsearch
+(2018)areclosesttoourmulti-decoderSTmodel, algorithms,asnumerousapproximatesearchtech-
+however the benefits of our proposed framework niqueslikediversebeamsearch(Vijayakumaretal.,
+arenotentirelyexploredintheseworks. 2018) and best-first beam search (Meister et al.,
+2020)havebeenrecentlyproposedtoimprovedi-
+Two-Pass Decoding: Two-pass decoding in-
+versity and approximation of the most-likely se-
+volves first predicting with one decoder and then
+quence. Incorporatingdifferentiablelatticebased
+re-evaluating with another decoder (Geng et al.,
+search(Hannunetal.,2020)canalsoallowthesub-
+2018; Sainath et al., 2019; Hu et al., 2020; Rijh-
+sequentsub-nettodigestn-bestrepresentations.
+wanietal.,2020). Thetwodecodersiterateonthe
+samesequence,sothereisnodecompositioninto 9 Acknowledgements
+sub-tasks in this method. On the other hand, our
+This work started while Vikas Raunak was a stu-
+approachprovidesthesubsequentdecoderwitha
+dentatCMU,heisnowworkingasaResearchSci-
+morestructuredrepresentationthantheinputbyde-
+entistatMicrosoft. WethankPengchengGuo,Hi-
+composingthecomplexityoftheoveralltask. Like
+rofumiInaguma,ElizabethSalesky,MariaRyskina,
+two-passdecoding,ourapproachprovidesasense
+MartaMéndezSimónandVijayViswanathanfor
+ofthefuturetotheseconddecoderwhichallowsit
+their helpful discussion during the course of this
+tocorrectmistakesfromthepreviousfirstdecoder.
+project. We also thank the anonymous reviewers
+Auto-RegressiveDecoding: Asauto-regressive for their valuable feedback. This work used the
+decodersinherentlylearnalanguagemodelalong Extreme Science and Engineering Discovery En-
+withthetaskathand,theytendtobedomainspe- vironment (XSEDE) (Towns et al., 2014), which
+cific(Samarakoonetal.,2018;Mülleretal.,2020). issupportedbyNationalScienceFoundationgrant
+Thiscancausegeneralizabilityissuesduringinfer- number ACI-1548562. Specifically, it used the
+ence(MurrayandChiang,2018;Yangetal.,2018), Bridges system (Nystrom et al., 2015), which is
+supported by NSF award number ACI-1445606, Yonatan Belinkov, Nadir Durrani, Fahim Dalvi, Has-
+at the Pittsburgh Supercomputing Center (PSC). sanSajjad,andJamesGlass.2020. Onthelinguistic
+representationalpowerofneuralmachinetranslation
+The work was supported in part by an AWS Ma-
+models. ComputationalLinguistics,46(1):1–52.
+chine Learning Research Award. This research
+was also supported in part the DARPA KAIROS LéonBottou,YoshuaBengio,andYannLeCun.1997.
+programfromtheAirForceResearchLaboratory Globaltrainingofdocumentprocessingsystemsus-
+underagreementnumberFA8750-19-2-0200. The ing graph transformer networks. In Proceedings of
+IEEEComputerSocietyConferenceonComputerVi-
+U.S. Government is authorized to reproduce and
+sionandPatternRecognition,pages489–494.IEEE.
+distributereprintsforGovernmentalpurposesnot
+withstandinganycopyrightnotationthereon. The Alice Coucke, Alaa Saade, Adrien Ball, Théodore
+viewsandconclusionscontainedhereinarethoseof Bluche, Alexandre Caulier, David Leroy, Clément
+Doumouro, Thibault Gisselbrecht, Francesco Calt-
+theauthorsandshouldnotbeinterpretedasneces-
+agirone, Thibaut Lavril, et al. 2018. Snips voice
+sarilyrepresentingtheofficialpoliciesorendorse-
+platform:anembeddedspokenlanguageunderstand-
+ments,eitherexpressedorimplied,oftheAirForce ingsystemforprivate-by-designvoiceinterfaces. In
+ResearchLaboratoryortheU.S.Government. Privacy in Machine Learning and Artificial Intelli-
+genceworkshop,ICML.
+References Siddharth Dalmia, Abdelrahman Mohamed, Mike
+Lewis, Florian Metze, and Luke Zettlemoyer.
+Antonios Anastasopoulos and David Chiang. 2018. 2019. Enforcing encoder-decoder modularity in
+Tiedmultitasklearningforneuralspeechtranslation. sequence-to-sequence models. arXiv preprint
+InProceedingsofthe2018ConferenceoftheNorth arXiv:1911.03782.
+American Chapter of the Association for Computa-
+tional Linguistics: Human Language Technologies,
+MattiaA.DiGangi,RoldanoCattoni,LuisaBentivogli,
+Volume1(LongPapers),pages82–91,NewOrleans,
+Matteo Negri, and Marco Turchi. 2019. MuST-
+Louisiana. Association for Computational Linguis- C: a Multilingual Speech Translation Corpus. In
+tics. Proceedings of the 2019 Conference of the North
+American Chapter of the Association for Computa-
+JacobAndreas,MarcusRohrbach,TrevorDarrell,and
+tional Linguistics: Human Language Technologies,
+DanKlein.2016. Neuralmodulenetworks. In2016
+pages2012–2017,Minneapolis,Minnesota.Associ-
+IEEE Conference on Computer Vision and Pattern
+ationforComputationalLinguistics.
+Recognition,CVPR2016,LasVegas,NV,USA,June
+27-30,2016,pages39–48.IEEEComputerSociety.
+Qianqian Dong, Mingxuan Wang, Hao Zhou, Shuang
+Parnia Bahar, Tobias Bieschke, Ralf Schlüter, and Xu,BoXu,andLeiLi.2020. SDST:Successivede-
+Hermann Ney. 2021. Tight integrated end-to- coding for speech-to-text translation. Proceedings
+end training for cascaded speech translation. In oftheThirty-FifthAAAIConferenceonArtificialIn-
+2021IEEESpokenLanguageTechnologyWorkshop telligence.
+(SLT),pages950–957.IEEE.
+Xinwei Geng, Xiaocheng Feng, Bing Qin, and Ting
+DzmitryBahdanau,KyunghyunCho,andYoshuaBen- Liu. 2018. Adaptive multi-pass decoder for neural
+gio. 2015. Neural machine translation by jointly machine translation. In Proceedings of the 2018
+learning to align and translate. In 3rd Inter- Conference on Empirical Methods in Natural Lan-
+national Conference on Learning Representations, guage Processing, pages 523–532, Brussels, Bel-
+ICLR2015.
+gium.AssociationforComputationalLinguistics.
+Satanjeev Banerjee and Alon Lavie. 2005. METEOR:
+Pengcheng Guo, Florian Boyer, Xuankai Chang,
+An automatic metric for MT evaluation with im-
+Tomoki Hayashi, Yosuke Higuchi, Hirofumi In-
+proved correlation with human judgments. In Pro-
+aguma, Naoyuki Kamo, Chenda Li, Daniel Garcia-
+ceedings of the ACL Workshop on Intrinsic and Ex-
+Romero, Jiatong Shi, et al. 2021. Recent develop-
+trinsic Evaluation Measures for Machine Transla-
+ments on ESPnet toolkit boosted by conformer. In
+tion and/or Summarization, pages 65–72, Ann Ar-
+2021 IEEE international conference on acoustics,
+bor, Michigan. Association for Computational Lin-
+speechandsignalprocessing(ICASSP).IEEE.
+guistics.
+Daniel Beck, Trevor Cohn, and Gholamreza Haffari. Parisa Haghani, Arun Narayanan, Michiel Bacchiani,
+2019. Neural speech translation using lattice trans- Galen Chuang, Neeraj Gaur, Pedro Moreno, Rohit
+formations and graph networks. In Proceedings of Prabhavalkar,ZhongdiQu,andAustinWaters.2018.
+the Thirteenth Workshop on Graph-Based Methods Fromaudiotosemantics: Approachestoend-to-end
+for Natural Language Processing (TextGraphs-13), spokenlanguageunderstanding. In2018IEEESpo-
+pages26–31,HongKong.AssociationforComputa- ken Language Technology Workshop (SLT), pages
+tionalLinguistics. 720–726.IEEE.
+Awni Hannun, Vineel Pratap, Jacob Kahn, and Wei- Constantin, and Evan Herbst. 2007. Moses: Open
+NingHsu.2020. Differentiableweightedfinite-state sourcetoolkitforstatisticalmachinetranslation. In
+transducers. arXivpreprintarXiv:2010.01003. Proceedings of the 45th Annual Meeting of the As-
+sociationforComputationalLinguisticsCompanion
+Jindˇrich Helcl, Jindˇrich Libovický, and Dušan Variš. Volume Proceedings of the Demo and Poster Ses-
+2018. CUNI system for the WMT18 multimodal sions, pages177–180, Prague, CzechRepublic.As-
+translationtask. InProceedingsoftheThirdConfer- sociationforComputationalLinguistics.
+ence on Machine Translation: Shared Task Papers,
+pages 616–623, Belgium, Brussels. Association for PhilippKoehnandJoshSchroeder.2007. Experiments
+ComputationalLinguistics. indomainadaptationforstatisticalmachinetransla-
+tion. InProceedingsofthesecondworkshoponsta-
+Geoffrey Hinton, Li Deng, Dong Yu, George E Dahl, tisticalmachinetranslation,pages224–227.
+Abdel-rahman Mohamed, Navdeep Jaitly, Andrew
+Senior,VincentVanhoucke,PatrickNguyen,TaraN TakuKudoandJohnRichardson.2018. SentencePiece:
+Sainath, et al. 2012. Deep neural networks for A simple and language independent subword tok-
+acousticmodelinginspeechrecognition:Theshared enizeranddetokenizerforneuraltextprocessing. In
+viewsoffourresearchgroups. IEEESignalprocess- Proceedings of the 2018 Conference on Empirical
+ingmagazine,29(6):82–97. Methods in Natural Language Processing: System
+Demonstrations,pages66–71.
+TakaakiHori,ShinjiWatanabe,YuZhang,andWilliam
+Gaurav Kumar, Matt Post, Daniel Povey, and Sanjeev
+Chan.2017. AdvancesinjointCTC-attentionbased
+Khudanpur. 2014. Some insights from translating
+end-to-endspeechrecognitionwithadeepCNNen-
+conversational telephone speech. In IEEE Interna-
+coder and RNN-LM. In Proc. Interspeech 2017,
+tional Conference on Acoustics, Speech and Signal
+pages949–953.
+Processing,ICASSP2014,Florence,Italy,May4-9,
+KeHu,TaraNSainath,RuomingPang,andRohitPrab- 2014,pages3231–3235.IEEE.
+havalkar.2020. Deliberationmodelbasedtwo-pass
+Shankar Kumar, Yonggang Deng, and William Byrne.
+end-to-end speech recognition. In ICASSP 2020-
+2006. Aweightedfinitestatetransducertranslation
+2020 IEEE International Conference on Acoustics,
+template model for statistical machine translation.
+Speech and Signal Processing (ICASSP), pages
+NaturalLanguageEngineering,12(1):35–76.
+7799–7803.IEEE.
+Chih-HuaKuo.1995. Cohesionandcoherenceinaca-
+LiangHuangandDavidChiang.2007. ForestRescor-
+demic writing: From lexical choice to organization.
+ing: Fasterdecodingwithintegratedlanguagemod-
+RELCJournal,26(1):47–62.
+els. In Proceedings of the 45th Annual Meeting of
+theAssociationofComputationalLinguistics,pages BrendenMLake.2019. Compositionalgeneralization
+144–151, Prague, Czech Republic. Association for throughmetasequence-to-sequencelearning. InAd-
+ComputationalLinguistics. vances in Neural Information Processing Systems,
+pages9791–9801.
+HirofumiInaguma,ShunKiyono,KevinDuh,Shigeki
+Karita, Nelson Yalta, Tomoki Hayashi, and Shinji Brenden M. Lake and Marco Baroni. 2018. General-
+Watanabe. 2020. ESPnet-ST: All-in-one speech izationwithoutsystematicity: Onthecompositional
+translation toolkit. In Proceedings of the 58th An- skills of sequence-to-sequence recurrent networks.
+nual Meeting of the Association for Computational InProceedingsofthe35thInternationalConference
+Linguistics:SystemDemonstrations,pages302–311. on Machine Learning, ICML 2018, pages 2879–
+AssociationforComputationalLinguistics. 2888.PMLR.
+Patricia Johnson. 1992. Cohesion and coherence in Hang Le, Juan Pino, Changhan Wang, Jiatao Gu, Di-
+compositionsinMalayandEnglish. RELCJournal, dier Schwab, and Laurent Besacier. 2020. Dual-
+23(2):1–17. decoder transformer for joint automatic speech
+recognition and multilingual speech translation.
+SuyounKim,TakaakiHori,andShinjiWatanabe.2017. Proceedingsofthe28thInternationalConferenceon
+JointCTC-attentionbasedend-to-endspeechrecog- ComputationalLinguistics.
+nitionusingmulti-tasklearning. In2017IEEEinter-
+nationalconferenceonacoustics,speechandsignal AlexanderH.Levis,NevilleMoray,andBaoshengHu.
+processing(ICASSP),pages4835–4839.IEEE. 1994. Task decomposition and allocation problems
+anddiscreteeventsystems. Automatica,30(2):203–
+Diederik P. Kingma and Jimmy Ba. 2015. Adam: A 216.
+method for stochastic optimization. In 3rd Inter-
+national Conference on Learning Representations, Yuchen Liu, Jiajun Zhang, Hao Xiong, Long Zhou,
+ICLR2015. Zhongjun He, Hua Wu, Haifeng Wang, and
+Chengqing Zong. 2020a. Synchronous speech
+Philipp Koehn, Hieu Hoang, Alexandra Birch, Chris recognitionandspeech-to-texttranslationwithinter-
+Callison-Burch,MarcelloFederico,NicolaBertoldi, active decoding. In The Thirty-Fourth AAAI Con-
+Brooke Cowan, Wade Shen, Christine Moran, ferenceonArtificialIntelligence,AAAI2020,pages
+RichardZens,ChrisDyer,OndˇrejBojar,Alexandra 8417–8424.
+Zhiyuan Liu, Yankai Lin, and Maosong Sun. 2020b. N.Pham,Thai-SonNguyen,Thanh-LeHa,J.Hussain,
+Compositional Semantics, pages 43–57. Springer Felix Schneider, J. Niehues, Sebastian Stüker, and
+Singapore,Singapore. A. Waibel. 2019. The IWSLT 2019 KIT speech
+translation system. In International Workshop on
+Clara Meister, Tim Vieira, and Ryan Cotterell. 2020. SpokenLanguageTranslation(IWSLT).
+Best-firstbeamsearch. TransactionsoftheAssocia-
+tionforComputationalLinguistics,8:795–809. MattPost.2018. AcallforclarityinreportingBLEU
+scores. In Proceedings of the Third Conference on
+Bernd T Meyer, Sri Harish Mallidi, Angel Mario Cas- Machine Translation: Research Papers, pages 186–
+troMartinez,GuillermoPayá-Vayá,HendrikKayser, 191, Belgium, Brussels. Association for Computa-
+andHynekHermansky.2016. Performancemonitor- tionalLinguistics.
+ingforautomaticspeechrecognitioninnoisymulti-
+channel environments. In 2016 IEEE Spoken Lan- Matt Post, Gaurav Kumar, Adam Lopez, Damianos
+guageTechnologyWorkshop(SLT),pages50–56. Karakos, Chris Callison-Burch, and Sanjeev Khu-
+danpur. 2013. Improved speech-to-text transla-
+Mehryar Mohri, Fernando Pereira, and Michael Ri- tionwiththeFisherandCallhomeSpanish–English
+ley. 2002. Weighted finite-state transducers in speech translation corpus. In International Work-
+speechrecognition. ComputerSpeech&Language, shop on Spoken Language Translation (IWSLT
+16(1):69–88. 2013).
+Mathias Müller, Annette Rios, and Rico Sennrich. Vikas Raunak, Vaibhav Kumar, and Florian Metze.
+2020. Domain robustness in neural machine trans- 2019. Oncompositionalityinneuralmachinetrans-
+lation. In Proceedings of the 14th Conference of lation. NeurIPS Workshop, Context and Composi-
+theAssociationforMachineTranslationintheAmer- tionalityinBiologicalandArtificialNeuralSystems.
+icas, pages 151–164, Virtual. Association for Ma-
+Raj Reddy. 1988. Foundations and grand challenges
+chineTranslationintheAmericas.
+ofartificialintelligence: AAAIpresidentialaddress.
+Kenton Murray and David Chiang. 2018. Correcting AIMag.,9(4):9–21.
+length bias in neural machine translation. In Pro-
+Shruti Rijhwani, Antonios Anastasopoulos, and Gra-
+ceedingsoftheThirdConferenceonMachineTrans-
+hamNeubig.2020. OCRpostcorrectionforendan-
+lation: Research Papers, pages 212–223, Brussels,
+gered language texts. In Proceedings of the 2020
+Belgium.
+Conference on Empirical Methods in Natural Lan-
+guageProcessing(EMNLP),pages5931–5942,On-
+Nicholas A. Nystrom, Michael J. Levine, Ralph Z.
+line.AssociationforComputationalLinguistics.
+Roskies, and J. Ray Scott. 2015. Bridges: A
+uniquely flexible HPC resource for new commu-
+Tara N Sainath, Ruoming Pang, David Rybach,
+nities and data analytics. In Proceedings of the
+YanzhangHe,RohitPrabhavalkar,WeiLi,MirkóVi-
+2015 XSEDE Conference: Scientific Advancements
+sontai, Qiao Liang, Trevor Strohman, Yonghui Wu,
+EnabledbyEnhancedCyberinfrastructure.Associa-
+etal.2019. Two-passend-to-endspeechrecognition.
+tionforComputingMachinery.
+Proc.Interspeech2019,pages2773–2777.
+FranzJosefOchandHermannNey.2002. Discrimina-
+Elizabeth Salesky, Matthias Sperber, and Alan W
+tive training and maximum entropy models for sta-
+Black. 2019. Exploring Phoneme-Level Speech
+tistical machine translation. In Proceedings of the
+RepresentationsforEnd-to-EndSpeechTranslation.
+40th Annual meeting of the Association for Compu-
+In Proceedings of the 57th Annual Meeting of the
+tationalLinguistics,pages295–302.
+Association for Computational Linguistics, pages
+1835–1841,Florence,Italy.AssociationforCompu-
+KishorePapineni,SalimRoukos,ToddWard,andWei-
+tationalLinguistics.
+JingZhu.2002. BLEU:amethodforautomaticeval-
+uation of machine translation. In Proceedings of Lahiru Samarakoon, Brian Mak, and Albert YS
+the40thAnnualMeetingoftheAssociationforCom- Lam. 2018. Domain adaptation of end-to-end
+putationalLinguistics,pages311–318,Philadelphia, speech recognition in low-resource settings. In
+Pennsylvania,USA. 2018IEEESpokenLanguageTechnologyWorkshop
+(SLT),pages382–388.IEEE.
+DanielSPark,WilliamChan,YuZhang,Chung-Cheng
+Chiu, Barret Zoph, Ekin D Cubuk, and Quoc V Le. Hiroshi Seki, Takaaki Hori, Shinji Watanabe, Niko
+2019. SpecAugment: A simple data augmentation Moritz, and Jonathan Le Roux. 2019. Vectorized
+methodforautomaticspeechrecognition. Proc.In- beamsearchforCTC-attention-basedspeechrecog-
+terspeech2019,pages2613–2617. nition. In Proc. Interspeech 2019, pages 3825–
+3829.
+Vijayaditya Peddinti, Guoguo Chen, Vimal Manohar,
+Tom Ko, Daniel Povey, and Sanjeev Khudanpur. MatthewSnover,BonnieDorr,RichardSchwartz,Lin-
+2015. JHU ASpIRE system: Robust LVCSR with neaMicciulla,andJohnMakhoul.2006. Astudyof
+TDNNS, iVector adaptation and RNN-LMS. In translationeditratewithtargetedhumanannotation.
+2015 IEEE Workshop on Automatic Speech Recog- InProceedingsofAssociationforMachineTransla-
+nitionandUnderstanding(ASRU),pages539–546. tionintheAmericas.
+Pavel Sountsov and Sunita Sarawagi. 2016. Length In Proceedings of the Thirty-Second AAAI Confer-
+biasinencoderdecodermodelsandacaseforglobal ence on Artificial Intelligence, (AAAI-18), pages
+conditioning. In Proceedings of the 2016 Confer- 7371–7379.AAAIPress.
+ence on Empirical Methods in Natural Language
+Processing, pages1516–1525, Austin, Texas.Asso- Changhan Wang, Yun Tang, Xutai Ma, Anne Wu,
+Dmytro Okhonko, and Juan Pino. 2020a. Fairseq
+ciationforComputationalLinguistics.
+S2T: Fast speech-to-text modeling with fairseq. In
+Matthias Sperber, Graham Neubig, Jan Niehues, and Proceedingsofthe1stConferenceoftheAsia-Pacific
+AlexWaibel.2019. Attention-passingmodelsforro- Chapter of the Association for Computational Lin-
+bustanddata-efficientend-to-endspeechtranslation. guistics(AACL):SystemDemonstrations,pages33–
+Transactions of the Association for Computational 39.AssociationforComputationalLinguistics.
+Linguistics,7:313–325.
+Changhan Wang, Anne Wu, and Juan Pino. 2020b.
+Matthias Sperber and Matthias Paulik. 2020. Speech CoVoST 2: A massively multilingual speech-
+translationandtheend-to-endpromise:Takingstock to-text translation corpus. arXiv preprint
+of where we are. Proceedings of the 58th Annual arXiv:2007.10310.
+Meeting of the Association for Computational Lin-
+ChengyiWang,YuWu,ShujieLiu,ZhengluYang,and
+guistics.
+Ming Zhou. 2020c. Bridging the gap between pre-
+Ilya Sutskever, Oriol Vinyals, and Quoc V Le. 2014. trainingandfine-tuningforend-to-endspeechtrans-
+Sequencetosequencelearningwithneuralnetworks. lation. ProceedingsoftheAAAIConferenceonArti-
+In Advances in neural information processing sys- ficialIntelligence,34(05):9161–9168.
+tems,pages3104–3112.
+ShinjiWatanabe,TakaakiHori,ShigekiKarita,Tomoki
+ChristophTillmannandHermannNey.2003. Wordre- Hayashi, Jiro Nishitoba, Yuya Unno, Nelson En-
+ordering and a dynamic programming beam search rique Yalta Soplin, Jahn Heymann, Matthew Wies-
+algorithm for statistical machine translation. Com- ner, Nanxin Chen, Adithya Renduchintala, and
+putationallinguistics,29(1):97–133. Tsubasa Ochiai. 2018. ESPnet: End-to-end speech
+processingtoolkit. InProc.Interspeech2018,pages
+Shubham Toshniwal, Hao Tang, Liang Lu, and Karen 2207–2211.
+Livescu. 2017. Multitask learning with low-level
+Shinji Watanabe, Takaaki Hori, Suyoun Kim, John R.
+auxiliary tasks for encoder-decoder based speech
+Hershey, and Tomoki Hayashi. 2017. Hybrid
+recognition. InProc.Interspeech2017,pages3532–
+CTC/attention architecture for end-to-end speech
+3536.
+recognition. IEEEJournalofSelectedTopicsinSig-
+John Towns, Timothy Cockerill, Maytal Dahan, Ian nalProcessing,11(8):1240–1253.
+Foster,KellyGaither,AndrewGrimshaw,VictorHa-
+RonJ.Weiss,JanChorowski,NavdeepJaitly,Yonghui
+zlewood,ScottLathrop,DaveLifka,GregoryDPe-
+Wu, and Zhifeng Chen. 2017. Sequence-to-
+terson, et al. 2014. XSEDE: accelerating scientific
+sequence models can directly translate foreign
+discovery. Computing in science & engineering,
+speech. In Proc. Interspeech 2017, pages 2625–
+16(5):62–74.
+2629.
+Zhaopeng Tu, Yang Liu, Lifeng Shang, Xiaohua Liu,
+Sam Wiseman and Alexander M. Rush. 2016.
+andHangLi.2017. Neuralmachinetranslationwith
+Sequence-to-sequence learning as beam-search op-
+reconstruction. In Proceedings of the Thirty-First
+timization. In Proceedings of the 2016 Conference
+AAAI Conference on Artificial Intelligence, 2017,
+onEmpiricalMethodsinNaturalLanguageProcess-
+pages3097–3103.AAAIPress.
+ing, pages 1296–1306, Austin, Texas. Association
+EvelyneTzoukermannandCoreyMiller.2018. Evalu- forComputationalLinguistics.
+atingautomaticspeechrecognitionintranslation. In
+Yilin Yang, Liang Huang, and Mingbo Ma. 2018.
+Proceedings of the 13th Conference of the Associa-
+Breaking the beam search curse: A study of (re-
+tion for Machine Translation in the Americas (Vol-
+)scoring methods and stopping criteria for neural
+ume 2: User Track), pages 294–302, Boston, MA.
+machine translation. In Proceedings of the 2018
+Association for Machine Translation in the Ameri-
+Conference on Empirical Methods in Natural Lan-
+cas.
+guageProcessing, pages3054–3059, Brussels, Bel-
+gium.AssociationforComputationalLinguistics.
+Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob
+Uszkoreit, Llion Jones, Aidan N Gomez, Lukasz
+Chengqi Zhao, Mingxuan Wang, and Lei Li. 2020.
+Kaiser, and Illia Polosukhin. 2017. Attention is all
+NeurST: Neural speech translation toolkit. arXiv
+you need. In Advances in neural information pro-
+preprintarXiv:2012.10018.
+cessingsystems,pages5998–6008.
+Renjie Zheng, Junkun Chen, Mingbo Ma, and Liang
+Ashwin K. Vijayakumar, Michael Cogswell, Ram-
+Huang.2021. Fusedacousticandtextencodingfor
+prasaathR.Selvaraju,QingSun,StefanLee,DavidJ.
+multimodalbilingualpretrainingandspeechtransla-
+Crandall, and Dhruv Batra. 2018. Diverse beam
+tion. arXivpreprintarXiv:2102.05766.
+search for improved description of complex scenes.
+A Appendix English translation, but the model with Speech-
+Attention recovers by producing correct English
+A.1 TrainingandInferencehyperparameters
+translations despite mistakes in the Spanish tran-
+We tune training and inference hyperparameters scription. On the other hand, the model without
+using only the dev sets. We first determined the Speech-AttentionpropagatestheSpanishtranscrip-
+besthyperparametersforourbaselineEnc-Decim- tion errors into English translation errors. In the
+plementationandfixedallsettingsnotpertaining fourthexampleonlytheMulti-Decoderw/Speech-
+to the unique searchable hidden intermediates of AttentionmakesamistakeinSpanishtranscription,
+ourMulti-Decoder. Then,wefindthebesthyperpa- buttheEnglishtranslationstillrecovers.
+rametersforourproposedmodelsunderthesecon-
+straintstodemonstrateatruecomparisonagainst A.4 MuST-CDataSetupandModelDetails
+the baseline. For our Speech-Attention variant,
+Data: Weextendourapproachtootherlanguage
+we found that increasing attention dropout in the
+pairsfromtheMuST-Cspeechtranslationcorpus
+STsub-netdecoderto0.4improvedperformance,
+(Di Gangi et al., 2019). These are recordings of
+which we verified was not true for the vanilla
+TED talks in English with translations in various
+Multi-Decodermodel. Forourexternalmodelre-
+target languages. In our experiments we show
+scoring, we found that a CTC weight of 0.3 is
+results on two language pairs, namely, English-
+bestforallMulti-DecoderandMulti-Decoderw/
+GermanandEnglish-French. Weusetheprovided
+Speech-Attention. The best LM weight for the
+devsetfordecidingthetrainingandinferencehy-
+Multi-Decoderwas0.2,whilethebestLMweight
+perparameters, as mentioned in Appendix (A.1).
+for the Multi-Decoder w/ Speech-Attention was
+Wereportdetokenizedcase-sensitiveBLEU(Post,
+0.4. Forbothofthesere-scoringhyperparameters,
+2018) on the tst-COMMON set. We apply the
+wetried[0.2,0.3,0.4]. Fordecidingthebeamsize,
+same text processing as done in (Inaguma et al.,
+we use the experiment demonstrated in Figure 2
+2020)anduseajointsourceandtargetvocabulary
+whichusesbeamsizesof[1,4,8,10,16].
+of 8K byte pair encoding (BPE) units (Kudo and
+Richardson,2018). Similarto§5,weusetheES-
+A.2 Multi-DecoderSTPerformanceacross
+Pnet library to prepare the corpus, and apply the
+otherautomaticMTMetrics
+samedatapreparationandaugmentations.
+To supplement our overall ST results on the
+Fisher/CallHomecorpusinTable1,whichshows Multi-Decoder Configuration: For the MuST-
+BLEU scores, we also evaluated the same Multi- C experiments, we scaled our Multi-Decoder w/
+DecoderandBaselineEnc-Dec(OurImplementa- Speech-AttentionconfigfromtheFisher-CallHome
+tion)modelsontwoadditionalmetrics: METEOR experiments by increasing the ENCODER to
+ST
+(Banerjee and Lavie, 2005) and Translation Edit contain 4 transformer encoder blocks. We in-
+Rate (TER) (Snover et al., 2006). Performance creased the attention dim and attention heads of
+across all three metrics show consistent trends, theENCODER andDECODER to512dimen-
+ASR ASR
+withtheMulti-DecoderoutperformingtheBaseline sionand8headsrespectively,whileonlyincreasing
+Enc-Dec model on all metrics. We see that both theattentiondimensionto512forENCODER and
+ST
+theMulti-DecoderandMulti-Decoderw/Speech- DECODER . Thisincreasedthetotaltrainablepa-
+ST
+Attention models are improved through ASR Re- rametersto135M,whichwetrainedon4NVIDIA
+scoring. Further,themodelswithSpeech-Attention V-100 GPUs for ≈3 days. We also found that in-
+performbetterthanthosewithout. creasingtheattentiondropoutofASRdecoderto
+0.2helpedwiththeincreasedparameters. Wekept
+A.3 QualitativeExamplesofError
+theremainingdropoutparametersthesameasour
+PropagationAvoidance
+previousexperiments. Wealsokeeptheremaining
+To supplement our qualitative analysis of the er- trainingconfigurationsthesameliketheeffective
+ror propagation avoidance of the Multi-Decoder batch-size, learning rate and warmup steps, loss
+with Speech-Attention model in §6.1.4, we also weightingandSpecAugmentpolicy.
+showfourqualitativeexamplesinTable7. Inthe During inference, we use the same beam sizes
+firstthreeexamples,theMulti-DecoderandMulti- fromourFisher-CallHomeexperimentsandweper-
+DecoderwithSpeech-Attentionmodelsbothmake form a search across the length penalty and max
+thesamemistakesintheASRportionofSpanish- length ratio settings using the MuST-C dev sets.
+Model/Source ASROutput STOutput
+Ground-Truth ... porquetengo amisdoshijos acá ... becauseihave mytwochildren here
+Multi-Decoder ... porquetengo misdoshijos acá ... becauseihave twokids here
++Speech-Attention ... porquetengo misdoshijos acá ... becauseihave mytwochildren here
+Ground-Truth puedesayudarparaque sehagajusticia másrápido youcanhelp sothatjustice isservedquickly
+Multi-Decoder puedesayudarparaque seajusticia másrápido youcanhelp soit’s faster
++Speech-Attention puedesayudarparaque seajusticia másrápido youcanhelp sothatit’s faster justice
+Ground-Truth pero tiene muchascosasmuybonitas but thereare manybeautifulthings
+Multi-Decoder pero tienen muchascosasmuybonitas but theyhave alotofnicethings
++Speech-Attention pero tienen muchascosasmuybonitas but thereare manyverybeautifulthings
+Ground-Truth acampar irapescaryiralasmontañasaesquiar camping andfishingandgoingtothemountainstoski
+Multi-Decoder acampar yapescaryydelasmontañasesquiar camping andfishingandandthemountainsskiing
++Speech-Attention acampar yirapescaryiralasmontañasaesquiar camping andgofishingandgotothemountainstoski
+Table7: ExampleswheretheMulti-DecoderandMulti-Decoderw/Speech-Attentionmodelsmakeerrorsinthe
+ASR portion of Spanish-English ST. In these cases the Speech-Attention component alleviates ASR error prop-
+agation, producing correct translations despite mistakes in transcription. Words that are transcribed/translated
+correctlyarehighlightedin green andthosethatareincorrectarein pink.
+Fishertest CallHometest
+Model BLEU(↑) METEOR(↑) TER(↓) BLEU(↑) METEOR(↑) TER(↓)
+BaselineEnc-Dec 49.5 37.9 42.7 18.2 22.9 68.7
+Multi-Decoder 52.6 39.7 40.5 20.1 24.6 66.5
++ASRRe-scoring 53.7 40.0 39.6 20.8 24.9 65.3
++Speech-Attention 54.1 40.2 39.2 21.4 25.2 65.3
++ASRRe-scoring 55.0 40.4 38.5 21.5 25.4 64.2
+Table 8: Results presenting the performance of our Baseline Enc-Dec implementation and our Multi-Decoder
+models as evaluated by three metrics: BLEU, METEOR, and Translation Edit Rate (TER). These are the same
+modelsasinTable1,whichusesBLEU.AllresultsarefromtheFisher-CallHomeSpanish-Englishtestcorpus.
+In the intermediate ASR beam search we use a
+lengthpenaltyof0.1and0.2forEnglish-German
+andEnglish-Frenchrespectively. IntheSTbeam
+searchweuseamaxlengthratioof0.3andlength
+penalties of 0.6 and 0.5 for English-German and
+English-Frenchrespectively. Forourexperiments
+with ASR re-scoring, we use a LM weight of 0.1
+andaCTCweightof0.1. Inthesere-scoringexper-
+imentswealsosettheASRlengthpenaltyto 0.6
+andtheSTlengthpenaltyto0.5,whileincreasing
+theSTmaxlengthratioto0.5. TheLMsusedwere
+trainedontheEnglishtranscriptsoftheMuST-C
+English-GermanandEnglish-Frenchcorpora,with
+devperplexitiesof32.7and23.2respectively.

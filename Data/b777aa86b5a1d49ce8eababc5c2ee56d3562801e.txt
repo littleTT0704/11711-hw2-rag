@@ -1,0 +1,928 @@
+The Framework Tax:
+Disparities Between Inference Efficiency in NLP Research and Deployment
+JaredFernandez1 JacobKahn3 ClaraNa1 YonatanBisk1 EmmaStrubell1,2
+1LanguageTechnologiesInstitute,CarnegieMellonUniversity
+2 AllenInstituteforArtificialIntelligence 3FAIR
+{jaredfern, strubell}@cmu.edu, {csna, ybisk}@cs.cmu.edu, jacobkahn@fb.com
+Abstract
+Increasedfocusonthecomputationalefficiency
+ofNLPsystemshasmotivatedthedesignofef-
+ficientmodelarchitecturesandimprovements
+to underlying hardware accelerators. How-
+MACS are not
+ever,theresultingincreasesincomputational proportional to
+throughputandreductionsinfloatingpointop- Latency
+erationshavenotdirectlytranslatedtoimprove-
+ments in wall-clock inference latency. We
+demonstrate that these discrepancies can be
+largelyattributedtobottlenecksintroducedby
+deep learning frameworks. We denote this
+phenomenon as the framework tax, and ob-
+serve that the disparity is growing as hard-
+Figure1:Latencyasafunctionofamodel’smultiplyac-
+warespeedincreasesovertime. Inthiswork,
+cumulateoperations(MACs)onanNvidia2080tiGPU.
+we examine this phenomenon through a se-
+Expectedrelationshipsdonothold;modelcomplexity
+ries of case studies analyzing the effects of
+andhardwarecapabilitiesfailtopredictlatencydueto
+modeldesigndecisions,frameworkparadigms,
+framework-boundedness.
+andhardwareplatformsontotalmodellatency.
+Code is available at https://github.com/
+JaredFern/Framework-Tax.
+to make up 80 to 90% of ML cloud computing
+1 Introduction demand(Barr,2019;Leopold,2019). Intheseset-
+tings,metricsofmodelspeedsuchaslatencyand
+Natural language processing systems have bene-
+throughput are essential for inference workloads
+fited from improvements in performance driven
+thataresubjecttorealwall-clocktimeconstraints
+by scaling of training data and number of model
+suchasreal-timenaturallanguagegenerationand
+parameters (Kaplan et al., 2020; Alabdulmohsin
+automatedspeechrecognition(Reddietal.,2020).
+etal.,2022;Tayetal.,2021,2022). However,the
+These concerns have motivated research in de-
+accompanyingincreasesincomputationraisecon-
+signingmoreefficientneuralnetworkmodelarchi-
+cerns as to the efficiency of these systems due to
+tectures and faster hardware accelerators. In the
+associatedenvironmentalcostsofdevelopmentand
+past five years alone, the number of papers that
+deployment(Schwartzetal.,2020;Strubelletal.,
+mentionthetermsefficientorefficiencyintopma-
+2019).
+chinelearningvenueshasgrownbyover2.5xand
+Inparticular,efficiencyisespeciallyimportant
+evenmoresoatvenuesinnaturallanguageprocess-
+in inference settings where models are used re-
+ing,increasingby8.3xinthesamespan.1 Thishas
+peatedlyandatscale,incontrasttotrainingwhich
+spurredinnovationsinthedesignofefficientneu-
+posesasingleupfrontcomputationalcost. Forex-
+ral network architectures for language aiming to
+ample,Metareportsthatinferenceworkloadsmake
+reducethenumberoftrainablemodelparameters,
+up 70% of their AI power consumption, with the
+floating point or multiply-accumulate operations
+remaining 30% due to training and development
+(MACs)(Iandolaetal.,2020;Daietal.,2020;Sun
+(Wuetal.,2022),whileGoogleattributes60%of
+their ML energy consumption to inference (Pat-
+1BasedonpublicationsatML(ICLR,ICML,NeurIPS)
+terson et al., 2022). Inference is also estimated andNLPconferences(ACL,EMNLP)between2017and2022
+3202
+ceD
+22
+]GL.sc[
+2v71160.2032:viXra
+etal.,2020). Overthesameperiod,GPUhardware lutionalneuralnewtorkmodelsineagerexecution
+acceleratorshaveseensimilarperformancegains PyTorch, just-in-time compiled TorchScript, and
+with the number of floating point operations per ahead-of-time compiled ONNX runtime using a
+second(FLOPS)growingbyover175%.2 CUDAexecutionprovider. Weperformourstudy
+Despitethisprogress,thesupposedgainsoffered acrosssevendifferentGPUsfromthePascal,Tur-
+by higher performance hardware and more effi- ing,andAmpereNvidiaGPUmicroarchitectures.
+cient models are often not realized in inference Based on our findings, we provide a series of
+settings,wherewall-clockmodelspeedhasnotre- recommendationsforNLPresearchersandpracti-
+liably improved, as seen in Figure 1. We show tionerspresentedthroughacollectionofcasestud-
+thatthismisalignmentisprimarilyattributableto ies. Amongthese,werecommendusageofstatic
+overhead incurred by deep learning frameworks or ahead-of-time inference runtimes when batch
+usedtoimplementandexecutemodels. Inthepast, sizes are small as they can substantially reduce
+theexecutionoflargeneuralnetworkscommonto framework overhead. Alternatively, when using
+naturallanguageprocessinghasbeenassumedto eager execution-based frameworks for inference,
+becompute-boundedbycomputationallyintensive we recommend increasing model width or batch
+tensor operations (Li et al., 2020). However, as sizeatnocosttolatencyandtakeadvantageofper-
+thespeedofhardwareincreases,theoverheadin- formance gains associated with increased model
+troducedbythedeeplearningframeworksusedto capacity(ZagoruykoandKomodakis,2016). For
+implement and deploy these models is no longer example,hiddendimensionsinself-attentionand
+negligibleandimposesbottlenecksoninference. fullyconnectedlayerscanbedoubledtoincrease
+Inthiswork,weconductasystematicinvestiga- model capacity without affecting latency, imply-
+tioninwhichweshowthatimprovementstoneural ing that model designers have an extra degree of
+networkarchitecturesandhardwarehavenottrans- freedomoftenoverlookedwhendesigningaround
+latedintoreductionsininferencelatency. Weshow parameters or FLOPs. We hope that our analy-
+thatthisbreakdownislargelyduetooverheadin- sisandrecommendationswillhelpbridgethegap
+troducedbydeeplearningframeworks. Wereferto betweenefficientNLPresearchandpractice.
+thisphenomenonastheframeworktax,andshow
+2 RelatedWork
+that it exists across all deep learning framework
+paradigms(e.g. eagerexecution,just-in-time,and
+2.1 EfficiencyMetrics&CostIndicators
+ahead-of-timecompilation).
+Previous efforts to report efficiency often utilize
+At small batch sizes and sequence lengths, we
+proxymetricsforamountofcomputation,suchas
+showthatfixedframeworkoverheaddominatesin-
+thenumberoffloatingpoint(FLOPs)ormultiply-
+ferencetimeleadingproxymeasurementsofmodel
+accumulate (MACs) operations (Schwartz et al.,
+efficiency,suchasMACsandparametercount,to
+2020). Similarly,numberoftrainableparametersis
+breakdownaspredictorsofinferencelatency. Fur-
+afrequentlyreportedasaproxyformemoryutiliza-
+thermore,wenotethatexistingeffortstoimprove
+tion(Lanetal.,2019). Unfortunately,theseproxy
+modelefficiencybydesigninglowerFLOPmodel
+metrics are often not predictive of realworld effi-
+architecturesandfasterGPUkernelsdonotreduce
+ciency. Forexample,totalFLOPsdoesnotaccount
+latency,whentotalexecutionisboundbyfixed-cost
+forthevaryingextenttowhichdifferentoperations
+framework overhead. Moreover, we note that as
+canbeparallelizedandtechniquessuchasweight
+hardwareperformanceincreases,NLPsystemswill
+tyingcanreduceparametercountswithoutreduc-
+become increasingly framework-bound at larger
+ingtheamountofrequiredcomputation(Lanetal.,
+batchsizes.
+2019). Fromtheperspectiveofdeviceutilization,
+Anexhaustivecomparisonoftherapidlygrow-
+hardwareandmodelFLOPsutilization(Chowdh-
+ingspaceofmodelsandhardwareplatformsisout
+eryetal.,2022)arereportedastheratiobetween
+ofscope,soweinsteadidentifythemostpopular
+observedFLOPspersecondandahardwareplat-
+model components, inference environments, and
+formspeaktheoreticalFLOPs.
+hardwareacceleratorsfortesting(i.e. isolatingthe
+Previous works examining the relationship be-
+cases most likely to mislead a practitioner). We
+tween efficiency measures showed that different
+analyzetheperformanceoftransformerandconvo-
+costindicatorsdonotcorrelatewellwitheachother
+2PertheoreticalFLOPSofNvidiaGPUs(2017-2022). during neural network training (Dehghani et al.,
+2021). Inparticular,ithasbeenhypothesizedthat stractawaytheunderlyingframeworks,compilers,
+discrepanciesbetweenFLOPsandwallclockinfer- backends,andhardwareplatforms. Whilegeneral
+ence latency is primarily are primarily compute improvements in hardware and software kernels
+boundedbykernelexecutionormemory-boundby mayleadtoimprovementsacrossallmodels,ithas
+data movement as opposed to framework bottle- been argued that solely focusing on performance
+necks (Langerman et al., 2020). These previous optimization of a limited set of model architec-
+workshavelargelyfocusedonconvolutionalneural turesandruntimesmayleadtooverspecialization
+networks(CNNs)incomputervision. Weextend (Hooker,2021).
+these analyses to the inference setting and study Previous analysis of the computational proper-
+transformer-based neural networks for NLP, and ties of hardware accelerators has largely focused
+showthatFLOP-basedproxymetricsbreakdown onthetrainingsettinginwhichlargerkernelsand
+for due to additional performance bottlenecks in- batchsizeshideframeworkoverheadthatemerges
+troducedbydeeplearningframeworks. in the inference setting (Wang et al., 2020c; Zhu
+et al., 2020, 2018). Other analyses of end-to-end
+2.2 EfficientModelDesign
+systemsanalyseshasprimarilyfocusedondomain-
+Desiretodevelopcomputationallyefficientmodels specificapplicationsinreinforcementlearningand
+forlanguageprocessinghasledtothedevelopment recommendationsystems(Gleesonetal.,2021;Lin
+of a variety of model architectures that achieve etal.,2022),wheresimulationandmemoryaccess
+comparable task performance under fixed FLOP dominateexecutiontime. Additionally,theseprior
+budgets. For example, compression of input se- effortsarerestrictedtosmallsetsofreferencemod-
+quencesandintermediaterepresentationshasbeen elsandhavenotdirectlyexaminedtherelationship
+usedtoreducethecomputationalcostoflongtext betweenmodelarchitecturesandplatforms.
+sequences (Dai et al., 2020; Goyal et al., 2020)
+and distillation has been used to reduce model 3 Preliminaries
+size (Sanh et al., 2019; Hou et al., 2020). Other
+3.1 NeuralNetworkFrameworks
+work has sought to design efficient model archi-
+tectures by developing low-FLOP substitutes for Totakeadvantageofmassivelyparallelhardware
+standard,denseself-attentionandconvolutionop- accelerators,inferencewithvariablelengthtextand
+erations (Iandola et al., 2016; Zhang et al., 2018; speechsequencesarepaddedtofixedlengthtensors
+Sandleretal.,2018;Sunetal.,2020;Xiongetal., thatareprocessedwithneuralnetworkframeworks.
+2021;Wangetal.,2020b). These frameworks provide implementations and
+Additionally, directefficiencymetrics, suchas APIs for tensor operations, gradient calculation,
+wall-clocklatencyandenergyusagehavebeenin- andconstructionofneuralnetworkcomputational
+corporated into the objectives of neural architec- graphs. Frameworksgenerallyfallintothefollow-
+turesearch(NAS)andAutoMLmethods(Wuetal., ingdesignparadigms(Kahnetal.,2022):
+2019;Tanetal.,2019;Wangetal.,2020a). Man-
+Eager Execution: The computational graph is
+ual inspection of the learned models shows that
+constructed from a series of operations that are
+NAS often implicitly learns to take advantage of
+executedassoonascalledfromaninterpreter. Ex-
+supportedparallelism,learningwiderarchitectures
+amplesinclude: PyTorch(Paszkeetal.,2019)and
+on GPU devices and deeper models on CPU de-
+Chainer(Tokuietal.,2015).
+vices (Cai et al., 2018; Tan et al., 2019; Sandler
+et al., 2018). However, it is often impossible to
+DeferredExecution: Aseriesofoperationsare
+controlforthehardwaresystemsusedforcollect-
+definedandexecutedonsampledatatogeneratea
+ingthesemetricsleadingtoconclusionsthatmay
+dataflowgraphthatcanthenbejust-in-time(JiT)
+notgeneralizeacrossdeploymentsettings.
+compiled. Examples include: TorchScript, Jax
+(Bradbury et al., 2018), Theano (Al-Rfou et al.,
+2.3 PlatformPerformanceAnalysis
+2016),Caffe(Jiaetal.,2014).
+Effortstoestablishcommonbenchmarksleverage
+referencemodelsandhardwareplatformswithtar- Static: Thecomputationalgraphispre-defined,
+getlatencyoraccuracy(Reddietal.,2020;Zhou compiled, and executed inside a specialized run-
+et al., 2020). Although these efforts have led to time;allowingforaggressive,globalahead-of-time
+improvementinend-to-endlatency,theyoftenab- (AoT)compileroptimizations. Examplesinclude:
+CPU LL aa yu en rc h 1 Launch Layer 2 Launch Layer 3 Launch Layer 4 0.030 T Co Ut Dal A M Ko ed re nl e L l a Et xe en cc uy tion Time
+Framework Overhead
+GPU
+Compute Compute Compute Compute
+Kernel 1 Kernel 2 Kernel 3 Kernel 4 0.025
+Time
+0.020
+CPU
+Launch Layer 1 Launch Layer 2 Launch Layer 3 Launch Layer 4
+0.015
+GPU Compute Compute Compute Compute 0.010
+Kernel 1 Kernel 2 Kernel 3 Kernel 4
+0.005
+Figure2: Profileswhereexecutionisframeworkbound
+0 10 20 30 40 50 60
+byCPUkerneldispatchoperations(above)andcompute-
+Batch Size
+boundbyGPUkerneloperations(below). Smallcom-
+pute kernels occur in inference at lower batch sizes. Figure 3: Framework overhead of BERT-Base in Py-
+Boxeswithdashedlinesrepresentframeworkoverhead. Torch for various batch sizes on an RTX-8000. Al-
+thoughsmallbatchsizesrequirefewerFLOPs,thesere-
+ductionsdonottranslatetospeedupsinlatency. Frame-
+ONNX Runtime, TensorFlow 1.0, MXNet, Ten- workoverheadissubstantialatlowbatchsizesbutonly
+sorRT,andTVM(Chenetal.,2015,2018). asmallconstantatlargebatchsizes.
+Eagerexecutionframeworkscomputeeachlayer
+asseparateoperationswhicheachincuradditional
+SeeFigure3(Aminabadietal.,2022).
+overhead from CPU kernel dispatches. To accel-
+Kernelserializationwithoptimizationssuchas
+erate execution, deferred execution and static in-
+CUDAGraphsremovetheoverheadfrommultiple
+ferenceframeworkscompiletheneuralnetwork’s
+kernel dispatches by capturing and replaying the
+computational graph to combine multiple opera-
+entire computational graph as a single operation.
+tions together (e.g. fusing attention layers and
+However,kernelserializationrequiresthatmodels
+GELU activations) or remove unnecessary com-
+are graph safe (i.e. static shapes and static con-
+putation (i.e. scalar folding). Removal of kernel
+trolflow). ThiscanposechallengesforNLPsys-
+launchoperationscanreducethememoryfootprint
+temswhichoftenleveragedynamiccomputational
+andresultinmoreefficientkernels,thusdecreasing
+graphstodealwithvariablelengthsequences,parse
+overallframeworkoverhead.
+treedepths,andbatchsizes(Looksetal.,2017).
+Whiledeferredandstaticframeworksarecom-
+WhentheexecutionofGPUkernelcomputation
+monly used in deployment settings, the NLP re-
+islargelyblockedbyCPUframeworkoperations
+search community relies heavily on eager mode
+such as kernel dispatches, the model’s execution
+frameworksduringthedevelopmentofnewmod-
+becomesframework-bound. Inthissetting,latency
+elsfortheireaseofuse. Thisfurtherexacerbates
+is constant regardless of batch size or number of
+thecommunitydivide,wheremodelsaredesigned
+MACscomputed. Forsettingswherelatencyisde-
+underdifferentassumptionsthandeployed.
+pendentontheexecutionofcomputationalkernels
+3.2 FrameworkOverhead anddatamovement,modelsarecompute-bound.
+Deep learning frameworks asynchronously dis-
+4 Experiments
+patch computation for execution on highly paral-
+lelizedhardwareaccelerators,asshowninFigure Weevaluatemodelsframeworksfromeachofthe
+2. Forsufficientlylargecomputekernels,suchas major paradigms: eager execution PyTorch, de-
+those during training, models achieve near max- ferred execution TorchScript, and statically com-
+imum GPU utilization – measured as the differ- piledONNXRuntimewithaCUDAbackend.
+encebetweentotalexecutiontimeandactiveGPU We use PyTorch 1.12.1 with CUDA 11.6 and
+time(Zhuetal.,2018). However,duringinference, Python3.8.13. WeuseONNXRuntime1.7.0with
+smallerinputsizesleadtosuboptimalGPUutiliza- CUDA11.1.1andcuDNNv8.0.4.3. Baselineexper-
+tionastherapidexecutingkernelsdonotsaturate imentsarerunonacomputenodewithanNvidia
+thefixedcostframeworkoverheadincurredfrom RTX-8000GPUandanIntelXeonE5-2630CPU
+CPUoperationssuchaskernellaunch,graphcon- with32GBofDDRAMmemory.
+struction,controlflow,anddevicesynchronization; We measure latency, GPU utilization over a
+ycnetaL
+ResNet-50 (fp32) ResNet-50 (fp16) BERT (fp32) BERT (fp16) BERT (fp16)
+101
+101 PyTorch
+TorchScript
+101 ONNX Runtime
+102 102
+102
+102
+102
+100 101 102 100 101 102 100 101 102 100 101 102 100 101 102
+Batch Size Batch Size Batch Size Batch Size Sequence Length
+Figure 4: Latency vs. (batch size and sequence lengths) for baseline models in FP16 and FP32 on RTX-8000.
+Frameworkboundednessexistsforallmodelsatsmallinputsizeswhereframeworkoverheaddominatesruntime
+andresultsinconstantlatencyregardlessofinputsize. Frameworkoverheadismostprominentinsmallermodels
+executedinhalfprecisiononslowerframeworks.
+rangeofbatchsizestocapturecommoninference to overtake fixed framework overhead. As a re-
+use cases as stated in (Reddi et al., 2020): sin- sult,halfprecisioninferenceisframeworkbound
+gle example inferences is common in streaming for larger batch sizes. For inference with larger
+on-deviceapplications,suchasautocompleteand compute-bound batch sizes, latency observes ex-
+automaticspeechrecognition;largebatchinference pectedspeedupsfromusinghalfprecision.
+istypicalinofflineserversettings. Although models based on convolutions
+We simulate text data by randomly generating (ResNet-50) and self-attention (BERT-Base)
+tokensequencesoflength128,ascommonlyused operationsbothexhibitframework-boundbehavior,
+in sentence classification tasks (Liu et al., 2019; theytransitiontocomputeboundednessatdifferent
+Izsak et al., 2021). We report averaged metrics batchsizes. Thedifferenceinmodelbehaviorcan
+from100forwardpassesafter10warm-uppasses be attributed to differences in the rate at which
+toinitializemodelweightsanddata. GPUcoreand computekernelsovertakeCPUdispatchoperations.
+memoryutilizationaremeasuredwiththeNvidia Forthewell-optimizedoperations(Conv2Dsand
+NsightComputeandNvidiaManagementLibrary. GEMMs)thatmakeupResNet-50andBERT,the
+WeselectBERT-Base(Devlinetal.,2018)and timeperFLOPisreasonablyconsistent.
+ResNet-50(Heetal.,2016)asrepresentativemod-
+elsforencoder-onlyandconvolutionalneuralnet- 4.1 FrameworkDesignDecisions
+work architectures commonly used for sentence
+InFigure4,weobservethatframeworksfromall
+andimageclassificationtasks(Reddietal.,2020;
+executionparadigmsexhibitframeworkboundbe-
+JanapaReddietal.,2022). Weevaluatemodelar-
+haviors. However,deferredexecutionTorchScript
+chitecturesfornaturallanguagegeneration,speech,
+and static ONNX Runtime, which support com-
+and vision and show that they all observe frame-
+putational graph compilation (e.g. operator fu-
+workboundbehaviorinAppendicesC,DandE.
+sion),exhibitlessframeworkoverheadandprovide
+Analysis The number of FLOPs required for speedupsovereagerPyTorch. Theseincreasesare
+model inference scales with the input batch size especially pronounced at low batch sizes where
+and sequence length. As such, one would expect inference is framework-bound. For batch size 1,
+thatlatencyscalesaccordinglyaswell. However, TorchScriptandONNXprovideanaverageFP16
+as seen in Figure 4, models exhibits framework speed up of 34.16% and 71.38% over PyTorch,
+boundednessforbothsmallsequencelengthsand respectively. As batch sizes increase and models
+batchsizes,wherelatencyisconstantregardlessof become compute bound, there is minimal differ-
+inputsize. enceinlatencyacrossframeworksasthemajority
+Computation with mixed and half precision ofexecutiontimeisspentonkernelexecution.
+(FP16) often increases training throughput over Additionally, we consider both static, serial-
+single precision (FP32), we observe that frame- izedCUDAgraphsandPyTorchBetterTransformer
+work overhead results in latency bottlenecks re- frameworkoptimizationsinFigure5. BetterTrans-
+gardlessoftheprecisionduringinference. Ashalf formerprovidesspeedupsthroughadditionalkernel
+precisioncomputationisfasterduetoreduceddata fusionandsparsetensoroperationsthattakeadvan-
+movement,GPUkernelexecutiontimetakeslonger tageofsparsesequencelengthsandpaddingtokens
+)s(
+ycnetaL
+10 1
+PyTorch
+Nested Tensors
+CUDA Graphs
+10 2
+Figure 6: Comparison of latency for BERT variants
+thatscalemodelwidthanddepth. Increasesinmodel
+100 101 102
+depthaddmoreframeworkoverhead,whereasincreases
+Batch Size
+in model width lead to faster transitions to compute
+Figure5: Differentframeworkoptimizationsleadtola-
+boundedness.
+tencyimprovementsindifferentregimesforBERT-Base.
+CUDAGraphkernelserializationreduceslaunchover-
+headintheframeworkboundregime,whereassparse Wecompareourbaselinemodelstovariantsthat
+computationreduceslatencyatlargerbatchsizes. scale both model width and depth. We examine
+12-layerBERT-Baseagainstits6-layerDistilBERT
+(Sanhetal.,2019)variantandexperimentacross
+toremoveredundantcomputation.
+parameterizedBERTmodels,varyingthenumber
+To construct sparse inputs, we simulate sam-
+of encoder layers as well as width of their fully
+plesbygeneratingvariablelengthsequencesand
+connectedandself-attentionlayers.
+paddingtothemaximumsequencelengthof128.
+Sentencesarerandomlygeneratedaccordingtothe Analysis Whenscalingmodeldepth,weobserve
+sequencelengthdistributionofthePennTreebank thatlatencyincreasesinboththeframework-and
+(Taylor et al., 2003), with an average length of compute-bound regimes as each added layer op-
+20.92andastandarddeviationof10.18tokens. erationrequiresanadditionalCPU-GPUdispatch.
+Deepermodelvariantshavealargerfixedlatency
+Analysis UtilizationofCUDAGraphssubstan-
+intheframework-boundregimeasseeninFigure6.
+tiallyreducelatencyatlowbatchsizeswheninfer-
+Counter-intuitively,widermodelvariationssee
+enceisboundedbyframeworkoverheadfromker-
+noincreaseinlatencyatlowbatchsizes. Asmodel
+nellaunches. However,atlargerbatchsizes,nested
+executionisframeworkbound,totalruntimeiscon-
+tensoroperationscanleveragesparsityinpadded
+stantdespitewideroperationsrequiringmorefloat-
+variable sequence lengths to provide substantial
+ingpointoperations. Instead,increasedper-layer
+latency reductions when inference is compute-
+kernel execution time causes these wider models
+bounded.
+tobecomecompute-boundatlowerbatchsizes. In
+the compute-bound regime, latency scales more
+4.2 ModelDesignDecisions
+rapidlywithbatchsizeforwidemodels.
+Weexamineavarietyofcommonmodelarchitec-
+4.2.2 DownsamplingandHierarchicalPooling
+ture design decisions and investigate their align-
+ment with commonly reported efficiency proxies
+andempiricallyobservedlatency.
+4.2.1 ScalingModelDepth&Width
+Assumption Scaling the dimensionality and
+number of hidden layers is commonly used in
+NLP and computer vision as a means to explore
+tradeoffs between model performance and com-
+putationalrequirements(Heetal.,2016;Touvron
+Figure7:ComparisonofBERTandFunnelTransformer
+et al., 2021; Zhou et al., 2021). Recent work has latency. Despite using fewer total MAC operations,
+shownthatmodelend-taskperformancescalesdif- Funnel is slower than BERT for inference due to the
+ferently along each axis (Tay et al., 2021, 2022; introductionofadditionalintermediatepoolinglayers.
+Nguyenetal.,2021).
+)s(
+ycnetaL
+Assumption Self-attentionlayersinTransformer Assumption Modelarchitecturesthattargetde-
+architectures are notoriously computationally ex- ploymentonedgedevices,suchasmobilephones,
+pensive as their complexity scales quadratically areoftendesignedtodecreasethetotalnumberof
+with input sequence length. To reduce this com- FLOPs or MACs under the assumption that such
+putationalbottleneck,researchershavedeveloped reductionstranslatetodecreasedlatency. Towards
+efficienttransformerarchitecturesthatseektore- thisend,operationssuchasgroupedconvolutions
+ducesequencelengthsviamethodssuchasdown- (Zhangetal.,2018;Iandolaetal.,2020),inverted
+sampling, low rank approximations, and locality residual bottlenecks (MBConvs) (Sandler et al.,
+sensitive hashing (Dai et al., 2020; Kitaev et al., 2018;Sunetal.,2020),andsqueezeandexcitation
+2020;Wangetal.,2020b;Xiongetal.,2021). layers(Iandolaetal.,2016)haveallbeenproposed
+We examine the performance of the Funnel assubstitutesfordenseconvolution,self-attention,
+Transformerwhichappliesaveragepoolingtoper- andlinearoperations. However,inpracticethese
+formsequencelengthreductionevery4layers. The operationsoftenlackthehighlyoptimizedframe-
+modelachievescomparableaccuracytoBERTon work and hardware support developed for more
+downstreamtaskswhilerequiring42%fewertotal standardoperationsandasaresultexhibithigher
+MAC operations through sequence length reduc- per-floplatencyandpoormemoryutilization.
+tion. Thismodelachievessimilardownstreamtask We examine this assumption with models that
+performancetoBERT-Baseandtrains33%faster use grouped convolutions in SqueezeBERT (Ian-
+basedonwall-clocktime. dola et al., 2020) inverted bottleneck layers and
+MobileBERT(Sunetal.,2020).
+Analysis WhileFunnelTransformerreducesto-
+Analysis To achieve comparable accuracy on
+talFLOPsandobtainssubstantialspeedupsinlarge-
+downstreamlanguagetaskswithlow-FLOPopera-
+scale training, this speedup does not translate to
+tions,efficientBERTvariantsrequiremuchdeeper
+increasedspeedofinferenceasseeninFigure7. In
+modelarchitectureswhichresultsinmuchhigher
+practice,theaveragepoolinglayersusedtoperform
+fixedframeworkoverheadasseeninFigure8. Ad-
+sequence length reductions add additional opera-
+ditionally, these models exhibit worse FLOP per
+tions to the computation graph and increase the
+secondduetopoormemoryutilizationcompared
+model’sframeworkoverhead. Atlowbatchsizes,
+to conventional dense linear and convolution op-
+FunnelTransformerisframeworkboundatamuch
+erations. Theseoperationscanleadtoslowdowns
+higherlatencythanBERT,andremainsslowereven
+indeploymentsettingswheredepthwiseandpoint-
+atlargerbatchsizes. Whilesomearchitecturalinno-
+wiseconvolutionsmayhavelimitedhardwareand
+vationsdecreasethetotalnumberofmodelFLOPs,
+frameworkbackendsupport.3
+someapproachesincreasethesizeoftensoropera-
+torgraphs(e.g. vis-a-visadditionallayers)which
+4.3 HardwareConsiderations
+canultimatelyincreaseinferencelatency.
+100
+4.2.3 EfficientMobileArchitectures Nvidia 1080Ti
+Nvidia 2080Ti
+Nvidia 3090
+Nvidia V100
+10 1 Nvidia A100
+10 1
+10 2 10 2
+100 101 102 100 101 102
+Batch Size Batch Size
+Figure 9: Framework overhead occurs across genera-
+tionsofGPUhardware,withincreasingprominenceas
+Figure8: LatencyofTransformermodelsusingefficient
+hardwarespeedsincreasewithnewergenerations.
+variationsofconvolutionandself-attentionoperations.
+Allofthevariantsobservelowerlatencyatlargebatch
+sizes,buthaveworseFLOPutilization. EfficientTrans- InFigure9,weobservethatframework-bounded
+former variants are slower than BERT at small batch behaviorsduringinferenceacrossmultiplegener-
+sizesduetotheintroductionofmorelayers.
+3Pointwiseconvolutionsareoftenmemory-bound:https:
+//pytorch.org/tutorials/recipes/recipes/tuning_guide.html
+)s(
+ycnetaL
+ations of consumer, workstation, and datacenter Dynamic computational graphs can be faster
+NvidiaGPUs. Asthespeedoftheacceleratorin- forinputsentenceswithvariablelengths. Dy-
+creases, the relative execution speed of the com- namic computational graphs can leverage input
+pute kernels decreases while the total framework sparsity to reduce latency when processing vari-
+overhead due to CPU kernel dispatch operations ablelengthtext. Forexample,PyTorchwithsparse
+remainsconstant. WeobservethatGPUsthatlack tensor optimizations reduces the latency of static
+TensorCoresupportforhalfprecisionoperations, CUDAgraphsby80.56%atbatchsize128when
+such as the 1080Ti, are notably slower and less processingsparseinputs.
+framework-boundthannewerGPUs. Conversely,
+Atlargeinputsizes,frameworkoverheadfrom
+thisleadsfasterGPUs,suchastheRTX3090and
+graphoperationsisnegligible. Forbatchsizes
+the A100, to remain framework bound at larger
+larger than 16, we find that there is minimal la-
+batchsizesforbothResNet-50andBERT.These
+tencydifferenceacrossmodels,inferenceruntimes,
+observations indicate that framework bounds on
+and frameworks. In the compute-bound regime,
+modelexecutionwillcontinuetoworsenashard-
+numberofFLOPsisstillapoorlatencypredictor
+wareimprovesunlessdeeplearningframeworksare
+duetovariableexecutiontimefordifferentopera-
+commensurately improved. For example, BERT-
+tions. Forexample,efficientmobilearchitectures
+Base is not framework bound for older 1080Ti
+that depend on inverted-residual layers are mem-
+GPUsbutisonnewer3090GPUs.
+oryinefficientandaremuchslowerper-FLOPthan
+Framework boundedness is mainly caused by
+standardconvolutionandlinearlayers.
+bottlenecksduetoCPUdispatchoperations. Asa
+result,thefixedlatencyforframework-boundmod- Forframework-boundmodels,modeldepthisa
+elsisaproductoftheentiresystemconfiguration, reasonableproxyforlatency. Numberoffloat-
+dependentonhardwarespecificationssuchasCPU ingpointoperationsisapoorindicatoroflatency
+and memory speeds. In contrast, the latency of in a framework-bound setting, as total runtime
+compute-bound models is mainly determined by is generally constant and tied to framework over-
+the properties of kernels: operation type, kernel headsandthesizeofthecomputationalgraph. In
+size,andtheirsupportedGPUFLOPspersecond framework-boundmodels,thesizeofthecomputa-
+—withfasterGPUsyieldingfasterexecution. Ad- tionalgraphisrelatedtomodeldepth.
+ditionaldetailsonhardwaresystemconfigurations
+areprovidedinAppendixA. Estimations of latency for models deployed in
+productionsettingsmustaccountfortheirtarget
+frameworkandhardwareplatform. Modelde-
+5 Discussion
+velopmentfrequentlyoccursusingeagerexecution
+researchframeworks. However,deploymentoften
+Computational graph optimizations and com-
+occursininferenceruntimesandonmobiledevices
+pilationimprovelatency. Removalofhostlan-
+or specialized hardware. This misalignment can
+guagedependenciesandgraphoptimizationspro-
+misleadthedevelopmentof“efficient”modelsand
+videssubstantialspeedupsovereagerframeworks
+resultinclaimedgainsthatdonottranslatetoreal-
+for inference at low batch sizes. However, fea-
+world deployment settings. As such, researchers
+ture completeness for operators and control flow
+shouldbeclearinspecifyingthesettingoftheir“ef-
+variesacrossgraphoptimizersandcompilers. For
+ficiency"gains,suchasthetargetframeworksand
+example, theFNetarchitecture(Lee-Thorpetal.,
+hardwareplatform,whendevelopingnewmethods.
+2021) relies on FFTs as a deterministic swap-in
+Forexample,techniquessuchashardware-aware
+forself-attention. FFToperationsarenotcurrently
+neural architecture search which leverage direct
+supportedbyONNXorTorchScriptAsexpected,
+latencymeasuresmustalsocontrolforframework
+FNetexecutedinPyTorchoutperformsBERTexe-
+choicestoaccountforthismismatch.
+cutedinONNXdespitelessframeworkoverhead
+andnumerousstaticoptimizations–witha10.31% Throughput and input size can be increased
+speedup at batch size 1. For improvements in re- at minimal cost for framework-bound models.
+searchtotranslatetodeployment,additionalinvest- For a given model, latency is constant regardless
+mentcanbedirectedtowardssupportforcomplex of batch size until compute kernels saturate and
+controlflowandoperatorsininferenceruntimes. exceed CPU launch costs. If computation is bot-
+SADim FCDim Batch Seq Latency TP ResNet-50),weshowthatallmodelsexhibitframe-
+workboundedness. Additionally,weobservethat
+768 3072 1 128 0.0136 0.0136
+768 3072 4 128 0.0134 0.0034 theseinefficienciesarebecomingmoreapparentas
+768 3072 1 512 0.0134 0.0134
+hardwareacceleratorspeedsincrease.
+1536 6144 1 128 0.0134 0.0134
+Weintroducetheconceptoftheframeworktax
+Table1:Latencyandthroughput(TP)ofBERTPyTorch todescribewhenimprovementsinhardwarespeed
+models on RTX-8000. Scaling along batch sizes and andreductionsinrequiredcomputationfailtotrans-
+modelwidthshowsnoincreaseinlatency. latetospeedupsinmodellatencyandthroughput
+duetobottlenecksincurredbydeeplearningframe-
+works. Wehopethattheseobservationsraiseaware-
+tleneckedbyframeworkoverhead, thebatchsize
+nessoftheimpactandlimitationscreatedbychoice
+orinputsizecanbeincreasedwithoutincreasesin
+of deep learning frameworks on model develop-
+overallruntime. Inpractice,thiscanleadtothepro-
+mentanddeployment.
+cessingoflargerbatchsizesandsequencelengths
+atnoadditionallatencycostuntilkerneloperations 7 Limitations
+saturateframeworkoverhead.
+Inthiswork,westudytheinferenceefficiencyof
+Model width can be increased at no cost for
+speechandlanguagemodelsusingGPUhardware
+framework-bound models. For a given batch
+accelerators. While GPUs are the most common
+size,individuallayersofaframeworkboundmodel
+general purpose hardware accelerators, there ex-
+canbemadewiderbyincreasinghiddendimension
+ist domain specific architectures such as Google
+orfiltersizewithoutimpactinglatency. Widermod-
+TPU’s,GraphCoreIPUs,andcustomASICswhich
+els are known to exhibit better task performance
+presentadditionalsettingsforfutureinvestigation.
+duetoincreasedparametercountandexpressivity
+Additionally, our study evaluates efficiency via
+(ZagoruykoandKomodakis,2016).
+model latency and our claims do not necessarily
+Model designers can leverage wider architec-
+translate to other metrics of efficiency, such as
+tures with their target inference framework and
+powerconsumptionorpoweroutput.
+hardwaresettinginmindtoachievehigherutiliza-
+Asmodelscontinuetoscaleinsize,theyoften
+tion. For example, models processing few exam-
+requiremodelordataparallelismtechniquesthat
+plesduringinferencecanleveragewiderlayersto
+require computation across several nodes which
+avoidframeworkbottlenecks. SeeTable1.
+introduceoverheadfrommulti-devicesynchroniza-
+tionandnetworkcommunication. Additionally,we
+Using higher-performing hardware does not
+donotstudylatencyinthetrainingsettingwhere
+necessarily improve end-to-end performance.
+theper-layercomputationislargerduetothecom-
+Frameworkoverheadlimitstheimpactofimproved
+putationofgradientsandlosses.
+hardwareasitlimitsutilization. Thistrendwillcon-
+tinueasML-specifichardwareadvanceswithoutef-
+Acknowledgements
+fortstoaddresssoftwarebottlenecks. Forexample,
+single-exampleinferencewithbothBERTisslower This work was supported in part by a grant
+using an A100 than using a V100 GPU despite a from the National Science Foundation Graduate
+2.75xincreaseinpeakcomputationalthroughput. Research Fellowship Program under Grant No.
+DGE2140739. Wethanktheanonymousreviewers
+6 Conclusion
+for their valuable feedback. We would also like
+tothanklabmembersandfacultyforhelpfulfeed-
+Weconductanextensivestudyofneuralnetworks
+back during discussions and revisions, including:
+from the convolutional and transformer architec-
+DanielFried,HanGuo,JeremiahMilbauer,Sanket
+ture paradigms across a variety of software and
+VaibhavMehta,andSaujasVaduguru.
+hardware platforms. We show that inference per-
+formed with these large neural networks, which
+was previously assumed to be compute bounded,
+References
+is in fact limited by overhead incurred by deep
+Rami Al-Rfou, Guillaume Alain, Amjad Almahairi,
+learningframeworks. Whilewidertransformerar-
+ChristofAngermueller,DzmitryBahdanau,Nicolas
+chitectures(e.g. BERT-Base)exhibitlessbounded-
+Ballas,FrédéricBastien,JustinBayer,AnatolyBe-
+ness behaviors than narrower, deeper CNNs (e.g. likov,AlexanderBelopolsky,etal.2016. Theano: A
+pythonframeworkforfastcomputationofmathemat- MostafaDehghani,AnuragArnab,LucasBeyer,Ashish
+icalexpressions. arXive-prints,pagesarXiv–1605. Vaswani,andYiTay.2021. Theefficiencymisnomer.
+arXivpreprintarXiv:2110.12894.
+Ibrahim M Alabdulmohsin, Behnam Neyshabur, and
+XiaohuaZhai.2022. Revisitingneuralscalinglaws Jacob Devlin, Ming-Wei Chang, Kenton Lee, and
+inlanguageandvision. AdvancesinNeuralInforma- KristinaToutanova.2018. Bert: Pre-trainingofdeep
+tionProcessingSystems,35:22300–22312. bidirectionaltransformersforlanguageunderstand-
+ing. arXivpreprintarXiv:1810.04805.
+RezaYazdaniAminabadi,SamyamRajbhandari,Am-
+mar Ahmad Awan, Cheng Li, Du Li, Elton Zheng, JamesGleeson,MosheGabel,GennadyPekhimenko,
+OlatunjiRuwase,ShadenSmith,MinjiaZhang,Jeff Eyal de Lara, Srivatsan Krishnan, and Vijay
+Rasley,etal.2022. Deepspeed-inference: enabling JanapaReddi.2021. Rl-scope: Cross-stackprofiling
+efficientinferenceoftransformermodelsatunprece- fordeepreinforcementlearningworkloads. Proceed-
+dented scale. In Proceedings of the International ingsofMachineLearningandSystems,3:783–799.
+ConferenceonHighPerformanceComputing, Net-
+working,StorageandAnalysis,pages1–15. Saurabh Goyal, Anamitra Roy Choudhury, Saurabh
+Raje,VenkatesanChakaravarthy,YogishSabharwal,
+Jeff Barr. 2019. Amazon ec2 update-infl instances andAshishVerma.2020. Power-bert: Accelerating
+withawsinferentiachipsforhighperformancecost- bertinferenceviaprogressiveword-vectorelimina-
+effectiveinferencing. tion. InInternationalConferenceonMachineLearn-
+ing,pages3690–3699.PMLR.
+James Bradbury, Roy Frostig, Peter Hawkins,
+Matthew James Johnson, Chris Leary, Dougal KaimingHe,XiangyuZhang,ShaoqingRen,andJian
+Maclaurin, George Necula, Adam Paszke, Jake Sun.2016. Deepresiduallearningforimagerecog-
+VanderPlas, Skye Wanderman-Milne, and Qiao nition. In Proceedings of the IEEE conference on
+Zhang.2018. JAX:composabletransformationsof computervisionandpatternrecognition,pages770–
+Python+NumPyprograms. 778.
+Han Cai, Ligeng Zhu, and Song Han. 2018. Proxy- SaraHooker.2021. Thehardwarelottery. Communica-
+lessnas: Directneuralarchitecturesearchontarget tionsoftheACM,64(12):58–65.
+taskandhardware. InInternationalConferenceon
+LearningRepresentations. LuHou,ZhiqiHuang,LifengShang,XinJiang,Xiao
+Chen,andQunLiu.2020. Dynabert: Dynamicbert
+Sanyuan Chen, Chengyi Wang, Zhengyang Chen, withadaptivewidthanddepth. AdvancesinNeural
+YuWu,ShujieLiu,ZhuoChen,JinyuLi,Naoyuki InformationProcessingSystems,33:9782–9793.
+Kanda, Takuya Yoshioka, Xiong Xiao, et al. 2022.
+Wavlm: Large-scaleself-supervisedpre-trainingfor ForrestNIandola,SongHan,MatthewWMoskewicz,
+full stack speech processing. IEEE Journal of Se- Khalid Ashraf, William J Dally, and Kurt Keutzer.
+lectedTopicsinSignalProcessing,16(6):1505–1518. 2016. Squeezenet: Alexnet-levelaccuracywith50x
+fewer parameters and< 0.5 mb model size. arXiv
+Tianqi Chen, Mu Li, Yutian Li, Min Lin, Naiyan preprintarXiv:1602.07360.
+Wang,MinjieWang,TianjunXiao,BingXu,Chiyuan
+Zhang, and Zheng Zhang. 2015. Mxnet: A flexi- Forrest NIandola, AlbertE Shaw, RaviKrishna, and
+ble and efficient machine learning library for het- Kurt W Keutzer. 2020. Squeezebert: What can
+erogeneous distributed systems. arXiv preprint computervisionteachnlpaboutefficientneuralnet-
+arXiv:1512.01274. works? arXivpreprintarXiv:2006.11316.
+TianqiChen,ThierryMoreau,ZihengJiang,Lianmin PeterIzsak,MosheBerchansky,andOmerLevy.2021.
+Zheng,EddieYan,HaichenShen,MeghanCowan, Howtotrainbertwithanacademicbudget. InPro-
+Leyuan Wang, Yuwei Hu, Luis Ceze, et al. 2018. ceedingsofthe2021ConferenceonEmpiricalMeth-
+{TVM}: An automated {End-to-End} optimizing odsinNaturalLanguageProcessing,pages10644–
+compilerfordeeplearning. In13thUSENIXSympo- 10652.
+siumonOperatingSystemsDesignandImplementa-
+VijayJanapaReddi,DavidKanter,PeterMattson,Jared
+tion(OSDI18),pages578–594.
+Duke, Thai Nguyen, Ramesh Chukka, Ken Shir-
+AakankshaChowdhery,SharanNarang,JacobDevlin, ing,Koan-SinTan,MarkCharlebois,WilliamChou,
+Maarten Bosma, Gaurav Mishra, Adam Roberts, et al. 2022. Mlperf mobile inference benchmark:
+Paul Barham, Hyung Won Chung, Charles Sutton, Anindustry-standardopen-sourcemachinelearning
+Sebastian Gehrmann, et al. 2022. Palm: Scaling benchmarkforon-deviceai. ProceedingsofMachine
+language modeling with pathways. arXiv preprint LearningandSystems,4:352–369.
+arXiv:2204.02311.
+YangqingJia,EvanShelhamer,JeffDonahue,Sergey
+ZihangDai,GuokunLai,YimingYang,andQuocLe. Karayev, Jonathan Long, Ross Girshick, Sergio
+2020. Funnel-transformer: Filteringoutsequential Guadarrama,andTrevorDarrell.2014. Caffe: Con-
+redundancy for efficient language processing. Ad- volutionalarchitectureforfastfeatureembedding. In
+vances in neural information processing systems, Proceedingsofthe22ndACMinternationalconfer-
+33:4271–4282. enceonMultimedia,pages675–678.
+Jacob D Kahn, Vineel Pratap, Tatiana Likhoma- Thao Nguyen, Maithra Raghu, and Simon Kornblith.
+nenko,QiantongXu,AwniHannun,JeffCai,Paden 2021. Do wide and deep networks learn the same
+Tomasello,AnnLee,EdouardGrave,GiladAvidov, things? uncoveringhowneuralnetworkrepresenta-
+etal.2022. Flashlight: Enablinginnovationintools tions vary with width and depth. In International
+formachinelearning. InInternationalConference ConferenceonLearningRepresentations.
+onMachineLearning,pages10557–10574.PMLR.
+Adam Paszke, Sam Gross, Francisco Massa, Adam
+JaredKaplan,SamMcCandlish,TomHenighan,TomB Lerer, James Bradbury, Gregory Chanan, Trevor
+Brown,BenjaminChess,RewonChild,ScottGray, Killeen, Zeming Lin, Natalia Gimelshein, Luca
+AlecRadford,JeffreyWu,andDarioAmodei.2020. Antiga, et al. 2019. Pytorch: An imperative style,
+Scaling laws for neural language models. arXiv high-performancedeeplearninglibrary. Advancesin
+preprintarXiv:2001.08361. neuralinformationprocessingsystems,32.
+David Patterson, Joseph Gonzalez, Urs Hölzle, Quoc
+Nikita Kitaev, Łukasz Kaiser, and Anselm Levskaya.
+Le, Chen Liang, Lluis-Miquel Munguia, Daniel
+2020. Reformer: The efficient transformer. arXiv
+Rothchild,DavidR.So,MaudTexier,andJeffDean.
+preprintarXiv:2001.04451.
+2022. Thecarbonfootprintofmachinelearningtrain-
+ingwillplateau,thenshrink. Computer,55(7):18–
+Zhenzhong Lan, Mingda Chen, Sebastian Goodman,
+28.
+Kevin Gimpel, Piyush Sharma, and Radu Soricut.
+2019. Albert: Alitebertforself-supervisedlearn-
+Vijay Janapa Reddi, Christine Cheng, David Kanter,
+ing of language representations. arXiv preprint
+PeterMattson,GuentherSchmuelling,Carole-Jean
+arXiv:1909.11942.
+Wu, Brian Anderson, Maximilien Breughe, Mark
+Charlebois,WilliamChou,etal.2020. Mlperfinfer-
+DavidLangerman, AlexJohnson, KyleBuettner, and
+encebenchmark. In2020ACM/IEEE47thAnnual
+Alan D George. 2020. Beyond floating-point ops:
+InternationalSymposiumonComputerArchitecture
+Cnn performance prediction with critical datapath
+(ISCA),pages446–459.IEEE.
+length. In 2020 IEEE High Performance Extreme
+ComputingConference(HPEC),pages1–9.IEEE. Mark Sandler, Andrew Howard, Menglong Zhu, An-
+dreyZhmoginov,andLiang-ChiehChen.2018. Mo-
+James Lee-Thorp, Joshua Ainslie, Ilya Eckstein, and bilenetv2: Invertedresidualsandlinearbottlenecks.
+SantiagoOntanon.2021. Fnet: Mixingtokenswith InProceedingsoftheIEEEconferenceoncomputer
+fouriertransforms. arXivpreprintarXiv:2105.03824. visionandpatternrecognition,pages4510–4520.
+George Leopold. 2019. Aws to offer nvidia’s t4 Victor Sanh, Lysandre Debut, Julien Chaumond, and
+gpusforaiinferencing. URL:https://web.archive. Thomas Wolf. 2019. Distilbert, a distilled version
+org/web/20220309000921/https://www. hpcwire. of bert: smaller, faster, cheaper and lighter. arXiv
+com/2019/03/19/aws-upgrades-its-gpu-backed-ai- preprintarXiv:1910.01108.
+inference-platform/(visitedon2022-04-19).
+RoySchwartz,JesseDodge,NoahASmith,andOren
+Cheng Li, Abdul Dakkak, Jinjun Xiong, Wei Wei, Etzioni. 2020. Green ai. Communications of the
+LingjieXu,andWen-meiHwu.2020. Xsp: Across- ACM,63(12):54–63.
+stackprofilingandanalysisofmachinelearningmod-
+EmmaStrubell,AnanyaGanesh,andAndrewMcCal-
+elsongpus. In2020IEEEInternationalParalleland
+lum. 2019. Energy and policy considerations for
+DistributedProcessingSymposium(IPDPS),pages
+deep learning in NLP. In Proceedings of the 57th
+326–327.IEEE.
+AnnualMeetingoftheAssociationforComputational
+Linguistics,pages3645–3650,Florence,Italy.Asso-
+ZhongyiLin,LouisFeng,EhsanKArdestani,Jaewon
+ciationforComputationalLinguistics.
+Lee,JohnLundell,ChangkyuKim,ArunKejariwal,
+andJohnDOwens.2022. Buildingaperformance
+ZhiqingSun,HongkunYu,XiaodanSong,RenjieLiu,
+modelfordeeplearningrecommendationmodeltrain-
+YimingYang,andDennyZhou.2020. Mobilebert: a
+ingongpus. arXivpreprintarXiv:2201.07821.
+compacttask-agnosticbertforresource-limitedde-
+vices. arXivpreprintarXiv:2004.02984.
+YinhanLiu,MyleOtt,NamanGoyal,JingfeiDu,Man-
+dar Joshi, Danqi Chen, Omer Levy, Mike Lewis, MingxingTan,BoChen,RuomingPang,VijayVasude-
+Luke Zettlemoyer, and Veselin Stoyanov. 2019. van,MarkSandler,AndrewHoward,andQuocVLe.
+Roberta: A robustly optimized bert pretraining ap- 2019. Mnasnet: Platform-awareneuralarchitecture
+proach. arXivpreprintarXiv:1907.11692. searchformobile. InProceedingsoftheIEEE/CVF
+ConferenceonComputerVisionandPatternRecog-
+MosheLooks,MarcelloHerreshoff,DeLesleyHutchins, nition,pages2820–2828.
+andPeterNorvig.2017. Deeplearningwithdynamic
+computationgraphs. In5thInternationalConference YiTay,MostafaDehghani,SamiraAbnar,HyungWon
+on Learning Representations, ICLR 2017, Toulon, Chung,WilliamFedus,JinfengRao,SharanNarang,
+France, April 24-26, 2017, Conference Track Pro- VinhQTran,DaniYogatama,andDonaldMetzler.
+ceedings.OpenReview.net. 2022. Scaling laws vs model architectures: How
+doesinductivebiasinfluencescaling? arXivpreprint theAAAIConferenceonArtificialIntelligence,vol-
+arXiv:2207.10551. ume35,pages14138–14148.
+YiTay,MostafaDehghani,JinfengRao,WilliamFedus, SergeyZagoruykoandNikosKomodakis.2016. Wide
+SamiraAbnar,HyungWonChung,SharanNarang, residualnetworks. arXivpreprintarXiv:1605.07146.
+DaniYogatama,AshishVaswani,andDonaldMet-
+XiangyuZhang,XinyuZhou,MengxiaoLin,andJian
+zler. 2021. Scale efficiently: Insights from pre-
+Sun.2018. Shufflenet: Anextremelyefficientcon-
+trainingandfine-tuningtransformers. arXivpreprint
+volutional neural network for mobile devices. In
+arXiv:2109.10686.
+Proceedings of the IEEE conference on computer
+visionandpatternrecognition,pages6848–6856.
+Ann Taylor, Mitchell Marcus, and Beatrice Santorini.
+2003. Thepenntreebank: anoverview. Treebanks:
+DaquanZhou,BingyiKang,XiaojieJin,LinjieYang,
+Buildingandusingparsedcorpora,pages5–22.
+XiaochenLian,ZihangJiang,QibinHou,andJiashi
+Feng.2021. Deepvit: Towardsdeepervisiontrans-
+SeiyaTokui,KentaOono,ShoheiHido,andJustinClay-
+former. arXivpreprintarXiv:2103.11886.
+ton.2015. Chainer: anext-generationopensource
+frameworkfordeeplearning. InProceedingsofwork- Xiyou Zhou, Zhiyu Chen, Xiaoyong Jin, and
+shoponmachinelearningsystems(LearningSys)in William Yang Wang. 2020. Hulk: An en-
+thetwenty-ninthannualconferenceonneuralinfor- ergy efficiency benchmark platform for responsi-
+mationprocessingsystems(NIPS),volume5,pages ble natural language processing. arXiv preprint
+1–6. arXiv:2002.05829.
+HugoTouvron,MatthieuCord,AlexandreSablayrolles, HongyuZhu,MohamedAkrout,BojianZheng,Andrew
+Gabriel Synnaeve, and Hervé Jégou. 2021. Going Pelegris,AmarPhanishayee,BiancaSchroeder,and
+deeperwithimagetransformers. InProceedingsof Gennady Pekhimenko. 2018. Tbd: Benchmarking
+the IEEE/CVF International Conference on Com- andanalyzingdeepneuralnetworktraining. arXiv
+puterVision,pages32–42. preprintarXiv:1803.06905.
+Hanrui Wang, Zhanghao Wu, Zhijian Liu, Han Cai, HongyuZhu,AmarPhanishayee,andGennadyPekhi-
+LigengZhu,ChuangGan,andSongHan.2020a. Hat: menko. 2020. Daydream: Accurately estimat-
+Hardware-awaretransformersforefficientnaturallan- ing the efficacy of optimizations for {DNN} train-
+guageprocessing. arXivpreprintarXiv:2005.14187. ing. In2020USENIXAnnualTechnicalConference
+(USENIXATC20),pages337–352.
+SinongWang,BelindaZLi,MadianKhabsa,HanFang,
+andHaoMa.2020b. Linformer: Self-attentionwith
+A HardwarePlatforms
+linearcomplexity. arXivpreprintarXiv:2006.04768.
+Fulldetailsforthevarioushardwareplatformsand
+YuWang,Gu-YeonWei,andDavidBrooks.2020c. A
+systematicmethodologyforanalysisofdeeplearning GPUs used for evaluation in Section 4.3 are de-
+hardware and software platforms. Proceedings of scribedinTable2.
+MachineLearningandSystems,2:30–43.
+B HardwareandUtilization
+Bichen Wu, Xiaoliang Dai, Peizhao Zhang, Yanghan
+Wang,FeiSun,YimingWu,YuandongTian,Peter InTable3,weexamineGPUhardwareutilization
+Vajda,YangqingJia,andKurtKeutzer.2019. Fbnet:
+ofvariousframeworksintermsofthepercentageof
+Hardware-awareefficientconvnetdesignviadiffer-
+entiableneuralarchitecturesearch. InProceedingsof SMsactive(i.e. numberofcomputeunitsutilized)
+theIEEE/CVFConferenceonComputerVisionand andwarpoccupancy(i.e. amountoftimeeachcom-
+PatternRecognition,pages10734–10742. pute unit is active). Graph compilations and ker-
+nel serialization reduce framework overhead and
+Carole-Jean Wu, Ramya Raghavendra, Udit Gupta,
+BilgeAcun,NewshaArdalani,KiwanMaeng,Glo- increasehardwareutilization. Allframeworksob-
+ria Chang, Fiona Aga, Jinshi Huang, Charles Bai, servesuboptimalhardwareutilization
+MichaelGschwind,AnuragGupta,MyleOtt,Anas-
+tasia Melnikov, Salvatore Candido, David Brooks, C AdditionalExperiments: Natural
+GeetaChauhan,BenjaminLee,Hsien-HsinLee,Bu-
+LanguageGeneration
+graAkyildiz,MaximilianBalandat,JoeSpisak,Ravi
+Jain,MikeRabbat,andKimHazelwood.2022. Sus-
+InFigure10,weexaminetheGPT-2decoder-only
+tainableai: Environmentalimplications,challenges
+transformermodelarchitectureandobservethatas
+andopportunities. InProceedingsofMachineLearn-
+ingandSystems,volume4,pages795–813. withencoder-onlyarchitecturesgenerativemodels
+encounterframeworkboundednessforsmallinput
+YunyangXiong,ZhanpengZeng,RudrasisChakraborty,
+sizes. Evaluationsareperformedacrossbatchsizes
+MingxingTan,GlennFung,YinLi,andVikasSingh.
+from1to128andafixedgenerationlengthof16
+2021. Nyströmformer: Anyström-basedalgorithm
+forapproximatingself-attention. InProceedingsof tokens.
+CPU GPU GPUArch CoreCount Tensor ClockRate Memory Mem BW FP16
+Cores (GHz) (GB) (GB/s) TFLOPS
+IntelXeonSilver4110 1080Ti Pascal 3584 - 1.38 11 484.4 22.78
+IntelXeonGold6242 V100 Volta 5120 640 1.23 32 897 28.26
+IntelXeonE5-2630 2080Ti Turing 3584 544 1.35 11 616 26.90
+IntelXeonE5-2630 RTX-8000 Turing 4608 576 1.40 48 672 32.62
+AMDEPYC7282 3090 Ampere 10496 328 1.35 24 936 35.89
+IntelXeonSilver4110 A6000 Ampere 10752 336 1.41 48 768 38.71
+IntelXeon8339HC A100 Ampere 6912 432 1.215 40 1935 77.97
+Table2: Detailsonhardwareplatformsusedinourexperiments,orderedbyNvidiamicroarchitecturegeneration.
+Framework GraphCompilation KernelSerialization Latency SMsActive WarpOccupancy
+PyTorch None None 10.54ms 2.6% 0.9%
+PyTorchwithTorchScript Just-in-Time None 6.14ms 18.5% 3.0%
+PyTorchwithCUDAGraphs None Yes 2.82ms 57% 9.2%
+ONNXRT Ahead-of-Time None 2.56ms 22.3% 9.5%
+ONNXRTwithCUDAGraphs Ahead-of-Time Yes 2.11ms 59% 20.3%
+Table3: ComparisonofSMActivityAcrossFrameworksforBERT-Baseatbatchsize1.
+Figure 12: Latency of vision models using efficient
+variationsofconvolutionandself-attentionoperations.
+E AdditionalExperiments: Speech
+Figure10: Latencyofgenerativelanguagemodelsfor
+In Figure 13, we examine the behavior of the
+varyingbatchsizes.
+WavLM(Chenetal.,2022)modelwhichconsists
+ofaCNNencoderfollowedbytransformerencoder
+D AdditionalExperiments: Vision
+layers. Audio inputs are simulated as 2 second
+sequences sampled at 16 kHz to create 32,000-
+In Figures 11 and 12, we examine vision models dimensional floating point inputs. In Figure 13,
+utilizing“efficient"modeldesignchoicesthrough weobservethatWavLMexhibitsframeworkbound
+scalingandefficientoperationvariants. Imagein- behaviorbutquicklytransitionstobeingcompute-
+putsaresimulated byrandomlygeneratingthree- boundduetothelargeaudiosequencelengths.
+channel224x224RGBimages. Aswithlanguage
+models,deepermodelsintroduceadditionalframe- WavLM (fp16) WavLM (fp32)
+PyTorch
+workoverheadandlow-FLOPalternativesaremore 101 TorchScript
+frameworkbound.
+101
+102 102
+100 101 102 100 101 102
+Batch Size Batch Size
+Figure 13: Transformer-based speech models exhibit
+framework boundedness but transition to compute-
+boundatsmallbatchsizesduetolongsequencelengths.
+Figure11: Latencyofvisionmodelsthatscalemodel
+depthandnumberofhiddendimensions.
+)s(
+ycnetaL

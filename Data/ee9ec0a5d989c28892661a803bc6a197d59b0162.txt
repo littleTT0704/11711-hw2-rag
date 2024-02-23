@@ -1,0 +1,415 @@
+QCMUQ@QALB-2015 Shared Task: Combining Character level MT and
+Error-tolerant Finite-State Recognition for Arabic Spelling Correction
+HoudaBouamor1,HassanSajjad2,NadirDurrani2 andKemalOflazer1
+1CarnegieMellonUniversityinQatar
+hbouamor@qatar.cmu.edu, ko@cs.cmu.edu
+2QatarComputingResearchInstitute
+{hsajjad,ndurrani}@qf.org.qa
+Abstract correction (Mohit et al., 2014) has been estab-
+lished recently. Its goal is to develop and evalu-
+WedescribetheCMU-QandQCRI’sjoint ate spelling correction systems for Arabic trained
+efforts in building a spelling correction eitheronnaturallyoccurringerrorsintextwritten
+system for Arabic in the QALB 2015 by humans or machines. Similar to the first ver-
+Shared Task. Our system is based on a sion, in this task participants are asked to imple-
+hybrid pipeline that combines rule-based ment a system that takes as input MSA (Modern
+linguistictechniqueswithstatisticalmeth- Standard Arabic) text with various spelling errors
+odsusinglanguagemodelingandmachine andautomaticallycorrectit. Inthisyear’sedition,
+translation, as well as an error-tolerant participants areasked totest their systemson two
+finite-state automata method. We trained textgenres: (i)newscorpus(mainlynewswireex-
+andtestedourspellingcorrectorusingthe tractedfromAljazeera); (ii)acorpusofsentences
+dataset provided by the shared task orga- written by learners of Arabic as a Second Lan-
+nizers. Our system outperforms the base- guage (ASL). Texts produced by learners of ASL
+line system and yeilds better correction generallycontainanumberofspellingerrors. The
+quality with an F-score of 68.12 on L1- mainproblemfacedbythemisusingArabicwith
+test-2015testsetand38.90ontheL2-test- vocabulary and grammar rules that are different
+2015. Thisranksus2ndintheL2subtask fromtheirnativelanguage.
+and5thintheL1subtask. In this paper, we describe our Arabic spelling
+correction system. Our system is based on a
+1 Introduction
+hybrid pipeline which combines rule-based tech-
+niques with statistical methods using language
+Withtheincreasedusageofcomputersinthepro-
+modeling and machine translation, as well as an
+cessing of various languages comes the need for
+error-tolerant finite-state automata method. We
+correcting errors introduced at different stages.
+trained and tested our spelling corrector using the
+Hence, the topic of text correction has seen a lot
+dataset provided by the shared task organizers
+of interest in the past several years (Haddad and
+Arabic (Rozovskaya et al., 2015). Our systems
+Yaseen, 2007; Rozovskaya et al., 2013). Nu-
+outperformthebaselineandachievebettercorrec-
+merous approaches have been explored to cor-
+tionqualitywithanF-scoreof68.42%onthe2014
+rect spelling errors in texts using NLP tools and
+testsetand44.02%ontheL2Dev.
+resources (Kukich, 1992; Oflazer, 1996). The
+spelling correction for Arabic is an understud-
+2 DataResources
+ied problem in comparison to English, although
+small amount of research has been done previ- QALB: We trained and evaluated our system
+ously (Shaalan et al., 2003; Hassan et al., 2008). using the data provided for the shared task and
+The reason for this is the complexity of Arabic the m2Scorer (Dahlmeier and Ng, 2012). These
+languageandunavailabilityoflanguageresources. datasets are extracted from the QALB corpus
+Forexample,theArabicspellcheckerinMicrosoft of human-edited Arabic text produced by native
+Word gives incorrect suggests for even simple er- speakers, non-native speakers and machines (Za-
+rors. First shared task on automatic Arabic text ghouanietal., 2014). Thecorpuscontainsalarge
+144
+ProceedingsoftheSecondWorkshoponArabicNaturalLanguageProcessing,pages144–149,
+Beijing,China,July26-31,2015.(cid:13)c2014AssociationforComputationalLinguistics
+Train14 % Dev14 % L2Train % L2Dev %
+WordCount 925,643 - 48,471 - 51,483 - 29,475 -
+TotalErrors 306,757 33.14 16,659 34.37 13,206 25.65 7,293 24.74
+Worderrors 187,040 60.97 9,878 59.30 9,417 71.30 5,193 71.20
+PunctuationErrors 618,886 39.03 6,781 40.70 3,789 28.70 2,100 28.79
+Errorpertype
+Split 10,869 3.48 612 3.67 255 1.93 110 1.51
+Add before 99,258 32.36 5,704 34.24 3,721 28.17 2,067 28.34
+Delete 6,778 2.21 338 2.03 576 4.36 324 4.44
+Edit 169,769 55.34 8,914 53.51 8,009 60.64 4,434 60.79
+Merge 18,267 5.95 994 5.97 662 5.01 380 5.21
+Add after 20 0.01 2 0.01 1 - - -
+Move 427 0.14 13 0.08 132 0.9 102 1.39
+Table1: StatisticsonErrorTypesintheQALB2014and2015datasets
+dataset of manually corrected Arabic sentences. SMT( statistical machine translation)-based cor-
+QALB covers a variety of errors, and is not just rector; and (d) an error-tolerant finite-state au-
+limited to typical spelling errors. For instance, tomataapproach.
+trainanddev-2014dataandupto28%onthe2015 Oursystemdesignismotivatedbythediversity
+dataprovidedinthisSharedTask(SeeTable1 1). oftheerrorscontainedinourtrainanddevdatasets
+(See Table 1). It was very challenging to design
+ArabicWordlistforSpellchecking: Weuseda one system to handle all of the errors. We pro-
+list of 9-million Arabic words (Attia et al., 2012). pose several expert systems each tacking a differ-
+The words are automatically generated from the entkindofspellingerrors. Forexample,webuilta
+AraComLex open-source finite state transducer. character-levelmachinetranslationsystemtohan-
+TheentirelistisvalidatedagainstMicrosoftWord dle cases of space insertion and deletion affecting
+spellchecker.2
+non-clitics, as this part is specifically treated by
+the rule-based module. To cover some remaining
+Monolingual Arabic corpus: Additionally, we
+character-levelspellingmistakes,weuseaFinite-
+used the GigaWord Arabic corpus and the
+State-Automata (FSA) approach. All our systems
+News commentary corpus as used in state-of-the-
+run on top of each other, gradually correcting the
+art English-to-Arabic machine translation system
+Arabictextinsteps.
+(Sajjad et al., 2013b) to build different language
+models(character-levelandword-levelLMs). The 3.1 MADAMIRACorrections(Morph)
+complete corpus consists of 32 million sentences
+MADAMIRA (Pasha et al., 2014) is a tool, origi-
+and approximately 1,700 million tokens. Due to
+nallydesignedformorphologicalanalysisanddis-
+computational limitations, we were able to train
+ambiguation of MSA and dialectal Arabic texts.
+ourlanguagemodelonlyon60%ofthedatawhich
+MADAMIRAemploysdifferentfeaturestoselect,
+werandomlyselectedfromthewholecorpus.
+for each word in context, a proper analysis and
+performs Alif and Ya spelling correction for the
+3 OurApproach
+phenomena associated with its letters. The task
+organizers provided the shared task data prepro-
+Our automatic spelling corrector consists of a
+cessedwithMADAMIRA,includingallofthefea-
+hybrid pipeline that combines five different and
+turesgeneratedbythetoolforeveryword.
+complementary approaches: (i) a morphology-
+Similar to Jeblee et al. (2014), we used the
+based corrector; (ii) a rule-based corrector; (ii) an
+corrections proposed by MADAMIRA and ap-
+1Part of the statistics reported in Table 1 is taken ply them to the data. We show in Section 4
+fromDiabetal.(2014) that while the correction candidate proposed by
+2The list is freely available at: http:
+MADAMIRA may not be necessarily correct, it
+//sourceforge.net/projects/
+arabic-wordlist/ performsataveryhighprecision.
+145
+(cid:9) (cid:16) (cid:13) (cid:9) (cid:16) (cid:17) (cid:9) (cid:13)
+Source
+‘... (cid:224)@ æº H
+.
+æKæJ(cid:10)¸@ œ (cid:10)fl ØKYºA(cid:131) ł
+(cid:10)
+Y¸@
+Original
+Target
+... (cid:224)(cid:9)(cid:13) @ æº H
+.
+æ(cid:16) KæJ(cid:10)¸@ œ (cid:10)fl(cid:9) Ø(cid:16) KYºA(cid:131)(cid:17) ł
+(cid:10)
+Y(cid:9) ¸@
+English
+(cid:9) (cid:16)
+(cid:13) whic (cid:9)hIhav (cid:16)eseeninY (cid:17)outubeis (cid:9)that(cid:13)
+... # (cid:224) @# (cid:240) Ł# H (cid:240) H (cid:240) ł ¨ @# ł ‹# Ł H X Ł @ (cid:128) # ł X ¨ @
+Source . (cid:10) (cid:10) (cid:10)
+Characters (cid:9) (cid:13) (cid:16) (cid:9) (cid:16) (cid:17) (cid:9)
+... # (cid:224) @# (cid:240) Ł# H (cid:240) H (cid:240) ł ¨ @# ł ‹# Ł H X Ł @ (cid:128)# ł X ¨ @
+Target . (cid:10) (cid:10) (cid:10)
+Table2: Preparingthetrainingandtuningandtestcorpusforalignment
+3.2 Rule-basedCorrector(Rules) verse (Sajjad et al., 2013a; Durrani et al., 2014a).
+The conversion of Arabic dialects to MSA at
+TheMADAMIRAcorrectordescribedabovedoes
+character-level can be seen as a spelling correc-
+not handle splits and merges; In addition to that,
+tion task where small character-level changes are
+we use the rule-based corrector described in (Ro-
+made to convert a dialectal word into an MSA
+zovskaya et al., 2014). The rules were created
+word. We also formulate our correction problem
+through analysis of samples of the 2014 training
+as a character-level machine translation problem,
+data. Wealsoapplyasetofrulestoreattachclitics
+where the pre-processed incorrect Arabic text is
+thatmayhavebeensplitapartfromthebaseword.
+considered as the source, and our target is the
+Afterexaminingthetraindataset,werealizedthat
+(cid:240) correct Arabic text provided by the Shared task
+95% of word merging cases involve “ /w/’and’”
+organizers.
+attachment. Furthermore, we removed duplica-
+The goal is to learn correspondences between
+tions and elongations by merging a sequence of
+errors and their corrections. All the train data is
+two or more of the same character into a single
+usedtotrainourthephrase-basedmodel. Wetreat
+instance.
+sentences as sequences of characters instead, as
+3.3 StatisticalMachineTranslationModels showninTable2. Ourintuitionbehindusingsuch
+An SMT system translate sentence from one lan- model is that it may capture and correct: (i) split
+guage into another. An alignment step learns errors, occurring due to the deletion of a space
+mapping from source into target. A phrase-based between two words, and (ii) merge errors occur-
+model is subsequently learned from the word- ring due to the insertion of a space between two
+alignments. The phrase-based model along with wordsbymistake;(iii)commonspellingmistakes
+other decoding features, such as language and re- (hamzas,yas,etc).
+ordering models3 are used to decode the test sen- WeusedtheMosestoolkit(Koehnetal.,2007)
+tences. We will use the SMT framework for spell to create a word and character levels model built
+checker where error sentences act as our source on the best pre-processed data (mainly the feat14
+andcorrectionsactasatargetinthetrainingdata. tokensextractedusingMADAMIRAdescribedin
+3.1). We use the standard setting of MGIZA (Gao
+Phrase-basederrorcorrectionsystem(PBMT):
+and Vogel, 2008) and the grow-diagonal-final as
+The available training data from the shared task
+thesymmetrizationheuristic(OchandNey,2003)
+consists of parallel sentences. We build a phrase-
+of MOSES to get the character to character align-
+based machine translation using it. Since the sys-
+ments. Webuilda5-gramwordandcharacterlan-
+temlearnsatphrase-level,wehopetoidentifyand
+guagemodelsusingKenLM(Heafield,2011).
+correct different errors, especially the ones that
+werenotcapturedbyMADAMIRA. 3.4 Error-tolerantFST(EFST)
+Character-based error correction system We adapted the error-tolerant recognition ap-
+(CBMT): Therehasbeenalotofworkinusing proach developed by Oflazer (1996). It was orig-
+character-based models for Arabic transliteration inally designed for the analysis of the agglutina-
+to English (Durrani et al., 2014c) and for con- tive morphology of Turkish words and used for
+version of Arabic dialects into MSA and vice dictionary-based spelling corrector module. This
+error-tolerant finite-state recognizer identifies the
+3See (Durrani et al., 2014b) for more on state-of-the-art
+PBSMTandfeaturesusedwithin. strings that deviate mildly from a regular set of
+146
+Alj-test-2014 L2-dev-2015
+Precision Recall F1 Precision Recall F1
+SingleSystems
+Morph 78.33 31.27 44.69 46.46 12.97 20.28
+Rules 56.92 8.51 14.81 55.84 3.02 5.72
+PBMT 73.29 50.18 59.58 53.20 21.10 30.34
+CBMT 71.96 57.74 64.07 57.60 29.57 39.07
+EFST 38.05 26.94 38.05 47.24 8.21 13.99
+SystemCombinations
+Morph+PBMT 72.94 55.14 62.80 56.55 24.57 34.26
+Morph+CBMT 71.22 60.18 65.24 58.12 30.46 39.98
+Morph+EFST 72.19 35.05 47.19 42.49 14.24 21.34
+Morph+CBMT+Rules 70.45 65.55 67.91 58.21 34.35 43.20
+Morph+CBMT+Rules+EFST 70.14 66.79 68.42 58.73 35.20 44.02
+Table3: SystemresultsontheQALB2014testset(left)andL2devset(right).
+stringsrecognizedbytheunderlyingFSA.Forex- ous system configurations on the L2 dev and test
+ample, suppose we have a recognizer for a reg- 2014setsaregiveninTable3. Theresultsclearly
+ular set over a, b described by the regular ex- show different modules are complementry. For
+pression (aba + bab)*, and we want to recognize instance, combining Morph and PBMT improves
+the inputs that are slightly corrupted, for exam- the results by +3.22 compared to only using the
+ple, abaaaba may be matched to abaaba (correct- PBMTmodel,onlastyear’stestset.
+ingforaspuriousa),orbabbbmaybematchedto
+WeachievedourbestF-measurevaluewiththe
+babbab (correcting for a deletion), or ababba may
+following configuration: using CBMT system af-
+be matched to either abaaba (correcting a b to an
+ter applying the clitic re-attachment rules. These
+a) or to ababab (correcting the reversal of the last
+were then passed through the EFST. Using this
+twosymbols). Thismethodisperfectforhandling
+combination we are able to correct 66.79% of the
+mainly transposition errors resulting from swap-
+errors on the 2014 test set with a precision of
+ping two letters , or typing errors of neighboring
+70.14%. Our system outperforms the baseline for
+lettersinthekeyboard.
+the L2 data as well with an F-measure of 44.02%
+We use the Foma library (Hulden, 2009) to comparedto(F1=20.28%whenweusetheMorph
+build the finite-state tranducer using the Arabic module).
+Word-list as a dictionary.4 For each word, our
+system checks if the word is analyzed and recog-
+5 QCMUQ@QALB-2015Results
+nized by the finite-state transducer. It then gen-
+erates a list of correction candidates for the non-
+recognized ones. The candidates are words hav- We present here the official results of our sys-
+inganeditdistancelowerthanacertainthreshold. tem (Morph+CBMT+Rules+EFST) on the 2015
+WescorethedifferentcandidatesusingaLMand QALBtestset(Rozovskayaetal.,2015). Theoffi-
+considerthebestoneasthepossiblecorrectionfor cialresultsofourQCMUQarepresentedinTable
+eachword. 4. Theseresultsrankus2ndintheL2subtaskand
+5thintheL1subtask.
+4 EvaluationandResults
+We experimented with different configurations to P R F1
+reach an optimal setting when combining differ- L1-test-2015 71.39 65.13 68.12
+ent modules. We evaluated our system for preci- L2-test-2015 50.37 31.68 38.90
+sion,recall,andFmeasure(F1)againstthedevset
+Table4: TheQCMUQOfficialresultsonthe2015
+reference and the test 2014 set. Results for vari-
+testset.
+4Foma is an open-source finite-state toolkit that imple-
+mentstheXeroxlexcandxfstutilities.
+147
+6 ConclusionandFuturework Proceedingsofthe15thConferenceoftheEuropean
+Chapter of the ACL, EACL ’14, Gothenburg, Swe-
+We described our system for automatic Arabic den.
+text correction. Our system combines rule-based
+QinGaoandStephanVogel. 2008. ParallelImplemen-
+methodswithstatisticaltechniquesbasedonSMT
+tationsofWordAlignmentTool. InSoftwareEngi-
+framework and LM-based scoring. We addition-
+neering,Testing,andQualityAssuranceforNatural
+ally used finite-state-automata to do corrections. LanguageProcessing,pages49–57.Associationfor
+Our best system outperforms the baseline with an ComputationalLinguistics.
+F-scoreof68.12onL1-test-2015testsetand38.90
+BassamHaddadandMustafaYaseen. 2007. Detection
+on the L2-test-2015. In the future, we want to fo-
+and Correction of Non-words in Arabic: a Hybrid
+cusoncorrectingpunctuationerrors,toproducea Approach. InternationalJournalofComputerPro-
+moreaccuratesystem. Weplantoexperimentwith cessingofOrientalLanguages,20(04):237–257.
+differentcombinationmethodssimilartotheones
+Ahmed Hassan, Sara Noeman, and Hany Hassan.
+usedforcombiningMToutputs.
+2008. Language Independent Text Correction us-
+ing Finite State Automata. In Proceedings of the
+Acknowledgements
+Third International Joint Conference on Natural
+Language Processing (IJCNLP 2008), pages 913–
+This publication was partly made possible by
+918,Hyderabad,India.
+grants NPRP-4-1058-1-168 from the Qatar Na-
+tional Research Fund (a member of the Qatar Kenneth Heafield. 2011. KenLM: Faster and
+smaller language model queries. In Proceedings
+Foundation).
+oftheWorkshoponStatisticalMachineTranslation
+(WMT’11),Edinburgh,UK.
+References
+Mans Hulden. 2009. Foma: A finite-state compiler
+and library. In Proceedings of the 12th Confer-
+Mohammed Attia, Pavel Pecina, Younes Samih,
+ence of the European Chapter of the Association
+KhaledShaalan,andJosefvanGenabith. 2012. Im-
+forComputationalLinguistics:DemonstrationsSes-
+proved Spelling Error Detection and Correction for
+sion, EACL ’09, pages 29–32, Stroudsburg, PA,
+Arabic. InProceedingsofCOLING2012: Posters,
+USA.AssociationforComputationalLinguistics.
+pages103–112,Mumbai,India.
+SerenaJeblee,HoudaBouamor,WajdiZaghouani,and
+Daniel Dahlmeier and Hwee Tou Ng. 2012. Better
+Kemal Oflazer. 2014. Cmuq@qalb-2014: An smt-
+Evaluation for Grammatical Error Correction. In
+based system for automatic arabic error correction.
+NAACL HLT ’12 Proceedings of the 2012 Confer-
+In Proceedings of the EMNLP 2014 Workshop on
+ence of the North American Chapter of the Associ-
+ArabicNaturalLanguageProcessing(ANLP),pages
+ation for Computational Linguistics: Human Lan-
+137–142, Doha, Qatar, October. Association for
+guageTechnologies,pages568–572.
+ComputationalLinguistics.
+Mona Diab, Mohammed Attia, and Al-Badrashiny
+PhilippKoehn,HieuHoang,AlexandraBirch,Christo-
+Mohamed. 2014. GWU-HASP: Hybrid Arabic
+pher Callison-Burch, Marcello Federico, Nicola
+SpellingandPunctuationCorrector. InProceedings
+Bertoldi, Brooke Cowan, Wade Shen, Christine
+of the EMNLP 2014 Workshop on Arabic Natural
+Moran,RichardZens,ChristopherDyer,OndrejBo-
+LanguageProcessing(ANLP),Doha,Qatar.
+jar, Alexandra Constantin, and Evan Herbst. 2007.
+Nadir Durrani, Yaser Al-Onaizan, and Abraham Itty- Moses: Open Source Toolkit for Statistical Ma-
+cheriah. 2014a. Improving Egyptian-to-English chine Translation. In Proceedings of the 45th An-
+SMT by mapping Egyptian into MSA. In Compu- nual Meeting of the Association for Computational
+tationalLinguisticsandIntelligentTextProcessing, Linguistics Companion Volume Proceedings of the
+pages271–282,Khatmandu,Nepal.SpringerBerlin DemoandPosterSessions,pages177–180,Prague,
+Heidelberg. CzechRepublic.
+Nadir Durrani, Barry Haddow, Philipp Koehn, and Karen Kukich. 1992. Techniques for Automatically
+Kenneth Heafield. 2014b. Edinburgh’s phrase- CorrectingWordsinText. ACMComputingSurveys
+basedmachinetranslationsystemsforWMT-14. In (CSUR),24(4):377–439.
+Proceedings of the ACL 2014 Ninth Workshop on
+Statistical Machine Translation, WMT ’14, pages Behrang Mohit, Alla Rozovskaya, Nizar Habash, Wa-
+97–104,Baltimore,MD,USA. jdiZaghouani,andOssamaObeid. 2014. TheFirst
+QALB Shared Task on Automatic Text Correction
+NadirDurrani,HassanSajjad,HieuHoang,andPhilipp forArabic. InProceedingsofEMNLPWorkshopon
+Koehn. 2014c. Integratinganunsupervisedtranslit- ArabicNaturalLanguageProcessing, Doha, Qatar,
+erationmodelintostatisticalmachinetranslation. In October.
+148
+FranzJosefOchandHermannNey. 2003. ASystem- Farra, Sarah Alkuhlani, and Kemal Oflazer. 2014.
+atic Comparison of Various Statistical Alignment Large Scale Arabic Error Annotation: Guidelines
+Models. InComputationalLinguistics,page1951. and Framework. In Proceedings of the Ninth In-
+ternationalConferenceonLanguageResourcesand
+Kemal Oflazer. 1996. Error-tolerant Finite-state Evaluation(LREC’14),Reykjavik,Iceland.
+Recognition with Applications to Morphological
+Analysis and Spelling Correction. Comput. Lin-
+guist.,22(1):73–89,March.
+Arfath Pasha, Mohamed Al-Badrashiny, Mona Diab,
+Ahmed El Kholy, Ramy Eskander, Nizar Habash,
+ManojPooleery,OwenRambow,andRyanMRoth.
+2014. MADAMIRA:Afast,comprehensivetoolfor
+morphologicalanalysisanddisambiguationofAra-
+bic. InProceedingsoftheLanguageResourcesand
+Evaluation Conference, LREC ’14, pages 1094–
+1101,Reykjavik,Iceland.
+Alla Rozovskaya, Kai-Wei Chang, Mark Sammons,
+and Dan Roth. 2013. The University of Illinois
+System in the CoNLL-2013 Shared Task. In Pro-
+ceedingsoftheSeventeenthConferenceonCompu-
+tational Natural Language Learning: Shared Task,
+pages 13–19, Sofia, Bulgaria, August. Association
+forComputationalLinguistics.
+Alla Rozovskaya, Nizar Habash, Ramy Eskander,
+Noura Farra, and Wael Salloum. 2014. The
+columbia system in the qalb-2014 shared task on
+arabic error correction. In Proceedings of the
+EMNLP 2014 Workshop on Arabic Natural Lan-
+guage Processing (ANLP), pages 160–164, Doha,
+Qatar,October.AssociationforComputationalLin-
+guistics.
+AllaRozovskaya,HoudaBouamor,NizarHabash,Wa-
+jdiZaghouani, OssamaObeid, andBehrangMohit.
+2015. The Second QALB Shared Task on Auto-
+matic Text Correction for Arabic. In Proceedings
+ofACLWorkshoponArabicNaturalLanguagePro-
+cessing,Beijing,China,July.
+Hassan Sajjad, Kareem Darwish, and Yonatan Be-
+linkov. 2013a. Translating dialectal Arabic to En-
+glish. InProceedingsofthe51stAnnualMeetingof
+theAssociationforComputationalLinguistics(Vol-
+ume 2: Short Papers), ACL ’13, pages 1–6, Sofia,
+Bulgaria.
+Hassan Sajjad, Francisco Guzmn, Preslav Nakov,
+AhmedAbdelali,KentonMurray,FahadAlObaidli,
+andStephanVogel. 2013b. QCRIatIWSLT2013:
+Experiments in Arabic-English and English-Arabic
+spoken language translation. In Proceedings of the
+10th International Workshop on Spoken Language
+Technology,IWSLT’13,Heidelberg,Germany.
+Khaled Shaalan, Amin Allam, and Abdallah Gomah.
+2003. Towards Automatic Spell Checking for Ara-
+bic. In Proceedings of the 4th Conference on Lan-
+guage Engineering, Egyptian Society of Language
+Engineering(ELSE),Cairo,Egypt.
+Wajdi Zaghouani, Behrang Mohit, Nizar Habash, Os-
+samaObeid,NadiTomeh,AllaRozovskaya,Noura
+149

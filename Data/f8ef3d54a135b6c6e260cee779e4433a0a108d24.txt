@@ -1,0 +1,619 @@
+Strategy and Policy Learning for Non-Task-Oriented Conversational
+Systems
+ZhouYu,ZiyuXu,AlanWBlackandAlexI.Rudnicky
+SchoolofComputerScience
+CarnegieMellonUniversity
+{zhouyu,awb,air}@cs.cmu.edu, ziyux@andrew.cmu.edu
+Abstract theconversationalcontextisanothercriticalprob-
+lem to tackle. In a multi-turn conversation, the
+We propose a set of generic conversa- user experience will be affected if the same strat-
+tional strategies to handle possible sys- egyisusedrepeatedly. Weexperimentedonthree
+tem breakdowns in non-task-oriented di- policiestocontrolwhichstrategytousegiventhe
+alog systems. We also design policies to context: a random selection policy that randomly
+select these strategies according to dialog selectsapolicyregardlessofthecontext,alocally
+context. We combine expert knowledge greedy policy that focuses on local context, and a
+and the statistical findings derived from reinforcement learning policy that considers con-
+data in designing these policies. The pol- versation quality both locally and globally. The
+icylearnedviareinforcementlearningout- strategiesandpoliciesareapplicablefornon-task-
+performs the random selection policy and oriented systems in general. The strategies can
+the locally greedy policy in both simu- prevent a possible breakdown, and the probabil-
+lated and real-world settings. In addition, ityofpossiblebreakdownscanbecalculatedusing
+we propose three metrics for conversation different metrics according to different systems.
+qualityevaluationwhichconsiderboththe For example, a neural network generation system
+local and global quality of the conversa- (VinyalsandLe,2015)canusetheposteriorprob-
+tion. ability to decide if the generated utterance is pos-
+siblycausingabreakdown,thusreplacingitwitha
+1 Introduction
+designed strategy. In this paper, we implemented
+the strategies and policies in a keyword retrieval-
+Non-task-oriented conversational systems do not
+based non-task-oriented system. We used the re-
+have a stated goal to work towards. Nevertheless,
+trievalconfidenceasthecriteriatodecidewhether
+they are useful for many purposes, such as keep-
+astrategyneededtobetriggeredornot.
+ing elderly people company and helping second
+language learners improve conversation and com- Reinforcement learning was introduced to the
+munication skills. More importantly, they can be dialog community two decades ago (Biermann
+combined with task-oriented systems to act as a and Long, 1996) and has mainly been used in
+transition smoother or a rapport builder for com- task-oriented systems (Singh et al., 1999). Re-
+plextasksthatrequireusercooperation. Thereare searchers have proposed to design dialogue sys-
+avarietyofmethodstogenerateresponsesfornon- tems in the formalism of Markov decision pro-
+task-orientedsystems,suchasmachinetranslation cesses (MDPs) (Levin et al., 1997) or partially
+(Ritter et al., 2011), retrieval-based response se- observableMarkovdecisionprocesses(POMDPs)
+lection (Banchs and Li, 2012), and sequence-to- (WilliamsandYoung,2007). Inastochasticenvi-
+sequence recurrent neural network (Vinyals and ronment, a dialog system’s actions are system ut-
+Le, 2015). However, these systems still pro- terances,andthestateisrepresentedbythedialog
+duce utterances that are incoherent or inappropri- history. Thegoalistodesignadialogsystemthat
+ate from time to time. To tackle this problem, we takes actions to maximize some measure of sys-
+propose a set of conversational strategies, such as tem reward, such as task completion rate or dia-
+switching topics, to avoid possible inappropriate loglength. Thedifficultyofsuchmodelingliesin
+responses (breakdowns). After we have a set of the state representation. Representing the dialog
+strategies, which strategy to perform according to by the entire history is often neither feasible nor
+404
+ProceedingsoftheSIGDIAL2016Conference,pages404–412,
+LosAngeles,USA,13-15September2016.(cid:13)c2016AssociationforComputationalLinguistics
+conceptually useful, and the so-called belief state task-oriented systems have more varied conversa-
+approach is not possible, since we do not even tionhistory,whicharethushardertoformulateas
+know what features are required to represent the a mathematical problem. In this work, we pro-
+belief state. Previous work (Walker et al., 1998) pose a method to use statistical findings in con-
+haslargelydealtwiththisissuebyimposingprior versational study to constrain the dialog history
+limitationsonthefeaturesusedtorepresenttheap- space and to use reinforcement learning for sta-
+proximate state. In this paper, instead of focus- tisticalpolicylearninginanon-task-orientedcon-
+ing on task-oriented systems, we apply reinforce- versationsetting.
+mentlearningtodesignapolicytoselectdesigned
+To date, reinforcement learning is mainly used
+conversation strategies in a non-task-oriented di-
+for learning dialogue policies for slot-filling task-
+alog systems. Unlike task-oriented dialog sys-
+oriented applications such as bus information
+tems, non-task-oriented systems have no specific
+search (Lee and Eskenazi, 2012), restaurant rec-
+goal that guides the interaction. Consequently,
+ommendations (Jurcˇ´ıcˇek et al., 2012), and sight-
+evaluation metrics that are traditionally used for
+seeing recommendations (Misu et al., 2010). Re-
+reward design, such as task completion rate, are
+inforcement learning is also used for some more
+no longer appropriate. The state design in rein-
+complex systems, such as learning negotiation
+forcement learning is even more difficult for non-
+policies (Georgila and Traum, 2011) and tutoring
+task-oriented systems, as the same conversation
+(Chi et al., 2011). Reinforcement learning is also
+wouldnotoccurmorethanonce; oneslightlydif-
+used in question-answering systems (Misu et al.,
+ferentanswerwouldleadtoacompletelydifferent
+2012). Question-answeringsystemsareverysim-
+conversation; moreover there is no clear sense of
+ilar to non-task-oriented systems except that they
+whensuchaconversationis“complete”. Wesim-
+do not consider dialog context in generating re-
+plifythestatedesignbyintroducingexpertknowl-
+sponses. Theyhavepre-existingquestionsthatthe
+edge, such as not repeating the same strategy in a
+user is expected to go through, which limits the
+row, as well as statistics obtained from conversa-
+content space of the dialog. Reinforcement learn-
+tionaldataanalysis.
+ing has also been applied to a non-task-oriented
+We implemented and deployed a non-task-
+systemfordecidingwhichsub-systemtochooseto
+oriented dialog system driven by a statistical pol-
+generateasystemutterance(Shibataetal.,2014).
+icytoavoidpossiblesystembreakdownsusingde-
+In this paper, we used reinforcement learning to
+signed general conversation strategies. We evalu-
+learn a policy to sequentially decide which con-
+ated the system on the Amazon Mechanical Turk
+versationalstrategytousetoavoidpossiblesystem
+platform with metrics that consider both the local
+breakdowns.
+and the global quality of the conversation. In ad-
+dition, we also published the system source code The question of how to evaluate conversational
+andthecollectedconversations1. systemshasbeenunderdiscussionthroughoutthe
+history of dialog system research. Task comple-
+2 RelatedWork tionrateiswidelyusedastheconversationalmet-
+ricfortaskorientedsystems(WilliamsandYoung,
+Many generic conversational strategies have been
+2007). However, it is not applicable for non-task-
+proposedinpreviousworktoavoidgeneratingin-
+oriented dialog systems which don’t have a task.
+coherentutterancesinnon-task-orientedconversa-
+Responseappropriateness(coherence)isawidely
+tions, such as introducing new topics (e.g. “Let’s
+used manual annotation metric (Yu et al., 2016)
+talkaboutfavoritefoods!”)in(Higashinakaetal.,
+fornon-task-orientedsystems. However,thismet-
+2014), asking the user to explain missing words
+ric only focuses on the utterance level conversa-
+(e.g. “What is SIGDIAL?”) (Maria Schmidt and
+tionalqualityandisnotautomaticallycomputable.
+Waibel, 2015). In this paper, we propose a set
+Perplexity of the language model is an automat-
+of generic strategies that are inspired by previous
+ically computable metric but is hard to interpret
+work, and test their usability on human users. No
+(VinyalsandLe, 2015). Inthispaper,wepropose
+researcher has investigated thoroughly on which
+three metrics: turn-level appropriateness, conver-
+strategytouseindifferentconversationalcontexts.
+sationaldepthandinformationgain,whichaccess
+Compared to task-oriented dialog systems, non-
+both the local and the global conversation quality
+1www.cmuticktock.org of a non-task-oriented conversation. Information
+405
+gain is automatically quantifiable. We use super- when the posterior probability of the gener-
+visedmachinelearningmethodstobuiltautomatic ated response is higher than a certain thresh-
+detectors for turn level appropriateness and con- old.
+versationaldepth. Allthreeofthemetricsaregen-
+2. Don’t Repeat (no repeat): When users re-
+eralenoughtobeappliedtoanynon-task-oriented
+peat themselves, the system confronts them
+system.
+bysaying:“Youalreadysaidthat!”.
+3 ConversationalStrategyDesign
+3. Ground on Named Entities (named entity)
+We implemented ten strategies in total for re- A lot of raters assume that TickTock can
+sponsegeneration. Thesystemonlyselectsamong answer factual questions, so they ask ques-
+Strategy 1-5 if their trigger conditions are meet. tions such as “Which state is Chicago in?”
+If more than one strategy is eligible, the system and “Are you voting for Clinton?”. We use
+selects the higher ranked strategy. The rank of the Wikipedia knowledge base API to tackle
+the strategies, shown in the following list, is de- such questions. We first perform a shallow
+termined via expert knowledge. The system only parsing to find the named entity in the sen-
+selects among Strategy 6-10 if Strategy 1-5 can- tence, and then we search the named entity
+notbeselected. Thisrulereducesthedesignspace in a knowledge base, and retrieve the cor-
+of all policies. We design three different versions responding short description of it. Finally
+of the surface form for each strategy, so the user we design several templates to generate sen-
+would get a slightly different version every time, tencesusingtheobtainedshortdescriptionof
+thusmakingthesystemseemlessrobotic. the named entity. The resulting output can
+We implemented these strategies in TickTock be “Are you talking about the city in Illi-
+(Yu et al., 2015). TickTock is a non-task-oriented nois?” and “Are you talking about Bill Clin-
+dialog system that takes typed text as the input ton, the 42rd president of the United States,
+andproducestextasoutput. Itperformsanaphora orHillaryClinton,acandidatefortheDemo-
+detection and candidate re-ranking with respect cratic presidential nomination in the 2016
+to history similarity to track conversation history. election?”. This strategy is considered one
+For a detailed system description, please refer to type of grounding strategy in human conver-
+(Yu et al., 2016). This version of TickTock took sations. Users feel like they are understood
+theformofaweb-API,whichweputonAmazon when this strategy is triggered correctly. In
+Mechanical Turk platform to collect data from a addition, we make sure we never ground the
+large number of users. The system starts the con- same named-entity twice in single conversa-
+versation by proposing a topic to discuss. The tion.
+topicisrandomlyselectedfromfivedesignedtop-
+4. GroundonOutofVocabularyWords(oov)
+ics: movies, music, politics, sports and board
+If we find that the user utterance contains a
+games. We track the topic of the conversation
+word that is out of our vocabulary, such as
+throughout theinteraction. Eachconversation has
+“confrontational”. Then TickTock will ask:
+morethan10turns. Table1isanexampleconver-
+“What is confrontational?”. We expand our
+sationofTickTocktalkingwithahumanuser. We
+vocabulary with the new user-defined words
+describethetenstrategieswiththeirrankingorder
+continuously, so we will not ask for ground-
+inthefollowing.
+ingonthesamewordtwice.
+1. Match Response (continue): In a keyword-
+5. React to Single-word Sentence (short an-
+based system, the retrieval confidence is the
+swer) We found that some users type in
+weightedscoreofallthematchingkeywords
+meaningless single words such as ‘d’, ‘dd’,
+from the user input and the chosen utterance
+or equations such as ‘1+2=’. TickTock will
+from the database. When the retrieval con-
+reply: “Can you be serious and say things in
+fidence score is higher than a threshold (0.3
+acompletesentence?”todealwithsuchcon-
+in our experiment), we use the retrieved re-
+dition.
+sponseasthesystem’soutput. Ifthesystemis
+asequence-to-sequenceneuralnetworkssys- 6. Switch Topic (switch) TickTock proposes a
+tem, then we select the output of the system new topic other than the current topic, such
+406
+as “sports” or “music”. For example: “Let’s Do you want to talk more about that?) is pre-
+talkaboutsports.”Ifthisstrategyisexecuted, ferred over the switch strategy (e.g. Do you like
+we will update the tracked topic to the new movies?).
+topicintroduced.
+We set out to find the optimum strategy given
+the context which is the sentiment polarity of the
+7. Initiate Activities (initiation) TickTock in-
+previousthreeutterances. Wefoundallthescenar-
+vitestheusertodoanactivitytogether. Each
+ioswhenStrategy6-10aretriggered,thenwegen-
+invitation is designed to match the topic of
+eratefivedifferentversionsoftheconversationsby
+the current conversation. For example, the
+replacingtheoriginalusedstrategywithStrategies
+system would ask: “Do you want to see the
+6-10. We asked workers on Amazon Mechanical
+latest Star Wars movie together?” when it is
+Turk to rate the strategy’s appropriateness given
+talkingaboutmovieswithauser.
+three previous utterances. For each conversation,
+wecollectedratingsfromthreedifferentratersand
+8. End topics with an open question (end):
+usedthemajorityvoteasthefinalrating. Thenwe
+TickTockclosesthecurrenttopicandasksan
+constructed a table of a distribution of the proba-
+open question, such as “ Sorry I don’t know.
+bility of each strategy with respect to the context.
+Couldyoutellmesomethinginteresting?”.
+We collected 10 ratings for each strategy under
+9. TellAJoke(joke): TickTocktellsajokesuch eachcontext. WeusetheVader(HuttoandGilbert,
+as: “Politiciansanddiapershaveonethingin 2014)sentimentpredictorforautomaticsentiment
+common. They should both be changed reg- prediction. The output of the sentiment predictor
+ularly, and for the same reason”. The jokes isalabelwiththreecategories: positive(pos),neg-
+are designed with respect to different topics ative(neg)andneutral(neu).
+as well. The example joke is related to the Wefoundthattheoutputoftheratingtasksup-
+topic“politics”. ports our hypothesis: different strategies are pre-
+ferred with respect to different sentiment context.
+10. Elicit More Information (more): TickTock
+In Table 3, we show the distribution of appropri-
+asks the user to say more about the current
+atenessratingsforStrategy6-10inacontextwhen
+topic, using utterances such as “ Could we
+allthepreviousutterancesarepositive. Usersrated
+talkmoreaboutthat?”.
+the more strategy more appropriate than the end
+strategy and the switch strategy. One interesting
+observationisthatthejokestrategyisratedpoorly.
+4 StrategyDesign
+We examined the cases in which it is used and
+As a baseline policy, we use a random selection found that the low appropriateness is mostly the
+policythatrandomlychoosesamongStrategies6- resultofbeingunexpected. Theinitiationstrategy
+10 whenever Strategies 1-5 are not applicable. In can be appropriate when the activity fits the pre-
+theconversationscollectedusingthebaseline, we vious content semantically. In another sentiment
+found that the sentiment polarity of the utterance context, when there are consecutive negative ut-
+has an influence on which strategy to select. Peo- terances, the switch strategy and the end strategy
+pletendtoratetheswitchstrategymorefavorably are preferred. We can see that which strategy to
+ifthereisnegativesentimentinthepreviousutter- use is heavily dependent on the immediately sen-
+ances. Forexample: timent context of the conversation. Sentiment po-
+laritycapturessomeconversationallevelinforma-
+TickTock: Hello, I really like politics. Let’s talk tionwhichisadiscriminatingfactor. Wethenuse
+aboutpolitics. these findings to design the locally greedy policy.
+User: No,Idon’tlikepolitics. Thesystemchoosesthestrategythatisratedasthe
+TickTock: Whyisthat? mostappropriategiventhecontext. Thecontextis
+thesentimentpolarityofpreviousthreeutterances.
+User: Ijustdon’tlikepolitics.
+TickTock: OK,howaboutwetalkaboutmovies? We conducted another Amazon Mechanical
+Turk study to test if sentiment context beyond
+In another scenario, when all the previous three three utterances would influence the preferred
+utterances are positive, the more strategy (e.g. strategy. In order to reduce the work load, we
+407
+Turn Participant TickTock
+1 Iamnotsure.What’sonyourmind? Well,youknow,I’mnotsure. Letmetellyousomething,
+politiciansanddiapershaveonethingincommon. They
+shouldbothbechangedregularly,andforthesamereason.
+2 Wow.That’sfunnyandinsightful. Uhh, I can’t answer this. Can we talk about something
+else?
+3 Howaboutmovies.Haveyouseenanygoodmovies? Ofcourse.Whatdoyouthink?
+4 Ilovesuperheromovies.HaveyouseenDeadpool? AreyoutalkingaboutDeadpool,theanimationcharacter?
+5 Yes,exactly.Theymadeamovieofhim. Thatsoundsreallyinteresting.
+Table1: AnexampleconversationwithTickTockinthereal-worldsetting
+Turn A.L.I.C.E. TickTock
+1 WhendoIdoit? Idon’tknow.
+2 Thatisinteresting. Doyouwanttogotomyfriend’spartytonight?
+3 Sure, just download me to your notebook or PDA and Soundsgreat. Doyouwanttoplayboardgamestogether
+takemealong. sometime.
+4 IliketoplaytheTuringGame. Idon’tknowhowtoplayit.Isitdifficulttoplay?
+5 Interestinggossip.Itcouldbe. Possibly.
+Table2: AnexampleconversationofTickTockinthesimulatedsetting
+testedonecondition: thepreviousthreeutterances are strategies available. By performing an action,
+are all positive. We provide the complete conver- theagentcanmovefromonestatetoanother. Ex-
+sationhistoryofthatdialogtotheraters. Wefound ecuting an action in a specific state provides the
+thatstrategiesusedmostrecentlyareratedlessfa- agent with a reward (a numerical score), R(s,a).
+vorablyifusedagain. Thismotivatesustoinclude The goal of the agent is to maximize its total re-
+informationthatrelatestothepreviousstrategyus- ward. It does this by learning which action is op-
+ageandalongerhistorytodesignpolicyinthere- timal to take for each state. The action that is op-
+inforcementlearningsetting. timalforeachstateistheactionthathasthehigh-
+est long-term reward. This reward is a weighted
+Strategy App Inter Inapp
+sum of the expected values of the rewards of all
+switch 0.1 0.3 0.6 future steps starting from the current state, where
+initiation 0.2 0.4 0.4 the discount factor γ is a number between 0 and
+joke 0.1 0.2 0.7 1 that trades off the importance of sooner versus
+end 0.1 0.3 0.6 later rewards. γ may also be interpreted as the
+more 0.4 0.5 0.1 likelihood to succeed (or survive) at every step.
+The algorithm therefore has a function that cal-
+Table3: Appropriatenessratingdistributionwhen
+culatesthequantityofastate-actioncombination,
+therecentthreeutterancesarepositive.
+Q : S ×A → R. The core of the algorithm is a
+simple value iteration update. It assumes the old
+5 ReinforcementLearning valueandmakesacorrectionbasedonthenewin-
+formation at each time step, t. See Equation (1)
+We model the conversation process as a Markov
+fordetailsoftheiterationfunction.
+Decision Process (MDP)-based problem, so we
+The critical part of the modeling is to design
+can use reinforcement learning to learn a con-
+appropriate states and the corresponding reward
+versationalpolicythatmakessequentialdecisions
+function. We reduce the number of the states by
+by considering the entire context. We used Q-
+incorporatingexpertknowledgeandthestatistical
+learning,amodel-freemethodtolearntheconver-
+findingsinouranalysis. Weusedanotherchatbot,
+sationalpolicyforournon-task-orientedconversa-
+A.L.I.C.E.2asausersimulatorinthetrainingpro-
+tionalsystem.
+cess. We include features: turn index, times each
+In reinforcement learning, the problem is de-
+strategy was previously executed, and the senti-
+finedas(S,A,R,γ,α),whereSisthesetofstates
+ment polarity of previous three utterances. We
+that represents the system’s environment, in this
+constructed the reward table based on the statis-
+case the conversational context. A is a set of ac-
+tionsavailableperstate. Inoursetting,theactions 2http://alice.pandorabots.com/
+408
+(cid:16) (cid:17)
+Q (s ,a ) ← Q (s ,a )+α (s ,a )· R +γmaxQ (s ,a)−Q (s ,a ) (1)
+t+1 t t t t t t t t t+1 t t+1 t t t
+a
+Turn-levelappropriateness∗10+Conversationaldepth∗100+round(Informationgain,5)∗30 (2)
+ticscollectedfromthepreviousexperiment. Inor- the “Appropriate” and “Interpretable” labels into
+dertomaketherewardtabletractable,weimposed oneclassandformulatetheappropriatenessdetec-
+some of the rules we constructed based on expert tion as a binary classification problem. Our de-
+knowledge. Forexample,ifcertainstrategieshave signed policies and strategies intend to avoid sys-
+beenusedbefore,thentherewardofusingitagain tem breakdowns (the inappropriate responses), so
+is reduced. If the trigger condition of Strategy we built this detector to tell whether a system re-
+1-5 is meet, the system chooses them over Strat- sponseisappropriateornot.
+egy 6-10. This may result in some less optimum We annotated the appropriateness for 1256
+solutions, but reduces the state space and action turns. We balance the ratings by generating more
+space considerably. During the training process, inappropriate examples by randomly pairing two
+we constrained the conversation to be 10 turns. utterances. In order to reduce the variance of the
+The reward function is only given at the end of detector, we use five-fold cross-validation and a
+the conversation, it is a combination of the auto- Z-score normalizer to scale all the features into
+maticpredictionsofthethreemetricsthatconsider the same range. We use early fusion, which sim-
+theconversationqualitybothlocallyandglobally, ply concatenates all feature vectors. We use a v-
+discussedthemindetailinthenextsection. Ittook SupportVector(ChangandLin,2011)withaRBF
+5000 conversations for the algorithm to converge. Kernel to train the detector. The performance of
+WelookedintothelearnedQtableandfoundthat the automatic appropriateness detector is 0.73 in
+the policy prefers the strategy that uses less fre- accuracy while the accuracy of the majority vote
+quentlyifthecontextisfixed. is0.5.
+We use three sets of features: the strategy
+6 EvaluationMetrics
+used in the response, the word counts of both the
+user’sandTickTock’sutterances,andtheutterance
+Inthelearningprocessofthereinforcementlearn-
+similarity features. The utterance similarity fea-
+ing, we use a metric which is a combination of
+tures consist of a feature vector obtained from a
+three metrics: turn-level appropriateness, conver-
+word2vec model (Mikolov et al., 2013), the co-
+sational depth and information gain. Conversa-
+sine similarity score between the user utterance
+tional depth and information gain measure the
+andthesystemresponse,andthesimilarityscores
+quality of the conversation across multiple turns.
+between the user response and all the previous
+Since we use another chatbot as the simulator,
+system responses. For the word2vec model, we
+makingsuretheoverallconversationqualityisac-
+traineda100-dimensionmodelusingthecollected
+cessed is critical. All three metrics are related to
+data.
+each other but cover different aspects of the con-
+versation. We used a weighted score of the three
+6.2 ConversationalDepth
+metrics for the learning process, which is shown
+inEquation(2). Thecoefficientsarechosenbased Conversational depth reflects the number of con-
+on empirical heuristics. We built automatic pre- secutive utterances that share the same topic. We
+dictorsforturn-levelappropriatenessandconver- design an annotation scheme (Table 5) based on
+sationdepthbasedonannotateddataaswell. the maximum number of consecutive utterances
+onthesametopic. Weannotateconversationsinto
+6.1 Turn-LevelAppropriateness
+three categories: “Shallow”, “Intermediate” and
+Turn-level appropriateness reflects the coherence “Deep”. The annotation agreement between the
+of the system’s response in each conversational two experts is moderate (kappa = 0.45). Users
+turn. See Table 4 for the annotation scheme. The manually labeled 100 conversations collected us-
+inter-annotatoragreementbetweenthetwoexperts ing TickTock. We collapse “Shallow” and “In-
+is relatively high (kappa = 0.73). We collapse termediate” into one category and formulate the
+409
+Label Definition Example
+Participant:Howoldareyou?
+Inappropriate(Inapp) Notcoherentwiththeuserutterance .
+TickTock:Apple.
+Participant:Howoldareyou?
+Interpretable(Inter) Relatedandcanbeinterpreted
+TickTock:That’stoobigaquestionformetoanswer.
+Participant:Howistheweathertoday?
+Appropriate(App) Coherentwiththeuserutterance
+TickTock:Verygood.
+Table4: Appropriatenessratingscheme.
+Conv. depth Consecutiveutterances thatthemoreinformationtheconversationhas,the
+Shallow <6 better the conversational quality is. This metric is
+Intermediate [7,10] calculated automatically by counting the number
+Deep >10 ofuniquewordsaftertheutteranceistokenized.
+Table5: Conversationaldepthannotationscheme
+7 ResultsandAnalysis
+We evaluate the three policies with respect to
+problem as a binary classification problem. We
+three evaluation metrics: turn-level appropriate-
+use the same machine learning setting as the turn
+ness, conversational depth and information gain.
+level appropriateness predictor. The performance
+We show the results in the simulated setting in
+oftheautomaticconversationaldepthdetectorhas
+Table 6 and the real-world setting in Table 7. In
+a 72.7% accuracy, while the majority vote base-
+the simulated setting, users are simulated using a
+line accuracy is 63.6%. The conversational depth
+chatbot, A.L.I.C.E.. We show an example sim-
+detectorhasthreetypesoffeatures:
+ulated conversion in Table 2. In the real-world
+1. The number of dialogue exchanges between setting, the users are people recruited on Amazon
+the user and TickTock and the number of Mechanical Turk. We collected 50 conversations
+timesTickTockusesthecontinue,switchand for each policy. We compute turn-level appropri-
+end strategy. ateness and conversational depth using automatic
+predictorsinthesimulatedsettingandusemanual
+2. The count of a set of keywords in the con-
+annotationsinthereal-worldsetting.
+versation. Thekeywordsare“sense”,“some-
+The policy learned via reinforcement learning
+thing” and interrogative pronouns, such as
+outperforms the other two policies in all three
+“when”, “who”, “why”, etc. “Sense” often
+metrics with statistical significance (p < 0.05)in
+occursinsentence,suchas“Youarenotmak-
+both the simulated setting and the real-world set-
+ing any sense” and “something” often oc-
+ting. The percentage of inappropriate turns de-
+curs in sentence, such as “Can we talk about
+creases when the policy considers context in se-
+something else?” or “Tell me something you
+lecting strategies. However, the percentage of ap-
+are interested in.”. Both of them indicate a
+propriate utterances is not as high as we hoped.
+possiblechangeofatopic. Interrogativepro-
+This is due to the fact that in some situations,
+nouns are usually involved in questions that
+no generic strategy is appropriate. For example,
+probeuserstogodeepintothecurrenttopic.
+none of the strategies can produce an appropriate
+response for a content-specific question, such as
+3. Weconverttheentireconversationintoavec-
+“What is your favorite part of the movie?” How-
+torusingdoc2vecandalsoincludethecosine
+ever,theendstrategycanproducearesponse,such
+similarity scores between adjacent responses
+as: “Sorry, I don’t know, tell me something you
+oftheconversation.
+are interested.” This strategy is considered “Inter-
+pretable” which in turn saves the system from a
+6.3 InformationGain
+breakdown. The goal of designing strategies and
+Information gain reflects the number of unique policies is to avoid system breakdowns, so using
+words that are introduced into the conversation the end strategy is a good choice in such a sit-
+from both the system and the user. We believe uation. These generic strategies are designed to
+410
+Policy Appropriateness Conversationaldepth Infogain
+RandomSelection 62% 32% 50.2
+LocallyGreedy 72% 34% 62.4
+ReinforcementLearning 82% 45% 68.2
+Table6: Performanceofdifferentpoliciesinthesimulatedsetting
+Policy App Inter Inapp Conversationaldepth Infogain
+RandomSelection 30% 36% 32% 30% 56.3
+LocallyGreedy 30% 42% 27% 52% 71.7
+ReinforcementLearning 34% 43% 23% 58% 73.2
+Table7: Performanceofdifferentpoliciesinthereal-worldsetting.
+avoidsystembreakdowns, sosometimestheyare selection using reinforcement learning methods.
+not“Appropriate”,butonly“Interpretable”. Thepolicylearnedbyreinforcementlearningout-
+Both the reinforcement learning policy and the performs the locally greedy policy and the ran-
+locally greedy policy outperform the random se- dom selection policy with respect to three evalu-
+lection policy with a huge margin in conversa- ation metrics: turn-level appropriateness, conver-
+tional depth. The reason is that they take context sationaldepthandinformationgain.
+intoconsiderationinselectingstrategies,whilethe Inthefuture,wewishtoconsideruser’sengage-
+random selection policy uses the switch strategy ment in designing the strategy selection policy in
+randomly without considering the context. As a order to elicit high quality responses from human
+result,itcannotkeeptheuseronthesametopicfor users.
+long. However, the reinforcement learning policy
+only outperforms the locally greedy policy with a
+small margin. Because there are cases when the References
+userhasverylittleinterestinatopic,thereinforce-
+Rafael E Banchs and Haizhou Li. 2012. Iris: a chat-
+ment learning policy will switch the topic to sat-
+oriented dialogue system basedon thevector space
+isfy the turn-level appropriateness metric, while model. In Proceedings of the ACL 2012 System
+thelocallygreedypolicyseldomselectstheswitch Demonstrations,pages37–42.AssociationforCom-
+putationalLinguistics.
+strategyaccordingtothelearnedstatistics.
+The reinforcement learning policy has the best
+AlanWBiermannandPhilipMLong. 1996. Thecom-
+performanceintermsofinformationgain. Webe-
+position of messages in speech-graphics interactive
+lieve the improvement mostly comes from using systems. In Proceedings of the 1996 International
+themorestrategyappropriately. Themorestrategy SymposiumonSpokenDialogue,pages97–100.
+elicits more information from the user compared
+Chih-Chung Chang and Chih-Jen Lin. 2011. LIB-
+tootherstrategiesingeneral.
+SVM: a library for support vector machines. ACM
+InTable2,wecanseethatthesimulateduseris TransactionsonIntelligentSystemsandTechnology
+not as coherent as a human user. In addition, the (TIST),2(3):27.
+simulated user is less expressive than a real user,
+Min Chi, Kurt VanLehn, Diane Litman, and Pamela
+sothedepthoftheconversationisgenerallylower
+Jordan. 2011. Empirically evaluating the ap-
+inthesimulatedsettingthaninthereal-worldset-
+plication of reinforcement learning to the induc-
+ting. tionofeffectiveandadaptivepedagogicalstrategies.
+UserModelingandUser-AdaptedInteraction,21(1-
+8 ConclusionandFutureWork 2):137–180.
+We design a set of generic conversational strate- Kallirroi Georgila and David R Traum. 2011. Rein-
+gies, such as switching topics and grounding on forcement learning of argumentation dialogue poli-
+ciesinnegotiation. InINTERSPEECH,pages2073–
+named-entities, to handle possible system break-
+2076.
+downs in any non-task-oriented system. We also
+learn a policy that considers both the local and
+Ryuichiro Higashinaka, Kenji Imamura, Toyomi Me-
+global context of the conversation for strategy guro,ChiakiMiyazaki,NozomiKobayashi,Hiroaki
+411
+Sugiyama,ToruHirano,ToshiroMakino,andYoshi- Satinder P Singh, Michael J Kearns, Diane J Litman,
+hiro Matsuo. 2014. Towards an open-domain con- andMarilynAWalker. 1999. Reinforcementlearn-
+versational system fully based on natural language ing for spoken dialogue systems. In Nips, pages
+processing. InCOLING,pages928–939. 956–962.
+ClaytonJHuttoandEricGilbert. 2014. Vader: Apar- Oriol Vinyals and Quoc Le. 2015. A neural conver-
+simonious rule-based model for sentiment analysis sational model. ICML Deep Learning Workshop
+of social media text. In Eighth International AAAI 2015.
+ConferenceonWeblogsandSocialMedia.
+Marilyn A Walker, Jeanne C Fromer, and Shrikanth
+Filip Jurcˇ´ıcˇek, Blaise Thomson, and Steve Young. Narayanan. 1998. Learningoptimaldialoguestrate-
+2012. Reinforcement learning for parameter esti- gies: A case study of a spoken dialogue agent for
+mationinstatisticalspokendialoguesystems. Com- email. In Proceedings of the 36th Annual Meet-
+puterSpeech&Language,26(3):168–192. ing of the Association for Computational Linguis-
+ticsand17thInternationalConferenceonComputa-
+Sungjin Lee and Maxine Eskenazi. 2012. Pomdp- tional Linguistics-Volume 2, pages 1345–1351. As-
+based let’s go system for spoken dialog challenge. sociationforComputationalLinguistics.
+In Spoken Language Technology Workshop (SLT),
+2012IEEE,pages61–66.IEEE. Jason D Williams and Steve Young. 2007. Partially
+observable markov decision processes for spoken
+Esther Levin, Roberto Pieraccini, and Wieland Eck-
+dialog systems. Computer Speech & Language,
+ert. 1997. Learning dialogue strategies within the
+21(2):393–422.
+markov decision process framework. In Automatic
+SpeechRecognitionandUnderstanding,1997.Pro- ZhouYu,AlexandrosPapangelis,andAlexanderRud-
+ceedings., 1997 IEEE Workshop on, pages 72–79. nicky. 2015. TickTock: A non-goal-oriented mul-
+IEEE. timodal dialog system with engagement awareness.
+InProceedingsoftheAAAISpringSymposium.
+Jan Niehues Maria Schmidt and Alex Waibel. 2015.
+Towards an open-domain social dialog system. In Zhou Yu, Ziyu Xu, Alan Black, and Alexander Rud-
+Proceedings of the 6th International Workshop Se- nicky. 2016. Chatbot evaluation and database ex-
+riesonSpokenDialogSystems,pages124–129. pansion via crowdsourcing. In Proceedings of the
+chatbotworkshopofLREC.
+Tomas Mikolov, Kai Chen, Greg Corrado, and Jef-
+frey Dean. 2013. Efficient estimation of word
+representations in vector space. arXiv preprint
+arXiv:1301.3781.
+Teruhisa Misu, Komei Sugiura, Kiyonori Ohtake,
+Chiori Hori, Hideki Kashioka, Hisashi Kawai, and
+Satoshi Nakamura. 2010. Modeling spoken deci-
+sion making dialogue and optimization of its dia-
+logue strategy. In Proceedings of the 11th Annual
+MeetingoftheSpecialInterestGrouponDiscourse
+andDialogue,pages221–224.AssociationforCom-
+putationalLinguistics.
+Teruhisa Misu, Kallirroi Georgila, Anton Leuski, and
+David Traum. 2012. Reinforcement learning of
+question-answeringdialoguepoliciesforvirtualmu-
+seum guides. In Proceedings of the 13th Annual
+MeetingoftheSpecialInterestGrouponDiscourse
+and Dialogue, pages 84–93. Association for Com-
+putationalLinguistics.
+AlanRitter,ColinCherry,andWilliamBDolan. 2011.
+Data-drivenresponsegenerationinsocialmedia. In
+Proceedingsoftheconferenceonempiricalmethods
+innaturallanguageprocessing,pages583–593.As-
+sociationforComputationalLinguistics.
+TomohideShibata,YusukeEgashira,andSadaoKuro-
+hashi. 2014. Chat-likeconversationalsystembased
+on selection of reply generating module with rein-
+forcement learning. In Proceedings of the 5th In-
+ternationalWorkshopSeriesonSpokenDialogSys-
+tems,pages124–129.
+412

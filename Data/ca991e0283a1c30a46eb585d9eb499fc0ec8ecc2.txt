@@ -1,0 +1,1404 @@
+Inference-Time Policy Adapters (IPA):
+Tailoring Extreme-Scale LMs without Fine-tuning
+XimingLu♡♣ FaezeBrahman♡♣ PeterWest♡♣ JaehunJung♡
+KhyathiChandu♣ AbhilashaRavichander♣ LianhuiQin♡
+PrithvirajAmmanabrolu♡♣ LiweiJiang♡♣ SahanaRamnath♢
+NouhaDziri♣ JillianFisher♡ BillYuchenLin♣ SkylerHallinan♡
+Training
+XiangRen♢♣ SeanWelleck♡♣ YejinChoi♡♣
+♣AllenInstituteforArtificialIntelligence
+♡UniversityofWashington ♢UniversityofSouthernCalifornia
+Prediction
+Abstract ❄ Frozen
+Policy
+While extreme-scale language models have Parameters " Learning Adaption
+⊕ yˆ IPA
+demonstrated exceptional performance on a Base Policy Prediction
+variety of language tasks, the degree of con- (Extreme-Scale LM) Approximate
+trolovertheselanguagemodelsthroughpure Policy
+Reward
+promptingcanoftenbelimited. Directlyfine- R
+tuningsuchlanguagemodelscanbeeffective
+Policy Adapter
+fortailoringthem,butitcanbeeitherextremely ! Policy Prediction
+costly(e.g.,GPT-3)ornotevenfeasibleforthe Ad ⊕aption
+broadercommunity(e.g.,GPT-4).
+⊕ yˆ
+✓ WeproposeInference-timePolicyAdapters
+(IPA), which efficiently tailors a language Tailored Policy Prediction
+model such as GPT-3 without fine-tuning it.
+Reward
+IPA guides a large base model during decod- Adapted Inference
+ingtimethroughalightweightpolicyadapter
+trainedtooptimizeanarbitraryuserobjective ⊕ yˆ
+withreinforcementlearning. !
+Figure 1: Inference-time Policy Adapters (IPA) effi- Policy
+Onfivechallengingtextgenerationtasks,such Prediction
+cientlysteeralarge-scalelanguagemodel(suchasGPT- Adaption
+astoxicityreductionandlexicallyconstrained
+3)duringdecoding-timethroughalightweightpolicy
+generation,IPAconsistentlybringssignificant
+adaptertrainedtooptimizeanyarbitraryuserobjective
+improvementsoveroff-the-shelflanguagemod-
+withreinforcementlearning.
+els. Itoutperformscompetitivebaselinemeth-
+ods,sometimesevenincludingexpensivefine-
+tuning. Inparticular,tailoringGPT-2withIPA
+abrittleprocessduetoLLMsbeingoverlysensi-
+can outperform GPT-3, while tailoring GPT-
+tivetothesurface-formoftheinstructions(Perez
+3withIPAbringsamajorperformanceboost
+overGPT-3(andsometimesevenoverGPT-4). etal.,2021;Luetal.,2022c). Furthermore,even
+Our promising results highlight the potential with a carefully written prompt, LLMs may still
+ofIPAasalightweightalternativetotailoring struggletofulfillcertaintaskrequirementsdueto
+extreme-scalelanguagemodels.1
+theirinherentlimitations(Liuetal.,2022a;Zong
+andKrishnamachari,2022).
+1 Introduction
+Resource-intensive fine-tuning, through super-
+Large language models (LLMs) have recently vised learning, and more recently reinforcement
+shownremarkableprogressinvarioustextgener- learning (RL) (Lu et al., 2022a) have shown
+ation tasks by adapting to instructions or exam- promiseintailoringlanguagemodelstoarbitrary
+ples (Ouyang et al., 2022; Brown et al., 2020). user-given objectives. RL, in particular, known
+However, the degree of control (e.g., the inclu- foritsgeneralizabilityandflexibility,allowsmod-
+sionofkeywords,avoidingharmfullanguage)of- elstolearnfromdesiredrewards. However,these
+feredbytheseextreme-scalemodelsthroughpure methods require accessing and updating models
+promptingisstilllimited(Louetal.,2023;Webson parameters,whichcanbeextremelylargeorinac-
+and Pavlick, 2021). Moreover, prompting can be cessibleinstate-of-the-artmodelslikeGPT-4(Ope-
+nAI, 2023b). This limitation makes fine-tuning
+1Ourcodeispubliclyavailableat:https://github.com/
+GXimingLu/IPA unfeasibleforthebroadercommunity.
+3202
+ceD
+6
+]LC.sc[
+2v56051.5032:viXra
+Alternatively,inference-timealgorithmscantai- 2 Background
+lor a language model without accessing its pa-
+Inthissection,weintroduceourtextgenerationset-
+rameters. These algorithms align language mod-
+ting(§2.1)andabriefbackgroundontailoringlan-
+els’ outputs with desired task/user-specific prop-
+guagemodelswithreinforcementlearning(§2.2).
+ertiesbyadjustingthemodel’soutputdistribution
+WethenintroduceourIPAalgorithmfortailoring
+basedoncertaintask-specificheuristics,whileleav-
+largelanguagemodelswithoutfine-tuning(§3).
+ingtheunderlyingmodeluntouched. Despitethe
+progress, these approaches are either restricted 2.1 ProblemSetting
+to specific tasks (Lu et al., 2021, 2020), require
+Text generation is the task of generating an out-
+domain-specificknowledge(Liuetal.,2021a;Yang
+put sequence y given an input sequence x. We
+andKlein,2021),sufferfromexpensiverun-time
+consider standard autoregressive language mod-
+atinference(Qinetal.,2022,2021;Dathathrietal.,
+els,whichdecomposeasequence’sprobabilityas
+2020a), or have shown to be less effective com-
+(cid:81)|y|
+p (y x) = p (y y ,x), where p is a neu-
+paredtodirectRLoptimization(Luetal.,2022a). θ | t=1 θ t | <t θ
+ralnetworkwithparametersθ. Intuitively,ourgoal
+isto‘tailor’apretrainedmodelp towardsauser-
+θ
+Drawing inspiration from RL and inference- specified objective (e.g., safety). Concretely, we
+timetechniques,weproposeInference-timePol- assumethattheobjectiveisquantifiedbyareward
+icy Adapters ( IPA), an efficient and general- function (y) R. We then aim to adjust p so
+θ
+R ∈
+izable algorithm, which tailors a large language thatitsgeneratedsequenceshavehighrewardand
+modelatdecoding-timetowarddesiredobjectives reasonablelanguagequality(e.g.,fluency).
+without fine-tuning it. To do so, IPA combines a
+largebaseLM’soutputdistributionwiththatofa 2.2 Preliminary: TailoringLMswithRL
+smaller-sized model (a lightweight adapter pol- Online policy-based reinforcement learning has
+icy), and optimizes the combined distribution to- emergedasaneffectivewaytoadjustalanguage
+wards a given objective with RL (Figure 1). IPA modeltowardsarewardfunction. Formally,these
+usestwokeyideastomakelearningefficient. First, algorithms(e.g.,PPO(Stiennonetal.,2022),Quark
+IPAonlyupdatestheadapter’sparameters,avoid- (Luetal.,2022b),orNLPO(Ramamurthy*etal.,
+ingtheneedtoupdatethelargebaseLM.Second, 2023))optimizealanguagemodelp towardsgen-
+θ
+IPAreplacesthelargebasemodelwithanapprox- eratingoutputsythatmaximizeagivenreward :
+R
+imate policy–a smaller model that approximates
+θ⋆ = argmaxE (y),
+the base model’s distribution. The approximate y∼p θ(·|x) R
+policyiseitherasmallermodelfromthesamelan- often along with regularization to maintain lan-
+guage model family or a distilled version of the guagequality. Atahigh-level,thesealgorithmsuse
+basemodel. Atinferencetime,wedecodewiththe apolicyp tocollectinput-outputexamples,score
+θ
+combined distribution of the base model and the theoutputswitharewardfunction ,andupdate
+R
+trainedpolicyadapter. parameterθ tomaximizetheexpectedreward. Al-
+thoughtheexactoptimizationmaydiffer,wecan
+viewanyonlinepolicy-basedRLalgorithmsasa
+Experiments across five challenging text gen-
+functions f that take a policy p and a reward
+eration tasks show that IPA brings consistent im- RL θ
+function astheinputsandoutputsanoptimized
+provements over off-the-shelf language models,
+R
+outperformingcompetitivebaselines—sometimes
+policyp
+θ⋆
+withrespectto . Formally,
+R
+even including expensive fine-tuning. In particu- f : (p , ;θ′) θ⋆. (1)
+RL θ
+lar,tailoringGPT-2withIPAcanoutperformGPT- R →
+Hereθ′ θ denotesthesubsetofp ’sparameters
+3, while tailoring GPT-3 with IPA brings a ma- θ
+⊆
+that are updated by the algorithm. The key idea
+jorperformanceboostoverGPT-3(andsometimes
+behind IPA is to use a full model p to collect
+even over GPT-4). Our compelling highlight the θ
+examples,butupdateasmallsetofparametersθ′.
+promiseofIPAasalightweightalternativefortai-
+loring large language models to a wide range of
+3 Inference-timePolicyAdapters(IPA)
+objectives. IPAopensnewwaystoaugmentorcus-
+tomizeextreme-scalelanguagemodelsusingonly WeintroduceInference-timePolicyAdapters(IPA),
+academic-levelresources. alightweightapproachtotailorlanguagemodels
+towards a user-specified objective. IPA trains a framework does not depend on a specific RL al-
+small adapter policy that adjusts the outputs of a gorithm,butrathertreatsRLasaflexibleplug-in
+(larger) base model at inference-time in order to optimization tool. As we will demonstrate later,
+maximize a reward. In doing so, IPA avoids the IPAprovestobeeffectivewhenpairedwiththree
+costofupdatingthelargebasemodel,withoutthe different RL algorithms (Lu et al., 2022b; Schul-
+needtohand-designinference-timeheuristics. manetal.,2017;Ramamurthyetal.,2023),andin
+principle,itcaneasilyintegratewithothers.
+3.1 PolicyAdaptation
+Weintroducethenotionof‘tailoring’usedbyIPA, Approximate Policy. When the base model is
+extremely large (e.g., GPT-3), its forward pass is
+which mainly involves three policies. First, IPA
+too costly to be used in the RL training loop. To
+startswithabasepolicyp ,whichisthelanguage
+θ
+overcomethis,weproposeusinganapproximate
+modeltotailor. Second,IPAintroducesanadapter
+policyinIPA.
+policyp ,whichisalanguagemodelwiththesame
+ϕ
+outputspaceasthebasepolicy(i.e.,vocabulary), Definition 2 (Approximate policy). The approx-
+butdifferentparametersϕ. Finally,IPAcombines imate policy is defined as a smaller-sized neural
+thebaseandadapterpoliciesintoatailoredpolicy: model parameterized by θˆthat approximates the
+Definition1(Tailoredpolicy). Thetailoredpolicy distributionofthebasepolicyandisusedtoreplace
+p combinesthedistributionsofthebasepolicy thebasepolicyintheRL-basedadaptertraining:
+θ←ϕ
+p andtheadapterpolicyp ,
+θ ϕ ϕ⋆ = f (p , ;ϕ).
+1 RL θˆ←ϕ R
+p (y y ) = p (y y )p (y y ),
+θ←ϕ t <t θ t <t ϕ t <t
+| Z | | In practice, we can obtain an approximate pol-
+whereZ isanormalizationfactor. icy in two different ways. First, we can use a
+smallerpre-trainedlanguagemodelfromthesame
+The tailored policy is a product-of-experts (Hin-
+model family. We do this if the smaller model
+ton,2002),whichamountstomultiplyingthenext-
+hassimilarconditionalgenerationbehaviorasthe
+tokenprobabilitiesfromthebaseandadapterpoli-
+basepolicy. Forinstance,weuseanoff-the-shelf
+cies, then normalizing the result. IPA’s tailored
+GPT2-XLastheapproximatepolicytotailorGPT-
+policyhastwokeyproperties. First, itallowsfor
+3inanopen-endedgeneration. Alternatively,we
+adjustingthebasepolicy’soutputwithoutdirectac-
+can use a distilled base policy as the approxi-
+cesstothebasepolicy’sparameters. Thisiscritical
+matepolicy. Adistilledbasepolicyisalanguage
+fortailoringmodernLLMsthatprovideaccessto
+model trained on generations from the base pol-
+themodel’soutputdistributionbutnotthemodel’s
+icy,θˆ= argmaxE (cid:2) logP (y)(cid:3) ,knownas
+parameters. Second, thepolicyadaptercanusea y∼p θ(·|x) θˆ
+sequence-level knowledge distillation (Kim and
+muchsmallermodel(i.e.,ϕ θ). Thisprovides
+≪ Rush,2016;Westetal.,2022). Forexample,totai-
+anefficientwaytotailoralargebasemodel.
+lorGPT-3forlexicallyconstrainedgeneration,we
+3.2 AdapterTrainingwithRL tune GPT2-XL on prompt-generation pairs from
+GPT-3togetadistilledbasepolicy.
+Ourgoalistoadjustthetailoredpolicytowardsa
+user-specifiedobjective. ThekeyideainIPAisto
+IPA at Inference Time. At inference time,
+trainthetailoredpolicytooptimizeagivenreward
+IPA uses the tailored policy p for decoding.
+θ←ϕ
+withreinforcementlearning,whileonlyupdating
+Namely,ateachtime-stepweobtainthenext-token
+theparametersoftheadapterpolicy.
+distributionfromthetailoredpolicyp (y y ),
+Concretely,weuseareinforcementlearningal- θ←ϕ t | <t
+whichcanthenbeusedwithastandarddecoding
+gorithmf (Eqn.1)tooptimizethetailoredpolicy
+RL algorithm(e.g. nucleussampling).
+p witharewardfunction . Notably,wekeep
+θ←ϕ
+R
+the base policy’s parameters (θ) frozen, and only
+4 Experiments
+updatetheadapterpolicy’sparameters(ϕ). Thatis,
+We evaluate IPA on a diverse range of tasks:
+ϕ⋆ = f (p , ;ϕ).
+RL θ←ϕ
+R toxicity reduction (§4.1), lexically constrained
+Intuitively,theadapterpolicyp learnstorescale generation (§4.2), open-ended generation (§4.3),
+ϕ
+the frozen base policy p , yielding a tailored pol- dialogue safety control (§4.4), and knowledge-
+θ
+icythatis‘tailoredto’thereward. Noticethatour groundeddialogue(§4.5). Inallbenchmarks,IPA
+consistently improve upon LLMs such as GPT- Toxicity Fluency Diversity
+Models
+3 (text-davinci-003), surpassing competitive AvgMax. Prob. Pl. Dist-2. Dist-3.
+baselines and sometimes even outperforming ex- basepolicy:GPT2-L
+GPT-2 0.527 0.520 11.31 0.85 0.85
+pensivefine-tunedGPT-3atafractionofthecost.
+PPLM 0.520 0.518 32.58 0.86 0.86
+GeDi 0.363 0.217 60.03 0.84 0.83
+4.1 ToxicityReduction DEXPERTS 0.314 0.128 32.41 0.84 0.84
+DAPT 0.428 0.360 31.21 0.84 0.84
+LMs are susceptible to generating toxic comple-
+PPO 0.218 0.044 14.27 0.80 0.84
+tions,evenwhenpromptedwithseeminglyinnocu- QUARK 0.196 0.035 12.47 0.80 0.84
+ous text (Gehman et al., 2020). Here, we assess IPA(GPT-2) 0.138 0.031 11.94 0.80 0.84
+IPA’sefficacyinreducingtoxicityfromLMs. basepolicy:GPT-3
+GPT-3 0.275 0.197 10.65 0.78 0.81
+DatasetsandMetrics. Thetaskistogeneratea DEXPERTS 0.223 0.112 23.41 0.79 0.82
+DAPT 0.254 0.176 20.19 0.80 0.83
+fluentcontinuationy whileavoidingoffensivecon-
+IPA- (GPT-3) 0.150 0.056 10.34 0.79 0.81
+tentforagivenpromptx. WeevaluatethisonRE-
+IPA*(GPT-3) 0.101 0.028 12.68 0.79 0.83
+ALTOXICITYPROMPTS benchmark(Gehmanetal.,
+2020), which contains 100k prompts designed to Table1: AutomaticevaluationforToxicityReduction
+elicittoxicgenerations. Followingtheexperimen- withoff-the-shelfGPT2-large(top)andGPT-3(bottom)
+asthebasepolicytotailor.
+talsetupofLiuetal.(2021b),weusePerspective
+API to determine the average maximum toxicity
+across25sampledgenerationsandthe(empirical) RLAlgo. Toxicity Fluency Diversity
+toxicityprobabilityofatleastonetoxicgeneration. AvgMax. Prob. Pl. Dist-2. Dist-3.
+Inaddition,wereportfluencyastheperplexityof Quark 0.138 0.031 11.94 0.80 0.84
+PPO 0.125 0.029 12.47 0.80 0.84
+generatedoutputbasedonanoff-the-shelfGPT2- NLPO 0.136 0.032 12.13 0.80 0.85
+XL model, and diversity as the count of unique
+Table2:ComparisonofusingdifferentRLalgorithmfor
+n-gramsnormalizedbythelengthoftext. Wealso
+trainingIPAforToxicityReductionwithoff-the-shelf
+performhumanevaluations;seeAppendixA.1for
+GPT2-largeasthebasepolicytotailor.
+moredetails.
+SetupandBaselines WeapplyIPAtotailoroff-
+2021), DExpert (Liu et al., 2021a), and learning-
+the-shelfGPT-2andGPT-32. TotailorGPT-2,we
+basedmethods: DAPT(Gururanganetal.,2020),
+directlyapplythebasepolicyintheadaptertrain-
+PPO(Schulmanetal.,2017),andQUARK(Luetal.,
+ing,denotedasIPA(GPT-2). FortailoringGPT-3,
+2022a). For tailoring GPT-3, we compare IPA to
+weuseanoff-the-shelfGPT-2andadistilledGPT-3
+thebaselinesdescribedabovethatarecompatible
+3 astheapproximatepolicyfortheadaptertraining,
+withGPT-3’slimitedaccessibility: DExpert(Liu
+labeledasIPA-(GPT-3)andIPA*(GPT-3)respec-
+etal.,2021a)andDAPT(Gururanganetal.,2020).
+tively. Notice that IPA-(GPT-3) is equivalent to
+WealsoprovideruntimeanalysisinAppendixB.
+directlyapplyingthepolicyadaptertrainedtotai-
+lor GPT-2 on top of GPT-3. We initialize all the Results AsshowninTable1,IPAoutperformsall
+policyadapterswithapre-trainedGPT2-Lmodel. learning-basedanddecoding-basedmethodsintai-
+WeuseQUARKastheRLalgorithminadapter loringGPT-2andGPT-3,significantlyreducesthe
+optimization,andprovideadditionalablationstud- toxicitywhilemaintaininglanguagequality. Inter-
+iestoassesstheeffectsofdifferentRLalgorithms. estingly,wefoundthatapplyingthepolicyadapter
+We use the Perspective API as the reward func- optimizedforGPT-2directlyontopofGPT-3(i.e.,
+tion,whichprovidesascorerangingfrom0to1to IPA-)ishighlyeffective,showcasingtheadaptabil-
+indicatethedegreeoftoxicity. ityandreusabilityofIPA.Notably,whentailoring
+For tailoring GPT-2, we compare IPA with GPT-3, IPA outperforms the costly domain adap-
+previously reported baselines from Lu et al. tivetraining(DAPT),whichexhaustivelyfine-tune
+(2022a), including decoding-based methods: GPT-3 on a non-toxic corpus. This further em-
+PPLM(Dathathrietal.,2020a),GeDi(Krauseetal., phasizesthepromiseoftheIPAasacost-efficient
+approachtoalignLLMs. Ourfindingsarefurther
+2Werefertext-davinci-003asGPT-3inthispaper
+confirmedbyhumanevaluation(AppendixA.1).
+3WefinetuneaGPT2-XLwithprompt-outputpairsfrom
+GPT-3onREALTOXICITYPROMPTSasthedistilledGPT-3. Finally, we conduct ablations on the effect of
+Setup and Baselines. As we will demonstrate
+later,zero-shotGPT-3issurprisinglypooratsatis-
+fyingorderedlexicalconstraints,evenwithexplicit
+instructions. OurgoalistomakeGPT-3morere-
+liable in constraint satisfaction. We use distilled
+Figure2: PerformanceofIPA-(blueline)withrespect GPT35 astheapproximatepolicyforadaptertrain-
+tothesizeoftheadaptermodel(distill-GPT2,GPT2- ing, sinceanoff-the-shelfGPT-2cannotperform
+small,GPT2-medium,GPT2-large,GPT2-XL)ontop
+constrainedgenerationoutofthebox. Weinitial-
+ofaoff-the-shelfGPT-3asthebasepolicy. Thegrey
+ize the policy adapter with a pre-trained GPT2-L
+linedenotestheperformanceoftheoff-the-shelfGPT-3.
+model. We use QUARK as the RL algorithm and
+chooseourrewardtobetheproductofthecoverage
+Automatic Human
+Models scoreandthefluencyscore,asthispromotescon-
+Cov. Fl. Qu. Pl. Overall
+straintsatisfactionandfluencypreservation. Please
+GPT-3 37.01 94.89 2.84 2.81 2.60
+seeAppendixA.4formorerewardanalysis.
+GPT-3.5 65.17 95.89 2.93 2.88 2.90
+GPT-4 84.81 95.49 2.95 2.97 2.96 WecompareIPAwithitsbasepolicyGPT-3,as
+GPT-3sft 72.89 73.96 2.56 2.60 2.50 wellasmoreadvancedLLMs: GPT-3.5andGPT-4
+IPA∗(GPT-3) 88.54 92.58 2.90 2.87 2.88 (OpenAI,2023a). Asastrongsupervisedbaseline,
+wealsofine-tuneGPT-3ontheCOMMONGENtrain
+Table 3: Automatic and human evaluation results for set,whichcontainshuman-writtenoutputswiththe
+LexicallyConstrainedGeneration. Humanevaluation
+correctlexicalorder,denotedasGPT-3 .
+scoresareona3-pointLikertScale.4 sft
+Results. As shown in Table 3, powerful LMs
+suchasGPT-3oftenstruggletosatisfyorderedlex-
+RL algorithms. As shown in Table 2, IPA is ef-
+icalconstraintsevenwithexplicitinstructions. IPA
+fective with various RL algorithms, all of which
+leads to remarkable improvement on top of GPT-
+lead to state-of-the-art performance. Additional
+3 and surpasses more advanced models such as
+ablationinFigure2showsthatapolicyadapteras
+GPT-3.5andGPT-4intermsofconstraintcoverage,
+smallasadistilledGPT-2caneffectivelytailorthe
+while achieving better or comparable generation
+1000largerGPT-3model,achievingcomparable
+× quality. Noticeably, IPA outperforms fine-tuned
+performancewithourmainresult.
+GPT-3inbothconstraintcoverageandgeneration
+4.2 LexicallyConstrainedGeneration quality at a fraction of its cost: while fine-tuning
+GPT-3costs$156.82,trainingadistilledGPT-3as
+Next, we test IPA in lexically constrained gener-
+the approximate policy requires only $28.59 for
+ation. We consider a more challenging setup of
+generatingoutputsfromGPT-3. Ourresultshigh-
+orderedlexicalconstraints,wherethegeneration
+lightthepotentialoftheIPAasacost-efficientway
+isconsideredcorrectifitincludesallthekeywords
+toenhancethecapabilitiesofLLMs.
+withthecorrectorderspecifiedintheinputprompt.
+Datasets and Metrics. We use COMMONGEN 4.3 Open-endedgeneration
+(Lin et al., 2020), a dataset for generative com-
+We further evaluate IPA on open-ended genera-
+monsensereasoning. Wedeliberatelyinstructthe
+tion,followingtheexperimentalsetupin(Lietal.,
+modelstogenerateasentencewiththegivenkey-
+2022b). The goal is to make machine-generated
+wordswhilefollowingtheordertheyappearinthe
+contentmorefluent,coherent,andhuman-like.
+inputprompt. Forautomaticevaluation,wegauge
+theconstraintsatisfactionwithcoverage,abinary Datasets and Metrics. We experiment on the
+metricthatevaluatesagenerationtobecorrectonly newsdomainusingXSumdataset(Narayanetal.,
+whenitincludesallthekeywordsandalsomatches 2018). Following Li et al. (2022b), we use the
+the specified order. We also measure the fluency first 32 words as our input prompt, and generate
+usingacriticmodelfine-tunedonCoLA(Warstadt 84tokensascontinuations. Weevaluateusingboth
+etal.,2019). Forhumanevaluation,weassessthe
+quality and plausibility of model generations for
+4Humanpairwiseagreementsare0.97,0.94,and0.93for
+quality,plausibilityandoverall,respectively.
+100 randomly sampled test examples based on a
+5WefinetuneaGPT2-XLwithprompt-outputpairsfrom
+3-pointLikertScale;seedetailsinAppendixE. GPT-3onCOMMONGENtrainsetasthedistilledGPT-3
+DecodingMethod Diversity Coherence Critic Mauve
+basepolicy:GPT2-XL
+greedy 55.05 49.57 7.88 15.32
+top-k(k=50) 92.60 48.53 10.72 53.13
+top-p(p=0.95) 95.85 47.61 13.24 56.42
+typical(τ=0.95) 95.80 46.08 23.49 63.92
+SimCTG 95.67 46.12 23.67 62.21
+Contrastive 95.99 49.42 36.73 61.95
+IPA(GPT2-XL) 96.12 51.81 50.93 84.18
+basepolicy:GPT-3 Figure3:Pairwisehumanevaluationintermsofoverall
+top-p(p=0.95) 95.63 56.16 18.58 63.73 qualityforOpen-endedGenerationonXSumwithoff-
+IPA- (GPT-3) 95.35 57.26 22.62 71.40
+the-shelf GPT2-XL (top) and GPT-3 (bottom) as the
+IPA*(GPT-3) 96.26 61.94 32.84 73.17
+basepolicytotailor.7
+Table4: Automaticevaluationforopen-domaingenera-
+tionsonXSumwithoff-the-shelfGPT2-XL(top)and
+GPT-3(bottom)asthebasepolicytotailor.Criticscores Models Automatic Human
+Safety Safety Coherence
+refertohuman-likenessaccordingtoOpenAIdetector.
+DialoGPT 0.46 1.34 2.45
+Godel 0.49 1.40 2.53
+Blenderbot 0.53 1.43 2.60
+automaticandpairwisehumanevaluation. Forau-
+ChatGPT 0.74 1.60 2.68
+tomatic evaluation, we use aggregate n-gram di- IPA-(BlenderBot-3B) 0.78 1.57 2.75
+versityandcoherencescores(Lietal.,2022b)as
+wellasMAUVE(Pillutlaetal.,2021),whichmea- Table 5: Automatic and human evaluation results for
+suresthedistributionsimilaritybetweenthesetof DialogueSafetyControl. Humanevaluationscoresare
+human-written and machine-generated texts. To
+ona3-pointLikertScale.8
+measurethehuman-likenessofgeneratedtexts,we
+employ OpenAI detector6, a classifier for distin-
+guishing AI vs. human-written text. We use the
+specificallydesignedtoimprovethecoherenceand
+classifier’sprobabilityassignedto‘human’textto
+naturalnessofthegeneratedtext. FortailoringGPT-
+serveasanadditionalmetric,denotedasCritic. For
+3,wecompareIPAwithGPT-3’sdefaultgeneration
+human evaluation, we randomly sample 100 test
+technique: decodingwithnucleussampling(p =
+examplesandperformpairwisecomparisonsofour
+0.95). asotherdecodingmethodsarenotapplicable
+methodagainstbaselinesoncoherenceandfluency
+toGPT-3duetoitslimitedAPIaccess.
+usingAMT;seedetailsinAppendixE.
+Setup and Baselines. We apply IPA to tailor
+off-the-shelfGPT2-XLandGPT-3,followingthe
+Results. AsshowninTable4,IPAsignificantly
+samesetupastoxicityreductiontask(section4.1).
+outperformsallpreviousbaselinesintailoringGPT-
+Sameasbefore,thetailorpoliciesaredenotedas
+2andGPT-3acrossallautomaticmetrics. Notably,
+IPA(GPT-2), IPA-(GPT-3) and IPA*(GPT-3), re-
+it achieves an absolute improvement of 20.26%
+spectively. We use QUARK as the RL algorithm
+over the best-performing baseline in the Mauve
+andtheproductofdiversity,coherence,andcritic
+score. Our pairwise human evaluation in Figure
+scoresastherewardfunction. Wefounditcritical
+3 also verify the results. IPA generates signifi-
+tocombinemultiplemetricsastherewardfunction
+cantlymorecoherentandfluenttextscomparedto
+toimprovetheoverallgenerationquality;seeAp-
+otherbaselines. Overall,onaverage,humanevalu-
+pendixA.4formoreanalysisonrewardfunctions.
+atorspreferredIPA1.8 morethanotherbaselines.
+For tailoring GPT-2, we compare decoding with ×
+Interestingly, wefoundthatdirectlyapplyingthe
+IPAwithsixdifferentdecodingstrategies: greedy,
+policyadapteroptimizedforGPT-2ontopofGPT-
+top-k sampling (k = 50), nucleus sampling (p =
+3(i.e.,IPA-)significantlyimprovesthegeneration
+0.95),typicalsampling(τ = 0.95)(Meisteretal.,
+quality,highlightingtheadaptabilityandreusability
+2023),SimCTG(Suetal.,2022),andContrastive
+ofIPA.Weobservedfurtherimprovementwhenus-
+decoding (Li et al., 2022b). The latter three are
+ingdistilledGPT-3astheapproximatepolicy(i.e.,
+IPA*). Ourpromisingresultsonceagainshowcase
+6https://github.com/promptslab/
+openai-detector theeffectivenessandefficiencyofIPA.
+4.4 DialogueSafetyControl on both automatic and human evaluation while
+showcasingimprovedcoherence. Uponfurtherin-
+Existing dialogue systems often fail to respond
+vestigation,wefoundthatChatGPToftengenerates
+safely to potentially unsafe user utterances (Kim
+cannedresponseslike"I’malanguagemodel;I’m
+et al., 2022), limiting their deployment in real-
+notallowed..."ashardsafeguards,whichhurtsthe
+worldapplications. Here,weaimtoevaluateIPA
+coherenceandnaturalnessofthedialogueflow. On
+forcontrollingthesafetyofadialoguemodel.
+theotherhand,BlenderbottailoredbyIPAcangen-
+Datasets and Metrics. We experiment on DI- eratesaferesponsesthatarecoherent,natural,and
+ASAFETY(Sunetal.,2022),achallengingdataset human-like. Ourresultsdemonstratethepotential
+containing 54Kcontext-sensitiveunsafeexamples. of IPA to enhance controllability in various NLP
+Thetaskistogenerateacoherentresponsetoapo- applicationsbeyondconditionaltextgeneration.
+tentiallyunsafeutterancewhileavoidingoffensive,
+4.5 Knowledge-groundedDialogue
+harmful, toxic or biased language. DIASAFETY
+containshuman-writtensafeandunsaferesponses Ideally, knowledge-grounded dialogue systems
+which we use to train a dialogue safety classifier. should generate responses that are faithful to the
+We use the classifier score as an automatic mea- given knowledge. However, models tend to gen-
+sure of safety. In addition, we conduct a human erate hallucination containing unverifiable infor-
+evaluationofsafetyandcoherence(3-pointLikert mation(Dzirietal.,2022a;Rashkinetal.,2021a;
+scale)on200examplesthroughAmazonMechani- Dziri et al., 2022c). To address this undesirable
+calTurk;seeAppendixEFigure4fordetails. behavior, weuseIPAtotailordialoguemodelto-
+wardsgeneratingmorefaithfulcontent. Giventhe
+SetupandBaselines. WeapplyIPAtotailorthe
+knowledgeK andtheconversationhistoryH,the
+Blenderbot family models (Roller et al., 2021),
+taskistogeneratearesponser that’sfaithfultoK
+whicharepretraineddialogueagents. Specifically,
+andcoherentwithH.
+weuseBlenderbot-3B-distillasthefrozenbasepol-
+DatasetandMetrics WeevaluateontheWizard
+icy,asamllerBlenderbot-1B-distillastheapproxi-
+of Wikipedia (WoW) data. WoW (Dinan et al.)
+matepolicyandinitializethepolicyadapterwith
+involvesaWizardandanApprenticeengagingin
+aBlenderbot-1B-distillmodel. WeuseQUARKas
+a conversation. The Wizard’s role is to provide
+theRLalgorithmforadaptertraining. Topreserve
+informationonaspecifictopic,whiletheAppren-
+thedialoguequalitywhilecontrollingtheresponse
+tice’staskistoseekfurtherdetails. WoWhasbeen
+safety,wechooseourrewardtobetheproductof
+shown to suffer from hallucinations (Dziri et al.,
+thesafetyscorefromourdialoguesafetyclassifier,
+2022b),inmorethan60%oftheturns,makingita
+aswellascoherenceandengagingnessscoresfrom
+UniEval-Dialogue(Zhongetal.,2022).9 valuabledatasetforstudyinghallucinationissues.
+FaithDial (Dziri et al., 2022a) is a hallucination-
+We compare IPA with its base policy, i.e.,
+freebenchmarkcreatedbymodifyingthehalluci-
+Blenderbot-3B-distill, and other off-the-shelf di-
+natedresponseswithintheWoWdataset. Weuse
+aloguemodelsincludingDialoGPT(Zhangetal.,
+theFaithDialtestdataattesttimetoevaluatethe
+2020),GODEL(Pengetal.,2022)aswellasChat-
+faithfulnessofresponsesandcomparethemagainst
+GPT(OpenAI,2022). ChatGPTisknowntohave
+theknowledgesnippetsandgoldresponses.
+safeguardsthroughcontentfilteringandisconsid-
+Tomeasurefaithfulness,weusethecriticmodel
+eredastrongbaseline.
+(Dzirietal.,2022a),whichreturnstheprobability
+Results. AsshowninTable5,IPAsignificantly of an given utterance being identified as faithful.
+improvesdialoguesafetyandcoherencecompared Additionally, we use BERTScore to measure the
+to its base policy Blenderbot-3B-distill, surpass- semanticsimilaritybetweenthegeneratedresponse
+ing other dialogue models including DialoGPT r and the knowledge K, and the token-level F1
+and GODEL. In comparison with ChatGPT, IPA scoretoratethelexicaloverlapbetweenr andK.
+achievescomparableperformanceonsafetybased To measure coherence and engagingness, we use
+theUniEvalmodel(Zhongetal.,2022).
+7Average pairwise agreements are 0.88 and 0.82 with
+GPT2-XLandGPT-3,respectively. Setup and Baselines Similar to the dialogue
+8Humanpairwiseagreementsare0.84and0.87forsafety
+safetyexperiment,weusetheBlenderbot-{3,1}B-
+andcoherence.
+9https://github.com/maszhongming/UniEval distillmodel(Rolleretal.,2021)asourbasepolicy
+DialogueModel Critic BERTScore F1 Coherence Engaging 5 RelatedWork
+supervisedbaseline
+GPT-2 39.9 0.29 47.7 0.77 1.26 Controlled Decoding Recent studies have ex-
+DIALOGPT 40.6 0.34 53.5 0.83 1.32
+ploredcontrolledgenerationatinferencetimeby
+DOHA 46.8 0.32 56.1 0.88 1.33
+designingnewdecodingalgorithms(Keskaretal.,
+T5 53.5 0.41 61.7 0.86 1.28
+T5-CTRL 54.8 0.45 65.2 0.83 1.21 2019;Mireshghallahetal.,2022;Lietal.,2022a;
+T5-LT 58.6 0.43 65.0 0.83 1.21 Chenetal.,2022;Zhangetal.,2022). Forexample,
+off-the-shelf dialoguemodel Neurologic decoding (Lu et al., 2020), and GBS
+BlenderBot 10.3 0.12 9.8 0.92 1.21
+(Hokamp and Liu, 2017) generalize beam search
+IPA-(BlenderBot) 76.6 0.68 80.1 0.91 1.34
+for lexically constrained decoding, by constrain-
+ingdecodingspacewithkeyword-relatedpenalties.
+Table 6: Evaluation results for Knowledge-Grouded
+DialoguegenerationsonFaithdial. Weuseoff-the-shelf DExperts (Liu et al., 2021b) modifies output dis-
+Blenderbotasthebasepolicytotailor. tribution during decoding with attribute-specific
+expertmodels. Anotherlineofresearchdevelops
+gradient-baseddecodingformoregeneralcontrol
+and approximate policy respectively, and initial- (Qinetal.,2020,2022;Sha,2020;Dathathrietal.,
+izethepolicyadapterwithaBlenderbot-1B-distill 2020b;Kumaretal.,2021). Forexample,COLD
+model. We use QUARK as the RL algorithm. To Decoding (Qin et al., 2022) introduces energy-
+preservecoherenceandengagingnesswhileensur- basedmodelingtoimposearbitraryconstraintson
+ing the faithfulness of a dialogue response, we textandsampleswithLangevindynamics. Despite
+chooseourrewardtobetheproductofthefaithful- theirprogress,theseapproacheseitheraredesigned
+nessscorefromthecriticmodeldescribedabove, forparticularcontroltypesorrelyoncomputation-
+aswellascoherenceandengagingnessscoresfrom allyexpensivegradientcomputations.
+UniEval-Dialogue(Zhongetal.,2022).
+ReinforcementLearningforNLG RLhashis-
+WecomparetopreviouslybaselinesfromDziri
+torically been used in multiple NLG tasks such
+et al. (2022a), supervised models fine-tuned on
+as machine translation (Wu et al., 2016; Nguyen
+WoW, including GPT2, DialoGPT (Zhang et al.,
+etal.,2017),summarization(Paulusetal.,2017),
+2020),DoHA(Prabhumoyeetal.,2021)T5(Raffel
+dialogue (Li et al., 2016; Zhou et al., 2017),
+etal.,2020),T5-CTRL(Rashkinetal.,2021b),and
+textgames(Narasimhanetal.,2015;Hausknecht
+T5-LossTruncation(KangandHashimoto,2020).
+etal.,2020), etctooptimizeforanarbitrarynon-
+We also compare against the base policy, off-the-
+differentiable reward. This was often done us-
+shelfBlenderBotmodel(Rolleretal.,2021).
+ing online policy gradient methods such as RE-
+INFORCE (Sutton and Barto, 2018), leading to
+documentedissueswithrewardhacking(Choshen
+Results As shown in Table 6, supervised mod-
+et al., 2020; Kiegeland and Kreutzer, 2021). Re-
+elsstruggletogeneratefaithfuldialogueresponse
+centadvancesintroduceaKLrewardpenaltywhich
+groundedonthegivenknowledge. Thisismainly
+significantlyincreasesthenaturalnessofgenerated
+because of the poor data quality of their supervi-
+text (Ouyang et al., 2022; Korbak et al., 2022).
+siondataset: WoWhasbeenshowntosufferfrom
+This method has been used extensively to tune
+hallucinationsinmorethan60%oftheturns(Dziri
+a base LM via online on-policy (Ramamurthy*
+et al., 2022a). Moreover, pre-trained dialogue
+etal.,2023),off-policy(Guoetal.,2022;Luetal.,
+models like Blenderbot demonstrate even worse
+2022b),andoffline(Snelletal.,2023;Korbaketal.,
+performance at generating faithful response, de-
+2023)RL.Suchmethodsquicklybecomecompu-
+spitebeingtrainedonWoWandotherknowledge-
+tationallyinfeasibleforextreme-scaleLMs.
+grounded dialogue datasets in their pre-training
+stage. IPAsignificantlyimprovesthefaithfulness
+6 Conclusion
+of the generated dialogue response over its base
+policy Blenderbot while preserving the dialogue wepresentIPA,alightweightinference-timepolicy
+quality(i.e.,coherenceandengagingness),outper- adapter that tailor a frozen large language model
+formingallotherbaselines. Ourresultsshowcases towards desirable properties (e.g., safety, coher-
+thepotentialofIPAtoimprovereliabilityandtrust- ence) in an efficient, generalizable, and flexible
+worthinessinvariousdownstreamapplications. way. Specifically, IPA combines the generaliz-
+abilityofRLwiththeplug-and-playflexibilityof References
+inference-time techniques, permitting customiza-
+Armen Aghajanyan, Sonal Gupta, and Luke Zettle-
+tionoflargelanguagemodelswithouttheneedfor moyer.2021. Intrinsicdimensionalityexplainsthe
+costly fine-tuning. Extensive experiments across effectivenessoflanguagemodelfine-tuning. InPro-
+ceedings of the 59th Annual Meeting of the Asso-
+five challenging text generation tasks show that
+ciationforComputationalLinguisticsandthe11th
+IPA brings consistent improvements over LLMs,
+InternationalJointConferenceonNaturalLanguage
+outperformingcompetitivebaselines—sometimes Processing, ACL/IJCNLP 2021, (Volume 1: Long
+even surpassing expensive fine-tuning. We hope Papers),VirtualEvent,August1-6,2021,pages7319–
+ourworkshedslightoncreativeandefficientalgo- 7328.AssociationforComputationalLinguistics.
+rithmicinnovationstocomplementthepursuitof
+TomB.Brown,BenjaminMann,NickRyder,Melanie
+modelscaleswithacademic-levelresources. Subbiah, Jared Kaplan, Prafulla Dhariwal, Arvind
+Neelakantan,PranavShyam,GirishSastry,Amanda
+7 LimitationsandEthicalConsideration Askell, Sandhini Agarwal, Ariel Herbert-Voss,
+Gretchen Krueger, Tom Henighan, Rewon Child,
+WhiletheversatilityoftheIPAisacrucialfeature Aditya Ramesh, Daniel M. Ziegler, Jeffrey Wu,
+thatenablesaligninglargelanguagemodelswith ClemensWinter,ChristopherHesse,MarkChen,Eric
+Sigler,MateuszLitwin,ScottGray,BenjaminChess,
+arbitrary user-given objectives, it may also pose
+Jack Clark, Christopher Berner, Sam McCandlish,
+potentialdual-useconcerns,especiallywhencom-
+Alec Radford, Ilya Sutskever, and Dario Amodei.
+binedwiththepoweroflargelanguagemodels. 2020. Languagemodelsarefew-shotlearners.
+First, as with any controllable text generation
+MichaelChang,AbhishekGupta,SergeyLevine,and
+technique,IPAcouldbepotentiallyusedforunin-
+ThomasL.Griffiths.2019. Automaticallycompos-
+tendedmaliciouspurposes,suchasmanipulating ing representation transformations as a means for
+modelstoproducehateful,toxiccontentormisin- generalization. In7thInternationalConferenceon
+LearningRepresentations,ICLR2019,NewOrleans,
+formation. Asmalicioususerscanalreadyexploit
+LA,USA,May6-9,2019.OpenReview.net.
+anyexistingtechniquesforharmfulpurposesthe-
+oretically,weforeseeminimalriskintroducedby Howard Chen, Huihan Li, Danqi Chen, and Karthik
+IPA specifically. Nevertheless, we highly recom- Narasimhan. 2022. Controllable text genera-
+tion with language constraints. arXiv preprint
+mendavoidingsuchnegativeapplicationsofIPA.
+arXiv:2212.10466.
+Moreover,similartoanyRL-basedmethodthat
+depends on the reward function for learning sig- LeshemChoshen,LiorFox,ZoharAizenbud,andOmri
+Abend.2020. Ontheweaknessesofreinforcement
+nals,IPAissusceptibletotheinnateshortcomings
+learningforneuralmachinetranslation. InInterna-
+from the reward model. For instance, we use the
+tionalConferenceonLearningRepresentations.
+PerspectiveAPIcallsastherewardfunctionforthe
+SumanthDathathri,AndreaMadotto,JaniceLan,Jane
+toxicityreductiontask;anylimitationsorpotential
+Hung,EricFrank,PieroMolino,JasonYosinski,and
+biasesfromthesepublicAPIcallswillpropagate
+RosanneLiu.2020a. Plugandplaylanguagemodels:
+intothelearningofIPA.Nonetheless,asmoreac- Asimpleapproachtocontrolledtextgeneration.
+curate,transparent,andinclusiveclassifiersarede-
+SumanthDathathri,AndreaMadotto,JaniceLan,Jane
+veloped,weanticipatethatIPAwouldinheritthose
+Hung,EricFrank,PieroMolino,JasonYosinski,and
+improvementsaswell. RosanneLiu.2020b. Plugandplaylanguagemodels:
+Beyondthesetwoprimaryconcerns,anotherin- Asimpleapproachtocontrolledtextgeneration. In
+herentlimitationofIPAisitsrequirementtoaccess 8thInternationalConferenceonLearningRepresen-
+tations, ICLR 2020, Addis Ababa, Ethiopia, April
+the output logits of the base LM. This constraint
+26-30,2020.OpenReview.net.
+hinders IPA’s compatibility with certain models,
+such as GPT-4, which permit access only to the Emily Dinan, Stephen Roller, Kurt Shuster, Angela
+Fan, Michael Auli, and Jason Weston. Wizard
+output, not the logits. Finally, like general RL
+of wikipedia: Knowledge-powered conversational
+frameworks,IPAreliesontheassumptionthatuser
+agents. In International Conference on Learning
+objectivesarequantifiablethrougharewardfunc- Representations.
+tion. However,thispremisemaynotalwayshold,
+Nouha Dziri, Ehsan Kamalloo, Sivan Milton, Os-
+particularly when user objectives are inherently
+mar Zaiane, Mo Yu, Edoardo M Ponti, and Siva
+challengingtomeasure,thuslimitingIPA’sappli- Reddy.2022a. FaithDial: AFaithfulBenchmarkfor
+cability. Information-SeekingDialogue. Transactionsofthe
+AssociationforComputationalLinguistics,10:1473–
+1490.
+NouhaDziri,SivanMilton,MoYu,OsmarZaiane,and Geoffrey E. Hinton. 2002. Training Products of Ex-
+SivaReddy.2022b. Ontheoriginofhallucinations pertsbyMinimizingContrastiveDivergence. Neural
+in conversational models: Is it the datasets or the Computation,14(8):1771–1800.
+models? InProceedingsofthe2022Conferenceof
+theNorthAmericanChapteroftheAssociationfor Chris Hokamp and Qun Liu. 2017. Lexically con-
+ComputationalLinguistics: HumanLanguageTech- straineddecodingforsequencegenerationusinggrid
+nologies, pages 5271–5285, Seattle, United States. beamsearch. arXivpreprintarXiv:1704.07138.
+AssociationforComputationalLinguistics.
+Edward J. Hu, Yelong Shen, Phillip Wallis, Zeyuan
+NouhaDziri,HannahRashkin,TalLinzen,andDavid Allen-Zhu,YuanzhiLi,SheanWang,LuWang,and
+Reitter. 2022c. Evaluating attribution in dialogue WeizhuChen.2022. Lora: Low-rankadaptationof
+systems: Thebeginbenchmark. Transactionsofthe largelanguagemodels. InTheTenthInternational
+AssociationforComputationalLinguistics,10:1066– ConferenceonLearningRepresentations,ICLR2022,
+1083. VirtualEvent,April25-29,2022.OpenReview.net.
+JonathanFrankleandMichaelCarbin.2019. Thelottery
+Daniel Kang and Tatsunori B. Hashimoto. 2020. Im-
+ticket hypothesis: Finding sparse, trainable neural
+provednaturallanguagegenerationvialosstrunca-
+networks. In7thInternationalConferenceonLearn-
+tion. InProceedingsofthe58thAnnualMeetingof
+ingRepresentations,ICLR2019,NewOrleans,LA,
+theAssociationforComputationalLinguistics,pages
+USA,May6-9,2019.OpenReview.net.
+718–731,Online.AssociationforComputationalLin-
+JonathanFrankle,GintareKarolinaDziugaite,DanielM. guistics.
+Roy,andMichaelCarbin.2020. Linearmodecon-
+nectivity and the lottery ticket hypothesis. In Pro- NitishShirishKeskar,BryanMcCann,LavRVarshney,
+ceedings of the 37th International Conference on CaimingXiong,andRichardSocher.2019. Ctrl: A
+MachineLearning,ICML2020,13-18July2020,Vir- conditionaltransformerlanguagemodelforcontrol-
+tualEvent,volume119ofProceedingsofMachine lablegeneration. arXivpreprintarXiv:1909.05858.
+LearningResearch,pages3259–3269.PMLR.
+SamuelKiegelandandJuliaKreutzer.2021. Revisiting
+Samuel Gehman, Suchin Gururangan, Maarten Sap, theweaknessesofreinforcementlearningforneural
+Yejin Choi, and Noah A. Smith. 2020. RealToxi- machinetranslation. InNAACL-HLT,pages1673–
+cityPrompts: Evaluating neural toxic degeneration 1681.
+inlanguagemodels. InFindingsoftheAssociation
+forComputationalLinguistics: EMNLP2020,pages Hyunwoo Kim, Youngjae Yu, Liwei Jiang, Ximing
+3356–3369,Online.AssociationforComputational Lu,DanielKhashabi,GunheeKim,YejinChoi,and
+Linguistics. Maarten Sap. 2022. ProsocialDialog: A prosocial
+backboneforconversationalagents. InProceedings
+HanGuo,BowenTan,ZhengzhongLiu,EricXing,and ofthe2022ConferenceonEmpiricalMethodsinNat-
+ZhitingHu.2022. Efficient(soft)Q-learningfortext uralLanguageProcessing,pages4005–4029,Abu
+generationwithlimitedgooddata. InFindingsofthe Dhabi,UnitedArabEmirates.AssociationforCom-
+AssociationforComputationalLinguistics: EMNLP putationalLinguistics.
+2022, pages 6969–6991, Abu Dhabi, United Arab
+Emirates.AssociationforComputationalLinguistics. Yoon Kim and Alexander M. Rush. 2016. Sequence-
+levelknowledgedistillation.
+Suchin Gururangan, Ana Marasovic´, Swabha
+Swayamdipta,KyleLo,IzBeltagy,DougDowney,
+Louis Kirsch, Julius Kunze, and David Barber. 2018.
+and Noah A. Smith. 2020. Don’t stop pretraining:
+Modular networks: Learning to decompose neural
+Adapt language models to domains and tasks. In
+computation. In Advances in Neural Information
+Proceedings of the 58th Annual Meeting of the
+ProcessingSystems31: AnnualConferenceonNeu-
+Association for Computational Linguistics, pages
+ralInformationProcessingSystems2018,NeurIPS
+8342–8360,Online.AssociationforComputational
+2018,December3-8,2018,Montréal,Canada,pages
+Linguistics.
+2414–2423.
+SongHan, JeffPool, SharanNarang, HuiziMao, En-
+hao Gong, Shijian Tang, Erich Elsen, Peter Vajda, Tomasz Korbak, Ethan Perez, and Christopher Buck-
+Manohar Paluri, John Tran, Bryan Catanzaro, and ley. 2022. RL with KL penalties is better viewed
+William J. Dally. 2017. DSD: dense-sparse-dense as Bayesian inference. In Findings of the Associa-
+training for deep neural networks. In 5th Inter- tionforComputationalLinguistics: EMNLP2022,
+national Conference on Learning Representations, pages1083–1091,AbuDhabi,UnitedArabEmirates.
+ICLR2017,Toulon,France,April24-26,2017,Con- AssociationforComputationalLinguistics.
+ferenceTrackProceedings.OpenReview.net.
+Tomasz Korbak, Kejian Shi, Angelica Chen, Rasika
+MatthewHausknecht,PrithvirajAmmanabrolu,Marc- Bhalerao, Christopher L Buckley, Jason Phang,
+AlexandreCôté,andXingdiYuan.2020. Interactive Samuel R Bowman, and Ethan Perez. 2023. Pre-
+fictiongames:Acolossaladventure. InThirty-Fourth training language models with human preferences.
+AAAIConferenceonArtificialIntelligence(AAAI). arXivpreprintarXiv:2302.08582.
+BenKrause,AkhileshDeepakGotmare,BryanMcCann, LongPapers),VirtualEvent,August1-6,2021,pages
+NitishShirishKeskar,ShafiqJoty,RichardSocher, 6691–6706.AssociationforComputationalLinguis-
+and Nazneen Fatema Rajani. 2021. GeDi: Gener- tics.
+ativediscriminatorguidedsequencegeneration. In
+FindingsoftheAssociationforComputationalLin- Alisa Liu, Maarten Sap, Ximing Lu, Swabha
+guistics: EMNLP 2021, pages 4929–4952, Punta Swayamdipta,ChandraBhagavatula,NoahA.Smith,
+Cana,DominicanRepublic.AssociationforCompu- and Yejin Choi. 2021b. DExperts: Decoding-time
+tationalLinguistics. controlled text generation with experts and anti-
+experts.
+SachinKumar,EricMalmi,AliakseiSeveryn,andYu-
+Tianyu Liu, Yizhe Zhang, Chris Brockett, Yi Mao,
+lia Tsvetkov. 2021. Controlled text generation as
+Zhifang Sui, Weizhu Chen, and Bill Dolan. 2022a.
+continuous optimization with multiple constraints.
+Atoken-levelreference-freehallucinationdetection
+AdvancesinNeuralInformationProcessingSystems,
+benchmarkforfree-formtextgeneration.
+34:14542–14554.
+XiaoLiu,KaixuanJi,YichengFu,WengTam,Zhengx-
+ChunyuanLi,HeeradFarkhoor,RosanneLiu,andJason
+iaoDu,ZhilinYang,andJieTang.2022b. P-tuning:
+Yosinski.2018. Measuringtheintrinsicdimension
+Prompt tuning can be comparable to fine-tuning
+of objective landscapes. In 6th International Con-
+acrossscalesandtasks. InProceedingsofthe60th
+ference on Learning Representations, ICLR 2018,
+AnnualMeetingoftheAssociationforComputational
+Vancouver, BC, Canada, April 30 - May 3, 2018,
+Linguistics (Volume 2: Short Papers), ACL 2022,
+ConferenceTrackProceedings.OpenReview.net.
+Dublin,Ireland,May22-27,2022,pages61–68.As-
+sociationforComputationalLinguistics.
+Jiwei Li, Will Monroe, Alan Ritter, Dan Jurafsky,
+Michel Galley, and Jianfeng Gao. 2016. Deep re-
+Renze Lou, Kai Zhang, and Wenpeng Yin. 2023.
+inforcementlearningfordialoguegeneration. InPro-
+Is prompt all you need? no. a comprehensive
+ceedingsofthe2016ConferenceonEmpiricalMeth-
+and broader view of instruction learning. ArXiv,
+ods in Natural Language Processing, pages 1192–
+abs/2303.10475.
+1202,Austin,Texas.AssociationforComputational
+Linguistics. Ximing Lu, Sean Welleck, Liwei Jiang, Jack Hessel,
+Lianhui Qin, Peter West, Prithviraj Ammanabrolu,
+Xiang Li, John Thickstun, Ishaan Gulrajani, Percy S
+and Yejin Choi. 2022a. Quark: Controllable
+Liang,andTatsunoriBHashimoto.2022a. Diffusion-
+text generation with reinforced unlearning. CoRR,
+lmimprovescontrollabletextgeneration. Advances
+abs/2205.13636.
+inNeuralInformationProcessingSystems,35:4328–
+4343. Ximing Lu, Sean Welleck, Liwei Jiang, Jack Hessel,
+Lianhui Qin, Peter West, Prithviraj Ammanabrolu,
+Xiang Lisa Li, Ari Holtzman, Daniel Fried, Percy
+and Yejin Choi. 2022b. Quark: Controllable text
+Liang, Jason Eisner, Tatsunori Hashimoto, Luke generation with reinforced unlearning. In Thirty-
+Zettlemoyer,andMikeLewis.2022b. Contrastivede- sixthConferenceonNeuralInformationProcessing
+coding: Open-endedtextgenerationasoptimization. Systems(NeurIPS).
+CoRR,abs/2210.15097.
+XimingLu,PeterWest,RowanZellers,RonanLeBras,
+Xiang Lisa Li and Percy Liang. 2021. Prefix-tuning: ChandraBhagavatula, andYejinChoi.2020. Neu-
+Optimizing continuous prompts for generation. In rologicdecoding:(un)supervisedneuraltextgenera-
+Proceedingsofthe59thAnnualMeetingoftheAsso- tionwithpredicatelogicconstraints. arXivpreprint
+ciationforComputationalLinguisticsandthe11th arXiv:2010.12884.
+InternationalJointConferenceonNaturalLanguage
+Processing, ACL/IJCNLP 2021, (Volume 1: Long XimingLu,PeterWest,RowanZellers,RonanLeBras,
+Papers),VirtualEvent,August1-6,2021,pages4582– ChandraBhagavatula,andYejinChoi.2021. Neuro-
+4597.AssociationforComputationalLinguistics. logicdecoding:(un)supervisedneuraltextgeneration
+withpredicatelogicconstraints. InProceedingsof
+BillYuchenLin,WangchunshuZhou,MingShen,Pei the2021ConferenceoftheNorthAmericanChap-
+Zhou,ChandraBhagavatula,YejinChoi,andXiang teroftheAssociationforComputationalLinguistics:
+Ren.2020. Commongen: Aconstrainedtextgenera- HumanLanguageTechnologies,NAACL-HLT2021,
+tionchallengeforgenerativecommonsensereason- Online,June6-11,2021,pages4288–4299.Associa-
+ing. tionforComputationalLinguistics.
+Alisa Liu, Maarten Sap, Ximing Lu, Swabha YaoLu,MaxBartolo,AlastairMoore,SebastianRiedel,
+Swayamdipta,ChandraBhagavatula,NoahA.Smith, andPontusStenetorp.2022c. Fantasticallyordered
+and Yejin Choi. 2021a. Dexperts: Decoding-time promptsandwheretofindthem: Overcomingfew-
+controlled text generation with experts and anti- shotpromptordersensitivity. InProceedingsofthe
+experts. InProceedingsofthe59thAnnualMeeting 60thAnnualMeetingoftheAssociationforCompu-
+oftheAssociationforComputationalLinguisticsand tationalLinguistics(Volume1: LongPapers),pages
+the11thInternationalJointConferenceonNatural 8086–8098,Dublin,Ireland.AssociationforCompu-
+LanguageProcessing,ACL/IJCNLP2021,(Volume1: tationalLinguistics.
+AmanMadaan, NiketTandon,PrakharGupta,Skyler OpenAI.2023a. Gpt-4technicalreport.
+Hallinan, Luyu Gao, Sarah Wiegreffe, Uri Alon,
+Nouha Dziri, Shrimai Prabhumoye, Yiming Yang, OpenAI.2023b. Openaiapipricing. https://openai.
+Sean Welleck, Bodhisattwa Prasad Majumder, com/pricing. Accessed: 2023-05-15.
+Shashank Gupta, Amir Yazdanbakhsh, and Peter
+Clark. 2023. Self-refine: Iterative refinement with LongOuyang,JeffreyWu,XuJiang,DiogoAlmeida,
+self-feedback. CarrollWainwright,PamelaMishkin,ChongZhang,
+SandhiniAgarwal,KatarinaSlama,AlexGray,John
+RabeehKarimiMahabadi, JamesHenderson, andSe- Schulman,JacobHilton,FraserKelton,LukeMiller,
+bastianRuder.2021. Compacter: Efficientlow-rank Maddie Simens, Amanda Askell, Peter Welinder,
+hypercomplexadapterlayers. InAdvancesinNeural Paul Christiano, Jan Leike, and Ryan Lowe. 2022.
+InformationProcessingSystems34: AnnualConfer- Traininglanguagemodelstofollowinstructionswith
+enceonNeuralInformationProcessingSystems2021, humanfeedback. InAdvancesinNeuralInformation
+NeurIPS2021,December6-14,2021,virtual,pages ProcessingSystems.
+1022–1035.
+Romain Paulus, Caiming Xiong, and Richard Socher.
+ClaraMeister,TiagoPimentel,GianWiher,andRyan 2017. Adeepreinforcedmodelforabstractivesum-
+Cotterell.2023. LocallyTypicalSampling. Transac- marization. arXivpreprintarXiv:1705.04304.
+tionsoftheAssociationforComputationalLinguis-
+tics,11:102–121. Baolin Peng, Michel Galley, Pengcheng He, Chris
+Brockett, Lars Liden, Elnaz Nouri, Zhou Yu, Bill
+Paul Michel, Omer Levy, and Graham Neubig. 2019. Dolan,andJianfengGao.2022. Godel: Large-scale
+Are sixteen heads really better than one? In Ad- pre-trainingforgoal-directeddialog. arXiv.
+vancesinNeuralInformationProcessingSystems32:
+AnnualConferenceonNeuralInformationProcess- Ethan Perez, Douwe Kiela, and Kyunghyun Cho.
+ing Systems 2019, NeurIPS 2019, December 8-14, 2021. True few-shot learning with language mod-
+2019,Vancouver,BC,Canada,pages14014–14024. els. NeurIPS.
+SewonMin,XinxiLyu,AriHoltzman,MikelArtetxe, JonasPfeiffer,AndreasRücklé,CliftonPoth,Aishwarya
+MikeLewis,HannanehHajishirzi,andLukeZettle- Kamath, Ivan Vulic, Sebastian Ruder, Kyunghyun
+moyer.2022. Rethinkingtheroleofdemonstrations: Cho, and Iryna Gurevych. 2020. Adapterhub: A
+Whatmakesin-contextlearningwork? InProceed- framework for adapting transformers. In Proceed-
+ingsofthe2022ConferenceonEmpiricalMethods ingsofthe2020ConferenceonEmpiricalMethods
+inNaturalLanguageProcessing,EMNLP2022,Abu in Natural Language Processing: System Demon-
+Dhabi,UnitedArabEmirates,December7-11,2022, strations,EMNLP2020-Demos,Online,November
+pages11048–11064.AssociationforComputational 16-20,2020,pages46–54.AssociationforComputa-
+Linguistics. tionalLinguistics.
+FatemehsadatMireshghallah,KartikGoyal,andTaylor
+KrishnaPillutla,SwabhaSwayamdipta,RowanZellers,
+Berg-Kirkpatrick.2022. Mixandmatch: Learning-
+JohnThickstun,SeanWelleck,YejinChoi,andZaid
+free controllable text generation using energy lan-
+Harchaoui. 2021. Mauve: Measuring the gap be-
+guagemodels. arXivpreprintarXiv:2203.13299.
+tweenneuraltextandhumantextusingdivergence
+frontiers. InNeurIPS.
+Karthik Narasimhan, Tejas D. Kulkarni, and Regina
+Barzilay. 2015. Language understanding for text-
+Shrimai Prabhumoye, Kazuma Hashimoto, Yingbo
+basedgamesusingdeepreinforcementlearning. In
+Zhou, Alan W Black, and Ruslan Salakhutdi-
+EMNLP,pages1–11.
+nov. 2021. Focused attention improves document-
+Shashi Narayan, Shay B. Cohen, and Mirella Lapata. grounded generation. In Proceedings of the 2021
+2018. Don’tgivemethedetails,justthesummary! Conference of the North American Chapter of the
+topic-aware convolutional neural networks for ex- AssociationforComputationalLinguistics: Human
+treme summarization. In Proceedings of the 2018 LanguageTechnologies,pages4274–4287,Online.
+Conference on Empirical Methods in Natural Lan- AssociationforComputationalLinguistics.
+guageProcessing,pages1797–1807,Brussels,Bel-
+LianhuiQin,VeredShwartz,PeterWest,ChandraBha-
+gium.AssociationforComputationalLinguistics.
+gavatula, Jena Hwang, Ronan Le Bras, Antoine
+Khanh Nguyen, Hal Daumé III, and Jordan Boyd- Bosselut,andYejinChoi.2020. Backtothefuture:
+Graber. 2017. Reinforcement learning for bandit Unsupervisedbackprop-baseddecodingforcounter-
+neural machine translation with simulated human factualandabductivecommonsensereasoning. arXiv
+feedback. InProceedingsofthe2017Conferenceon preprintarXiv:2010.05906.
+EmpiricalMethodsinNaturalLanguageProcessing,
+pages1464–1474,Copenhagen,Denmark.Associa- LianhuiQin,VeredShwartz,PeterWest,ChandraBha-
+tionforComputationalLinguistics. gavatula, Jena Hwang, Ronan Le Bras, Antoine
+Bosselut,andYejinChoi.2021. Backtothefuture:
+OpenAI.2022. ChatGPT:Optimizinglanguagemodels Unsupervisedbackprop-baseddecodingforcounter-
+fordialogue. factualandabductivecommonsensereasoning.
+LianhuiQin,SeanWelleck,DanielKhashabi,andYejin WilliamSaunders,CatherineYeh,JeffWu,StevenBills,
+Choi. 2022. Cold decoding: Energy-based con- LongOuyang,JonathanWard,andJanLeike.2022.
+strainedtextgenerationwithlangevindynamics. Self-critiquingmodelsforassistinghumanevaluators.
+ArXiv:2206.05802.
+ColinRaffel,NoamShazeer,AdamRoberts,Katherine
+Lee,SharanNarang,MichaelMatena,YanqiZhou, TimoSchick,JaneDwivedi-Yu,ZhengbaoJiang,Fabio
+WeiLi,andPeterJLiu.2020. Exploringthelimits Petroni,PatrickLewis,GautierIzacard,QingfeiYou,
+oftransferlearningwithaunifiedtext-to-texttrans- ChristoforosNalmpantis,EdouardGrave,andSebas-
+former. JournalofMachineLearningResearch,21:1– tian Riedel. 2022. Peer: A collaborative language
+67. model. ArXiv,abs/2208.11663.
+Rajkumar Ramamurthy*, Prithviraj Ammanabrolu*,
+JohnSchulman,FilipWolski,PrafullaDhariwal,Alec
+KiantéBrantley, JackHessel, RafetSifa, Christian
+Radford,andOlegKlimov.2017. Proximalpolicy
+Bauckhage, Hannaneh Hajishirzi, and Yejin Choi.
+optimizationalgorithms. ArXiv,abs/1707.06347.
+2023. Isreinforcementlearning(not)fornaturallan-
+guageprocessing: Benchmarks,baselines,andbuild-
+LeiSha.2020. Gradient-guidedunsupervisedlexically
+ingblocksfornaturallanguagepolicyoptimization.
+constrained text generation. In Proceedings of the
+InInternationalConferenceonLearningRepresenta-
+2020ConferenceonEmpiricalMethodsinNatural
+tions(ICLR).
+LanguageProcessing(EMNLP),pages8692–8703.
+Rajkumar Ramamurthy, Prithviraj Ammanabrolu,
+KiantéBrantley, JackHessel, RafetSifa, Christian CharlieVictorSnell,IlyaKostrikov,YiSu,SherryYang,
+Bauckhage, Hannaneh Hajishirzi, and Yejin Choi. and Sergey Levine. 2023. Offline RL for natural
+2023. Is reinforcement learning (not) for natural languagegenerationwithimplicitlanguageqlearn-
+language processing: Benchmarks, baselines, and ing. In The Eleventh International Conference on
+buildingblocksfornaturallanguagepolicyoptimiza- LearningRepresentations.
+tion.
+Asa Cooper Stickland and Iain Murray. 2019. BERT
+Hannah Rashkin, Vitaly Nikolaev, Matthew Lamm, andpals: Projectedattentionlayersforefficientadap-
+Lora Aroyo, Michael Collins, Dipanjan Das, Slav tationinmulti-tasklearning. InProceedingsofthe
+Petrov,GauravSinghTomar,IuliaTurc,andDavid 36thInternationalConferenceonMachineLearning,
+Reitter. 2021a. Measuring attribution in natu- ICML2019,9-15June2019,LongBeach,California,
+ral language generation models. arXiv preprint USA,volume97ofProceedingsofMachineLearning
+arXiv:2112.12870. Research,pages5986–5995.PMLR.
+HannahRashkin,DavidReitter,GauravSinghTomar, Nisan Stiennon, Long Ouyang, Jeff Wu, Daniel M.
+and Dipanjan Das. 2021b. Increasing faithfulness Ziegler, Ryan Lowe, Chelsea Voss, Alec Radford,
+inknowledge-groundeddialoguewithcontrollable DarioAmodei,andPaulChristiano.2022. Learning
+features. In Proceedings of the 59th Annual Meet- tosummarizefromhumanfeedback.
+ingoftheAssociationforComputationalLinguistics
+andthe11thInternationalJointConferenceonNatu- YixuanSu,TianLan,YanWang,DaniYogatama,Ling-
+ralLanguageProcessing(Volume1: LongPapers), pengKong,andNigelCollier.2022. Acontrastive
+pages 704–718, Online. Association for Computa- frameworkforneuraltextgeneration. InAdvancesin
+tionalLinguistics. NeuralInformationProcessingSystems,volume35,
+pages21548–21561.CurranAssociates,Inc.
+Sylvestre-Alvise Rebuffi, Hakan Bilen, and Andrea
+Vedaldi. 2017. Learning multiple visual domains
+Hao Sun, Guangxuan Xu, Jiawen Deng, Jiale Cheng,
+withresidualadapters. InAdvancesinNeuralInfor-
+Chujie Zheng, Hao Zhou, Nanyun Peng, Xiaoyan
+mationProcessingSystems30: AnnualConference
+Zhu,andMinlieHuang.2022. Onthesafetyofcon-
+onNeuralInformationProcessingSystems2017,De-
+versationalmodels: Taxonomy,dataset,andbench-
+cember4-9,2017,LongBeach,CA,USA,pages506–
+mark. In Findings of the Association for Compu-
+516.
+tational Linguistics: ACL 2022, pages 3906–3923,
+Stephen Roller, Emily Dinan, Naman Goyal, Da Ju, Dublin,Ireland.AssociationforComputationalLin-
+Mary Williamson, Yinhan Liu, Jing Xu, Myle Ott, guistics.
+EricMichaelSmith,Y-LanBoureau,andJasonWe-
+ston. 2021. Recipes for building an open-domain RichardSSuttonandAndrewGBarto.2018. Reinforce-
+chatbot. In Proceedings of the 16th Conference of mentlearning: Anintroduction. MITpress.
+theEuropeanChapteroftheAssociationforCompu-
+tationalLinguistics: MainVolume,pages300–325, HugoTouvron,ThibautLavril,GautierIzacard,Xavier
+Online.AssociationforComputationalLinguistics. Martinet,Marie-AnneLachaux,TimothéeLacroix,
+BaptisteRozière,NamanGoyal,EricHambro,Faisal
+ClemensRosenbaum,IgnacioCases,MatthewRiemer, Azhar,AurelienRodriguez,ArmandJoulin,Edouard
+andTimKlinger.2019. Routingnetworksandthe Grave,andGuillaumeLample.2023. Llama: Open
+challengesofmodularandcompositionalcomputa- and efficient foundation language models. ArXiv,
+tion. CoRR,abs/1904.12774. abs/2302.13971.
+Elena Voita, David Talbot, Fedor Moiseev, Rico Sen- Linguistics: HumanLanguageTechnologies.Associ-
+nrich,andIvanTitov.2019. Analyzingmulti-head ationforComputationalLinguistics.
+self-attention: Specializedheadsdotheheavylifting,
+therestcanbepruned. InProceedingsofthe57th Kevin Yang, Nanyun Peng, Yuandong Tian, and Dan
+ConferenceoftheAssociationforComputationalLin- Klein. 2022. Re3: Generating longer stories with
+guistics,ACL2019,Florence,Italy,July28-August recursiverepromptingandrevision. InConferenceon
+2,2019,Volume1: LongPapers,pages5797–5808. EmpiricalMethodsinNaturalLanguageProcessing.
+AssociationforComputationalLinguistics.
+Michihiro Yasunaga and Percy Liang. 2020. Graph-
+AlexWarstadt,AmanpreetSingh,andSamuelR.Bow- based,self-supervisedprogramrepairfromdiagnos-
+man.2019. Neuralnetworkacceptabilityjudgments. tic feedback. 37th Int. Conf. Mach. Learn. ICML
+2020,PartF168147-14:10730–10739.
+Albert Webson and Ellie Pavlick. 2021. Do prompt-
+basedmodelsreallyunderstandthemeaningoftheir HaonanYu,SergeyEdunov,YuandongTian,andAriS.
+prompts? ArXiv,abs/2109.01247. Morcos.2020. Playingthelotterywithrewardsand
+multiplelanguages: lotteryticketsinRLandNLP.
+Albert Webson and Ellie Pavlick. 2022. Do prompt- In8thInternationalConferenceonLearningRepre-
+basedmodelsreallyunderstandthemeaningoftheir sentations,ICLR2020,AddisAbaba,Ethiopia,April
+prompts? InProceedingsofthe2022Conferenceof 26-30,2020.OpenReview.net.
+theNorthAmericanChapteroftheAssociationfor
+HanqingZhang,HaolinSong,ShaoyuLi,MingZhou,
+ComputationalLinguistics: HumanLanguageTech-
+and Dawei Song. 2022. A survey of controllable
+nologies,NAACL2022,Seattle,WA,UnitedStates,
+textgenerationusingtransformer-basedpre-trained
+July10-15,2022,pages2300–2344.Associationfor
+languagemodels. arXivpreprintarXiv:2201.05337.
+ComputationalLinguistics.
+YizheZhang,SiqiSun,MichelGalley,Yen-ChunChen,
+Sean Welleck, Ximing Lu, Peter West, Faeze Brah-
+ChrisBrockett,XiangGao,JianfengGao,Jingjing
+man, Tianxiao Shen, Daniel Khashabi, and Yejin
+Liu,andBillDolan.2020. DIALOGPT:Large-scale
+Choi. 2023. Generating sequences by learning to
+generativepre-trainingforconversationalresponse
+self-correct. InTheEleventhInternationalConfer-
+generation. InProceedingsofthe58thAnnualMeet-
+enceonLearningRepresentations.
+ingoftheAssociationforComputationalLinguistics:
+Peter West, Chandra Bhagavatula, Jack Hessel, Jena SystemDemonstrations,pages270–278,Online.As-
+Hwang, Liwei Jiang, Ronan Le Bras, Ximing Lu, sociationforComputationalLinguistics.
+Sean Welleck, and Yejin Choi. 2022. Symbolic
+Zihao Zhao, Eric Wallace, Shi Feng, Dan Klein, and
+knowledgedistillation: fromgenerallanguagemod-
+SameerSingh.2021. Calibratebeforeuse: Improv-
+elstocommonsensemodels. InProceedingsofthe
+ing few-shot performance of language models. In
+2022ConferenceoftheNorthAmericanChapterof
+Proceedingsofthe38thInternationalConferenceon
+theAssociationforComputationalLinguistics: Hu-
+MachineLearning,ICML2021,18-24July2021,Vir-
+manLanguageTechnologies,pages4602–4625,Seat-
+tualEvent,volume139ofProceedingsofMachine
+tle, United States. Association for Computational
+LearningResearch,pages12697–12706.PMLR.
+Linguistics.
+Ming Zhong, Yang Liu, Da Yin, Yuning Mao, Yizhu
+Thomas Wolf, Lysandre Debut, Victor Sanh, Julien
+Jiao, Pengfei Liu, Chenguang Zhu, Heng Ji, and
+Chaumond,ClementDelangue,AnthonyMoi,Pier-
+Jiawei Han. 2022. Towards a unified multi-
+ricCistac,TimRault,RemiLouf,MorganFuntow-
+dimensional evaluator for text generation. In Pro-
+icz,JoeDavison,SamShleifer,PatrickvonPlaten,
+ceedingsofthe2022ConferenceonEmpiricalMeth-
+Clara Ma, Yacine Jernite, Julien Plu, Canwen Xu,
+ods in Natural Language Processing, pages 2023–
+Teven Le Scao, Sylvain Gugger, Mariama Drame,
+2038,AbuDhabi,UnitedArabEmirates.Association
+QuentinLhoest,andAlexanderRush.2020. Trans-
+forComputationalLinguistics.
+formers:State-of-the-artnaturallanguageprocessing.
+InProceedingsofthe2020ConferenceonEmpirical
+Li Zhou, Kevin Small, Oleg Rokhlenko, and Charles
+MethodsinNaturalLanguageProcessing(EMNLP):
+Elkan. 2017. End-to-end offline goal-oriented di-
+SystemDemonstrations.
+alog policy learning via policy gradient. CoRR,
+abs/1712.02838.
+YonghuiWu,MikeSchuster,ZhifengChen,QuocVLe,
+MohammadNorouzi,WolfgangMacherey,Maxim
+Mingyu Zong and Bhaskar Krishnamachari. 2022. a
+Krikun,YuanCao,QinGao,KlausMacherey,etal.
+surveyongpt-3.
+2016. Google’sneuralmachinetranslationsystem:
+Bridgingthegapbetweenhumanandmachinetrans-
+lation. arXivpreprintarXiv:1609.08144.
+KevinYangandDanKlein.2021. FUDGE:Controlled
+text generation with future discriminators. In Pro-
+ceedingsofthe2021ConferenceoftheNorthAmer-
+icanChapteroftheAssociationforComputational
+IPA-vs.GPT3 IPA-vs.DEXPERTS IPA-vs.DAPT Models Coverage Fluency
+LessToxic 0.17 0.09 0.15 0.09 0.13 0.12 GPT-3(zero-shot) 37.01 94.89
+MoreTopical 0.20 0.21 0.23 0.14 0.22 0.20
+GPT-3(5-shot) 43.85 94.34
+MoreFluent 0.27 0.23 0.24 0.16 0.21 0.18
+GPT-3(10-shot) 45.70 94.21
+IPA*vs.GPT3 IPA*vs.DEXPERTS IPA*vs.DAPT
+IPA∗(GPT-3) 88.54 92.58
+LessToxic 0.18 0.05 0.14 0.06 0.15 0.10
+MoreTopical 0.23 0.23 0.28 0.17 0.18 0.18
+MoreFluent 0.26 0.21 0.32 0.15 0.23 0.22 Table9: AutomaticevaluationresultsforLexicallyCon-
+strainedGenerationwithoff-the-shelfGPT-3.
+Table7:HumanevaluationresultsofToxicityReduction,
+comparing the percentage of texts rated as less toxic,
+Models Coverage Fluency
+moretopical,andmorefluentasgeneratedbyIPA-and
+LLaMA 28.73 89.64
+IPA*versusotherbaselines.
+IPA- (LLaMA) 81.49 89.71
+Models Toxicity Fluency Diversity Table 10: Automatic evaluation results for Lexically
+AvgMax. Prob. Pl. Dist-2. Dist-3. ConstrainedGenerationwithoff-the-shelfLLaMA-13B
+GPT-3(zero-shot) 0.275 0.197 10.65 0.78 0.81
+asthebasepolicytotailor.
+GPT-3(5-shot) 0.214 0.132 15.96 0.76 0.80
+GPT-3(10-shot) 0.208 0.145 17.83 0.77 0.80
+IPA-(GPT3) 0.150 0.056 10.34 0.79 0.81
+IPA*(GPT3) 0.101 0.028 12.68 0.79 0.83 particularlylimitedinlexicallyconstrainedgener-
+ation, likely due to GPT-3’s inherent limitations
+Table8: AutomaticevaluationresultsforToxicityRe-
+whendealingwithhardlogicalconstraints. Impor-
+ductionwithoff-the-shelfGPT-3.
+tantly,IPAontopofzero-shotGPT-3outperforms
+allthefew-shotbaselinesbyanoticeablemargin
+A FurtherExperiment acrossallscenarios. Theresultsfurtherhighlight
+theimportanceofourmethod,whichdirectlyop-
+A.1 HumanEvaluationforToxicity
+timizethebasepolicytoalignwithuser-specified
+Weperformadditionalpairwisehumanevaluation objectives instead of solely relying on the innate
+ontailoringGPT-3toreducetoxicity. Wecompare capabilitiesofLLMsthroughprompting.
+the outputs from IPA* and IPA- to each baseline,
+based on the perceived level of toxicity (which A.3 AdditionalExperimentswithLLaMA
+oneislessrudeordisrespectful),topicality(which WeconductedadditionalexperimentswithLLaMA
+one is more natural, relevant, and logical), and models(Touvronetal.,2023)fortheconstrained
+fluency(whichoneismoregrammaticallycorrect generationtask. WeapplyIPAtotailoranoff-the-
+and coherent), on 100 random prompts from the shelfLLaMA-13Bmodelandinitializethepolicy
+testsetof REALTOXICITYPROMPTSusing. adapter with a LLaMA-7B model. As shown in
+As shown in Table 7, the human evaluation re- Table10,IPAleadstoremarkableimprovementon
+sultsconfirmsthatbothIPA-andIPA*effectively topofLLaMA-13Bintermsofconstraintcoverage
+tailorGPT-3tobelesstoxicwhilemaintainingthe whilemaintaininglanguagequality.
+languagequality. Thisagainunderscoresthepoten-
+A.4 RewardAnalysis
+tialofIPAasacost-effectivemethodforaligning
+largelanguagemodelswithuser-definedobjectives. Weprovidefurtheranalysistojustifyourselection
+ofrewardfunctionsforeachtask.
+A.2 AdditionalBaseline: Few-shot
+ToxicityReduction FollowingpreviousworkLu
+Intheexperimentalsection,weshowthatinzero-
+etal.(2022b),weusethePerspectiveAPIscoreas
+shot setting LLMs such as GPT-3 often struggle
+arewardfunction,whichprovidesascorebetween
+to fulfill users’ requests, such as generating safe
+1 (non-toxic) and 0 (toxic). We observe that IPA
+content or reliably satisfying lexical constraints.
+effectivelyreducethetoxicitywhilepreservingthe
+Here,weconductadditionalexperimenttoaccess
+languagequalityintermsoffluencyanddiversity
+LM’sperformanceinfew-shotsettingontoxicity
+inbothautomaticandhumanevaluation.
+reductionandlexicallyconstrainedgeneration.
+AsillustratedinTable8andTable9,prompting LexicallyConstrainedGeneration Ourgoalis
+GPT-3withadditionalfew-shotexamplesimproves to enhance constraint satisfaction. As shown in
+itsperformancetosomeextent,butitstillfallsshort Table11,optimizingforconstraintcoveragealone
+ofconsistentlyfulfillusers’requests. Thegainis mayresultinaslightdeclineinlanguagefluency,
+Reward Coverage Fluency Reward Safety Coherence Engaging Overall
+safety 0.85 0.82 1.32 0.88
+coverage 90.75 83.91
+safety,coherence,engaging 0.78 0.90 1.91 0.98
+coverage,fluency 88.54 92.58
+Table13:EvaluationresultsforDialogueSafetyControl
+Table 11: Automatic evaluation results for Lexically
+onDIASAFETYwithdifferentrewardfunctions.
+ConstrainedGenerationwithoff-the-shelfGPT-3asthe
+basepolicyusingdifferentrewardfunctions
+Reward Critic Coherence Engaging Overall
+critic 85.3 0.84 1.01 0.88
+Reward Diversity Coherence Critic Mauve critic,coherence,engaging 76.6 0.91 1.34 0.97
+coherence 92.41 64.98 5.41 68.25
+coherence,critic 93.73 51.03 52.36 84.32 Table 14: Evaluation results for Knowledge-Grouded
+coherence,critic,diversity 96.12 51.81 50.93 84.18 DialogueonFaithdialwithdifferentrewardfunctions.
+Table12: Automaticevaluationforopen-domaingen-
+erationsonXSumwithoff-the-shelfGPT2-XLasthe generateddialogue,measuredbycoherence,engag-
+basepolicyusingdifferentrewardfunctions. ingnessandoverallscorefromUniEval-Dialogue
+(Zhongetal.,2022). Thegeneratedresponsesare
+oftentheexactcopyofthegivenknowledge,lack-
+asmeasuredbyCOLA.However,byincorporating
+ing of abstractiveness. We found that integrating
+fluencyasanauxiliaryreward,wenoticeimprove-
+coherence and engagingness scores as additional
+mentsinbothdimensions. Humanevaluationsfur-
+rewardhelpspreservingthenaturalnessofthegen-
+thersupportourfindings.
+eratedresponseswhileenhancingtheirfaithfulness.
+Open-ended Generation The goal is to make
+machine-generatedcontentmorefluent,coherent,
+B RuntimeAnalysis
+and human-like. As shown in Table 12, optimiz-
+ingsolelyforcoherencedoesnotyieldsignificant Weconductionadditionalruntimeanalysisontoxi-
+improvementsintheoverallgenerationquality,as cityreductiontask,comparingtheinferencespeed
+evaluatedbyMAUVE.Incorporatingscoresfrom ofIPAwithotherbaselinemethods. Asshownin
+theOpenAIdetector,aclassifierfordistinguishing Table B, IPA is significantly more efficient than
+betweenAIvs. human-writtentext,asanadditional most of the baseline methods and falls within a
+rewardservesasanessentialelementinimproving similarrangeasnucleussampling.
+theoverallqualityandhuman-likenessofgenerated
+texts. Moreover,wefoundthatintegratingdiversity
+Method Runtime
+score as another auxiliary reward helps maintain NucleusSampling 0.03
+thediversityofgenerationswhilepromotinghigher PPLM(Dathathrietal.,2020a) 23.7
+qualityoutput. GeDi(Krauseetal.,2021) 0.78
+Dexperts(Liuetal.,2021a) 0.12
+DialogueSafetyControl Ouraimtoimproving DAPT(Gururanganetal.,2020) 0.03
+thesafetyofadialoguemodel. AsshowninTable QUARK(Luetal.,2022a) 0.03
+Inference-timePolicyadapter 0.08
+13,optimizingforsafetyscorealonemayresultin
+a decrease in the overall quality of the generated
+Table15: Inferenceruntime(secondspersentencegen-
+dialogue, measured by coherence, engagingness eration) of IPA versus other baseline methods with
+andoverallscorefromUniEval-Dialogue(Zhong GPT2-Lasthebasepolicyontoxicityreductiontask.
+etal.,2022). Thegeneratedresponsestendstobe
+blandandtemplated,suchas"Idon’tknow...","I’m
+not sure...". We found that integrating coherence C ExperimentDetail
+andengagingnessscoresasadditionalrewardhelps
+preservingnaturaldialogueflowwhilepromoting C.1 Off-the-ShelfModels
+saferesponses.
+Wedownloadoff-the-shelfmodels,includingpre-
+Knowledge-groundedDialogue Ouraimtoim- trainedGPT-2andBlenderBot,fromHuggingFace
+provingthefaithfulnessofdialogueresponsewith Transformers(Wolfetal.,2020),whichareimple-
+respect to the given knowledge. As shown in Ta- mented in the PyTorch deep learning framework.
+ble14,optimizingforfaithfulnessscorealonemay WeaccessGPT-3,GPT-3.5andGPT-4modelsvia
+result in a decrease in the overall quality of the APIcallsthroughOpenAIplatform.
+C.2 ModelTrainingDetails Hyperparameter Assignment
+model GPT2-Large
+All training is performed on 8 NVIDIA Quadro
+numberofparameters 774M
+RTX8000GPUsandcostsabout3000GPUhours numberofsteps 14000
+intotal. OurmethodisimplementedwithPyTorch batchsize 64
+learningrateoptimizer Adam
+antheHuggingfaceTransformerslibrary.
+Adamepsilon 1e-8
+C.2.1 ToxicityReduction Adaminitiallearningrate 1e-5
+learningratescheduler linearwithwarmup
+We initialize the policy adapter with an off-the- warmupsteps 500
+shelfGPT2-Lmodelanduse QUARKastheRLal- KLcoefficientβ 0.01
+gorithmfortheadaptertraining. Hyperparameters frequencyofexploration 15
+fortrainingaregiveninTable16. Weperformed
+Table17: Hyperparametersfortrainingpolicyadapter
+a hyperparameter grid search for the number of tolexicallyconstrainedgeneration
+training steps over the range [10k, 20k], for the
+KL coefficient β over the range [0, 0.3], and for
+frequency of exploration over the range [15, 25].
+thefrequencyofexplorationovertherange[5,20].
+During inference, we use nucleus sampling with
+During inference, we use nucleus sampling with
+p = 0.9andtemperature1.0.
+p = 0.9andtemperature1.0.
+Hyperparameter Assignment
+Hyperparameter Assignment
+model GPT2-Large
+model GPT2-Large
+numberofparameters 774M
+numberofparameters 774M
+numberofsteps 50000
+numberofsteps 18000
+batchsize 64
+batchsize 64
+learningrateoptimizer Adam
+learningrateoptimizer Adam
+Adamepsilon 1e-8
+Adamepsilon 1e-8
+Adaminitiallearningrate 1e-5
+Adaminitiallearningrate 1e-5
+learningratescheduler linearwithwarmup
+learningratescheduler linearwithwarmup
+warmupsteps 1500
+warmupsteps 800
+KLcoefficientβ 0.05
+KLcoefficientβ 0.05
+frequencyofexploration 25
+frequencyofexploration 8
+Table18: Hyperparametersfortrainingpolicyadapter
+Table16: Hyperparametersfortrainingpolicyadapter
+toopen-endedgeneration
+toreducetoxicity
+C.2.2 LexicallyConstrainedGeneration C.2.4 DialogueSafetyControl
+We initialize the policy adapter with an off-the- We initialize the policy adapter with an off-the-
+shelfGPT2-Lmodelanduse QUARKastheRLal- shelfblenderbot-1B-distillmodelanduse QUARK
+gorithmfortheadaptertraining. Hyperparameters as the RL algorithm for the adapter training. Hy-
+fortrainingaregiveninTable17. Weperformed perparameters for training are given in Table 19.
+a hyperparameter grid search for the number of Weperformedahyperparametergridsearchforthe
+trainingstepsovertherange[5k,20k],fortheKL numberoftrainingstepsovertherange[10k,15k],
+coefficient β over the range [0, 0.3], and for the fortheKLcoefficientβ overtherange[0,0.3],and
+frequency of exploration over the range [10, 30]. forthefrequencyofexplorationovertherange[10,
+During inference, we use nucleus sampling with 30]. During inference, we use nucleus sampling
+p = 0.9andtemperature1.0. withp = 0.6andtemperature1.0.
+C.2.3 Open-endedgeneration C.2.5 Knowledge-groundedDialogue
+We initialize the policy adapter with an off-the- We initialize the policy adapter with an off-the-
+shelfGPT2-Lmodelanduse QUARKastheRLal- shelfblenderbot-1B-distillmodelanduse QUARK
+gorithmfortheadaptertraining. Hyperparameters as the RL algorithm for the adapter training. Hy-
+fortrainingaregiveninTable18. Weperformed perparameters for training are given in Table 20.
+a hyperparameter grid search for the number of Weperformedahyperparametergridsearchforthe
+trainingstepsovertherange[30k,50k],fortheKL numberoftrainingstepsovertherange[7.5k,15k],
+coefficient β over the range [0, 0.3], and for the fortheKLcoefficientβ overtherange[0,0.3],and
+Hyperparameter Assignment trained models (Michel et al., 2019; Voita et al.,
+model blenderbot-1B-distill 2019). Additionally,(Lietal.,2018)demonstrate
+numberofparameters 1B
+the effectiveness of optimizing a model in a low-
+numberofsteps 15000
+batchsize 64 dimensional randomly oriented subspace. Later
+learningrateoptimizer Adam studies(Aghajanyanetal.,2021)havealsoshown
+Adamepsilon 1e-8 thattheintrinsicdimensionalitydecreaseswithpre-
+Adaminitiallearningrate 1e-5
+training larger models. (Hu et al., 2022) learns a
+learningratescheduler linearwithwarmup
+warmupsteps 300 low-rankfactorizationviaprojectionmatrixandap-
+KLcoefficientβ 0.1 pliesthemtotheself-attentionweights. Recently,
+frequencyofexploration 15
+addingasmallsubsetofparameterscalledadapters
+Table19: Hyperparametersfortrainingpolicyadapter (Rebuffi et al., 2017) and compact adapters (Ma-
+tocontroldialoguesafety habadietal.,2021)whicharemodel-specific(Stick-
+landandMurray,2019). Pfeifferetal.(2020)intro-
+duced a continuously evolving Adapter-Hub that
+forthefrequencyofexplorationovertherange[15,
+stitchesdifferentpre-trainedadaptersforlanguages
+30]. During inference, we use nucleus sampling
+andtasksinspiredfromroutingnetworks(Rosen-
+withp = 0.6andtemperature1.0.
+baumetal.,2019)optimizedthroughreinforcement
+learning(Kirschetal.,2018;Changetal.,2019).
+Hyperparameter Assignment
+Though these methods are efficient, they require
+model blenderbot-1B-distill
+numberofparameters 1B accesstotheinternalrepresentationformodeland
+numberofsteps 12500 gradient,whichisnotfeasibleforlargemodelslike
+batchsize 64
+GPT3withlimitedaccess.
+learningrateoptimizer Adam
+Adamepsilon 1e-8
+Refinement. Recentworkcontrols(L)LMsbyre-
+Adaminitiallearningrate 1e-5
+finingageneratedsequenceintoanimprovedone
+learningratescheduler linearwithwarmup
+warmupsteps 300 with a refinement module (Yasunaga and Liang,
+KLcoefficientβ 0.1 2020; Saunders et al., 2022; Schick et al., 2022;
+frequencyofexploration 25
+Yang et al., 2022; Welleck et al., 2023; Madaan
+Table20: Hyperparametersfortrainingpolicyadapter et al., 2023). These methods operate in the se-
+toimprovedialoguefaithfulness quence space, while IPA’s adapter policy makes
+fine-grained‘refinements’inthesimplex(i.e.,on
+next-token distributions). Typically the refiner
+D AdditionalRelatedWorks
+is large (e.g., Saunders et al. (2022); Madaan
+et al. (2023)), or depends on specialized train-
+Parameter-Efficient Fine-Tuning Prompting
+ing data (Schick et al., 2022) or learning algo-
+andprefix-tuning(LiandLiang,2021)adaptavery
+rithms(Wellecketal.,2023). IPA’sadapterpolicy
+largemodeltoaspecifictask. However, theyare
+islightweight,andisdirectlyoptimizedwithstan-
+affectedbysensitivitybasedonorderofwordsor
+dardRLalgorithms.
+examples(Zhaoetal.,2021;WebsonandPavlick,
+2022), lack associative clarity (Min et al., 2022)
+E HumanEvaluation
+andtuningpromptsworkforonlyverylargemod-
+els(Mahabadietal.,2021;Liuetal.,2022b). These WeillustratethehumanevaluationlayoutsonAma-
+methodscomposetheinputtothemodel. Incon- zonMechanicalTurkforDialogueSafetyControl,
+trast,parameter-efficientfinetuningoffersaclean Open-endedGeneration, andLexicalContrained
+waytocomposeparametersdirectlybyaddingor GenerationtasksinFigures4,5and6. Weensure
+updatingasmallersubsetofmodelparameters. A theannotatorsarepaidadequatelyforatleast$15
+commonstrategyistoprunethemodelparameters per hour and we inform annotators that their an-
+and introduce sparsity (Han et al., 2017; Frankle notations are used for model evaluation purpose.
+and Carbin, 2019; Frankle et al., 2020). The ef-
+fectiveness of this approach is also substantiated
+with the use of RL (Yu et al., 2020). Instead of
+pruningindividualunits,structured-pruningprunes
+an entire group, such as attention heads in pre-
+Figure4: HumanevaluationlayoutonAmazonMechanicalTurkforDialogueSfaetyControl
+Figure5: HumanevaluationlayoutonAmazonMechanicalTurkforopen-endedgeneration
+Figure6: HumanevaluationlayoutonAmazonMechanicalTurkforlexicalconstraintedgeneration

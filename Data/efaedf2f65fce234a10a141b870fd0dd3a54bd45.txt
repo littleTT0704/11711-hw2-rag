@@ -1,0 +1,860 @@
+Investigating Evaluation of Open-Domain Dialogue Systems With Human
+Generated Multiple References
+PrakharGupta1,ShikibMehri1,TianchengZhao1,
+AmyPavel2,MaxineEskenazi1,andJeffreyP.Bigham1,2
+1LanguageTechnologiesInstitute,CarnegieMellonUniversity,
+2Human-ComputerInteractionInstitute,CarnegieMellonUniversity,
+{prakharg,amehri,tianchez,apavel,max+,jbigham}@cs.cmu.edu
+Abstract DialogContext:
+PersonA:911emergency. Whatisthe
+The aim of this paper is to mitigate the
+problem?
+shortcomings of automatic evaluation of
+PersonB:Iwouldliketoreportabreak-in.
+open-domain dialog systems through multi-
+single-referenceResponse:
+reference evaluation. Existing metrics have
+been shown to correlate poorly with human Whenwasthisbreak-in?
+judgement, particularly in open-domain dia- OtherValidResponses:
+log. Onealternativeistocollecthumananno- Wasanythingstolen?
+tationsforevaluation,whichcanbeexpensive Isanyonehurtorinjured?
+and time consuming. To demonstrate the ef-
+Istheperpetratorstillinsidethehouse?
+fectiveness of multi-reference evaluation, we
+Iwillsendsomeonerightaway.
+augmentthetestsetofDailyDialogwithmul-
+tiplereferences. Aseriesofexperimentsshow
+Table1: Exampleofadialogcontextwhereappropri-
+that the use of multiple references results in
+ate responses do not share words and meaning with a
+improved correlation between several auto-
+single-referenceresponse.
+matic metrics and human judgement for both
+thequalityandthediversityofsystemoutput.
+which is known as the dull-response problem (Li
+1 Introduction
+et al., 2016c). As a result, single-reference evalu-
+Dialog agents trained end-to-end to hold ations correlate weakly with human judgments of
+open-domain conversations have recently pro- quality(Liuetal.,2016).
+gressed rapidly, generating substantial interest To address these problems, this paper proposes
+(Ghazvininejad et al., 2018; Serban et al., 2017, to carry out automatic evaluation using multiple
+2016a; Sordoni et al., 2015; Vinyals and Le, reference responses instead of a single-reference.
+2015). Development of these systems is driven Multiplereferenceevaluationisattractiveforsev-
+by available data and benchmarks based on only eral reasons. First, the additional information in
+a single ground truth reference response for a the multiple reference response can be used to
+given context. However, such single-reference provide more robust quality evaluation under the
+evaluation does not account for all the plausible one-to-many condition. Second, we can use the
+responses for any given conversational context multiplereferencestobettermeasurethediversity
+(Table 1). This is known as the one-to-many re- of the model, which is a widely studied topic in
+sponse problem (Zhao et al., 2017a). Computing open-domain response generation (Kulikov et al.,
+word-overlap metrics against a single-reference 2018;Lietal.,2016a;Zhangetal.,2018;Lietal.,
+response may penalize perfectly valid responses 2016b;Zhaoetal.,2017a;Gaoetal.,2019).
+(Deriu et al., 2019) (e.g., “Was anything stolen?”, Prior explorations in this area either rely on
+“Is anyone hurt”) that deviate from the particular synthetically created or small scale reference
+target response (“When was the break-in?”). Un- sets(Galleyetal.,2015;QinandSpecia,2015),or
+like human evaluation, automatic evaluation with perform experiments only on a small set of met-
+a single-reference may also disproportionately rics focused on only response quality (Sugiyama
+benefit models that produce generic responses et al., 2019). Our investigations for using multi-
+with more probable words (e.g., “I don’t know”) ple references for automatic evaluation covers the
+following aspects - 1) We propose methodology sponses based on their similarity with the refer-
+for evaluating both the quality and the diversity ence responses and their relatedness to the dialog
+of generated responses using multiple references. contexts. Lowe et al. (2017) trained a hierarchi-
+2) The proposed evaluation framework is metric- cal neural network model called ADEM to pre-
+agnostic and the experiments cover a large spec- dicttheappropriatenessscoreofresponses. How-
+trumofexistingmetrics,and3)Weaugmentedthe ever, ADEM requires human quality annotation
+exiting test set of DailyDialog dataset (Li et al., for training, which is costly. Sai et al. (2019) re-
+2017) with multiple references and perform hu- cently showed that trainable metrics are prone to
+man judgment correlation studies with human- gamification through adversarial attacks. While
+generated references. Our extensive experimen- past work has focused on inventing new metrics,
+talresultsshowthatusingmultipletestreferences this paper instead aims to demonstrate that the
+leads to significantly better correlation of auto- correlation of existing metrics can be improved
+mated metrics with human judgment in terms of through the use of multiple references for evalu-
+bothresponsequalityanddiversity. Thissuggests ationinopen-domainsettings.
+that the use of multiple references serves to make
+Prior attempts leveraged multiple references to
+automatic metrics more reliable mechanisms for
+improve evaluation in the context of text gen-
+evaluating open-domain dialog systems. More-
+eration. Qin and Specia (2015) proposed vari-
+over,followupstudiesareconductedtobetterun-
+ants of BLEU for machine translation based on
+derstand the nature of the multi-reference evalu-
+n-gram weighting. In the dialog domain, Gal-
+ation, such as the number of reference responses
+ley et al. (2015) proposed Discriminative BLEU,
+neededtoachievehighcorrelation.
+which leverages several synthetically created ref-
+Thecontributionsofthispaperare:
+erencesobtainedwitharetrievalmodelfromTwit-
+1. We show that multi-reference evaluation
+ter corpus. Sordoni et al. (2015) also followed a
+achieves better correlation with human judg-
+similar retrieval procedure for multiple-reference
+mentsbothinqualityandindiversity.
+evaluation. Since both of them created their ref-
+2. We analyze the effect of varying the number
+erence sets through retrieval followed by a rat-
+ofreferenceresponsesonthecorrelationwith
+ing step, their multi-reference sets do not reflect
+humanqualityjudgements.
+the natural variability in responses possible for
+3. We construct and release an open-domain
+a context. Sugiyama et al. (2019) proposed a
+multi-referencetestdataset1.
+regression-based evaluation metric based on mul-
+tiple references. The small set of metrics and few
+2 Relatedwork
+testsentencesshowspromise,butalsotheneedfor
+The need for reliable and consistent automatic furtherexploration. Wegofurtherwithacompar-
+evaluation methodologies has lead to increas- isonofsingleandmultiplereferencesforresponse
+ing interest in dialog system evaluation in re- qualityevaluationandanexaminationofmultiple
+cent years. In domains such as machine transla- references for diversity evaluation. This paper is
+tion and captioning, n-gram overlap metrics such the first, to our knowledge, to create a large test
+as BLEU (Papineni et al., 2002), ROUGE (Lin, setofseveralhuman-generatedreferencesforeach
+2004) and METEOR (Lavie and Agarwal, 2007) context. We believe that it is also the first to per-
+correlate well with human judgement. Several formhumancorrelationstudiesonavarietyofau-
+embedding-based metrics have been proposed as tomaticmetricsforbothqualityanddiversity.
+well, including Greedy Matching (Rus and Lin-
+Evaluating diversity in dialog model responses
+tean, 2012) and Vector Extrema (Forgues et al.,
+has been studied recently. The most commonly
+2014). These automatic metrics, however, do not
+used metric is Distinct (Li et al., 2016a), which
+generalize well to open-domain dialog due to the
+calculates the ratios of unique n-grams in gener-
+wide spectrum of correct responses, commonly
+ated responses. Distinct is, however, computed
+known as the one-to-many problem (Zhao et al.,
+across contexts and does not measure if a model
+2017b). Recent work has proposed several train-
+can generate multiple valid responses for a con-
+able evaluation metrics to address this issue. RU-
+text. Xu et al. (2018) proposed Mean Diversity
+BER (Tao et al., 2018) evaluates generated re-
+Score (MDS) and Probabilistic Diversity Score
+1https://github.com/prakharguptaz/multirefeval (PDS)metricsfordiversityevaluationovergroups
+of multiple references over a set of retrieved ref- andthenaveragedoverallcontexts. AlowerSelf-
+erences. Hashimoto et al. (2019) proposed a met- BLEU implies greater diversity since system out-
+ric for a unified evaluation of quality and diver- putsarenotsimilartooneanother.
+sityofoutputs,whichhoweverdependsonhuman
+3.2 Proposed: Multi-ReferenceEvaluation
+judgements. Zhao et al. (2017a) proposed preci-
+sion/recall metrics calculated using multiple hy- 3.2.1 Quality
+potheses and references as an indicator of appro- In multi-reference evaluation, a given context has
+priatenessandcoverage. Inthispaperweleverage multiple valid responses R = {r ,r ,...,r }. As
+1 2 n
+their recall-based metrics in our multi-reference such, for a given metric d, the multi-reference
+basedevaluationofdiversity. scorecanbecomputedas:
+3 Methodology score(y,R) = maxd(y,r) (1)
+r∈R
+We evaluated the performance of dialog response
+We score the system output against only the
+generation models from two aspects: quality and
+closestreferenceresponsebecausetherearemulti-
+diversity. Qualityteststheappropriatenessofthe
+plediverseandvalidresponsesforagivencontext.
+generatedresponsewithrespecttothecontext,and
+diversityteststhesemanticdiversityoftheappro- 3.2.2 ReferencedDiversity
+priateresponsesgeneratedbythemodel. A multi-reference test set also allows referenced
+Wefirstdescribetheevaluationproceduresused diversity evaluation. For a given context c,
+fortheconventionalsingle-referencesetting. Then we are given multiple reference responses R =
+we present the proposed multi-reference evalua- {r ,r ,...,r } and multiple system outputs Y =
+1 2 n
+tion. We define a generalized metric to be d(y,r) {y ,y ,...,r }. For a given metric, d, we com-
+1 2 m
+which takes a produced output y and a reference pute recall (Zhao et al., 2017a), or coverage, as
+outputr,andproducesamatchingscorethatmea- follows:
+sure the level of similarity between y and r. We (cid:80)M
+max d(y ,r ))
+discussoptionsfordinTable2. recall(c) = j=1 i∈[1,N] i j (2)
+M
+3.1 Baseline: Single-referenceEvaluation
+For each of the multiple reference responses,
+3.1.1 Quality we consider the highest-scoring system output,
+then average these scores across the reference re-
+During single-reference evaluation, there is only
+sponses. Asystemthatgeneratesoutputscovering
+one reference response r. As such, for a given
+a large portion of the reference responses thus re-
+metricd,thesingle-referencescorewillbed(y,r).
+ceivesahigherrecallscore.
+3.1.2 UnreferencedDiversity
+3.3 Metrics
+Mostpriorworkconcentratesonunreferenceddi-
+Weconsiderseveralmetricsforqualityanddiver-
+versity evaluation since referenced diversity eval-
+sityevaluationincluding(1)word-overlapmetrics,
+uation requires a multi-reference dataset. Unref-
+and(2)embedding-basedmetrics. Wedescribethe
+erenced evaluation refers to diversity evaluation
+metrics in Table 2. Each metric represents an in-
+methods which ignore the reference responses,
+stantiationofthegeneralizedscoringfunctiond.
+and instead compute diversity as a function only
+ofthegeneratedresponses. TheDistinct(Lietal.,
+3.4 ComparedModels
+2016a) metric calculates diversity by calculating
+Our experiments are conducted using four mod-
+the number of distinct n-grams in generated re-
+els: a retrieval model and three different genera-
+sponsesasafractionofthetotalgeneratedtokens.
+tive models. We treat human generated responses
+This score is calculated at the system level - over
+asanadditionalmodel.
+the set of responses generated for all the contexts
+in test set. Given a set of system responses for Human: To represent ideal model performance
+the same context, Self-BLEU (Zhu et al., 2018) foraparticularcontext,weuseahuman-generated
+sequentially treats each one of the generated re- responseforthatcontext.
+sponses as the hypothesis and the others as refer- Dual Encoder: A strong baseline for dialog
+ences. This score is computed for every context retrieval is the Dual Encoder (DE) architecture
+Metric Reference Description
+Word-overlapbasedmetrics
+BLEUisbasedonn-gramoverlapbetweenthecandidateandreference
+BLEU Papinenietal.(2002)
+sentences.Itincludesabrevitypenaltytopenalizeshortcandidates.
+Theharmonicmeanofprecisionandrecallbetweenthecandidateand
+METEOR LavieandAgarwal(2007)
+referencebasedonasetofalignmentsbetweenthetwo.
+AnF-measurebasedontheLongestCommonSubsequence(LCS)
+ROUGE-L Lin(2004)
+betweenthecandidateandreferenceutterances.
+Embeddingbasedmetrics
+Embedding Computesasentence-levelembeddingofrandcbyaveragingthe
+Wietingetal.(2015),others
+Average embeddingsofthetokenscomposingthesentences.
+Vector Computesasentence-levelembeddingbytakingthemostextremevalueof
+Forguesetal.(2014)
+Extrema theembeddingsoftokensofthesentenceforeachdimensionoftheembedding.
+Eachwordinthecandidatesentenceisgreedilymatchedtoawordinthe
+Greedy
+RusandLintean(2012) referencesentencebasedonthecosinesimilarityoftheirembeddings.
+Matching
+Thescoreisthenaveragedforeachwordinthecandidatesentence.
+Usesarecurrentnetworktoencodeagivensentenceintoasentencelevel
+Skip-Thought Kirosetal.(2015) embedding.Weusethepre-trainedvectorsandimplementationprovided
+by(Sharmaetal.,2017).
+Generatesasentencelevelembeddingthroughasequence-to-sequencemodel
+GenSen Subramanianetal.(2018) trainedonavarietyofsupervisedandunsupervisedobjectivesinamulti-task
+framework.
+Table2: Metricsusedforbothqualityanddiversityevaluation.
+(Lowe et al., 2015a). The model first encodes a els incorporate discourse-level latent variables
+givendialogcontextandresponseusinganLSTM in HRED, in which the latent variables repre-
+encoder. It then takes the dot-product of the two sent the discourse-level intentions of the system.
+latent representations to output the likelihood of Specifically, we reproduce the CVAE network
+the response. The Dual Encoder is trained to from (Zhao et al., 2017a), where the latent vari-
+differentiate between correct responses, and uni- ables follow a multivariate Gaussian distribution
+formlysamplednegativeresponses. Duringinfer- with a diagonal covariance matrix. The dimen-
+ence, however, it chooses a correct response for a sion of the latent variable is 256. To have a fair
+givencontextoutofalltheresponsesthatoccurin comparison,therestofthestructureisthesameas
+thetrainingset. theHREDwithbidirectionalLSTMutteranceen-
+coders and LSTM context encoder and response
+Seq2Seq: Sequence-to-sequence (Seq2Seq) net-
+decoder. To alleviate the posterior collapse issue
+works (Sutskever et al., 2014) are a typical base-
+for training text CVAEs (Bowman et al., 2016),
+line for dialog systems (Vinyals and Le, 2015).
+we use bag-of-words auxiliary loss (Zhao et al.,
+Our model consists of an LSTM encoder, an
+2017a)andKL-annealing(Bowmanetal.,2016).
+LSTMdecoderandanattentionmechanism(Bah-
+danauetal.,2014).
+4 Multi-ReferenceDataCollection
+HRED: Hierarchical Recurrent Encoder Decoder
+networks (HRED) (Serban et al., 2016b) are a
+We used the following procedure to prepare the
+modification of Seq2Seq networks. Rather than
+DailyDialogtestsetforthemulti-referencetestset
+encoding the context as a sequence of words, the
+collection. A dialog D in the test set consists of
+encodingofthecontextisdoneinatwo-steppro-
+utterances {u ,u ,...,u }. Here, u denotes the
+1 1 n i
+cess. First, all the utterances of a context are in-
+utterance at the ith turn. For generating dialog
+dependently encoded by an LSTM utterance en-
+contexts, we truncate the dialog at each possible
+coder. Second, given the latent representations
+utterance, except the last one. The response fol-
+of each utterance, a context encoder encodes the
+lowing each context is treated as the reference re-
+dialog context. The attention mechanism of the
+sponse. Asanillustration,fortheDialogshownin
+decoder attends over the timesteps of context en-
+Table1,wewouldgeneratethefollowingcontext-
+coder.
+referencepairs: Context1: “911emergency. What
+CVAE: The Conditional Variational Autoencoder is the problem?”, Reference 1: “I would like to
+(CVAE) model (Zhao et al., 2017a). CVAE mod- report a break-in.”. Context 2: “911 emergency
+Very Not NotAppropriate
+Reference Appropriate Neutral
+Appropriate Appropriate atall
+Fromoriginaldataset 41% 54% 2% 3% 0%
+Sampledfrom
+40% 52% 3% 5% 0%
+multi-referencecollected
+Table3: Resultsfromdatasetqualityexperiment
+... report a break-in.”, Reference 2: “’When was catesthatthecollectedreferencesetisclosetothe
+thisbreak-in?’. Inourmulti-referencedataset,we original reference set in quality. Furthermore, the
+expand each single-reference to a set of multiple responses are generated specifically for each con-
+references. text,theyarecoherentwiththecontext.
+4.1 DatacollectionProcedure 5 Experiments
+We designed an interface for multi-reference
+This section describes the experiments we con-
+data collection using Amazon Mechanical Turk
+ducted to explore the effectiveness of multi-
+(AMT).ForeveryHIT,weaskedanAMTworker
+referenceevaluation.
+to generate 4 diverse follow-up responses for a
+conversation. A snapshot of the data collection 5.1 CorrelationAnalysisforQuality
+interface is shown in Figure 3 (Appendix). We
+This analysis aims to compute the correlation be-
+providedinstructionsandexamplestofurtherclar-
+tween human quality judgments and two forms
+ify the task. To maintain quality post data collec-
+ofautomaticevaluation,bothsingle-referenceand
+tion, we filter out responses collected from work-
+multi-reference.
+ers who either generated very short responses or
+enteredtheresponsesinveryshortamountoftime 5.1.1 HumanAnnotations
+consistently. A collection of 100 dialog contexts are randomly
+selected from the dataset. For a particular dialog
+4.2 DataQuality
+context, each of the four models produces a re-
+Usingthemethoddescribedabove,wecollected4 sponse. In addition, we collect a human response
+diverse responses for the 1000 dialogs in the test using Amazon Mechanical Turk (AMT), making
+set, which consists of 6740 contexts. To validate it total of five responses for each dialog context.
+thequalityofthecollecteddataset,anexperiment Giventhesecontext-responsepairs,eachresponse
+on AMT is carried out for 100 contexts sampled is rated in terms of appropriateness (from 1-5)
+randomly from the dataset. Workers are shown a by 5 different AMT workers. The ratings are re-
+dialogcontextfollowedby3responsesshuffledin moved for workers with a Cohen’s Kappa κ (Co-
+arandomorder-1)theoriginalresponsefromthe hen,1968)inter-annotatoragreementscoreofless
+dataset 2) a random response from the collected than 0.2. The remaining workers had a mean κ
+multi-references, and 3) a distractor response, ir- scoreof0.43,indicatingmoderateagreement.
+relevant to the dialog context. We use distractor
+responses to filter out poor annotations where the 5.1.2 Results
+annotator gave high ratings to the distractor re- Utterance level correlation: The results of the
+sponse. We ask the workers to rate each of the correlationstudyconductedfor5modelresponses
+3 responses for a dialog context on a scale of 1-5 for 100 contexts are shown in Table 4. Pearson
+forappropriateness,where1indicatesNotAppro- correlationiscomputedtoestimatelinearcorrela-
+priateatalland5indicatesVeryAppropriate. We tion, and Spearman correlation to estimate mono-
+present the ratings from the experiment in Table tonic correlation. The correlations with human
+3 for the original responses from the dataset, and quality judgments are computed for both single-
+theresponsesfromthemulti-referenceset. Weob- reference and multi-reference evaluation. The
+servethat92%sampledresponsesfromthemulti- multi-reference test set consists of both the orig-
+referencesetaremarkedAppropriateorVeryAp- inal reference and the four new collected refer-
+propriate. Moreover, only 8% of the responses ence responses. For single-reference evaluation,
+are marked Not Appropriate or lower, compared except for METEOR and Vector Extrema met-
+to 5% for the original reference set. This indi- rics, the correlation is either small or statistically
+SingleReference MultipleReference
+Metrics Spearman p-value Pearson p-value Spearman p-value Pearson p-value
+BLEU-1 0.0241 0.591 0.1183 0.008 0.1572 0.000 0.2190 0.000
+BLEU-2 0.0250 0.577 0.1803 0.000 0.2077 0.000 0.2910 0.000
+BLEU-3 0.0608 0.175 0.1269 0.005 0.2520 0.000 0.2086 0.000
+BLEU-4 0.0345 0.441 0.1380 0.002 0.2202 0.000 0.2333 0.000
+METEOR 0.1064 0.017 0.1871 0.000 0.2247 0.000 0.2855 0.000
+ROUGE-L 0.0715 0.110 0.1408 0.002 0.2203 0.000 0.2798 0.000
+EmbeddingAverage 0.0301 0.502 -0.0067 0.880 0.1248 0.005 0.0636 0.156
+VectorExtrema 0.1919 0.000 0.2114 0.000 0.2785 0.000 0.2946 0.000
+GreedyMatching 0.1306 0.003 0.1150 0.010 0.2367 0.000 0.2352 0.000
+Skip-Thought -0.0029 0.949 -0.1463 0.001 0.1049 0.019 -0.0716 0.109
+GenSen 0.0731 0.103 0.1110 0.013 0.1832 0.000 0.2389 0.000
+Table4: Correlationofvariousmetricswhenevaluatedusingsingle-referenceandmulti-referencetestsets. Eval-
+uationusingMultipleReferencesleadstobettercorrelationacrossallmetrics.
+(a)BLEU-2-humanratings-single-references (b)BLEU-2-humanratings-multiplereferences
+(c)METEOR-humanratings-single-references (d)METEOR-humanratings-multiplereferences
+Figure1: SystemlevelcorrelationsforBLEU-2andMETEORmetrics. Multi-referenceevaluationshowshigher
+correlationwithmorecleardifferentiationinmodelperformance.
+less significant. On the other hand, every metric in the correlation study, the average human rat-
+showshigherandsignificantcorrelationformulti- ingandaveragemetricscoresfor100contextsare
+reference evaluation, with METEOR, ROUGE-L used to calculate system-level correlations. We
+and Vector Extrema achieving the highest corre- showsystem-levelcorrelationsformetricsBLEU-
+lation values. These results indicate that multi- 2 and METEOR metrics in Figure 1. Each point
+reference evaluation correlates significantly bet- in the scatter plots represents the average scores
+ter with human judgment than single-reference, for a dialog model. Average human scores are
+acrossallthemetrics. Thisreaffirmsthehypothe- shownonthehorizontalaxis,withaveragemetric
+sis that multi-reference evaluation better captures scoresontheverticalaxis. Humansratingsarelow
+theone-to-manynatureofopen-domaindialog. forresponsesfromtheretrievalmodel,andhigher
+for human responses and responses from HRED
+System level correlation: For each model used
+model. It is clear that the difference in scores for Metric Spearman p-value Pearson p-value
+Distinct-1 0.0204 0.647 0.0465 0.299
+models when evaluated using single-references is
+Distinct-2 -0.1282 0.004 -0.0568 0.205
+not significant enough to compare the models, as Distinct-3 -0.1316 0.003 -0.0184 0.681
+the average metric scores have near zero or very Self
+-0.1534 0.001 -0.1251 0.005
+BLEU-2
+weakcorrelationwithaveragehumanratings. This
+Self
+renders them insufficient for dialog evaluation. BLEU-4 -0.0836 0.061 -0.0304 0.497
+However,withmulti-referenceevaluation,thecor- Recall
+0.2052 0.000 0.2469 0.000
+BLEU-2
+relation is higher and significant, which differen-
+Recall
+tiates the models clearly. Thus, multi-reference BLEU-4 0.1713 0.000 0.1231 0.005
+basedevaluationcorrelateswellwithhumansboth Recall
+0.1993 0.000 0.2165 0.000
+METEOR
+atutterancelevelandatthesystemlevel.
+Recall
+0.1862 0.000 0.2234 0.000
+ROUGE-L
+5.2 CorrelationAnalysisforDiversity Recall
+Vector 0.2063 0.000 0.2314 0.000
+This section aims to demonstrate that referenced
+Extrema
+diversity evaluation methods better correlate with Recall
+human judgements of diversity, than previously Greedy 0.0797 0.075 0.1204 0.007
+Matching
+usedunreferenceddiversitymetrics. Whileunref-
+erenced metrics simply reward lexical differences Table5: Correlationscoresfordiversitymetrics
+amongst generated outputs, referenced methods
+(e.g.,therecallmetric)aimstocalculatethecover-
+BLEU, correlate poorly with human judgment.
+ageoftheresponses. Thecorrelationofhumandi-
+This is probably because these metrics evaluate
+versityscoresiscalculatedwithbothunreferenced
+lexical diversity, while humans evaluate diversity
+andreferencedmeasuresofdiversity.
+of meaning. Furthermore, unreferenced metrics
+5.2.1 HumanAnnotations donotconsiderthereferenceresponseandreward
+Multiple hypotheses were generated from all the diverse outputs without considering appropriate-
+models. For CVAE, multiple responses are sam- ness. With referenced diversity evaluation, using
+pledfromthelatentspacewithgreedyword-level the recall method, BLEU-2 and Vector Extrema
+decoding. For rest of the generation models, five show the highest correlation. While metrics like
+responses were obtained using sampled decod- Self-BLEU and Distinct can be “gamed” by pro-
+ing. For retrieval models, the top five retrieved ducingmeaningless albeitvery diverseresponses,
+responseswereused. Humanannotationsofthese the referenced recall metrics require both appro-
+multiplehypotheseswerecollectedasfollows: (1) priate and diverse outputs. As such, referenced
+Workers mark the responses which they find to evaluation correlates significantly better with hu-
+be appropriate for the conversational context, (2) man notions of diversity. Thus, the construction
+They then provide a score for the diversity of the of a multi-reference dataset allows for improved
+responsesbasedonhowdifferenttheyareinmean- diversitymetrics.
+ing. This two-stage annotation process captures a
+5.3 AutomaticEvaluationofModels
+desired form of system diversity: generated out-
+puts should be varied, but also appropriate. The We use our multi-reference evaluation methodol-
+scores are averaged across the three workers’ an- ogy to compare the models and the human gen-
+notations. We filtered out ratings from workers erated responses on the whole test dataset. For
+with low inter-annotator agreement as described the human model, we use one reference from the
+in section 5.1.1. The final mean κ score of 0.41, multi-reference set as the hypothesis. Human re-
+whichindicatesmoderateagreement. sponsesaregenerallymoreinterestinganddiverse
+than model responses, which are known to suffer
+5.2.2 Results
+from the dull response problem (Li et al., 2016c).
+The results for the diversity correlation analysis Because of this reason, we would expect the hu-
+are shown in Table 5 for a selected set of met- mangeneratedresponsestogethigherscoresthan
+rics2. Theunreferencedmetrics,DistinctandSelf- thedialogmodels. However,theresultspresented
+in Table 6 show that single-reference automatic
+2ForSelf-BLEUwecalculatecorrelationwithvaluessub-
+stractedfrom1asSelf-BLEUisinverselyrelatedtodiversity evaluation ranks few models higher than the hu-
+SingleReference Multiplereference
+Dual Dual
+Metric Seq2Seq HRED CVAE Human Seq2Seq HRED CVAE Human
+Encoder Encoder
+BLEU-2 0.0399 0.0521 0.0604 0.0656 0.0513 0.0625 0.0981 0.1061 0.1033 0.1637
+BLEU-4 0.0168 0.0252 0.0301 0.0291 0.0245 0.0241 0.0445 0.0497 0.0429 0.0791
+METEOR 0.0653 0.0544 0.0607 0.0724 0.0592 0.1000 0.0970 0.1036 0.1120 0.1456
+ROUGE-L 0.1522 0.1847 0.1998 0.2088 0.1682 0.2216 0.2927 0.3044 0.2997 0.3502
+Vector
+0.4005 0.5124 0.5002 0.4893 0.4823 0.4713 0.6191 0.5975 0.5722 0.6134
+Extrema
+Greedy
+0.6257 0.7167 0.7104 0.7078 0.6799 0.6991 0.7649 0.7551 0.7457 0.7562
+Matching
+Recall
+0.0662 0.0544 0.0766 0.1077 0.0898 0.0436 0.0377 0.0556 0.0679 0.0984
+BLEU-2
+Recall
+Vector 0.4945 0.5127 0.5397 0.5586 0.5651 0.4934 0.5334 0.5476 0.5653 0.5881
+Extrema
+Table6:ModelevaluationwithautomaticmetricsonSingleandMultiplereferences.Multiplereferenceevaluation
+isabletocorrectlyrankhumanresponseshigherthanmodelresponses.
+DialogContext:
+PersonA:excuseme.checkplease.
+GeneratedResponse
+sure,i’llgrabitandberightwithyou.
+Single-referenceResponse:
+ok,howwaseverything?
+Multi-referenceResponses:
+i’llgetitrightaway.
+hereisthecheck.
+noproblem,letmegetyourserver.
+i’llberightbackwithit.
+AverageHumanRating:5
+Metric Singlereference Multiplereference
+BLEU-2 0.0275 0.3257
+METEOR 0.0539 0.3425
+VectorExtrema 0.5523 0.8680
+Figure 2: Change in correlation with varying number
+ofreferences. Trendstablizesafter4-5references Table 7: Example of difference in metric scoring for
+singleversusmultiplereferenceevaluation.
+mans model. With multi-reference evaluation,
+human performance is significantly higher than sponsespace,andcollectingadditionalreferences
+modelperformance. Wefurtherpresentscoresfor does not provide much value in terms of mitigat-
+diversitymetricsonmultiplehypothesisgenerated ingtheissuesoftheone-to-manyproblem.
+for 100 contexts in the last two rows of the ta-
+6 DiscussionandConclusion
+ble. The use of multi-reference evaluation covers
+a wider array of valid responses, which strongly
+This work proposes a more reliable methodol-
+rewardsthediversehumanresponsescomparedto
+ogy for automatic evaluation of open-domain di-
+single-referenceevaluation.
+alogues with the use of multiple references. We
+augment the test set of DailyDialog dataset with
+5.4 Effectofnumberofreferences
+multiple references and show that multiple ref-
+The correlation of automated evaluation with hu- erences lead to better correlation with human
+manjudgmentiscalculatedatvariousnumbersof judgments of quality and diversity of responses.
+referenceresponses. TheresultsshowninFigure2 Single-referencebasedevaluationcanunfairlype-
+demonstrate that the Pearson correlation with hu- nalizediverseandinterestingresponseswhichare
+man judgment generally increases sharply up to appropriate, but do not match a particular ref-
+3-5 references. It further increases slowly up to erence in the dataset. However, multiple refer-
+about 7 references and then seems to plateau at ences can cover the possible semantic space of
+aroundeightreferences. Thissuggeststhatfourto repliesforacontextbetterthanasinglereference.
+eightreferencesgivesufficientcoverageofthere- Thus using multi-reference test sets can improve
+the way open-ended dialogue systems are cur- 7 Acknowledgements
+rently evaluated. Our experiments also show that
+This work was funded by the Defense Ad-
+human-generated responses perform worse than
+vanced Research Planning Agency (DARPA) un-
+models across most metrics when using single-
+der DARPA Grant N6600198-18908, and the Na-
+reference evaluation, but multiple reference eval-
+tional Science Foundation under Award #IIS-
+uation consistently ranks human responses higher
+1816012. We thank the workers on Amazon Me-
+thanmodel-generatedresponses. Furthermore,we
+chanicalTurkformakingourresearchpossible.
+show how varying the number of references ef-
+fects humanjudgement correlation. This method-
+ology could easily be extended to other open do-
+References
+main datasets if the community can make similar
+multi-referencetestsetspubliclyavailable. DzmitryBahdanau,KyunghyunCho,andYoshuaBen-
+gio. 2014. Neural machine translation by jointly
+We illustrate the strength of multi-reference learning to align and translate. arXiv preprint
+evaluation through scores calculated for some arXiv:1409.0473.
+metrics using both single and multiple references
+Samuel R Bowman, Luke Vilnis, Oriol Vinyals, An-
+for an example context in Table 7. Multiple
+drew Dai, Rafal Jozefowicz, and Samy Bengio.
+reference-basedevaluationisoftengoodatassign- 2016. Generating sentences from a continuous
+inghigherscoreswhenthereismorescopefordi- space. InProceedingsofThe20thSIGNLLConfer-
+enceonComputationalNaturalLanguageLearning,
+versity in the responses as illustrated by the ex-
+pages10–21.
+ample. It should be noted that multiple reference
+evaluationgenerallyincreasesthescaleofmetrics Jacob Cohen. 1968. Weighted kappa: Nominal scale
+forallresponses,andthisincludesdullresponses. agreementprovisionforscaleddisagreementorpar-
+tialcredit. Psychologicalbulletin,70(4):213.
+The multi-reference data collection procedure
+in this paper collects the same number of re- Jan Deriu, Alvaro Rodrigo, Arantxa Otegi, Guillermo
+sponses for all contexts. However, different di- Echegoyen, Sophie Rosset, Eneko Agirre, and
+Mark Cieliebak. 2019. Survey on evaluation
+alogue contexts might possess different levels of
+methods for dialogue systems. arXiv preprint
+“open-endedness”. Fore.g.,acontextlike“Would
+arXiv:1905.04071.
+you like to dance?” would generally have fewer
+possiblevariationsinresponsesthanamoreopen- Gabriel Forgues, Joelle Pineau, Jean-Marie
+Larcheveˆque, and Re´al Tremblay. 2014. Boot-
+endedcontextlike“Whatdidyoudoyesterday?”.
+strapping dialog systems with word embeddings.
+Therefore, the number of references to collect for
+In Nips, modern machine learning and natural
+acontextcouldbebasedontheexpectedvariabil- languageprocessingworkshop,volume2.
+ityinresponsesforthecontext. Suchaprocedure
+Michel Galley, Chris Brockett, Alessandro Sordoni,
+wouldcapturemorevariabilityoverthedatasetfor
+Yangfeng Ji, Michael Auli, Chris Quirk, Mar-
+afixedbudget.
+garetMitchell,JianfengGao,andBillDolan.2015.
+deltaBLEU: A discriminative metric for generation
+An important direction in dialog system re-
+tasks with intrinsically diverse targets. In Proceed-
+searchistobuildmodelsthathavemoreengaging
+ings of the 53rd Annual Meeting of the Association
+andmeaningfulconversationswithahuman. With for Computational Linguistics and the 7th Interna-
+the recent push towards models which can gener- tional Joint Conference on Natural Language Pro-
+atemorediverseandinterestingresponses,appro- cessing (Volume 2: Short Papers), pages 445–450,
+Beijing,China.AssociationforComputationalLin-
+priate evaluation methodologies are an important
+guistics.
+and urgent need for the community. Human level
+evaluationofgenerationanddiversityischalleng- Xiang Gao, Sungjin Lee, Yizhe Zhang, Chris Brock-
+ingtodoinacompletelyautomaticway,however, ett, Michel Galley, Jianfeng Gao, and Bill Dolan.
+2019. Jointly optimizing diversity and relevance
+comparedtoevaluatingwithasingleresponse,we
+in neural response generation. arXiv preprint
+showthattheproposedevaluationmethodologyis
+arXiv:1902.11205.
+morereliableandwillfacilitateprogressinthisdi-
+rection. Inthisworkwehavechoseonedatasetfor Marjan Ghazvininejad, Chris Brockett, Ming-Wei
+Chang,BillDolan,JianfengGao,Wen-tauYih,and
+extensive experimentation, but in the future stud-
+MichelGalley.2018. Aknowledge-groundedneural
+ies, it will be worth collecting more datasets and
+conversationmodel. InThirty-SecondAAAIConfer-
+repeatingthecorrelationexperiments. enceonArtificialIntelligence.
+TatsunoriBHashimoto,HughZhang,andPercyLiang. the2016ConferenceonEmpiricalMethodsinNatu-
+2019. Unifying human and statistical evaluation ralLanguageProcessing,pages2122–2132,Austin,
+for natural language generation. arXiv preprint Texas.AssociationforComputationalLinguistics.
+arXiv:1904.02792.
+Ryan Lowe, Michael Noseworthy, Iulian Vlad Ser-
+Ryan Kiros, Yukun Zhu, Ruslan R Salakhutdinov, ban,NicolasAngelard-Gontier,YoshuaBengio,and
+Richard Zemel, Raquel Urtasun, Antonio Torralba, Joelle Pineau. 2017. Towards an automatic Tur-
+and Sanja Fidler. 2015. Skip-thought vectors. In ing test: Learning to evaluate dialogue responses.
+Advancesinneuralinformationprocessingsystems, In Proceedings of the 55th Annual Meeting of the
+pages3294–3302. Association for Computational Linguistics (Volume
+1: Long Papers), pages 1116–1126, Vancouver,
+Ilya Kulikov, Alexander H Miller, Kyunghyun Cho, Canada.AssociationforComputationalLinguistics.
+and Jason Weston. 2018. Importance of a search
+strategy in neural dialogue modelling. arXiv Ryan Lowe, Nissan Pow, Iulian Serban, and Joelle
+preprintarXiv:1811.00907. Pineau.2015a. Theubuntudialoguecorpus:Alarge
+dataset for research in unstructured multi-turn dia-
+Alon Lavie and Abhaya Agarwal. 2007. Meteor: An loguesystems. InSIGDIALConference,pages285–
+automatic metric for mt evaluation with high levels 294.TheAssociationforComputerLinguistics.
+of correlation with human judgments. In Proceed-
+Ryan Lowe, Nissan Pow, Iulian Serban, and Joelle
+ingsoftheSecondWorkshoponStatisticalMachine
+Pineau. 2015b. The Ubuntu dialogue corpus: A
+Translation, StatMT ’07, pages 228–231, Strouds-
+large dataset for research in unstructured multi-
+burg,PA,USA.AssociationforComputationalLin-
+turn dialogue systems. In Proceedings of the 16th
+guistics.
+Annual Meeting of the Special Interest Group on
+JiweiLi,MichelGalley,ChrisBrockett,JianfengGao, Discourse and Dialogue, pages 285–294, Prague,
+and Bill Dolan. 2016a. A diversity-promoting ob- Czech Republic. Association for Computational
+jective function for neural conversation models. In Linguistics.
+Proceedings of the 2016 Conference of the North
+KishorePapineni,SalimRoukos,ToddWard,andWei-
+American Chapter of the Association for Computa-
+JingZhu.2002. Bleu: Amethodforautomaticeval-
+tional Linguistics: Human Language Technologies,
+uation of machine translation. In Proceedings of
+pages 110–119, San Diego, California. Association
+the 40th Annual Meeting on Association for Com-
+forComputationalLinguistics.
+putational Linguistics, ACL ’02, pages 311–318,
+Stroudsburg, PA, USA. Association for Computa-
+JiweiLi, MichelGalley, ChrisBrockett, GeorgiosSp-
+tionalLinguistics.
+ithourakis,JianfengGao,andBillDolan.2016b. A
+persona-based neural conversation model. In Pro-
+Ying Qin and Lucia Specia. 2015. Truly exploring
+ceedingsofthe54thAnnualMeetingoftheAssocia-
+multiple references for machine translation evalua-
+tionforComputationalLinguistics(Volume1: Long
+tion. InProceedingsofthe18thAnnualConference
+Papers),pages994–1003,Berlin,Germany.Associ-
+of the European Association for Machine Transla-
+ationforComputationalLinguistics.
+tion,pages113–120,Antalya,Turkey.
+Jiwei Li, Will Monroe, Alan Ritter, Michel Galley,
+AlanRitter,ColinCherry,andWilliamBDolan.2011.
+Jianfeng Gao, and Dan Jurafsky. 2016c. Deep re-
+Data-drivenresponsegenerationinsocialmedia. In
+inforcementlearningfordialoguegeneration. arXiv
+Proceedingsoftheconferenceonempiricalmethods
+preprintarXiv:1606.01541.
+innaturallanguageprocessing,pages583–593.As-
+sociationforComputationalLinguistics.
+Yanran Li, Hui Su, Xiaoyu Shen, Wenjie Li, Ziqiang
+Cao, and Shuzi Niu. 2017. DailyDialog: A man- VasileRusandMihaiLintean.2012. Acomparisonof
+ually labelled multi-turn dialogue dataset. In Pro- greedy and optimal assessment of natural language
+ceedings of the Eighth International Joint Confer- studentinputusingword-to-wordsimilaritymetrics.
+ence on Natural Language Processing (Volume 1: InProceedingsoftheSeventhWorkshoponBuilding
+LongPapers),pages986–995,Taipei,Taiwan.Asian Educational Applications Using NLP, pages 157–
+FederationofNaturalLanguageProcessing. 162.AssociationforComputationalLinguistics.
+Chin-Yew Lin. 2004. ROUGE: A package for auto- Ananya B Sai, Mithun Das Gupta, Mitesh M Khapra,
+matic evaluation of summaries. In Text Summa- and Mukundhan Srinivasan. 2019. Re-evaluating
+rization Branches Out: Proceedings of the ACL-04 adem: Adeeperlookatscoringdialogueresponses.
+Workshop,pages74–81,Barcelona,Spain.Associa- arXivpreprintarXiv:1902.08832.
+tionforComputationalLinguistics.
+IulianV.Serban,AlessandroSordoni,YoshuaBengio,
+Chia-WeiLiu,RyanLowe,IulianSerban,MikeNose- AaronCourville,andJoellePineau.2016a. Building
+worthy, Laurent Charlin, and Joelle Pineau. 2016. end-to-end dialogue systems using generative hier-
+How NOT to evaluate your dialogue system: An archical neural network models. In Proceedings of
+empirical study of unsupervised evaluation metrics the Thirtieth AAAI Conference on Artificial Intelli-
+fordialogueresponsegeneration. InProceedingsof gence,AAAI’16,pages3776–3783.AAAIPress.
+IulianV.Serban,AlessandroSordoni,YoshuaBengio, ComputationalLinguistics:HumanLanguageTech-
+Aaron Courville, and Joelle Pineau. 2016b. Build- nologies, Volume 1 (Long Papers), pages 2070–
+ingend-to-enddialoguesystemsusinggenerativehi- 2080, New Orleans, Louisiana. Association for
+erarchical neural network models. In Proceedings ComputationalLinguistics.
+oftheThirtiethAAAIConferenceonArtificialIntel-
+ligence,AAAI’16,pages3776–3783.AAAIPress. Yizhe Zhang, Michel Galley, Jianfeng Gao, Zhe Gan,
+Xiujun Li, Chris Brockett, and Bill Dolan. 2018.
+Iulian Vlad Serban, Alessandro Sordoni, Ryan Lowe, Generating informative and diverse conversational
+LaurentCharlin,JoellePineau,AaronCourville,and responsesviaadversarialinformationmaximization.
+YoshuaBengio.2017. Ahierarchicallatentvariable In Proceedings of the 32Nd International Confer-
+encoder-decodermodelforgeneratingdialogues. In ence on Neural Information Processing Systems,
+Thirty-First AAAI Conference on Artificial Intelli- NIPS’18, pages 1815–1825, USA. Curran Asso-
+gence. ciatesInc.
+Shikhar Sharma, Layla El Asri, Hannes Schulz, and Tiancheng Zhao, Ran Zhao, and Maxine Eskenazi.
+Jeremie Zumer. 2017. Relevance of unsuper- 2017a. Learningdiscourse-leveldiversityforneural
+vised metrics in task-oriented dialogue for evalu- dialogmodels usingconditionalvariational autoen-
+ating natural language generation. arXiv preprint coders. In Proceedings of the 55th Annual Meet-
+arXiv:1706.09799. ing of the Association for Computational Linguis-
+tics(Volume1: LongPapers),pages654–664,Van-
+Alessandro Sordoni, Michel Galley, Michael Auli, couver,Canada.AssociationforComputationalLin-
+Chris Brockett, Yangfeng Ji, Margaret Mitchell, guistics.
+Jian-YunNie,JianfengGao,andWilliamB.Dolan.
+2015. A neural network approach to context- Tiancheng Zhao, Ran Zhao, and Maxine Eskenazi.
+sensitivegenerationofconversationalresponses. In 2017b. Learningdiscourse-leveldiversityforneural
+HLT-NAACL. dialogmodels usingconditionalvariational autoen-
+coders. arXivpreprintarXiv:1703.10960.
+Sandeep Subramanian, Adam Trischler, Yoshua Ben-
+Yaoming Zhu, Sidi Lu, Lei Zheng, Jiaxian Guo,
+gio, and Christopher J Pal. 2018. Learning gen-
+Weinan Zhang, Jun Wang, and Yong Yu. 2018.
+eralpurposedistributedsentencerepresentationsvia
+large scale multi-task learning. In International Texygen: Abenchmarkingplatformfortextgenera-
+ConferenceonLearningRepresentations. tionmodels. InThe41stInternationalACMSIGIR
+ConferenceonResearch&#38; DevelopmentinIn-
+Hiroaki Sugiyama, Toyomi Meguro, and Ryuichiro formation Retrieval, SIGIR ’18, pages 1097–1100,
+Higashinaka. 2019. Automatic Evaluation of NewYork,NY,USA.ACM.
+Chat-OrientedDialogueSystemsUsingLarge-Scale
+Multi-references, pages 15–25. Springer Interna-
+tionalPublishing,Cham.
+Ilya Sutskever, Oriol Vinyals, and Quoc V Le. 2014.
+Sequence to sequence learning with neural net-
+works. InAdvancesinneuralinformationprocess-
+ingsystems,pages3104–3112.
+Chongyang Tao, Lili Mou, Dongyan Zhao, and Rui
+Yan.2018. Ruber: Anunsupervisedmethodforau-
+tomatic evaluation of open-domain dialog systems.
+In Thirty-Second AAAI Conference on Artificial In-
+telligence.
+OriolVinyalsandQuocLe.2015. Aneuralconversa-
+tionalmodel. arXivpreprintarXiv:1506.05869.
+John Wieting, Mohit Bansal, Kevin Gimpel, and
+Karen Livescu. 2015. Towards universal para-
+phrastic sentence embeddings. arXiv preprint
+arXiv:1511.08198.
+Zhen Xu, Nan Jiang, Bingquan Liu, Wenge Rong,
+Bowen Wu, Baoxun Wang, Zhuoran Wang, and
+Xiaolong Wang. 2018. LSDSCC: a large scale
+domain-specific conversational corpus for response
+generation with diversity oriented evaluation met-
+rics. In Proceedings of the 2018 Conference of
+the North American Chapter of the Association for
+A FurtherNotesonDataCollection and Distinct (Li et al., 2016a) metrics, and the
+Experiments collectedresponses’relevancethroughtheaverage
+BLEUscoreofthemulti-referenceresponseswith
+The interface designed for multi-reference data the ground truth (Gt-BLEU) in the dataset. The
+collection is shown in Figure 3. The final de- resultsarereportedinTable8.
+sign of the interface incorporates improvements
+To calculate Self-BLEU, we calculate the
+based on multiple rounds of experiments and in-
+BLEUscoreforeveryresponsebytreatingthere-
+terviewsonasmallsetofusers. Theworkerswere
+sponse as a hypothesis and the others as the ref-
+shown a modal box with instructions and several
+erences, and we define the average BLEU scores
+good and bad examples before they start the task.
+calculated this way to be the Self-BLEU of the
+Thentheyareshown5contextsforaHIT,oneby
+response set. A higher Self-BLEU score implies
+one. For each context, they are asked to write 4
+less diversity in the set. We observe that 4R1W
+diverseresponsesintheTextboxprovided. Work-
+and 2R2W achieve higher lexical diversity than
+ers can enter multi-line responses and submit a
+1R4W. This is because when a worker is asked
+response by pressing enter or clicking on a but-
+to write multiple responses, they can make their
+ton. They are shown the number of remaining re-
+responses more diverse conditioned on their pre-
+sponses they need to enter for the conversation.
+vious responses. Relevance metrics Gt-BLEU-
+We also record the timestamps for click and enter
+1,2,3,4 indicate that 1R4W achieve higher lexical
+pressesintheinterface. Wepreventworkersfrom
+similarity with the ground truth response in the
+entering replies shorter than 2 characters, the ex-
+dataset, followed by 4R1W. We chose the 4R1W
+actsamereplymorethan1timeandshowthema
+mode, that is, a collection of 4 responses from 1
+warningpromptifentertheirresponsetooquickly
+worker,tobalancethediversityandrelevancemet-
+consistently.
+rics.
+Data Collection modes - For the collection of InstructionsforannotationcollectionforDi-
+4 responses per context, we have the following versityStudy
+options - A) 4R1W- Collect 4 responses from a
+Weprovidedfollowinginstructionstothework-
+singleworkerB)2R2W-Collect2responseseach
+ers for collecting diversity ratings- “Please read
+from 2 separate workers, and C) 1R4W - Collect
+the following conversation between two persons.
+1 response each from 4 separate workers. In or-
+Then read some possible follow-up responses for
+der to decide between these collection modes, we
+the conversation. You will be shown 5 sets of re-
+designed an experiment where, for 100 random
+sponses,with5responsesineachset. Foreachre-
+contexts, we collected 4 responses using all three
+sponse set, first select theresponses you think are
+styles A), B) and C). In order to decide the best
+appropriate responses for the conversation. Then
+option, we measured lexical diversity across the
+use the sliders to rate the diversity of the re-
+4 responses using self-BLEU (Zhu et al., 2018)
+sponse set, that is, how many of the appropriate
+responses in the response set had different mean-
+ings or were different replies. Please provide the
+Metric 4R1W 2R2W 1R4W
+diversity score only for the appropriate responses
+SelfBLEU-1 0.3809 0.3662 0.4403
+you have marked. The diversity score should not
+SelfBLEU-2 0.1778 0.1618 0.2657
+bemorethanthenumberofappropriateresponses
+SelfBLEU-3 0.0955 0.0851 0.2045
+in that set.” These instructions were followed by
+SelfBLEU-4 0.0548 0.0449 0.1748
+anexampletomakethetaskclear.
+Distinct-1 0.7266 0.7522 0.7082
+Distinct-2 0.9240 0.9346 0.8782 B Choiceofdataset
+Distinct-3 0.9621 0.9692 0.9092
+Gt-BLEU-1 0.1213 0.1165 0.1296 Thereareonlyafewopen-domainmulti-reference
+Gt-BLEU-2 0.0258 0.0259 0.0352 datasets and they have been collected artificially
+Gt-BLEU-3 0.0091 0.0111 0.0136 either by retrieval (Xu et al., 2018; Galley et al.,
+Gt-BLEU-4 0.0033 0.0032 0.0033 2015) or are very small in scale (Sugiyama et al.,
+2019). Therefore we augmented the original test
+Table8: Diversityandrelevancefordifferentmodesof set of the DailyDialog dataset (Li et al., 2017),
+datacollection. which has a sufficiently large test set. Conversa-
+Figure3: Interfaceusedformulti-referencedatacollection.
+Reference Original Multi-reference
+Unique1-gram 17.55 23.62
+Unique2-gram 27.88 58.69
+Unique3-gram 21.79 50.34
+Table 9: Comparison of number of unique n-grams in
+originalversusmultiplereferences.
+tions in DailyDialog cover 10 different topics on
+daily life. We chose to augment the DailyDialog
+dataset due to the following reasons- 1) The di-
+alogs in this dataset are about daily conversation
+topics and thus it is easier to augment them us-
+ing crowdsourcing.2) The dialogs in this dataset
+are generally more formal than datasets such as
+theTwitterDialogCorpus(Ritteretal.,2011)and
+UbuntuCorpus(Loweetal.,2015b)whichcontain
+noisesuchastyposandslangs. 3)Thedialogsgen-
+erally have a reasonable number of turns, which
+makesiteasierforapersontounderstandthecon-
+textandgenerateareply. Therefore,giventhesize
+oftheoriginalDailyDialogtestsetandtheabove-
+mentioned properties of the dataset, we chose to
+augmentthetestsetofDailyDialog.
+Datasetqualitycontinued
+Wepresenttheaveragenumberofunique1,2and
+3 grams in the original ground truth and the set
+of collected multi-reference ground truth in Table
+9. The higher number of unique ngrams in the
+multi-referencegroundtruthindicatesthatthenew
+ground truth captures more variation in the set of
+possibleresponses.

@@ -1,0 +1,371 @@
+PHONEMELEVELLANGUAGEMODELSFORSEQUENCEBASEDLOWRESOURCEASR
+SiddharthDalmia,XinjianLi,AlanWBlackandFlorianMetze
+LanguageTechnologiesInstitute,CarnegieMellonUniversity;Pittsburgh,PA;U.S.A.
+{sdalmia|xinjianl|awb|fmetze}@cs.cmu.edu
+ABSTRACT a targeted dictionary during decode time to produce the necessary
+in-domainwords.
+Building multilingual and crosslingual models help bring different
+Inthispaper,
+languages together in a language universal space. It allows mod-
+els to share parameters and transfer knowledge across languages, 1. We propose a phoneme-level language model (Section 3),
+enablingfasterandbetteradaptationtoanewlanguage. Theseap- whichissimilartoacharacter-levellanguagemodel[11,12]
+proachesareparticularlyusefulforlowresourcelanguages. Inthis in terms of the granularity of training unit. Additionally,
+paper,weproposeaphoneme-levellanguagemodelthatcanbeused this can be used to create a shared representation using the
+multilinguallyandforcrosslingualadaptationtoatargetlanguage. languageagnosticunits, InternationalPhoneticAlphabet. It
+Weshowthatourmodelperformsalmostaswellasthemonolingual allows us to share language model parameters across mul-
+modelsbyusingsixtimesfewerparameters,andiscapableofbet- tiple languages. We show that we can build multilingual
+teradaptationtolanguagesnotseenduringtraininginalowresource phoneme-levellanguagemodelswherewegetthesameper-
+scenario.Weshowthatthesephoneme-levellanguagemodelscanbe plexity on all languages without increasing the number of
+usedtodecodesequencebasedConnectionistTemporalClassifica- parameters, effectively using six times fewer trainable pa-
+tion(CTC)acousticmodeloutputstoobtaincomparableworderror rameters.Weseeconsiderablereductioninperplexityduring
+rateswithWeightedFiniteStateTransducer(WFST)baseddecod- crosslingual adaptation of our multilingual language model
+inginBabellanguages.Wealsoshowthatthesephoneme-levellan- versusamonolinguallanguagemodel(Section4.2.1).
+guagemodelsoutperformWFSTdecodinginvariouslow-resource
+2. These phoneme-level language models can be used to de-
+conditions like adapting to a new language and domain mismatch
+codeCTCacousticmodeloutputsbydoingaprefixtreebased
+betweentrainingandtestingdata.
+beamsearch,aslightmodificationtoopenvocabularybeam
+Index Terms— multilingual language models, phoneme-level search[12]andprefixtreebasedsearch[13].Weshowthaton
+languagemodels,CTCbaseddecoding,low-resourceASR anaveragetheyperformaround6.1%betterthanusingopen
+vocabularycharacter-baseddecoding[12,14]andareatpar
+withthepopularlyusedWFST-baseddecoding[15](Section
+1. INTRODUCTION
+4.2).
+Therearenearly7000languagesintheworld-somehaveuniqueor- 3. We find that our approach is better in low resource scenar-
+thographyandrules,whilesomearesimilarinphonetics,language ios and decoding with monolingual and (adapted) multilin-
+family,andloanwords[1]. Withtheadventofdeeplearning,ithas gual phoneme-level language models both performing bet-
+beenshownthatlanguagescanbebroughttogetherinashareduni- terthanWFSTdecoding(Section4.2.1). Wealsoshowthat
+versalspacewiththehelpofneuralnetworks[2,3]. Thishasmul- these models are robust towards domain mismatch and can
+tipleadvantageslikerequiringlessparameterstomodelaparticular be trained with only out-of-domain data, Bible text, and be
+taskformanylanguages,transferofinformationacrosslanguagesin decodedbyjustprovidingalistofin-domainwords,conver-
+caseoflowresourcelanguages[4,5],cross-lingualadaptationtoa sationalspeech.
+newlanguageetc.[6,7]. However,languagemodelsarealmostal-
+Westartbyexplainingtherelatedworkanddatasetswhichwe
+waysbuilttomodelonelanguageatatime.Theyaretypicallyword
+usedinthispaper. Section3explainsourproposedapproach, fol-
+levelneuralorn-gramlanguagemodels,whicharedifficulttoshare
+lowed by experiments and results in Section 4 showing the afore-
+acrosslanguages,exceptwhenthereexistmanyloanwords[8,9]or
+mentionedcontributions.
+code-switching[10].
+Collectionandcleaningofdatainlowresourcelanguagescan
+be expensive. Often we find data which is either out-of-domain 2. RELATEDWORKANDBABELDATASET
+or is so little that a reliable model cannot be trained using it [5].
+Building good word language models is also difficult due to vari- Building character-level n-gram language models is difficult due
+ous language-specific issues like rich morphology, spelling incon- to the need for long contexts. However, with the use of RNNs
+sistencies,etc. Ifnothandledcarefully,usingtheselanguagemod- and (Long Short Term Memory) LSTMs, it has been shown that
+elstodecodeanAutomaticSpeechRecognizer(ASR)usuallyleads character-level RNN language models (CLMs) can produce sen-
+tomanyout-of-vocabularywordsandalsobadestimatesofuncom- tences that are semantically and syntactically correct [11] due to
+monin-domainwords. Theseinconsistenciesreducewhenobserv- their capability of capturing long contexts [16]. While most tasks
+ingthedatainunitssmallerthanwordslikecharactersorphonemes. in natural language processing that use CLMs build word-level
+Hence,thereisaneedtobuildlanguagemodelsthatcanbetrained language models [17, 18], in speech recognition, especially for
+onsuchsmallerunitswithoutmuchpreprocessing,andbeusedwith decoding sequence-based acoustic models, we are interested in
+ToappearinProc.ICASSP2019,May12-17,2019,Brighton,UK. (cid:13)c IEEE2019
+9102
+beF
+02
+]LC.sc[
+1v31670.2091:viXra
+makingcharacter-levelsentencelanguagemodels,wherespaceis 3. PHONEMELEVELLANGUAGEMODELS
+consideredasanothercharacter[11,19,12].
+CharacterLanguageModels(CLMs):AtypicalCLMinvolvesan
+Parametersharinginlanguagemodelshasbeendoneinthepast
+embeddinglookup,Emb∈ Rd×|V|,foreachcharacterc ∈ {V}to
+withwordsasunitsforcode-switching[10]. Thoughthesemodels
+anembeddingdimensiond,LSTMsformodelingpastcontextanda
+tendtobenefitbyhavingcommonloanwords[8,9],therearevery
+finaloutputtransformationW whichispassedtoasoftmaxto
+fewcommontargetunitswhichmakesithardertoshareparameters. out
+producedistributionoverV. Givenasequencec ,thedistri-
+Apolyglotlanguagemodelproposedin[18]triestoapproachsome 1...t−1
+butionoverthenextcharacterofthesequenceisthencomputedas
+oftheproblemsmentionedabove. However,thisworkwaslimited
+follows:
+toproducingonlywordsanddidnotexploreitscapabilitiesatsen-
+tencelevel(themodelcannotproducesentences).Thoughthiswork
+p(c |c )=softmax(W LSTM(Emb(c ))+b )
+madeinterestingobservationsindecidingwhatlanguagestousefor t 1...t−1 out 1...t−1 out
+improvingperformanceofmultilingualmodels,theydidn’texplore PhonemeLanguageModels(PLMs): Inthispaper, weareinter-
+itscapabilitytoadaptationtowardsanewtargetlanguage. estedinbuildingsuchCLMsbutonlanguageuniversalcharacters,
+TherearemultiplewaystodecodeCTCacousticmodels.Oneof alsocalledastheInternationalPhoneticAlphabet(IPA).Wecancon-
+thesimplestonesisgreedydecodingwherewechoosethetoppre- vert the words of any language into their corresponding IPA sym-
+dictionateveryframeandapplytheCTCsquashfunctiontogetthe bol, by using any rule-based grapheme-to-phoneme (G2P) library.
+targetsequence,asshownin [20]. Wecangetbetterpredictionsby In this paper, we use the Epitran [22] G2P library. Although us-
+justdoingaprefixbasedbeamsearchwithoutanylanguagemodels ingphonemescomeswiththeaddedcostofaG2Plibrary,typically
+whereweaddpathstothebeamthatleadtoavalidword, [13,21]. speech recognizers built using phonemes have better performance
+CTCbeingaconditionallyindependentmodel, benefitsalotwhen whencomparedtocharacter-levelmodels[14].
+decodedwithalanguagemodel,thiswasshownusingbothcharac- Multilingual Phoneme Language Models (Multi-PLMs): An-
+ter [12, 19] and word [13, 15] language model. A word language otherkeyadvantageofusingphonemesisthatwithIPA,weentera
+modelcanbeappliedateverywordboundaryduringaprefixbased languageagnosticspace,allowingustouseasinglemodeltodecode
+search[13]orbycomposingaTLGgraphusingWFST[15]anda sequencesinmultiplelanguages.Authorsin[18]showthatincorpo-
+character language model can be used while inserting a character ratingalanguagetagwhiletrainingtheRNNlanguagemodelhelps
+[12,19]. Whilethefirstoneproduceswordsfromafixedlexicon, toimprovemultilinguallanguagemodels. Sincewewanttouseour
+itrequiresustomakeword-levellanguagemodels.Onthecontrary, modeltoworkincrosslingualadaptationscenarios,wewanttobring
+thelatterrequireseasiertotraincharacterlanguagemodelsbutper- allthephonemesinsamespace. Wemodifythemodelproposedby
+formsopen-vocabularydecodingwhichmaynotalwaysbeoptimal, [18]toprovidelanguageidentificationonlyforsentenceandword
+especiallyinlowresourcescenarios. boundaries. Effectively, the input units (x) are sum of the union
+of all the phonemes φ in each of the languages (φ) and language
+Inthispaper,weuse9differentlanguagesfromtheIARPABA- l
+specific<space>and<sos>.
+BELResearchProject(IARPA-BAA-11-02). Wechoosethreelan-
+Further,wealsointroducea“masked-training”approachtoim-
+guages,Cebuano, MongolianandAmharic, asourunseentestlan-
+provethemodeltrainingbycomputingsoftmaxandcalculatingloss
+guages and choose two other languages spoken in nearby regions
+only on units belonging to the languages being trained. The basic
+fromeachofthesethree, i.e., Javanese, Tagalog, Turkish, Kazakh,
+motivation behind this approach is to bring the advantages of the
+Swahili,andZulu,asourtraininglanguages. Wehopetomaximize
+“block-softmax”approachthathasbeenveryusefulformultilingual
+closenessinlanguagefamilyandloanwordsbyusingthisheuristic.
+acousticmodels [23,24,25,7]intoa“shared-softmax”model.
+Table 1 summarizes the number of phonemes, amount of training
+dataandtheout-of-vocabulary(OOV)rateforthelanguagesweused (cid:40)
+inourexperimentsontheFullLanguagePack(FLP)condition1. lang mask = True ifx∈{φ l}
+l False ifx∈/ {φ}
+l
+ind=where(lang mask=True)
+Languages #Units #TrainUtts OOV%
+logits=W LSTM(Emb(x ,...,x ))+b
+out 1 t−1 out
+Cebuano 28 42k 3.7
+sparse softmax=softmax(gather (logits))
+Test Mongolian 50 45k 4.5 ind
+Amharic 58 41k 11.3 This approach also ensures that only language-specific gradient
+Javanese 31 46k 4.4 flows through the network for any training example, thereby not
+Tagalog 25 93k 2.8 penalizing the model on distributing activations on invalid phones
+Turkish 29 81k 5.7 for any training example. We found that the “masked-training”
+Train Kazakh 39 48k 6.1 approachnotonlygivesbetterresultsbutalsohelpsinfasterconver-
+Swahili 37 44k 7.7 gence.
+Zulu 44 60k 13.4
+4. EXPERIMENTSANDOBSERVATIONS
+Table1:OverviewoftheFLPBabelCorporausedinthiswork.
+4.1. MultilingualPhonemeLanguageModel
+WebuildPLMsoneachofthetraininglanguagesandcomparetheir
+1This work used releases IARPA-babel105b-v0.4, IARPA-babel106-
+performance with a Multi-PLM built on all the training languages
+v0.2g, IARPA-babel202b-v1.0d, IARPAbabel204b-v1.1b, IARPA-
+puttogether. Themultilingualmodelusesthesamenumberofpa-
+babel206b-v0.1d, IARPAbabel301b-v2.0b, IARPAbabel302b-v1.0a,
+IARPAbabel307b-v1.0b, IARPAbabel401b-v2.0b and IARPAbabel402b- rametersasthemodelsbuiltforindividuallanguages,effectivelyus-
+v1.0bprovidedbyIARPABABELResearchProgram ingsixtimesfewerparameterswhilefulfillingthesamepurposefor
+2
+eachofthesixlanguages.BoththemodelsuseasinglelayerLSTM
+with1024hiddenunitsand64dimensionalembeddings.Allmodels
+haveadropoutof0.4intheLSTMlayersandareimplementedus-
+ingTensorflow. Thesemodelsarechosenafteraparameterssearch
+ondifferentembeddingsizes(64,128,256),hiddenunits(256,512,
+1024)anddropoutrate(0.4,0.2,0).
+4.1.1. ParameterReductionusingMulti-PLMs
+Table 2 shows the phoneme-level perplexity results (not counting
+sentenceboundaries)ofthemultilingualmodelandcomparesitwith
+corresponding monolingual models. It shows that the Multi-PLM
+modelmatchestheperformanceofthePLMLargemodelwhileus-
+ing roughly 6 times lesser parameters. For comparison, we also
+show the perplexities obtained using a smaller PLM model which
+usesroughly1/6effectivetrainableparameters(obtainedbyusing
+LSTM with 256 units instead of 1024 and a dropout of 0 instead
+Fig. 1: PPL after adaptation of Multi-PLM to target languages on
+of0.4). WecanseethattheMulti-PLMdoesbetterthanthePLM
+differentamountsofdata. Multi-PLMoutperformsPLMforsmall
+Smallmodelandshowingthatthemodelisbenefitingfromlearning
+amountsoftrainingdata.
+asharedrepresentation.
+PLM PLM Multi-PLM To solve this issue, we combine the CLM based beam search
+Small Large Large decodingwithaprefixtreetorestrictthepathstakeninthelattice
+duringbeamsearchtoonlyvalidwords,similarto[13,21].InTable
+#Params ∼0.4M×6 ∼4.5M×6 ∼4.6M
+3,weshowtheresultsofin-vocabularydecodingofPLMsandcom-
+Javanese 3.91 3.80 3.80 parethemwiththepreviousworks,i.e.,openvocabularydecoding
+Tagalog 3.62 3.43 3.46 usingCLMs[14,12]andWFSTbaseddecoding[22,15]withCTC
+Turkish 3.53 3.36 3.38 basedacousticmodels.WeseethatPLMbaseddecodingdoesmuch
+Kazakh 3.02 2.89 2.89 better than open vocabulary CLM decoding. These improvements
+Swahili 3.63 3.44 3.50 stemeitherfromtheabilitytobuildhigherqualityacousticmodels
+Zulu 4.18 3.95 4.00 using phonemes instead of characters, or in-vocabulary decoding,
+bothofwhichourproposedmodelfacilitatesoverpriorwork. We
+alsoobservethatthisapproachperformscomparativelywithWFST
+Table2: PLM(SmallandLarge)andMulti-PLM(Large)perplexi-
+baseddecoding.
+tiesfordifferentlanguagesinthetrainingset.
+Babel WFST CLM PLM
+4.1.2. CrosslingualAdaptationusingMulti-PLMs
+Languages BasedDecoding
+Here, wecomparetheperformanceofourmonolingualandmulti-
+Cebuano 57.1 71.1 67.9
+lingualPLMsbyadaptingthemtovariousamountsoftrainingdata
+Mongolian 60.5 84.3 59.0
+inatargetlanguage. WeuseAmharic,CebuanoandMongolianas
+Amharic 57.2 64.8 57.6
+ourtestcrosslinguallanguages;themultilingualmodelhasnotseen
+anyoftheselanguagesbeforeadaptation. Wetrainthemonolingual Javanese 65.7 68.4 64.8
+model from scratch without using any adaptation. Figure 1 shows Tagalog 55.7 58.0 55.8
+thattheMulti-PLMadaptsbettertothetargetlanguagewhencom- Kazakh 57.8 64.2 61.3
+paredtoaPLMtrainedinthatlanguage. Thegainsareconsistent Turkish 56.9 58.5 59.4
+acrosslanguages,andtheyreduceastheamountoftrainingdatain- Swahili 61.2 50.7 50.8
+creasesinthetargetlanguage.Whenthemodelhasseen50%ofthe Zulu 65.2 75.3 63.7
+trainingdata,thegainsseemtodisappear,andforsomelanguages,
+thePLMperformsbetterthantheadaptedmultilingualmodel. Table 3: % WER for each of the languages used using different
+kindsofdecodingstrategies;WFSTdecodingusingwordlanguage
+4.2. DecodingusingPhonemeLM models, open-vocabularydecodingusingCLMsandin-vocabulary
+decoding using PLMs. Almost always, PLM based decoding per-
+Previousworksthatemploycharacter-levellanguagemodelsaretyp-
+formsbetterthanCLMsandasgoodasWFST.
+icallydeployedinthecontextofhighresourcescenarios[14,12,19],
+for example, [14] trains on around 112M characters. However, it
+isoftenimpossibletocollectandcleansuchlargeamountsofdata We only use the training lexicon as the in-vocabulary dictio-
+inlow-resourcelanguages,andtheseopenvocabularydecodingap- nary while decoding PLMs. For training the acoustic models for
+proachesdonotperformwell.Wethinkthisisbecausethelanguage CLMandPLMdecoding,weaddanextratargettokenbetweenev-
+modelsthataretrainedmightnotreliablyoutputvalidOOVwords. erypairofwords,representingawordboundary. Duringourinitial
+Forexample,fromtheexperimentsshowninTable3forZulu,open experiments,wefoundthatlanguagemodelweightof1.0,insertion
+vocabularyCLMdecodingoutputs4kincorrectOOVwordsoutof penaltyof0.35andbeamsize of40workedbestfor ourdevelop-
+the46ktotalwordsinthehypothesis. mentsetandweusedthisvalueforallourexperiments. ForWFST,
+3
+weuseabeamsizeof9.0, latticebeamof4.0andacousticmodel 4.2.2. DomainRobustnessofDecodingStrategies
+weightof0.6. NotethatthenumbersshownforWFSTarethebest
+Wefinallycomparetherobustnessofthetwobestdecodingstrate-
+WERfoundusingvariouswordinsertionpenalties,n-gramlanguage
+giesondomainmismatchedconditions. Here,weassumetheBible
+modelparametersandpriordecodingforeachlanguage. Whereas
+asoneofthesourcesoftextinanylowresourcelanguageanduse
+forthePLMbasedmodel,weusefixedparametersacrosslanguages,
+ittotrainourlanguagemodel. Forgeneratingthelexiconforboth
+presentingroomforfurtherimprovements.
+PLMsandWFSTs, werunthewordsoftheBiblethroughEpitran
+G2Plibrary.FortheWFST,wetrainmultiplen-gramlanguagemod-
+4.2.1. ComparingDecodingStrategiesforCrosslingualAdaptation
+els with various discounting and choose the one that performs the
+WenowcomparethedecodingresultsofusingPLMsand(adapted) best for our in-domain validation data. We then use this language
+Multi-PLMs against a word-based WFST decoding. Again, we modelalongwithanin-domainacousticmodelanddecodeitusing
+useAmharic,CebuanoandMongolianasourtestcrosslinguallan- thetwostrategiesusingthein-domaintargetdictionary.FromTable
+guages. Forthisexperiment,wetrainamonolingualCTCacoustic 6wecanseethatPLMbaseddecodingperformsmuchbetterthan
+model,whichisa2layerbidirectionalLSTMwith360units,anduse WFST based decoding showing its capability of generating words
+itwiththePLMsandWFSTstodecodetheCTCacousticmodels. outsidelanguagemodeltrainingdatabyjustusingatargetedlexi-
+Table4showstheworderrorratesforvariousamountsoftraining con.
+dataondifferentacousticmodels. Wecanseethatourmonolingual
+as well as multilingual language model decoding does better than Babel WFST PLM
+WFST based decoding most of the times. We also notice that for Languages BasedDecoding
+lowresourcescenarios,gettingagoodpriorestimateisnotpossible
+Cebuano 86.2 79.8
+and hence the WFST results fluctuate depending on the language
+Javanese 93.1 80.8
+andthedatasub-selection.
+Tagalog 83.4 68.9
+Kazakh 78.3 72.5
+Crosslingual Decoding TrainingData(%)
+Languages Strategies 5% 10% 20% 50%
+Table6: %WERforlanguagesusingdifferentdecodingstrategies
+WFST 89.94 87.93 82.84 78.02 onLMstrainedontheBibletext. Weseethatin-vocabularydecod-
+Amharic PLM 86.50 82.66 78.18 69.90 ingusingPLMsdoesmuchbetterthanWFSTbaseddecoding.
+Multi-PLM 86.29 82.07 78.30 70.91
+WFST 92.96 91.29 88.36 83.69 5. CONCLUSION
+Cebuano PLM 89.85 86.70 82.72 77.23
+Multi-PLM 89.85 86.04 82.53 77.23 In this paper, we propose a phoneme-level language model and
+present a unique way of training it multilingually thereby using
+WFST 91.07 83.83 88.42 80.61
+around six times fewer parameters without much increase in per-
+Mongolian PLM 88.12 84.89 81.00 73.19
+plexity. We show that it is beneficial to use multilingual models
+Multi-PLM 88.05 84.98 80.96 73.33
+whenadaptingtoanewlanguageinverylowresourcesettings. As
+theamountoftrainingdataincreases, themonolingualPLMstarts
+Table4: Comparingdecodingstrategiesoncrosslingualadaptation
+tooutperformthemultilinguallyadaptedmodels.
+withdifferentamountsoftrainingdata.WeseethatPLMandMulti-
+Weshowawayofusingphoneme-levellanguagemodelstode-
+PLMbaseddecodingdoesbetterthanWFSTinalmostallcases.
+codeCTCacousticmodelsusingatargettedlexiconwhichgivesus
+significant gains over open-vocabulary decoding using CLMs and
+comparable results to the traditional WFST based decoding. We
+Probabilityof TrainingData(%) showthatourapproachoutperformsWFSTinlowresourcecondi-
+Improvement 5% 10% 20% 50% tions,likecrosslingualadaptation,wherebuildinggoodn-gramword
+languagemodelsishard.
+Amharic 97.9 100.0 10.3 0.0
+Finally, we explore the domain adaptation capabilities of our
+Cebuano 99.9 100.0 97.5 95.3
+model,wherewetrainonwordsthatareoutsidethetargetdomain.
+Mongolian 83.7 11.8 67.6 5.7
+Weexploitthephoneme-leveltrainingofthelanguagemodelcou-
+pled with our targeted lexicon decoding approach to improve the
+Table5: BootstrapcomparisonofMulti-PLMwithPLMbasedde- robustnessofourmodel.
+codingtoestimatetheprob.ofimprovementat95%conf.interval.
+6. ACKNOWLEDGEMENTS
+Though language model perplexity improvements are seen us-
+ingthecrosslinguallyadaptedmultilinguallanguagemodels,theim- This project was sponsored by the Defense Advanced Research
+provementsarenotapparentintermsofworderrorrates. Tounder- Projects Agency (DARPA) Information Innovation Office (I2O),
+standthe“significanceofimprovement”madeusingtheMulti-PLM program:LowResourceLanguagesforEmergentIncidents(LORE-
+decodingoverthePLMdecoding,weusethebootstrappedtestspre- LEI), issued by DARPA/I2O under Contract No. HR0011-15-
+sented in [26] using the Kaldi compute-wer-bootci tool. It C-0114. This work used the Extreme Science and Engineering
+returnsaprobabilityestimateofimprovingWERofsystem1,herea DiscoveryEnvironment(XSEDE),whichissupportedbyNational
+Multi-PLM,bybootstrappingitwithsystem2,amonolingualPLM. Science Foundation grant number OCI-1053575. Specifically, it
+Table5showsthattheimprovementsaresignificant,alwaysfor5% usedtheBridgessystem,whichissupportedbyNSFawardnumber
+ofthedataandalmostalwaysfortherest. ACI-1445606,atthePittsburghSupercomputingCenter(PSC).
+4
+7. REFERENCES [14] ThomasZenkel,RamonSanabria,FlorianMetze,JanNiehues,
+MatthiasSperber,SebastianStu¨ker,andAlexWaibel, “Com-
+[1] Todd Ward, Salim Roukos, Chalapathy Neti, Jerome Gros, parison of decoding strategies for CTC acoustic models,” in
+Mark Epstein, and Satya Dharanipragada, “Towards speech Interspeech.ISCA,2017.
+understanding across multiple languages,” in Fifth Interna-
+[15] Yajie Miao, Mohammad Gowayyed, and Florian Metze,
+tionalConferenceonSpokenLanguageProcessing,1998.
+“EESEN: End-to-end speech recognition using deep RNN
+[2] Sibo Tong, Philip N Garner, and Herve´ Bourlard, “An In- modelsandWFST-baseddecoding,” in2015IEEEWorkshop
+vestigationofDeepNeuralNetworksforMultilingualSpeech onAutomaticSpeechRecognitionandUnderstanding(ASRU),
+RecognitionTrainingandAdaptation,”inProc.ofInterspeech, pp.167–174.
+2017.
+[16] IlyaSutskever,JamesMartens,andGeoffreyEHinton, “Gen-
+[3] NgocThangVu,DavidImseng,DanielPovey,PetrMotlicek, erating text with recurrent neural networks,” in Proceedings
+TanjaSchultz,andHerve´Bourlard, “Multilingualdeepneural of the 28th International Conference on Machine Learning
+network based acoustic modeling for rapid language adapta- (ICML-11),2011,pp.1017–1024.
+tion,” in 2014 IEEE International Conference on Acoustics, [17] PiotrBojanowski,EdouardGrave,ArmandJoulin,andTomas
+SpeechandSignalProcessing(ICASSP),pp.7639–7643.
+Mikolov,“Enrichingwordvectorswithsubwordinformation,”
+[4] Frantisˇek Gre´zl, Ekaterina Egorova, and Martin Karafia´t, arXivpreprintarXiv:1607.04606,2016.
+“Studyoflargedataresourcesformultilingualtrainingandsys- [18] Yulia Tsvetkov, Sunayana Sitaram, Manaal Faruqui, Guil-
+temporting,” ProcediaComputerScience,vol.81,pp.15–22, laume Lample, Patrick Littell, David Mortensen, Alan W
+2016. Black,LoriLevin,andChrisDyer, “Polyglotneurallanguage
+[5] Siddharth Dalmia, Xinjian Li, Florian Metze, and Alan W models: Acasestudyincross-lingualphoneticrepresentation
+Black,“DomainRobustFeatureExtractionforRapidLowRe- learning,” arXivpreprintarXiv:1605.03832,2016.
+sourceASRDevelopment,” inSpokenLanguageTechnology [19] KyuyeonHwangandWonyongSung, “Character-levelincre-
+Workshop(SLT).IEEE,2018. mentalspeechrecognitionwithrecurrentneuralnetworks,” in
+2016IEEEInternationalConferenceonAcoustics,Speechand
+[6] Andreas Stolcke, Frantisek Grezl, Mei-Yuh Hwang, Xin Lei,
+SignalProcessing(ICASSP),pp.5335–5339.
+Nelson Morgan, and Dimitra Vergyri, “Cross-domain and
+cross-language portability of acoustic features estimated by [20] AlexGraves,SantiagoFerna´ndez,FaustinoGomez,andJu¨rgen
+multilayerperceptrons,” in2006IEEEInternationalConfer- Schmidhuber, “Connectionist temporal classification: la-
+enceonAcoustics,SpeechandSignalProcessing(ICASSP). bellingunsegmentedsequencedatawithrecurrentneuralnet-
+works,” in Proceedings of the 23rd international conference
+[7] Siddharth Dalmia, Ramon Sanabria, Florian Metze, and
+onMachinelearning.ACM,2006,pp.369–376.
+Alan W Black, “Sequence-based multi-lingual low resource
+speechrecognition,” in2018IEEEInternationalConference [21] AlexGravesandNavdeepJaitly, “Towardsend-to-endspeech
+onAcoustics,SpeechandSignalProcessing(ICASSP).IEEE, recognitionwithrecurrentneuralnetworks.,” inICML,2014,
+2018,pp.4909–4913. vol.14,pp.1764–1772.
+[8] Christian Fugen, Sebastian Stuker, Hagen Soltau, Florian [22] David R. Mortensen, Siddharth Dalmia, and Patrick Littell,
+Metze, and Tanja Schultz, “Efficient handling of multilin- “Epitran: Precision G2P for many languages,” in Proceed-
+guallanguagemodels,” in2003IEEEWorkshoponAutomatic ingsoftheEleventhInternationalConferenceonLanguageRe-
+SpeechRecognitionandUnderstanding(ASRU).,pp.441–446. sourcesandEvaluation(LREC2018),May2018.
+[9] Jan Niehues, Teresa Herrmann, Stephan Vogel, and Alex [23] Stefano Scanzio, Pietro Laface, Luciano Fissore, Roberto
+Waibel, “Wider context by using bilingual language models Gemello,andFrancoMana,“Ontheuseofamultilingualneu-
+inmachinetranslation,” inProceedingsoftheSixthWorkshop ralnetworkfront-end,” ISCA,2008.
+onStatisticalMachineTranslation.AssociationforComputa- [24] Karel Vesely`, Martin Karafia´t, Frantisˇek Gre´zl, Milosˇ Janda,
+tionalLinguistics,2011,pp.198–206. andEkaterinaEgorova,“Thelanguage-independentbottleneck
+[10] HeikeAdel, NgocThangVu, andTanjaSchultz, “Combina- features,” in Spoken Language Technology Workshop (SLT).
+tionofrecurrentneuralnetworksandfactoredlanguagemod- IEEE,2012,pp.336–341.
+elsforcode-switchinglanguagemodeling,” inProceedingsof [25] Georg Heigold, Vincent Vanhoucke, Alan Senior, Patrick
+the51stAnnualMeetingoftheAssociationforComputational Nguyen,MRanzato,MatthieuDevin,andJeffreyDean,“Mul-
+Linguistics,2013,pp.206–211. tilingual acoustic models using distributed deep neural net-
+[11] Andrej Karpathy, Justin Johnson, and Li Fei-Fei, “Visual- works,” IEEE,2013,pp.8619–8623.
+izing and understanding recurrent networks,” arXiv preprint [26] MaximilianBisaniandHermannNey,“Bootstrapestimatesfor
+arXiv:1506.02078,2015. confidence intervals in asr performance evaluation,” in 2004
+IEEEInternationalConferenceonAcoustics,Speech,andSig-
+[12] Andrew L Maas, Ziang Xie, Dan Jurafsky, and Andrew Y
+nalProcessing,2004.Proceedings(ICASSP).,pp.I–409.
+Ng,“Lexicon-freeconversationalspeechrecognitionwithnet-
+works.,” inHLT-NAACL,2015,pp.345–354.
+[13] Awni Y Hannun, Andrew L Maas, Daniel Jurafsky, and An-
+drew Y Ng, “First-pass large vocabulary continuous speech
+recognitionusingbi-directionalrecurrentdnns,”arXivpreprint
+arXiv:1408.2873,2014.
+5

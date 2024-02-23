@@ -1,0 +1,1107 @@
+On Efficiently Acquiring Annotations for Multilingual Models
+JoelRubenAntonyMoniz˚,BarunPatra˚,
+{jramoniz, barunpatra95}@gmail.com
+MatthewR.Gormley
+CarnegieMellonUniversity
+mgormley@cs.cmu.edu
+Abstract guage. In this scenario, the annotation budget
+is split equally for all languages, and a model
+When tasked with supporting multiple lan-
+is trained for each one separately. Recently, an-
+guages for a given problem, two approaches
+otherdirectionthathasgainedpopularityhasbeen
+have arisen: training a model for each lan-
+leveragingmultilingualpre-trainedlanguagemod-
+guage with the annotation budget divided
+equally among them, and training on a high- els(MPLMs)whichinherentlymapmultiplelan-
+resourcelanguagefollowedbyzero-shottrans- guages to a common embedding space (Devlin
+fer to the remaining languages. In this work, et al., 2019; Conneau et al., 2020). The popular
+we show that the strategy of joint learning methodforleveragingthesemodelshasbeenlever-
+acrossmultiplelanguagesusingasinglemodel
+aging their zero-shot transfer ability: training on
+performs substantially better than the afore-
+anEnglish-onlycorpusforthetask,andthenusing
+mentioned alternatives. We also demonstrate
+themodelszero-shotfortheotherlanguages.
+that active learning provides additional, com-
+plementary benefits. We show that this sim- Anotherorthogonallineofworkaimedatbuild-
+ple approach enables the model to be data ef- ing models under a constrained budget has been
+ficient by allowing it to arbitrate its annota- active learning (AL) (Shen et al., 2018; Ein-Dor
+tionbudgettoquerylanguagesitislesscertain
+et al., 2020). While this has shown to improve
+on. We illustrate the effectiveness of our pro-
+annotation efficiency, the predominant approach
+posedmethodonadiversesetoftasks: aclas-
+has been to train one model per language, using
+sification task with 4 languages, a sequence
+the(languagespecific)modelforAL(Shenetal.,
+tagging task with 4 languages and a depen-
+dencyparsingtaskwith5languages. Ourpro- 2018;Erdmannetal.,2019).
+posedmethod,whilstsimple,substantiallyout- In this work, we show that a single MPLM
+performstheotherviablealternativesforbuild- trainedonalllanguagessimultaneouslyperforms
+ingamodelinamultilingualsettingundercon-
+muchbetterthantrainingindependentmodelsfor
+strainedbudgets.
+specificlanguagesforafixedtotalannotationbud-
+1 Introduction get. Further,whilethebenefitsofusingALincon-
+junctionwithMPLMshasbeenstudiedforamono-
+Whileneuralnetworkshavebecomethede-facto lingualsetup(Ein-Doretal.,2020),weshowthat
+methodoftacklingNLPtasks,theyoftenrequire ALalsoyieldsbenefitsinthemultilingualsetup.
+alotofannotateddatatodoso. Thistaskofdata
+Concretely,weshowthatanALacquisitionon
+annotation is especially challenging while build-
+asinglelanguagehelpsimprovezero-shotperfor-
+ingsystemsaimedatservingnumerouslanguages.
+mance on all other languages, regardless of the
+Motivatedbythis,inthispaper,wetacklethefol-
+languageoftheseeddata. Furthermore,weshow
+lowingproblem:
+thatALalsoyieldsbenefitsforourproposedsingle
+Given the requirement of building systems for
+model scenario. We demonstrate that our results
+anNLPtaskinamultilingualsettingwithafixed
+areconsistenton3differenttasksacrossmultiple
+annotationbudget,howcanweefficientlyacquire
+languages: classification, sequence tagging and
+annotationstoperformthetaskwellacrossmulti-
+dependency parsing. Our approach removes the
+plelanguages?
+requirementofmaintainingndifferentmodels,and
+The traditional approach to this problem has uses1{nth theparametersthanwhenindependent
+beenbuildingaseparatemodeltoserveeachlan-
+models are trained. Our analysis reveals that the
+˚EqualContribution modelarbitratesbetweendifferentlanguagesbased
+2202
+rpA
+3
+]LC.sc[
+1v61010.4022:viXra
+onitsperformancetoformamultilingualcurricu- 3.2 BudgetAllocationSettings
+lum.
+To understand data acquisition in a multilingual
+We release our code at https://github.
+setting, we consider multilingual datasets in the
+com/codedecde/SMAL.
+3 tasks. For each task t, let L be the set of lan-
+guages(n “ |L|). Wethendefines tobetheseed
+2 RelatedWork t
+size,b tobethetotalannotationbudgetandv to
+t t
+Effectiveutilizationofannotationbudgetshasbeen betotalnumberofannotatedvalidationexamples
+the area of focus for numerous active learning available to t. We compare our proposed Single
+works,showingimprovementsfordifferenttasks Model Acquisition (SMA) setup to two baseline
+likePOStagging(Ringgeretal.,2007),sentiment settings–MonolingualAcquisition(MonoA)and
+analysis(Karlosetal.,2012;Lietal.,2013;Brew MultiModelAcquisition(MMA):
+et al., 2010; Ju and Li, 2012), syntactic parsing
+(Duongetal.,2018),andnamedentityrecognition MonoA In this setting, the seed data as well as
+(SettlesandCraven,2008;Shenetal.,2018). The thevalidationdata(s t,v t)isacquiredfromasingle
+focus of most of these works, however, has been language. Further,theentireannotationbudget(b t)
+onlearningforasinglelanguage(oftenEnglish). isassignedtothesamelanguage. Weevaluatethe
+PriorworkonALthatusesamultilingualsetup testdataperformanceonthatlanguageandonthe
+orcross-lingualinformationsharingandthatgoes othern´1languagesinazero-shotsetting.
+beyondtrainingaseparatemodelforeachlanguage
+MMA Forthissetting,wetrainnindividualmod-
+hasthusbeenlimited. Theclosestworkwheremul-
+els,oneforeachlanguage. Eachmodelstartswith
+tiplelanguagesinfluenceeachother’sacquisitionis
+a seed of s {n, a validation set of v {n, and is as-
+thatofQianetal.(2014);however,theystilltrain t t
+signedanacquisitionbudgetofb {n. Attesttime,
+aseparatemodelforeachlanguage. t
+weevaluatetheperformanceofthemodelonthe
+For transfer to multiple languages, recent ad-
+languageitwastrainedwith.
+vances in building MPLMs (Devlin et al., 2019;
+Conneau et al., 2020; Liu et al., 2020; Xue et al.,
+SMA Forthissetting,weconsiderasinglemodel
+2020)havebeenextremelyeffective,especiallyin
+forwhichbothtrainingandacquisitionisdoneon
+zero-shot transfer (Pires et al., 2019; Liu et al.,
+allnlanguagessimultaneously. Theseeddataand
+2020). Ein-Dor et al. (2020) studied the data-
+the validation set comprises of a random subset
+effectiveness of these models when used in con-
+drawn from data corresponding to all languages.
+junctionwithAL,but,aswithotherALwork,with
+Thewholeofs ,b andv arethusassignedtothis
+t t t
+a single language focus. Finally, Lauscher et al.
+singlemodel. Wecomputetheperformanceonthe
+(2020) studied the effectiveness of the zero-shot
+testdataofeachofthelanguages.
+setup, showing that adding a few examples to a
+model trained on English improves performance
+3.3 ActiveLearningAcquisitionStrategies
+overzero-shottransfer. However,thisassumesthe
+availabilityofafullEnglishtask-specificcorpus. ThefieldofactiveALtendsnottorevealexplicit
+winners—thoughthereisageneralconsensusthat
+3 Methodology ALdoesindeedoutperformpassivelearning(Set-
+tles,2009). Thus,weadoptthesimplestconfidence
+3.1 TaskSpecificModels
+based strategies to demonstrate their efficacy for
+We use the multilingual-BERT-cased model eachtask: LeastConfidence(LC)forclassification,
+(mBERT)asthebasemodelforallthetasks. We Maximum Normalized Log Probability (MNLP)
+usethestandardtrainingmethodologyforthetasks: (Shenetal.,2018)forsequencetagging,andnor-
+For classification, we use a single layer over the malizedlogprobabilityofdecodedtree(NLPDT)
+[CLS]embedding. Forsequencetagging,weuse (Lietal.,2016)fordependencyparsing
+asinglelayerforeachwordtopredictitstag. For
+dependencyparsing,wefollowKondratyukand Maximum Normalized Log Probability
+Straka (2019) and use mBERT embeddings with (MNLP) This strategy chooses instances for
+the graph-based bi-affine attention parser (Dozat whichthelogprobabilityofthemodelprediction,
+andManning,2017). PleaserefertoAppendixA normalized by sequence length, is the lowest.
+foradditionaldetails. ThisALstrategyhasbeenshowntobeextremely
+effectiveforNER(Shenetal.,2018)andhencewe classification,wesets =300sentences. ForNER
+t
+adoptitinoursetting. and Dependency Parsing, we use s “„10k and
+t
+s “„17.5k tokens respectively (refer Appendix
+t
+Least Confidence (LC) This strategy chooses
+B).Wereportaccuracyforclassification,F1-Score
+thoseinstancesforwhichthemodelconfidencecor-
+fortheNER,andunlabeledandlabeledattachment
+respondingtothepredictedclassistheleast. This
+scores(UASandLAS)fordependencyparsing.
+acquisitionstrategyhasbeencommonlyappliedin
+Foreachtask,werunthe3settings(§3.2)across
+classificationtasks,andalthoughsimple,hasbeen
+multiplelanguages. Foreachsetting,wealsotrain
+consistentlyshowntooftenperformextremelywell
+anALmodelwithatask-specificacquisitionfunc-
+(Settles, 2009); consequently, we adopt it in our
+tion(§3.3). Inaddition,wetrainboththeSMAand
+setting.
+MMAwithallavailabledata,i.e.,weusealldata
+Normalized Log Probability of the Decoded totrainonemodelforalllanguagesandonemodel
+Tree (NLPDT) This strategy selects the in- perlanguagerespectively. Wereportanaverageof
+stances with the minimum log probability of the 5runsforeachexperiment. ReferAppendixCfor
+decodedtreegeneratedd˚ asgeneratedbytheChu- hyperparametersandtrainingdetails.
+Liu/Edmondsalgorithm(referAforadditionalde-
+5 ResultsandAnalysis
+tails). Following(Lietal.,2016),wealsonormal-
+izethisscorebythenumberoftokensN 1.
+ModelPerformance Figure1showstheperfor-
+To the best of our knowledge, this is the first
+manceofNERonSpanish(referAppendixGfor
+worktoexploreanAL-augmentedsinglemodelfor
+the plots of all other languages and tasks). Al-
+multiplelanguages.
+thoughacquiringdataindependentlyperlanguage
+(MMA)performswell,SMAoutperformsMMA.
+4 Experiments
+Unsurprisingly,MonoAwithesperformsthebest
+4.1 DatasetDetails inthecategory,sinceitallocatesitsentirebudget
+toacquiringesdata;itthusformsanupper-bound
+Classification WeconsiderSentimentAnalysis,
+of the model performance. However, SMA out-
+using the Amazon Reviews dataset (Prettenhofer
+performs MonoA when its seed language and in-
+andStein,2010). Thedatasetconsistsofreviews
+ference language differ. Finally, AL consistently
+and their binary sentiments for 4 languages: En-
+providesgainsoverrandomacquisition.
+glish(en),French(fr),Japanese(ja),German(de).
+Toanalyzetheperformanceacrossalllanguages,
+Sequence Tagging We choose Named Entity wepresenttheperformanceforeachroundofac-
+Recognition, and use the CoNLL02/03 datasets quisition,aggregatedacrossalllanguagesforClas-
+(Sang, 2002; Tjong Kim Sang and De Meulder, sification (Figure 2) (refer Appendix G for De-
+2003)with4languages: English(en),Spanish(es), pendency Parsing and NER plots). Here, SMA
+German(de)andDutch(nl),and4namedentities: consistentlyoutperformsMMAforeveryroundof
+Location,Person,OrganizationandMiscellaneous. acquisition because MMA suffers from a poorly
+utilizedbudget,potentiallywastingannotationbud-
+Dependency Parsing We use a subset of tree-
+getonlanguageswherethetaskiseasier. Incon-
+bankswith5languages(English(en),Spanish(es),
+trast,SMAimprovesbudgetutilizationwhilealso
+German (de), Dutch (nl), Japanese (ja)) from the
+benefitingfromcross-lingualinformation. Finally,
+full Universal Dependencies v2.3 corpus (Nivre
+SMA,byvirtueofperformingwellirrespectiveof
+etal.,2018);atotalof11treebanks.
+language,consistentlyoutperformsMonoA.
+Foraconciseoverview,wepresenttheaggregate
+4.2 ExperimentalSettings
+metricsacrossallroundsforeachtaskinTable1.
+Foreachexperiment,werun4trainingrounds: one
+WeobservethatSMAdoesmuchbettercompared
+trainingoninitialseeddata,followedby3acqui-
+toitscounterparts;bothwithandwithoutAL.We
+sition rounds. We set s “b “v in all cases. For
+t t t alsoobservethesemodelstobeextremelydataef-
+1WealsotriednormalizingbyN2,aswellasaglobally ficient: withAL,amodelwithaccesstolessthan
+normalizedprobabilityofd˚(probabilityofthetreeoverall 5% of the data achieves a (relative) performance
+possiblevalidtrees,withthepartitionfunctioncomputedusing
+ofaround88%accuracy(forclassification),95.5%
+theMatrixTreeTheorem(Kooetal.,2007;SmithandSmith,
+2007)),butfoundbothtoperformworse. F1-score (for NER) and 93.5% LAS (for depen-
+Method
+MMA
+Method 85 SMA
+85 MMA MonoA[en]
+SMA MonoA[fr]
+MonoA[en] MonoA[ja]
+MonoA[es] 80 MonoA[de]
+80 M Mo on no oA A[ [n del] ] Acqui Rsi ati no dn om
+Acquisition LC
+Random 75 Upper Bounds
+75 MNLP MM[100%]
+Upper Bounds SM[100%]
+MM[100%] 70
+SM[100%]
+70
+65
+65
+seed round1 round2 round3
+seed round1 round2 round3 Figure 2: Performance aggregated across all lan-
+Figure 1: Performance across different rounds for guages for one task (classification) at every round
+one task (NER) and one language (es). Note that ofacquisition. Ascanbeseen,SMA˘ALoutper-
+SMA˘ALout-performsMMA˘AL.Italsoout- formsallotherbaselines.NotethatSMAandMMA
+performs all MonoA baselines except MonoA[es], both out-perform MonoA. This is because MonoA
+which is the language specific upper bound. Here doesnotperformaswellwhenthelanguageisdif-
+MNLPistheALmethodadoptedforNER. ferentthanthatforwhichdatawasacquired. Here,
+LCistheALmethodadoptedforclassification.
+dencyparsing)whencomparedtoamodeltrained mance. A more detailed discussion is present in
+with all available data (see Table 2 for full data AppendixD.
+performance). Further,alongwithitssuperiorper-
+formance,SMAalsoaffordssubstantialparameter MM SM
+Dataset Metric
+Full Full
+savings: requiringonlyasinglemodel,compared
+NER Span-F1 87.4 87.2
+to a number of models linear in n (thereby using
+1 parameterscomparedtoMMA). Classification Accuracy 86.0 87.0
+nth
+Dependency UAS 91.3 91.3
+Dataset Metric AL MMA SMA Parsing LAS 87.1 87.1
+(-) 75.1 79.1
+NER Span-F1
+(+) 77.3 80.5 Table 2: Performance with all data for both SM and
+MM. Here, SM is a single model trained on all lan-
+(-) 67.7 73.8
+Classification Accuracy guages, while MM represents average performance
+(+) 69.3 74.0
+over all languages of one model per language. The
+(-) 84.8 86.0
+UAS comparable performance indicates that models have
+Dependency (+) 84.5 86.3
+enough capacity to represent languages in considera-
+Parsing (-) 78.0 77.8
+LAS tion.
+(+) 77.8 79.7
+Table 1: Average results across all rounds (5%, 10%,
+The effectiveness of AL in MonoA We consis-
+15%and20%data)andalllanguages. (+)and(-)indi-
+tentlyobserveALinthesourcelanguageimprov-
+catewithandwithoutALrespectively. Boldhighlights
+ingperformanceacrossalllanguages,irrespective
+bestperformanceforatask.
+ofwhetherinferenceisbeingrunforthesourcelan-
+guageorzero-shotonadifferenttargetlanguage,
+MMFullvsSMFull Toanalyzehoweffectively bothforNERandclassification(Table3). Wehy-
+asinglemodelperformsonthelanguagesinques- pothesizethatthemodelselectssemanticallydiffi-
+tion despite using 1{nth the parameters, we train cultorambiguousexamplesthatgeneralizeacross
+a single model on all data and compare it with languages by virtue of mBERT’s shared embed-
+n language-specific models, where each of the n dingrepresentation. Tothebestofourknowledge,
+modelshasthesamenumberofparametersasthe this work is the first to demonstrate that AL can
+single model; this also serves as an upper-bound improve the data efficiency of both classification
+forourALexperiments. Table2showsthathaving andNERinazero-shotinferencesetup.
+a single model does not adversely impact perfor- Inthecaseofdependencyparsing,weobserve
+mixedresultswhenthesourceandtargetlanguages
+differ. Wehypothesizethatthisisbecausedepen-
+dency parsing is a syntactic problem, making it
+more language specific, and zero-shot inference
+inherently harder. This is in contrast with both
+classificationandNER,whicharemoresemantic,
+makinghardexamplesmoregeneralizableacross
+languages. ReferAppendixEformoredetails.
+Figure 3: Acquisiton Curriculum for NER. The bars
+Dataset Metric AL MonoA
+(left y-axis) represent the relative fraction of cumula-
+Source en es nl de
+tivetokensacquiredperlanguagecomparedtorandom
+NER (-) 71.3 64.3 68.8 68.8 sampling. Thelines(righty-axis)showthedifference
+Span-F1
+(+) 72.1 64.3 70.8 70.3 of performance of the language when compared to its
+Source en fr ja de 100% data performance (MM). Notice that the model
+Classifi-
+tendstofavoracquiringdatafromlanguagesthatunder-
+cation Acc (-) 71.9 72.5 69.1 66.2 performcomparedtotheir100%counterpart(here, es
+(+) 72.9 72.1 70.3 68.0
+andde). Thisinturnhelpsthemodeltoarbitrateitsac-
+Source en es nl de ja
+quisitionssoastoachievesimilarperformance(relative
+Depend- (-) 76.4 72.9 73.9 72.9 44.3 to 100% performance) across all languages (indicated
+UAS
+ency (+) 76.9 73.0 74.0 73.4 44.2 bytheconvergenceofthelineplots).
+Parsing
+(-) 67.2 62.3 62.8 61.8 31.8
+LAS
+(+) 67.5 62.4 62.7 62.3 30.8
+proceeds, the model favors acquiring data from
+Table 3: Average results across all rounds (5%, 10%,
+languagesitisuncertainabout(SpanishandGer-
+15% and 20% data) and all languages for MonoAL.
+man). This“multilingualcurriculum”thusallows
+Source indicates the language of data acquisition and
+the model to be more effective in its use of the
+forallotherlanguages, inferenceiszero-shot. Ascan
+annotationbudget. WefindSMA+ALeventually
+beseen,ALusuallyhelpsinthezero-shotsetup.
+achieves a similar relative difference from 100%
+data performance for all languages consistently
+WhatdoesSMA+ALacquire? Oneadvantage acrosstasksasaconsequence.
+of the SMA+AL setup is that the model can ar-
+6 Conclusion
+bitrate between allocating its acquisition budget
+across different languages as training progresses.
+Inthiswork,weconsidertheproblemofefficiently
+Thisisincontrastwithtrainingonemodelperlan-
+building models that solve a task across multiple
+guage,wherethemodelsforlanguageswithahigh
+languages. Weshowthat,contrarytotraditionalap-
+performancewastetheoverallbudgetbyacquiring
+proaches,asinglemodelarbitratingbetweenmul-
+more than necessary, while models on languages
+tiple languages for data acquisition considerably
+whereperformanceisn’tasgoodunder-acquire.
+improvesperformanceinaconstrainedbudgetsce-
+Toinvestigatethis,foreachlanguageandeach
+nario,withALprovidingadditionalbenefits.
+round,weplottherelativedifference(%)between
+cumulativetokensacquiredbytheSMA+ALmodel
+for that language, and the tokens acquired in ex- References
+pectationifacquisitionwasdonerandomly(refer
+Anthony Brew, Derek Greene, and Pádraig Cunning-
+AppendixFformoredetails). Foreachlanguage,
+ham. 2010. Using crowdsourcing and active learn-
+wealsoplottherelativeperformancedifferenceof ingtotracksentimentinonlinemedia. InECAI.
+thelanguageatthatroundcomparedtotheperfor-
+Yoeng-JinChu.1965. Ontheshortestarborescenceof
+mancewhen100%dataisavailable.
+adirectedgraph. ScientiaSinica,14.
+Figure3revealstheaddedbenefitofSMA+AL
+for data acquisition for NER (refer Appendix F AlexisConneau, KartikayKhandelwal, NamanGoyal,
+for other tasks): a single model can arbitrate be- Vishrav Chaudhary, Guillaume Wenzek, Francisco
+Guzmán, Edouard Grave, Myle Ott, Luke Zettle-
+tween instances across languages automatically.
+moyer, and Veselin Stoyanov. 2020. Unsupervised
+The model initially acquires data from the high
+cross-lingual representation learning at scale. In
+resource language (English). But as the training ACL.
+Jacob Devlin, Ming-Wei Chang, Kenton Lee, and Zhenghua Li, Min Zhang, Yue Zhang, Zhanyi Liu,
+Kristina Toutanova. 2019. BERT: Pre-training of WenliangChen, HuaWu, andHaifengWang.2016.
+deep bidirectional transformers for language under- Activelearningfordependencyparsingwithpartial
+standing. InNAACL. annotation. InACL.
+Timothy Dozat and Christopher D. Manning. 2017. YinhanLiu,JiataoGu,NamanGoyal,XianLi,Sergey
+Deep biaffine attention for neural dependency pars- Edunov, Marjan Ghazvininejad, Mike Lewis, and
+ing. InICLR. Luke Zettlemoyer. 2020. Multilingual denoising
+pre-training for neural machine translation. In
+Long Duong, Hadi Afshar, Dominique Estival, Glen
+TAACL.
+Pink, Philip Cohen, and Mark Johnson. 2018. Ac-
+tivelearningfordeepsemanticparsing. InACL. Joakim Nivre, Mitchell Abrams, Željko Agic´, Ahren-
+berg, et al. 2018. Universal dependencies 2.3.
+Jack Edmonds. 1967. Optimum branchings. Journal
+LINDAT/CLARIAH-CZ digital library at the Insti-
+of Research of the national Bureau of Standards B,
+tuteofFormalandAppliedLinguistics(ÚFAL),Fac-
+71(4).
+ulty of Mathematics and Physics, Charles Univer-
+sity.
+Liat Ein-Dor, Alon Halfon, Ariel Gera, Eyal Shnarch,
+LenaDankin,LeshemChoshen,MarinaDanilevsky,
+Telmo Pires, Eva Schlinger, and Dan Garrette. 2019.
+Ranit Aharonov, Yoav Katz, and Noam Slonim.
+HowmultilingualismultilingualBERT? InACL.
+2020. Active Learning for BERT: An Empirical
+Study. InEMNLP.
+Peter Prettenhofer and Benno Stein. 2010. Cross-
+language text classification using structural corre-
+AlexanderErdmann,DavidJosephWrisley,Benjamin
+spondencelearning. InACL.
+Allen, Christopher Brown, Sophie Cohen-Bodénès,
+Micha Elsner, Yukun Feng, Brian Joseph, Béatrice
+Longhua Qian, Haotian Hui, Ya’nan Hu, Guodong
+Joyeux-Prunel, and Marie-Catherine de Marneffe.
+Zhou, and Qiaoming Zhu. 2014. Bilingual active
+2019. Practical, efficient, and customizable active
+learning for relation classification via pseudo paral-
+learning for named entity recognition in the digital
+lelcorpora. InACL.
+humanities. InNAACL.
+Eric Ringger, Peter McClanahan, Robbie Haertel,
+Matt Gardner, Joel Grus, Mark Neumann, Oyvind
+GeorgeBusby,MarcCarmen,JamesCarroll,Kevin
+Tafjord,PradeepDasigi,NelsonF.Liu,MatthewPe-
+Seppi, and Deryle Lonsdale. 2007. Active learning
+ters,MichaelSchmitz,andLukeZettlemoyer.2018.
+for part-of-speech tagging: Accelerating corpus an-
+AllenNLP: A deep semantic natural language pro-
+notation. InLAW.
+cessingplatform. InNLP-OSS.
+Tjong Kim Sang. 2002. Ef: Introduction to the conll-
+ShengfengJuandShoushanLi.2012. Activelearning
+2002sharedtask. InProceedingsofthe6thConfer-
+on sentiment classification by selecting both words
+enceonNaturalLanguageLearning.
+anddocuments. InCLSW.
+Burr Settles. 2009. Active learning literature survey.
+StamatisKarlos,NikosFazakis,SotirisKotsiantis,and
+Technical report, University of Wisconsin-Madison
+Kyriakos Sgarbas. 2012. An empirical study of ac-
+DepartmentofComputerSciences.
+tivelearningfortextclassification. ASSR,6(2).
+Burr Settles and Mark Craven. 2008. An analysis of
+Diederik P. Kingma and Jimmy Ba. 2015. Adam: A
+methodforstochasticoptimization. InICLR. activelearningstrategiesforsequencelabelingtasks.
+InEMNLP.
+Dan Kondratyuk and Milan Straka. 2019. 75 lan-
+guages, 1 model: Parsing universal dependencies Yanyao Shen, Hyokun Yun, Zachary C. Lipton,
+universally. InEMNLP. Yakov Kronrod, and Animashree Anandkumar.
+2018. Deepactivelearningfornamed entityrecog-
+Terry Koo, Amir Globerson, Xavier Carreras, and nition. InICLR.
+Michael Collins. 2007. Structured prediction mod-
+elsviathematrix-treetheorem. InEMNLP. David A Smith and Noah A Smith. 2007. Probabilis-
+tic models of nonprojective dependency trees. In
+Anne Lauscher, Vinit Ravishankar, Ivan Vulic´, and EMNLP.
+Goran Glavaš. 2020. From zero to hero: On the
+limitations of zero-shot language transfer with mul- Erik F. Tjong Kim Sang and Fien De Meulder.
+tilingual Transformers. In Proceedings of the 2020 2003. IntroductiontotheCoNLL-2003sharedtask:
+Conference on Empirical Methods in Natural Lan- Language-independentnamedentityrecognition. In
+guageProcessing(EMNLP),pages4483–4499,On- NAACL.
+line.AssociationforComputationalLinguistics.
+Thomas Wolf, Lysandre Debut, Victor Sanh, Julien
+Shoushan Li, Yunxia Xue, Zhongqing Wang, and Chaumond, ClementDelangue, AnthonyMoi, Pier-
+Guodong Zhou. 2013. Active learning for cross- ric Cistac, Tim Rault, Remi Louf, Morgan Funtow-
+domainsentimentclassification. InIJCAI. icz, Joe Davison, Sam Shleifer, Patrick von Platen,
+Clara Ma, Yacine Jernite, Julien Plu, Canwen Xu, For all the models mentioned above, all layers
+et al. 2020. Transformers: State-of-the-art natural ofmBERTarefine-tunedduringtraining.
+languageprocessing. InEMNLP:SystemDemo.
+B Datasetstatistics
+Linting Xue, Noah Constant, Adam Roberts, Mi-
+hir Kale, Rami Al-Rfou, Aditya Siddhant, Aditya
+WereportthedetaileddatasetstatisticsinTable4.
+Barua, and Colin Raffel. 2020. mt5: A mas-
+Notethattheseedwaschosentoberoughly5%of
+sively multilingual pre-trained text-to-text trans-
+former. arXivpreprintarXiv:2010.11934. thesizeoftheEnglishtrainingdata,showninthe
+rightmostcolumnofthetable.
+A TaskSpecificDetails
+C ExperimentalDetails
+In this section, we elaborate on the task specific
+Hyperparameters All experiments performed
+adaptations:
+in this paper are averaged over 5 runs. For each
+Classification: As is common practice, we use experiment,weperformanLRsearchover(1e-5,
+asinglelinearlayerover[CLS]embeddingsgen- 2e-5, 3e-5, 4e-5 and 5e-5), and choose the best
+erated by the BERT model to generate logits for LRaccordingtotheperformanceontheappropri-
+theclassificationtask,andthemodelistrainedto atevalidation(sub)set,asrecommendedin(Devlin
+minimizethecross-entropyloss. etal.,2019). Inallexperiments,wesetthebatch
+sizeto32anduseanAdam(KingmaandBa,2015)
+Sequence Tagging: We apply a linear layer to
+optimizer. Each round of training is run with a
+the word embeddings2 generated by the BERT
+patience of 25 epochs, for at most 75 epochs in
+model to generate the tag logits, and the model
+total.
+istrainedtominimizethenegativelog-likelihood
+oftheobservedtags. DataPreprocessing Toavoidout-of-memoryis-
+suesontheGPU,wepre-processthedatasothat
+DependencyParsing: Weuseagraph-basedbi-
+theexamplesinthetrainsetoflengthlargerthan
+affine attention parser introduced in (Dozat and
+175 and with larger than 256 word-pieces are fil-
+Manning, 2017). Following (Kondratyuk and
+teredoutfortheNER.Forclassification,wesimply
+Straka,2019),weusetheoutputofthelastBERT
+truncateallinstancesat256word-pieces. Wealso
+layer in place of the embeddings generated by
+de-duplicatethetrainset,toensurethatduringall
+theBi-LSTMlayers. Theseembeddingsarethen
+ALacquisitionstages,noduplicatesareselectedat
+concatenated with the POS embeddings. A head
+anypoint.
+feed-forward network and a child feed-forward
+networkthengenerateembeddingsforeachhead Code All code used in this work was imple-
+anddependantwordofadependencyrespectively. mented using Python, PyTorch and AllenNLP
+This is combined with a biaffine attention mod- (Gardner et al., 2018), using pre-trained models
+uletogenerateaprobabilitydistributionforeach releasedbyHuggingFace(Wolfetal.,2020).
+word to predict its head, as well as a bilinear
+D SMFullvsMMFullPerformance
+layer to predict the label for each dependency re-
+lationship. Letτ piq “ tph pi,jq,d pi,jq,l pi,jq|h pi,jq ñ GiventhattheSMAsetupuses1{nth thenumber
+d pi,jq withlabell pi,jqubetheith golddependency of parameters, an interesting question is whether
+tree in the dataset. The model is then trained to fewerparametersleadstoalossinanyexpressive
+maximizethelogprobabilityofthegoldtreeas: powerforthesinglemodel,whichmightpotentially
+leadtopoorerperformance(curseofmultilingual-
+ÿÿ ` ˘
+max log Pph |d q ity(Conneauetal.,2020)). Toanswerthisquestion,
+pi,jq pi,jq
+we train a single model on all data and compare
+i j ` ˘ (1)
+`log Ppl |h ñ d q
+itwithnlanguage-specificmodels,whereeachof
+pi,jq pi,jq pi,jq
+thenmodelshasthesamenumberofparameters
+Duringinference,thebestdependencyparseis asthesinglemodel.
+generatedbydecodingwithChu-Liu/Edmondsal- From the 100% (rightmost) columns of Table
+gorithm(Chu,1965;Edmonds,1967). 2,wefindthathavingasinglemodeldoesnotad-
+verselyimpactperformanceandthesetrendshold
+2Following(Devlinetal.,2019),forwordsgeneratingmul-
+tiplewordpieces,weusetheembeddingofthefirstwordpiece. irrespectiveofwhetherallthelanguagesinthetask
+NumTokens/Instances ALDetails
+Task BudgetType Numentrain
+Train Val. Test Seed Val. Budget
+NER Token 875k 193k 219k 10k 10k 10k 200k
+Classification Instance 19k 5k 24k 300 300 300 6k
+DependencyParsing Token 1.88M 196k 189k 17.5k 17.5k 17.5k 350k
+Table4: Aggregatestatisticsofdatasetspertask.
+areetymologicallyclose(asinNER)ordistant(ja en en+AL ja ja+AL fr
+fr+AL
+for classification and dependency parsing). This 96
+mightnotbethecasewhentherearealargenumber
+oflanguages,however;investigatinghowwellthis 92.5
+observation scales with the number of languages
+wouldbeaninterestinglineoffuturework.
+89
+E ActiveLearningfortheMonoASetup
+85.5
+AninterestingobservationfromTable3isthatAL
+inthesourcelanguagehelpsimproveperformance
+82
+seed round1 round2 round3
+across all languages, irrespective of whether the
+(a)RelativedifferenceofMonoA˘ALforClassi-
+inference is being run for the source language in
+fication
+questionorzero-shotonadifferenttargetlanguage
+without any training. We observe this to be the en en+AL es es+AL nl
+nl+AL
+case consistently for both the NER and the clas- 100.00
+sification tasks (refer Figure 4), regardless of the
+source language. We hypothesize that this is be- 96.25
+cause the model selects semantically difficult or
+ambiguous examples that generalize across lan- 92.50
+guages by virtue of mBERT’s shared embedding
+representation, in contrast with random selection 88.75
+whereeasyexamplesthemodelcanalreadytackle
+mightbeselected. Weobservethiseveninthecase 85.00
+seed round1 round2 round3
+ofetymologicallydistantlanguages,suchaswhen
+(b)RelativedifferenceofMonoA˘ALforNER
+the model is trained in English and zero-shot in-
+ferenceisdoneinJapanese(orviceversa). Thus, en en+AL es es+AL ja
+ja+AL nl nl+AL
+the AL selection does not overfit on the specific 100.00
+languageinquestion,insteadchoosingdifficultbut
+generalizableexamples. 90.00
+WeobservemixedresultsfortheMonoAsetup
+fordependencyparsing: ALimprovessubstantially 80.00
+overRandomwhenthetargetandsourcelanguage
+arethesame;however,whentheydiffer,theresults 70.00
+are mixed. We hypothesize that this discrepancy
+is a consequence of dependency parsing being a 60.00
+seed round1 round2 round3
+syntactic problem, making it more language spe-
+(c)RelativedifferenceofMonoA˘ALforDepen-
+cific,inturnmakingzero-shotaninherentlyharder dencyParsing
+problem. Thisisincontrastwithbothclassification
+Figure 4: Performance of mBERT trained on source
+andNER,whicharemoresemantictasks. Conse-
+(de),asarelativepercentageoftheperformancewhen
+quently,hardexamplesforthelattertasksmightbe
+all source data was used, in a zero-shot classification
+moregeneralizableacrosslanguages,resultingin
+setting(esandnl).
+theirimprovedALperformance,whencompared
+withthedependencyparsingtask.
+F AcquisitionAblationDetailsand gregatedacrossalllanguages.
+Curriculum
+Method
+90 MMA
+SMA
+MonoA[en]
+MonoA[es]
+80 MonoA[nl]
+MonoA[de]
+MonoA[ja]
+Acquisition
+70 Random
+NLPDT
+Upper Bounds
+MM[100%]
+60 SM[100%]
+50
+Figure5: Acquisitioncurriculumforclassification
+seed round1 round2 round3
+Figure 7: Dependency Parsing: UAS for each round,
+averagedacrossalllanguages
+Method
+MMA
+SMA
+80 MonoA[en]
+MonoA[es]
+MonoA[nl]
+70 MonoA[de]
+MonoA[ja]
+Acquisition
+60 Random
+NLPDT
+Upper Bounds
+Figure6:AcquisitionCurriculumfordependencypars- 50 MM[100%]
+SM[100%]
+ing. Note that in order to ablate out the effect of dif-
+ferent datasets, we only choose the largest dataset for 40
+eachlanguage.
+30
+Inthissection,wedescribetheanalysisofinves- seed round1 round2 round3
+tigatingtheacquisitionsofSMA+ALinmorede- Figure 8: Dependency Parsing: LAS for each round,
+tail. Letα ¨¨¨α bethelanguagespecificamount averagedacrossalllanguages
+1 n
+of data present in the entire dataset (i.e α “ 0.3
+i
+implies that 30% of the entire dataset (training +
+G.2 PerAcquisitionRoundPerformancefor
+unlabeled) is of language i), and let β ¨¨¨β
+1,1 m,n NER
+representtheamountofdataacquiredforeverylan-
+guageateveryround(i.eβ indicatestheamount Figure9showstheF-Scoreforeachroundofac-
+i,j
+ofdataacquiredbylanguagej atroundi). Then, quisitionforNER,aggregatedacrossalllanguages.
+for a task t, for each round i and language j, we
+ř
+plot p i k“1β k,jq´αjb9 ti9 . Metho Md MA
+αjb9 ti9 80 S MM onA
+oA[en]
+Figures5and6showtheacquisitioncurriculum. MonoA[es]
+MonoA[nl]
+Weobserveasimilarforboththetasksasthatfor 75 MonoA[de]
+Acquisition
+dependencyparsing. Random
+70 MNLP
+Upper Bounds
+MM[100%]
+G DetailedResults SM[100%]
+65
+Thissectiontheadditionalplotsaswellasthede-
+60
+tailed tables and results for all the experiments
+presentedinthepaper. 55
+seed round1 round2 round3
+G.1 PerAcquisitionRoundPerformancefor
+Figure 9: NER: F-Score for each round, averaged
+DependencyParsing
+acrossalllanguages
+Figures7and8showtheUASandLASforeach
+round of acquisition for dependency parsing, ag-
+G.3 ExperimentsforNER
+Tables5,6,7and8showtheperformanceofthedifferentALsettingsonEnglish,Spanish,Dutchand
+Germanrespectively. EachtableshowstheF-scoreacross4acquisitionrounds,bothwithandwithout
+MNLP(§3.2).
+AcquisitionFunction WithoutMNLP WithMNLP
+Data%
+5% 10% 15% 20% 5% 10% 15% 20%
+Model
+en 86.0˘0.6 87.6˘0.2 87.8˘0.2 88.4˘0.4 85.5˘0.4 88.4˘0.5 89.2˘0.2 89.7˘0.5
+de 61.3˘1.1 61.5˘1.5 65.6˘2.2 65.7˘1.8 60.3˘1.6 65.3˘3.2 68.1˘1.3 68.2˘2.3
+MonoA
+es 55.6˘1.1 57.2˘1.5 56.7˘1.5 58.8˘1.7 53.7˘1.1 56.8˘2.7 57.8˘3.0 59.5˘2.6
+nl 64.8˘3.9 64.7˘1.1 67.5˘0.6 65.7˘1.6 67.8˘1.6 68.2˘2.0 66.4˘2.2 66.0˘2.4
+MMA 81.9˘1.4 84.6˘0.5 85.3˘1.3 86.5˘0.7 82.5˘0.4 86.1˘0.6 87.4˘0.6 88.2˘0.5
+SMA 82.5˘0.6 84.8˘0.9 85.8˘0.4 86.2˘0.3 81.9˘0.4 86.6˘0.6 87.7˘0.5 88.4˘0.2
+MMFull 91.2˘0.2
+SMFull 91.2˘0.2
+Table5: Performance(F1-Score)onenforNER
+AcquisitionFunction WithoutMNLP WithMNLP
+Data%
+5% 10% 15% 20% 5% 10% 15% 20%
+Model
+en 63.0˘1.3 64.7˘1.2 64.6˘1.1 65.4˘1.2 63.1˘1.7 66.0˘1.2 65.9˘1.3 67.3˘1.0
+de 63.2˘0.5 63.6˘0.7 65.7˘0.2 65.7˘0.6 63.3˘1.2 66.3˘0.8 67.1˘0.7 66.8˘0.5
+MonoA
+es 76.5˘0.6 79.6˘0.7 80.2˘0.6 81.5˘0.5 75.9˘0.5 81.0˘0.6 82.2˘0.5 83.5˘0.3
+nl 62.2˘1.0 64.3˘1.2 67.2˘1.1 66.2˘1.4 63.0˘1.6 67.6˘1.0 68.8˘1.4 69.8˘1.5
+MMA 67.8˘1.1 71.4˘1.7 74.9˘2.4 76.1˘2.2 68.1˘1.3 73.0˘1.9 77.4˘0.5 78.4˘1.2
+SMA 73.1˘1.0 76.5˘0.7 77.9˘0.7 79.6˘0.3 72.2˘0.9 77.7˘0.7 79.5˘0.3 80.7˘0.5
+MMFull 86.2˘0.7
+SMFull 86.2˘0.5
+Table6: Performance(F1-Score)onesforNER
+AcquisitionFunction WithoutMNLP WithMNLP
+Data%
+5% 10% 15% 20% 5% 10% 15% 20%
+Model
+en 63.9˘1.5 62.5˘1.0 61.8˘1.3 59.7˘3.3 62.4˘1.4 61.9˘1.3 61.6˘2.1 63.8˘3.3
+de 73.1˘0.5 76.9˘0.5 77.0˘1.2 77.5˘0.6 72.9˘0.6 77.1˘1.1 79.5˘0.5 80.5˘0.3
+MonoA
+es 56.8˘1.1 58.4˘1.7 59.4˘2.1 58.8˘1.6 55.8˘2.1 56.6˘2.1 57.6˘1.3 57.4˘1.9
+nl 60.4˘1.7 61.2˘1.7 61.5˘1.1 58.3˘3.6 61.1˘1.7 64.0˘1.3 63.2˘2.6 61.9˘1.7
+MMA 62.4˘3.6 67.3˘1.2 68.3˘1.6 68.9˘1.9 62.6˘0.6 70.6˘1.6 72.3˘0.9 72.2˘0.8
+SMA 69.9˘0.8 73.0˘0.7 74.4˘0.6 75.5˘0.6 70.1˘0.6 75.1˘0.5 76.8˘0.2 78.2˘0.5
+MMFull 82.4˘0.5
+SMFull 82.2˘0.3
+Table7: Performance(F1-Score)ondeforNER
+AcquisitionFunction WithoutMNLP WithMNLP
+Data%
+5% 10% 15% 20% 5% 10% 15% 20%
+Model
+en 70.9˘0.6 72.1˘0.9 71.1˘1.2 71.2˘1.1 71.3˘1.6 71.4˘1.1 73.1˘1.1 73.4˘1.5
+de 69.0˘1.8 70.7˘0.9 71.8˘0.5 72.8˘0.6 68.8˘2.4 71.8˘1.0 74.4˘0.8 74.6˘0.6
+MonoA
+es 61.6˘1.2 62.0˘1.5 62.2˘1.6 63.5˘2.7 62.9˘1.3 63.0˘1.7 62.8˘0.8 62.9˘1.6
+nl 82.2˘0.5 84.5˘0.5 85.2˘0.4 85.4˘0.6 81.6˘1.0 86.8˘0.4 88.1˘0.4 89.0˘0.7
+MMA 73.1˘1.2 76.4˘1.4 77.7˘0.5 79.3˘1.7 72.0˘1.8 78.8˘1.4 83.0˘0.7 84.7˘1.1
+SMA 79.8˘0.7 82.3˘0.3 82.3˘0.6 82.8˘1.0 79.2˘0.8 83.1˘0.7 85.1˘0.3 86.1˘0.2
+MMFull 90.0˘0.5
+SMFull 89.2˘1.2
+Table8: Performance(F1-Score)onnlforNER
+G.4 ExperimentsforClassification
+Tables9,10,11and12showtheperformanceofthedifferentALsettingsonEnglish,French,Japanese
+and German respectively. Each table shows the accuracy across 4 acquisition rounds, both with and
+withoutLC(§3.2).
+AcquisitionFunction WithoutLC WithLC
+Data%
+5% 10% 15% 20% 5% 10% 15% 20%
+Model
+en 74.8˘1.2 79.9˘0.6 80.7˘1.3 81.5˘0.2 76.3˘1.3 79.9˘1.6 81.6˘1.4 82.9˘1.8
+fr 65.1˘5.5 68.9˘5.1 72.2˘2.9 71.4˘4.3 61.3˘4.1 64.1˘5.6 71.5˘5.4 73.3˘4.2
+MonoA
+ja 65.7˘4.8 66.5˘3.8 68.1˘3.4 67.1˘4.6 63.9˘5.9 70.3˘3.3 71.7˘2.5 70.1˘4.6
+de 58.1˘1.6 59.4˘3.0 57.7˘2.6 60.9˘4.2 61.1˘3.8 62.4˘5.1 62.6˘6.8 64.6˘6.0
+MMA 67.1˘1.5 71.0˘3.7 74.0˘4.1 75.1˘2.2 67.4˘2.9 72.4˘3.4 76.0˘3.1 76.6˘3.6
+SMA 73.5˘2.1 76.5˘0.5 76.7˘0.6 77.6˘0.8 71.5˘3.3 76.9˘1.7 78.6˘1.4 79.1˘0.8
+MMFull 86.6˘0.3
+SMFull 87.5˘0.5
+Table9: Performance(Accuracy)onenforSentimentClassification
+AcquisitionFunction WithoutLC WithLC
+Data%
+5% 10% 15% 20% 5% 10% 15% 20%
+Model
+en 73.1˘1.7 75.0˘1.4 74.9˘2.6 75.7˘1.5 74.1˘0.6 73.6˘2.7 75.5˘2.9 76.0˘2.2
+fr 75.5˘2.6 80.6˘0.8 81.7˘1.0 83.0˘0.8 74.5˘1.3 81.4˘0.9 82.6˘0.5 84.2˘0.6
+MonoA
+ja 67.5˘4.0 68.7˘3.2 68.8˘2.4 68.6˘2.9 64.9˘4.8 71.2˘2.8 70.7˘1.7 69.8˘4.1
+de 64.6˘1.2 65.8˘3.9 65.4˘3.5 68.4˘2.3 65.0˘2.4 68.4˘2.4 69.4˘3.2 69.0˘4.9
+MMA 61.7˘3.2 69.9˘3.4 73.9˘3.0 75.7˘2.5 66.0˘1.9 71.7˘2.1 76.3˘0.7 76.6˘1.6
+SMA 74.6˘1.7 77.4˘1.2 77.3˘0.7 79.2˘0.6 72.9˘3.1 77.0˘1.7 78.4˘0.7 79.2˘0.8
+MMFull 87.8˘0.6
+SMFull 89.4˘0.4
+Table10: Performance(Accuracy)onfrforSentimentClassification
+AcquisitionFunction WithoutLC WithLC
+Data%
+5% 10% 15% 20% 5% 10% 15% 20%
+Model
+en 65.6˘3.2 65.7˘3.5 64.6˘3.7 64.8˘2.04 68.7˘3.2 66.0˘3.2 67.2˘2.7 66.1˘3.10
+fr 67.1˘2.5 69.9˘2.1 70.2˘3.2 70.9˘1.46 65.7˘1.7 71.3˘1.3 68.6˘3.6 71.4˘1.86
+MonoA
+ja 73.0˘3.2 75.4˘2.4 77.1˘1.2 78.8˘1.11 71.9˘2.4 77.4˘0.8 78.6˘1.2 79.5˘0.68
+de 64.2˘1.8 65.5˘4.3 65.8˘4.6 68.7˘1.82 62.7˘2.1 65.4˘1.6 68.0˘3.5 67.5˘4.70
+MMA 63.6˘1.7 68.0˘1.8 70.0˘1.5 71.8˘0.32 63.6˘3.0 67.7˘1.6 70.3˘1.0 70.6˘3.14
+SMA 65.8˘4.3 69.8˘2.0 71.1˘2.0 71.6˘1.01 65.2˘2.0 70.1˘2.0 72.2˘1.1 72.6˘1.71
+MMFull 83.7˘0.3
+SMFull 84.0˘0.2
+Table11: Performance(Accuracy)onjaforSentimentClassification
+AcquisitionFunction WithoutLC WithLC
+Data%
+5% 10% 15% 20% 5% 10% 15% 20%
+Model
+en 66.7˘2.1 69.4˘2.0 68.8˘1.9 69.1˘2.2 68.5˘1.4 67.9˘3.3 70.0˘2.1 72.0˘2.5
+fr 67.0˘1.6 71.7˘0.8 72.1˘1.5 72.6˘1.0 67.0˘1.6 72.1˘0.5 71.3˘2.2 73.7˘1.1
+MonoA
+ja 63.2˘3.1 65.8˘2.5 65.9˘2.5 65.4˘2.4 62.8˘3.4 67.1˘2.2 67.3˘0.8 67.1˘3.5
+de 67.5˘1.0 72.7˘0.8 76.3˘0.9 77.8˘1.3 67.9˘3.8 75.6˘1.9 78.2˘1.2 79.5˘0.7
+MMA 55.0˘2.1 60.4˘1.9 61.9˘1.8 64.7˘1.4 59.2˘1.5 62.8˘2.2 63.4˘2.7 69.0˘2.9
+SMA 68.9˘1.7 72.0˘0.8 74.5˘1.0 74.0˘1.0 66.3˘2.7 73.5˘1.0 74.9˘1.4 75.2˘0.9
+MMFull 85.7˘0.3
+SMFull 87.0˘0.3
+Table12: Performance(Accuracy)ondeforSentimentClassification
+G.5 ExperimentsforDependencyParsing
+Table 13 compares the performance (LAS and UAS) of the single model trained on all data to the
+performanceofonemodeltrainedperlanguage. Table14givesthedetailedbreakdownofeachALsetup
+foreachofthedependencyparsingdatasets,aggregatedacrossalltheacquisitionrounds.
+es nl nl- ja- ja-
+Model Metric en-ewt en-gum en-lines en-partut es-gsd de-gsd Avg
+-ancora -alpino lassysmall gsd modern
+MM UAS 92.6 91.3 90.6 93.3 94.1 92.4 89.2 94.4 95.1 95.1 75.9 91.3
+Full LAS 90.2 88.1 86.2 90.0 91.8 88.9 84.6 92.4 92.4 93.9 58.9 87.1
+SM UAS 92.5 91.3 90.8 92.8 94.2 92.6 89.7 94.6 95.0 95.1 75.3 91.3
+Full LAS 90.1 88.0 86.3 89.8 91.8 89.0 85.2 92.9 92.0 93.8 59.6 87.1
+Table13: Performanceon100%dataforDependencyParsing
+MonoA
+MMA SMA
+en es de nl ja
+Dataset AL
+UAS LAS UAS LAS UAS LAS UAS LAS UAS LAS UAS LAS UAS LAS
+WithoutNLPDT 89.8: 86.1: 76.1 64.4 77.2 65.9 77.5 66.6 38.7 25.0 85.6 80.4 87.2 82.1
+en-ewt
+WithNLPDT 90.3: 86.9: 75.5 64.2 77.7 66.2 77.1 65.7 38.1 23.4 85.4 80.5 87.8 83.2
+WithoutNLPDT 89.5: 85.3: 77.1 66.0 78.1 68.0 78.0 67.3 37.3 23.8 85.9 80.9 88.0 82.8
+en-gum
+WithNLPDT 89.9: 85.9: 76.5 65.9 78.7 68.5 77.9 66.9 37.1 22.5 85.2 80.2 88.0 83.1
+en- WithoutNLPDT 88.9: 84.3: 81.1 69.7 81.5 71.2 82.6 72.6 38.8 24.4 86.0 80.7 87.6 82.4
+lines WithNLPDT 89.1: 84.5: 80.6 69.4 81.8 71.3 82.3 72.1 38.4 22.7 85.4 80.1 88.2 83.0
+en- WithoutNLPDT 91.4: 86.6: 83.4 73.5 82.2 73.0 80.5 72.3 37.6 24.3 87.5 81.5 88.7 82.8
+partut WithNLPDT 90.9: 86.0: 83.3 73.3 82.7 73.3 80.5 72.2 37.5 23.4 86.5 80.6 89.0 83.0
+es- WithoutNLPDT 82.8 70.8 89.2: 84.6: 81.9 70.1 82.8 69.9 26.7 17.0 85.4 78.6 88.0 81.7
+ancora WithNLPDT 82.9 70.1 89.4: 84.7: 82.1 70.6 82.9 69.9 26.4 16.6 84.9 77.9 87.9 81.2
+WithoutNLPDT 83.9 73.4 88.0: 81.5: 83.7 72.1 81.7 69.2 27.4 17.3 84.8 76.6 88.0 81.7
+es-gsd
+WithNLPDT 83.9 72.9 88.3: 82.0: 84.2 72.7 81.7 68.8 27.1 16.8 84.7 76.9 87.8 81.7
+WithoutNLPDT 84.0 74.4 82.2 71.1 87.2: 81.8: 82.8 71.9 43.9 27.8 84.4 77.8 85.8 79.2
+de-gsd
+WithNLPDT 84.3 74.6 82.2 71.3 87.6: 82.2: 82.9 71.9 43.4 25.5 84.4 78.0 86.0 79.5
+nl- WithoutNLPDT 83.0 74.5 82.3 70.1 83.4 74.0 91.8: 88.6: 37.0 21.3 86.1 81.3 87.4 81.4
+alpino WithNLPDT 83.2 74.6 82.6 70.3 83.9 74.7 92.1: 89.0: 37.1 21.0 85.8 80.8 87.9 82.0
+nl- WithoutNLPDT 82.1 73.0 82.5 70.8 81.6 71.8 92.6: 88.3: 33.0 20.1 86.9 81.2 88.0 80.9
+lassysmall WithNLPDT 82.2 73.0 82.7 70.8 81.9 72.2 92.8: 88.6: 33.0 18.6 86.4 0.7 88.0 81.1
+WithoutNLPDT 33.8 17.3 31.6 19.1 33.9 17.1 33.5 13.5 93.1: 91.2: 89.1 85.3 87.4 83.0
+ja-gsd
+WithNLPDT 36.9 18.8 32.8 19.7 34.5 17.6 35.0 14.0 93.7: 91.9: 89.7 86.1 88.2 84.2
+ja- WithoutNLPDT 31.1 14.3 28.5 15.0 31.4 15.2 28.8 10.6 73.7: 57.4: 70.6 53.6 69.8 54.2
+modern WithNLPDT 32.5 15.2 28.8 15.0 32.2 16.4 29.2 10.3 74.0: 57.5: 71.0 54.1 70.0 54.3
+WithoutNLPDT 76.4 67.2 72.9 62.3 72.9 61.8 73.9 62.8 44.3 31.8 84.8 78.0 86.0 79.3
+Avg.
+WithNLPDT 76.9 67.5 73.0 62.4 73.4 62.3 74.0 62.7 44.2 30.8 84.5 77.8 86.3 79.7
+Table14: Performanceondifferentdatasetsfordependencyparsing. :upper-boundsperformanceforaparticular
+language(sinceitassignstheentirebudgettothatlanguage).
+G.6 LanguageSpecificAcquisitionPlots G.6.2 Classification
+AnalogoustoFigure1inthemainpaper,eachfig-
+ureinthissectionpresentstheperformanceofthe Metho Md MA
+85 SMA
+differentmethodsforaspecificlanguageandaspe- MonoA[en]
+MonoA[fr]
+cifictask,ateachroundofacquisition. Thetrends 80 M Mo on no oA A[ [j da e] ]
+Acquisition
+observed are fairly consistent: SMA and MMA 75 R LCandom
+bothdoconsistentlywell,withSMAoutperform- Upper Bounds
+70 M SMM [[ 11 00 00 %% ]]
+ingMMA.MonoAforthespecificlanguagedoes
+well,butwithallotherlanguagesperformsworse. 65
+ALconsistentlyimprovesperformance. 60
+G.6.1 NER
+seed round1 round2 round3
+Figure 13: Performance at Classification for
+Method
+90 MMA English(en)
+SMA
+MonoA[en]
+85 MonoA[es]
+MonoA[nl] Metho Md MA
+80 MonoA[de] SMA
+Acquisition MonoA[en]
+75 R Ma Nn Ld Pom 80 M M Mo o on n no o oA A A[ [ [f j dar e] ]
+]
+Upper Bounds Acquisition
+70 M SMM [[ 11 00 00 %% ]] 75 R LCandom
+65 Upper M B Mo [u 1n 0d 0s %]
+SM[100%]
+70
+60
+55
+65
+seed round1 round2 round3
+seed round1 round2 round3
+Figure10: PerformanceatNERforEnglish(en)
+Figure 14: Performance at Classification for
+90 Method
+MMA Japanese(ja)
+SMA
+MonoA[en]
+85 MonoA[es] 90 Method
+MonoA[nl] MMA
+MonoA[de] SMA
+MonoA[en]
+80 Acquisition 85 MonoA[fr]
+Random MonoA[ja]
+MNLP MonoA[de]
+75 Upper Bounds 80 Acquisition
+MM[100%] Random
+SM[100%] LC
+75 Upper Bounds
+70 MM[100%]
+SM[100%]
+70
+65
+65
+60
+seed round1 round2 round3 60
+seed round1 round2 round3
+Figure11: PerformanceatNERforDutch(nl)
+Figure 15: Performance at Classification for
+Method
+MMA French(fr)
+80 SMA
+MonoA[en]
+MonoA[es] Method
+MonoA[nl] MMA
+75 MonoA[de] 85 SMA
+MonoA[en]
+Acquisition MonoA[fr]
+Random 80 MonoA[ja]
+70 MNLP MonoA[de]
+Upper M B Mo [u 1n 0d 0s %] 75 Acqui Rsi ati no dn om
+SM[100%] LC
+65 70 Upper Bounds
+MM[100%]
+SM[100%]
+65
+60
+60
+55
+55
+seed round1 round2 round3
+seed round1 round2 round3
+Figure12: PerformanceatNERforGerman(de)
+Figure 16: Performance at Classification for
+German(de)
+G.6.3 DependencyParsing: LAS 80
+Method
+MMA
+Fordependencyparsing,theMonoAperformance 75 SMA
+MonoA[en]
+MonoA[es]
+ofJapanese(MonoA[ja])ispooronallotherlan- 70 MonoA[nl]
+MonoA[de]
+guages(Fig. 17,18,20,21,22,23,25,26),while 65 MonoA[ja]
+Acquisition
+theperformanceofallotherlanguagesispooron Random
+60 NLPDT
+Japanese(Fig. 19,24). Consequently,thegraphs 25 Upper Bounds
+MM[100%]
+belowhaveakinkinordertocapturethisdifference 20 SM[100%]
+intherangeofperformanceofthelanguages. 15
+10
+90
+Method
+MMA 5
+85 S MM onA oA[en] seed round1 round2 round3
+MonoA[es]
+MonoA[nl] Figure19: LASforJapanese(ja). Notethekinkin
+80 MonoA[de]
+MonoA[ja] they-axisandthedifferentscalesofthetwohalves.
+Acquisition
+75 Random
+NLPDT
+Upper Bounds
+70 MM[100%]
+SM[100%]
+95
+65 Method
+30 MMA
+90 SMA
+25 MonoA[en]
+MonoA[es]
+85 MonoA[nl]
+20 MonoA[de]
+seed round1 round2 round3 MonoA[ja]
+80
+Acquisition
+Figure17: LASforEnglish(en). Notethekinkin Random
+75 NLPDT
+they-axisandthedifferentscalesofthetwohalves. Upper Bounds
+MM[100%]
+70 SM[100%]
+90
+Method 65
+MMA 25
+SMA
+85 MonoA[en] 20
+MonoA[es]
+MonoA[nl] 15
+80 M Mo on no oA A[ [d jae ]] seed round1 round2 round3
+Acquisition
+75 Random Figure20:LASforDutch(nl). Notethekinkinthe
+NLPDT
+y-axisandthedifferentscalesofthetwohalves.
+Upper Bounds
+70 MM[100%]
+SM[100%]
+65
+30 95
+Method
+25 90 M SMM AA
+20 MonoA[en]
+85 MonoA[es]
+seed round1 round2 round3 MonoA[nl]
+MonoA[de]
+Figure18: LASforGerman(de). Notethekinkin 80 MonoA[ja]
+Acquisition
+they-axisandthedifferentscalesofthetwohalves. 75 Random
+NLPDT
+70 Upper Bounds
+MM[100%]
+65 SM[100%]
+60
+20
+15
+10
+seed round1 round2 round3
+Figure21: LASforSpanish(es). Notethekinkin
+they-axisandthedifferentscalesofthetwohalves.
+G.6.4 DependencyParsing: UAS
+95
+Method
+MMA
+SMA
+MonoA[en]
+90 MonoA[es]
+MonoA[nl]
+MonoA[de]
+MonoA[ja]
+85
+Acquisition
+Random
+NLPDT
+80 Upper Bounds
+MM[100%]
+SM[100%]
+75
+40
+35
+seed round1 round2 round3
+Figure22: UASforEnglish(en). Notethekinkin
+they-axisandthedifferentscalesofthetwohalves.
+90 90
+Method Method
+MMA MMA
+SMA SMA
+88 MonoA[en] 85 MonoA[en]
+MonoA[es] MonoA[es]
+MonoA[nl] MonoA[nl]
+86 MonoA[de] 80 MonoA[de]
+MonoA[ja] MonoA[ja]
+Acquisition Acquisition
+84 R Na Ln PDdo Tm 75 R Na Ln PDdo Tm
+40
+Upper Bounds Upper Bounds
+82 MM[100%] MM[100%]
+SM[100%] SM[100%]
+35
+80
+45
+30
+40 25
+seed round1 round2 round3 seed round1 round2 round3
+Figure23: UASforGerman(de). Notethekinkin Figure24: UASforJapanese(ja). Notethekinkin
+they-axisandthedifferentscalesofthetwohalves. they-axisandthedifferentscalesofthetwohalves.
+94 Method 94 Metho Md MA
+92 M S M MMM o on nAA o oA A[ [e en s]] 99 02 S M M MM o o on n nA o o oA A A[ [ [e e nn s l]]]
+90 M Mo on no oA A[ [n del] ] 88 M Mo on no oA A[ [d jae ]]
+MonoA[ja]
+88 86 Acquisition
+Acquisition Random
+86 R Na Ln PDdo Tm 84 NLPDT
+Upper Bounds
+84 Upper Bounds 82 MM[100%]
+MM[100%] SM[100%]
+SM[100%] 80
+82
+78
+80 30
+35
+25
+seed round1 round2 round3
+seed round1 round2 round3
+Figure26: UASforSpanish(es). Notethekinkin
+Figure25:UASforDutch(nl). Notethekinkinthe
+they-axisandthedifferentscalesofthetwohalves.
+y-axisandthedifferentscalesofthetwohalves.
