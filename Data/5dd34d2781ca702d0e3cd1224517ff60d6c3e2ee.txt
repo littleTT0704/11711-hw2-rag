@@ -1,0 +1,876 @@
+Phonetic and Visual Priors for Decipherment of Informal Romanization
+MariaRyskina1 MatthewR.Gormley2 TaylorBerg-Kirkpatrick3
+1LanguageTechnologiesInstitute,CarnegieMellonUniversity
+2MachineLearningDepartment,CarnegieMellonUniversity
+3ComputerScienceandEngineering,UniversityofCalifornia,SanDiego
+{mryskina,mgormley}@cs.cmu.edu tberg@eng.ucsd.edu
+Abstract horosho [Phoneticallyromanized]
+хорошо
+Informalromanizationisanidiosyncraticpro- [UnderlyingCyrillic]
+cessusedbyhumansininformaldigitalcom-
+xopowo
+[Visuallyromanized]
+munication to encode non-Latin script lan-
+guages into Latin character sets found on
+common keyboards. Character substitution
+Figure 1: Example transliterations of a Russian
+choices differ between users but have been horoxo
+word [horošo, ‘good’] (middle) based on
+showntobegovernedbythesamemainprinci-
+phonetic(top)andvisual(bottom)similarity,with
+plesobservedacrossavarietyoflanguages—
+character alignments displayed. The phonetic-
+namely, character pairs are often associated
+throughphoneticorvisualsimilarity. Wepro- visual dichotomy gives rise t[oPhoonne-ettoi-cmalalynyrommaapn-ized]
+[Phonetic]
+pose a noisy-channel WFST cascade model pingssuchasx /S/ sh/w. [UnderlyingCyrillic]
+→
+for deciphering the original non-Latin script [Cyrillic]
+from observed romanized text in an unsuper- [Visuallyromanized]
+visedfashion. Wetrainourmodeldirectlyon layo[Vutiisnucaolm] patibility). Anexampleofsuchasen-
+romanized data from two languages: Egyp- tencecanbefoundinFigure2. Unlikenameden-
+tianArabicandRussian. Wedemonstratethat tity transliteration where the change of script rep-
+adding inductive bias through phonetic and resentsthechangeoflanguage,hereLatincharac-
+visual priors on character mappings substan-
+tersserveasanintermediatesymbolicrepresenta-
+tially improves the model’s performance on
+tiontobedecodedbyanotherspeakerofthesame
+both languages, yielding results much closer
+source language, calling for a completely differ-
+to the supervised skyline. Finally, we intro-
+enttransliterationmechanism: insteadofexpress-
+duceanewdatasetofromanizedRussian,col-
+lected from a Russian social network website ing the pronunciation of the word according to
+andpartiallyannotatedforourexperiments.1 the phonetic rules of another language, informal
+transliteration can be viewed as a substitution ci-
+1 Introduction
+pher,whereeachsourcecharacterisreplacedwith
+asimilarLatincharacter.
+Written online communication poses a number of
+In this paper, we focus on decoding informally
+challenges for natural language processing sys-
+romanized texts back into their original scripts.
+tems,includingthepresenceofneologisms,code-
+We view the task as a decipherment problem and
+switching, and the use of non-standard orthogra-
+propose an unsupervised approach, which allows
+phy. One notable example of orthographic varia-
+us to save annotation effort since parallel data
+tion in social media is informal romanization2—
+for informal transliteration does not occur natu-
+speakers of languages written in non-Latin alpha-
+rally. We propose a weighted finite-state trans-
+bets encoding their messages in Latin characters,
+ducer (WFST) cascade model that learns to de-
+for convenience or due to technical constraints
+code informal romanization without parallel text,
+(improper rendering of native script or keyboard
+relying only on transliterated data and a language
+1Thecodeanddataareavailableathttps://github. model over the original orthography. We test it
+com/ryskina/romanization-decipherment
+on two languages, Egyptian Arabic and Russian,
+2Our focus on informal transliteration excludes formal
+collecting our own dataset of romanized Russian
+settings such as pinyin for Mandarin where transliteration
+conventionsarewellestablished. fromaRussiansocialnetworkwebsitevk.com.
+4tomowetbit’ly4we? [Romanized] 2 Relatedwork
+Qto mo(cid:25)et byt(cid:126) luqxe?
+[LatentCyrillic]
+Cˇtomožetbyt’lucˇše? [Scientific]
+>
+/Sto"moZ1tb1tj "lutSS1/ [IPA] Prior work on informal transliteration uses su-
+pervised approaches with character substitution
+Whatcanbebetter? [Translated]
+rules either manually defined or learned from au-
+Figure 2: Example of an informally romanized tomatically extracted character alignments (Dar-
+sentence from the dataset presented in this paper, wish, 2014; Chalamandaris et al., 2004). Typi-
+containing a many-to-one mapping (cid:25) / x w. cally,suchapproachesarepipelined: theyproduce
+→
+Scientifictransliteration,broadphonetictranscrip- candidate transliterations and rerank them using
+tion,andtranslationarenotincludedinthedataset modules encoding knowledge of the source lan-
+andarepresentedforillustrationonly. guage, such as morphological analyzers or word-
+levellanguagemodels(Al-Badrashinyetal.,2014;
+Eskander et al., 2014). Supervised finite-state ap-
+proaches have also been explored (Wolf-Sonkin
+Since informal transliteration is not standard-
+et al., 2019; Hellsten et al., 2017); these WFST
+ized, converting romanized text back to its origi-
+cascademodelsaresimilartotheonewepropose,
+nal orthography requires reasoning about the spe-
+but they encode a different set of assumptions
+cific user’s transliteration preferences and han-
+about the transliteration process due to being de-
+dling many-to-one (Figure 2) and one-to-many
+signedforabugidascripts(usingconsonant-vowel
+(Figure 1) character mappings, which is beyond
+syllables as units) rather than alphabets. To our
+traditional rule-based converters. Although user
+knowledge,thereisnopriorunsupervisedworkon
+behaviors vary, there are two dominant patterns
+thisproblem.
+in informal romanization that have been observed
+independently across different languages, such as Named entity transliteration, a task closely re-
+Russian (Paulsen, 2014), dialectal Arabic (Dar- lated to ours, is better explored, but there is little
+wish,2014)orGreek(Chalamandarisetal.,2006): unsupervised work on this task as well. In par-
+Phoneticsimilarity: Usersrepresentsourcechar- ticular, Ravi and Knight (2009) propose a fully
+acterswithLatincharactersordigraphsassociated unsupervised version of the WFST approach in-
+withsimilarphonemes(e.g.m/m/ m,l/l/ l troduced by Knight and Graehl (1998), refram-
+→ →
+in Figure 2). This substitution method requires ingthetaskasadeciphermentproblemandlearn-
+implicitly tying the Latin characters to a phonetic ing cross-lingual phoneme mappings from mono-
+systemofanintermediatelanguage(typically,En- lingual data. We take a similar path, although it
+glish). should be noted that named entity transliteration
+methods cannot be straightforwardly adapted to
+Visualsimilarity: Usersreplacesourcecharacters
+> our task due to the different nature of the translit-
+with similar-looking symbols (e.g. q /tSj/ 4,
+→ eration choices. The goal of the standard translit-
+u /u/ y in Figure 2). Visual similarity choices
+→ eration task is to communicate the pronunciation
+often involve numerals, especially when the cor-
+of a sequence in the source language (SL) to a
+responding source language phoneme has no En-
+speaker of the target language (TL) by render-
+glishequivalent(e.g.Arabic(cid:138)/Q/
+3).
+→ ing it appropriately in the TL alphabet; in con-
+Taking that consistency across languages into trast, informal romanization emerges in commu-
+account, we show that incorporating these style nication between SL speakers only, and TL is
+patterns into our model as priors on the emission not specified. If we picked any specific Latin-
+parameters—also constructed from naturally oc- script language to represent TL (e.g. English,
+curring resources—improves the decoding accu- which is often used to ground phonetic substi-
+racy on both languages. We compare the pro- tutions), many of the informally romanized se-
+posed unsupervised WFST model with a super- quences would still not conform to its pronuncia-
+visedWFST,anunsupervisedneuralarchitecture, tion rules: the transliteration process is character-
+and commercial systems for decoding romanized level rather than phoneme-level and does not take
+Russian (translit) and Arabic (Arabizi). Our un- possible TL digraphs into account (e.g. Russian
+supervised WFST outperforms the unsupervised sh /sx/ sh),anditofteninvolveseclecticvisual
+→
+neuralbaselineonbothlanguages. substitution choices such as numerals or punctua-
+tion (e.g. Arabic (cid:13)(cid:24)(cid:11) [tHt,‘under’]3 ta7t, Rus- 3.1 Model
+→
+siandl(cid:31) [dlja,‘for’] dl9|). If we view the process of romanization as encod-
+→
+Finally, another relevant task is translating be-
+ing a source sequence o into Latin characters, we
+tween closely related languages, possibly writ-
+canconsidereachobservationltohaveoriginated
+ten in different scripts. An approach similar to
+viaobeinggeneratedfromadistributionp(o)and
+ours is proposed by Pourdamghani and Knight
+then transformed to Latin script according to an-
+(2017). They also take an unsupervised decipher-
+other distribution p(l o). We can write the proba-
+ment approach: the cipher model, parameterized |
+bilityoftheobservedLatinsequenceas:
+as a WFST, is trained to encode the source lan-
+(cid:88)
+guagecharactersequencesintothetargetlanguage p(l) = p(o;γ) p(l o;θ) p (θ;α) (1)
+prior
+· | ·
+alphabetaspartofacharacter-levelnoisy-channel o
+model, and at decoding time it is composed with
+Thefirsttwotermsin(1)correspondtotheproba-
+a word-level language model of the source lan-
+bilities under the transition model (the language
+guage. Recently,theunsupervisedneuralarchitec-
+model trained on the original orthography) and
+tures (Lample et al., 2018, 2019) have also been
+the emission model respectively. The third term
+used for related language translation and similar
+represents the prior distribution on the emission
+decipherment tasks (He et al., 2020), and we ex-
+modelparametersthroughwhichweintroducehu-
+tend one of these neural models to our character-
+man knowledge into the model. Our goal is to
+levelsetuptoserveasabaseline(§5).
+learntheparametersθoftheemissiondistribution
+withthetransitionparametersγ beingfixed.
+3 Methods
+We parameterize the emission and transition
+We train a character-based noisy-channel model distributions as weighted finite-state transducers
+thattransformsacharactersequenceointhenative (WFSTs):
+alphabet of the language into a sequence of Latin
+Transition WFSA The n-gram weighted finite-
+characters l, and use it to decode the romanized
+state acceptor (WFSA) T represents a character-
+sequencelbackintotheoriginalorthography. Our
+level n-gram language model of the language in
+proposedmodeliscomposedofseparatetransition
+the native script, producing the native alphabet
+and emission components as discussed in §3.1,
+character sequence o with the probability p(o;γ).
+similarlytoanHMM.However,anHMMassumes
+We use the parameterization of Allauzen et al.
+a one-to-one alignment between the characters of
+(2003), withthestatesencodingconditioninghis-
+theobservedandthelatentsequences,whichisnot
+tory, arcs weighted by n-gram probabilities, and
+trueforourtask. Oneoriginalscriptcharactercan
+failure transitions representing backoffs. The role
+be aligned to two consecutive Latin characters or
+of T is to inform the model of what well-formed
+vice versa: for example, when a phoneme is rep-
+text in the original orthography looks like; its pa-
+resentedwithasinglesymbolononesidebutwith
+rametersγ arelearnedfromaseparatecorpusand
+adigraphontheother(Figure1), orwhenachar-
+keptfixedduringtherestofthetraining.
+acter is omitted on one side but explicitly written
+Emission WFST The emission WFST S trans-
+on the other (e.g. short vowels not written in un-
+duces the original script sequence o to a Latin se-
+vocalized Arabic but written in transliteration, or
+(cid:126) quencelwiththeprobabilityp(l o;θ). Sincethere
+the Russian softsign representing palatalization |
+can be multiple paths through S that correspond
+beingoftenomittedintheromanizedversion). To
+to the input-output pair (o,l), this probability is
+handle those alignments, we introduce insertions
+summedoverallsuchpaths(i.e. isamarginalover
+and deletions into the emission model and mod-
+allpossiblemonotoniccharacteralignments):
+ifytheemissiontransducertolimitthenumberof
+consecutiveinsertionsanddeletions. Inourexper- (cid:88)
+p(l o;θ) = p(l,e o;θ) (2)
+iments,wecomparetheperformanceofthemodel | |
+e
+with and without informative phonetic and visual
+We view each path e as a sequence of edit op-
+similaritypriorsdescribedin§3.2.
+erations: substitutions of original characters with
+3The square brackets following a foreign word show its Latin ones (c c ), insertions of Latin charac-
+o l
+linguistic transliteration (using the scientific and the Buck- →
+ters ((cid:15) c ), and deletions of original charac-
+walterschemasforRussianandArabicrespectively)andits → l
+Englishtranslation. ters (c o (cid:15)). Each arc in S corresponds to one
+→
+of the possible edit operations; an arc represent- Latin
+Original
+ing the edit c o c l is characterized by the in- Phon. Vis.
+→
+put label c , the output label c , and the weight
+o l r /r/ r p
+logp(c c ;θ). The emission parameters θ are
+− l | o b /b/ b b,6
+the multinomial conditional probabilities of the
+v /v/ v,w b
+edit operations p(c c ); we learn θ using the al-
+l o
+gorithmdescribedin| §3.3. ⁄/w,u:,o:/ w,u —
+(cid:30)/x/ k,x —
+3.2 Phoneticandvisualpriors
+Table 1: Example Cyrillic–Latin and Arabic–
+Toinformthemodelofwhichpairsofsymbolsare
+Latinmappingsencodedinthevisualandphonetic
+closeinthephoneticorvisualspace,weintroduce
+priorsrespectively.
+the priors on the emission parameters, increasing
+the probability of an original alphabet character
+being substituted by a similar Latin one. Rather
+tentially confusing to the human eye (referred to
+than attempting to operationalize the notions of asconfusables).6 Thislistcontainsnotonlyexact
+phonetic or visual similarity, we choose to read
+homoglyphs but also strongly homoglyphic pairs
+the likely mappings between symbols off human- suchasCyrillic(cid:16) andLatinlO.
+compiled resources that use the same underlying
+We construct a visual prior for the Russian
+principle: phonetic keyboard layouts and visually
+model from all Cyrillic–Latin symbol pairs in
+confusable symbol lists. Examples of mappings the Unicode confusables list.7 Although this list
+thatweencodeaspriorscanbefoundinTable1.
+does not cover more complex visual associations
+Phoneticsimilarity Sincewethinkoftheinfor- used in informal romanization, such as partial
+(cid:1)
+similarity (Arabic Alif with Hamza 2 due to
+mal romanization as a cipher, we aim to capture
+→
+”
+Hamza resembling an inverted 2) or similarity
+the phonetic similarity between characters based
+conditionedonatransformationsuchasreflection
+onassociationratherthanontheactualgrapheme-
+(Russian l v), it makes a sensible starting
+to-phoneme mappings in specific words. We ap-
+→
+proximateitusingphonetickeyboardlayouts,one- point. However,thisrestrictivedefinitionofvisual
+similaritydoesnotallowustocreateavisualprior
+to-one mappings built to bring together “similar-
+for Arabic—the two scripts are dissimilar enough
+sounding” characters in different alphabets. We
+that the confusables list does not contain any
+take the character pairs from a union of multiple
+layouts for each language, two for Arabic4 and Arabic–Latin character pairs. Proposing a more
+four for Russian.5 The main drawback of using nuanced definition of visual similarity for Arabic
+andtheassociatedpriorisleftforfuturework.
+keyboard layouts is that they require every char-
+acter to have a Latin counterpart, so some map-
+We incorporate these mappings into the model
+pings will inevitably be arbitrary; we compensate
+as Dirichlet priors on the emission parameters:
+forthiseffectbyaveragingoverseverallayouts.
+θ Dir(α), where each dimension of the param-
+Visual similarity The strongest example of vi- ete∼ rαcorrespondstoacharacterpair(c ,c ),and
+o l
+sual character similarity would be homoglyphs— the corresponding element of α is set to the num-
+symbols from different alphabets represented by ber of times these symbols are mapped to each
+the same glyph, such as Cyrillic a and Latin a. otherinthepredefinedmappingset.
+The fact that homoglyph pairs can be made in-
+distinguishableincertainfontshasbeenexploited 3.3 Learning
+in phishing attacks, e.g. when Latin characters
+WelearntheemissionWFSTparametersinanun-
+are replaced by virtually identical Cyrillic ones
+supervised fashion, observing only the Latin side
+(GabrilovichandGontmakher,2002). Thisledthe
+of the training instances. The marginal likelihood
+Unicode Consortium to publish a list of symbols
+of a romanized sequence l can be computed by
+andsymbolcombinationssimilarenoughtobepo-
+6https://www.unicode.org/Public/
+4http://arabic.omaralzabir.com/, security/latest/confusables.txt
+https://thomasplagwitz.com/2013/01/06/ 7Inourparameterization,wecannotintroduceamapping
+imrans-phonetic-keyboard-for-arabic/ from one to multiple symbols or vice versa, so we map all
+5http://winrus.com/kbd_e.htm possiblepairsinstead:((cid:24),lo)→((cid:24),l),((cid:24),o).
+Figure3: SchematicoftheemissionWFST
+withlimiteddelay(here,upto2)withstates
+: : : : :
+⇤o ⇤l ⇤o ⇤l ⇤o ⇤l ⇤o ⇤l ⇤o ⇤l labeledbytheirdelayvalues.
+o
+and
+l
+rep-
+∗ ∗
+: ✏ : ✏ : ✏ : ✏ resentanarbitraryoriginalorLatinsymbol
+o o o o
+⇤ ⇤ ⇤ ⇤
+respectively. Weights of the arcs are omit-
+2 1 0 1 2
+    tedforclarity;weightswiththesameinput-
+✏ : l ✏ : l ✏ : l ✏ : l outputlabelpairsaretied.
+⇤ ⇤ ⇤ ⇤
+summing over the weights of all paths through ties low at the early stages of training: during the
+a lattice obtained by composing T S A(l). firstseveralupdates,wefreezethedeletionproba-
+◦ ◦
+Here A(l) is an unweighted acceptor of l, which, bilities at a small initial value and disable inser-
+whencomposedwithalattice,constrainsallpaths tions completely to keep the model locally nor-
+through the lattice to produce l as the output se- malized. Wealsoiterativelyincreasethelanguage
+quence. The expectation–maximization (EM) al- modelorderaslearningprogresses. Oncemostof
+gorithm is commonly used to maximize marginal theemissionWFSTarcshavebeenpruned,wecan
+likelihood; however, the size of the lattice would affordtocomposeitwithalargerlanguagemodel
+make the computation prohibitively slow. We WFSTwithoutthesizeoftheresultinglatticeren-
+combine online learning (Liang and Klein, 2009) deringthecomputationimpractical. Thetwosteps
+and curriculum learning (Bengio et al., 2009) to oftheEMalgorithmareperformedasfollows:
+achievefasterconvergence,asdescribedin§3.3.1. E-step At the E-step we compute the sufficient
+3.3.1 Unsupervisedlearning statistics for updating θ, which in our case would
+be the expected number of traversals of each of
+We use a version of the stepwise EM algorithm
+the emission WFST arcs. For ease of bookkeep-
+described by Liang and Klein (2009), reminis-
+ing, we compute those expectations using finite-
+centofthestochasticgradientdescentinthespace
+statemethodsintheexpectationsemiring(Eisner,
+of the sufficient statistics. Training data is split
+2002). Summingoverallpathsinthelatticeisusu-
+intomini-batches,andafterprocessingeachmini-
+ally performed via shortest distance computation
+batch we update the overall vector of the suffi-
+in log semiring; in the expectation semiring, we
+cient statistics µ and re-estimate the parameters
+augment the weight of each arc with a basis vec-
+based on the updated vector. The update is per-
+tor, where the only non-zero element corresponds
+formedbyinterpolatingbetweenthecurrentvalue
+totheindexoftheemissioneditoperationassoci-
+of the overall vector and the vector of sufficient
+ated with the arc (i.e. the input-output label pair).
+statistics s collected from the k-th mini-batch:
+k
+Thiswaytheshortestdistancealgorithmyieldsnot
+µ(k+1) (1 η )µ(k) + η s . The stepsize is
+k k k
+← − onlythemarginallikelihoodbutalsothevectorof
+gradually decreased, causing the model to make
+thesufficientstatisticsfortheinputsequence.
+smaller changes to the parameters as the learning
+stabilizes. Following Liang and Klein (2009), we
+setittoη = (k+2)−β. To speed up the shortest distance computation,
+k
+weshrinkthelatticebylimitingdelayofallpaths
+However, if the mini-batch contains long se-
+through the emission WFST. Delay of a path is
+quences, summing over all paths in the corre-
+defined as the difference between the number of
+sponding lattices could still take a long time. As
+theepsilonlabelsontheinputandoutputsidesof
+we know, the character substitutions are not arbi-
+the path. Figure 3 shows the schema of the emis-
+trary: each original alphabet symbols is likely to
+sion WFST where delay is limited. Substitutions
+be mapped to only a few Latin characters, which
+are performed without a state change, and each
+means that most of the paths through the lattice
+deletion or insertion arc transitions to the next or
+would have very low probabilities. We prune
+previous state respectively. When the first (last)
+the improbable arcs in the emission WFST while
+state is reached, further deletions (insertions) are
+training on batches of shorter sentences. Doing
+nolongerallowed.
+this eliminates up to 66% and up to 76% of the
+emissionarcsforArabicandRussianrespectively. M-step The M-step then corresponds to simply
+We discourage excessive use of insertions and re-estimating θ by appropriately normalizing the
+deletionsbykeepingthecorrespondingprobabili- obtainedexpectedcounts.
+Arabic Russian 4.1 Arabic
+Sent. Char. Sent. Char.
+We use the Arabizi portion of the LDC BOLT
+LMtrain 49K 935K 307K 111M Phase 2 SMS/Chat dataset (Bies et al., 2014;
+Train 5K 104K 5K 319K Song et al., 2014), a collection of written infor-
+Validation 301 8K 227 15K mal conversations in romanized Egyptian Arabic
+Test 1K 20K 1K 72K annotated with their Arabic script representation.
+To prevent the annotators from introducing or-
+Table2: SplitsoftheArabicandRussiandataused thographic variation inherent to dialectal Arabic,
+in our experiments. All Arabic data comes from compliancewiththeConventionalorthographyfor
+the LDC BOLT Phase 2 corpus, in which all sen- dialectal Arabic (CODA; Habash et al., 2012) is
+tences are annotated with their transliteration into ensured. However, the effects of some of the nor-
+the Arabic script. For the experiments on Rus- malizationchoices(e.g.expandingfrequentabbre-
+sian, the language model is trained on a section viations)wouldposedifficultiestoourmodel.
+of the Taiga corpus, and the train, validation, and To obtain a subset of the data better suited for
+testportionsarecollectedbytheauthors;onlythe our task, we discard any instances which are not
+validationandtestsentencesareannotated. originallyromanized(5%ofalldata),oneswhere
+the Arabic annotation contains Latin characters
+(4%),orwhereemoji/emoticonnormalizationwas
+3.3.2 Supervisedlearning
+performed(12%). Theinformationaboutthesplits
+We also compare the performance of our model isprovidedinTable2. Mostofthedataisallocated
+with the same model trained in a supervised way, tothelanguagemodeltrainingsetinordertogive
+using the annotated portion of the data that con- the unsupervised model enough signal from the
+tainsparalleloandl sequences. Inthesupervised native script side. We choose to train the transi-
+casewecanadditionallyconstrainthelatticewith tion model on the annotations from the same cor-
+an acceptor of the original orthography sequence: pus to make the language model specific to both
+A(o) T S A(l). However, the alignment be- theinformaldomainandtheCODAorthography.
+◦ ◦ ◦
+tweenthesymbolsinoandl isstilllatent. Toop-
+4.2 Russian
+timizethismarginallikelihoodwestillemploythe
+EMalgorithm. Asthisconstrainedlatticeismuch
+We collect our own dataset of romanized Rus-
+smaller, we can run the standard EM without the sian text from a social network website vk.com,
+modificationsdiscussedin§3.3.1.
+adoptinganapproachsimilartotheonedescribed
+by Darwish (2014). We take a list of the 50
+3.4 Decoding mostfrequentRussianlemmas(Lyashevskayaand
+Sharov, 2009), filtering out those shorter than 3
+Inference at test time is also performed using
+characters, and produce a set of candidate roman-
+finite-state methods and closely resembles the E-
+izations for each of them to use as queries to the
+step of the unsupervised learning: given a Latin vk.com API. In order to encourage diversity of
+sequencel,weconstructthemachineT S A(l)
+romanizationstylesinourdataset,wegeneratethe
+◦ ◦
+in the tropical semiring and run the shortest path
+queries by defining all plausible visual and pho-
+algorithm to obtain the most probable path eˆ; the
+neticmappingsforeachCyrilliccharacterandap-
+sourcesequenceoˆisreadofftheobtainedpath.
+plyingallpossiblecombinationsofthosesubstitu-
+tions to the underlying Russian word. We scrape
+4 Datasets public posts on the user and group pages, retain-
+ing only the information about which posts were
+Here we discuss the data used to train the unsu- authored by the same user, and manually go over
+pervised model. Unlike Arabizi, which has been thecollectedsettofilteroutcoincidentalresults.
+explored in prior work due to its popularity in the Our dataset consists of 1796 wall posts from
+modernonlinecommunity,adatasetofinformally 1681 users and communities. Since the posts
+romanized Russian was not available, so we col- arequitelongonaverage(248characters, longest
+lect and partially annotate our own dataset from ones up to 15K), we split them into sentences us-
+theRussiansocialnetworkvk.com. ing the NLTK sentence tokenizer, with manual
+correction when needed. The obtained sentences models are trained on the validation set with five
+are used as data points, split into training, valida- iterationsofEMwithasix-gramtransitionmodel.
+tion and test according to the numbers in Table 2. Itshouldbenotedthatonlyasubsetofthevalida-
+The average length of an obtained sentence is 65 tion data is actually used in the supervised train-
+characters, which is 3 times longer than an aver- ing: iftheabsolutevalueofthedelayoftheemis-
+ageArabizisentence;webelievethisisduetothe sion WFST paths is limited by n, we will not be
+differentnatureofthedata(socialmediapostsvs. abletocomposealatticeforanydatapointswhere
+SMS).Sentencescollectedfromthesameuserare the input and output sequences differ in length by
+distributed across different splits so that we ob- more than n (those constitute 22% of the Arabic
+serve a diverse set of romanization preferences in validationdataand33%oftheRussianvalidation
+bothtrainingandtesting. Eachsentenceintheval- data for n = 5 and n = 2 respectively). Since
+idation and test sets is annotated by one of the all of the Arabic data comes annotated, we can
+two native speaker annotators, following guide- perform the same experiment using the full train-
+lines similar to those designed for the Arabizi ingset;surprisingly,theperformanceofthesuper-
+BOLT data (Bies et al., 2014). For more details visedmodeldoesnotimprove(seeTable3).
+on the annotation guidelines and inter-annotator The online transliteration decoding systems we
+agreement,seeAppendixA. use are translit.net for Russian and Yamli8
+Since we do not have enough annotations to forArabic. TheRussiandecoderisrule-based,but
+traintheRussianlanguagemodelonthesamecor- the information about what algorithm the Arabic
+pus, we use a separate in-domain dataset. We decoderusesisnotdisclosed.
+take a portion of the Taiga dataset (Shavrina and Wetaketheunsupervisedneuralmachinetrans-
+Shapovalova, 2017), containing 307K comments lation (UNMT) model of Lample et al. (2018)
+scraped from the same social network vk.com, as the neural baseline, using the implementation
+and apply the same preprocessing steps as we did from the codebase of He et al. (2020), with one
+inthecollectionprocess. important difference: since the romanization pro-
+cessisknowntobestrictlycharacter-level,weto-
+5 Experiments
+kenizethetextintocharactersratherthanwords.
+Here we discuss the experimental setup used to Implementation We use the OpenFst library
+determine how much information relevant for our (Allauzen et al., 2007) for the implementation of
+task is contained in the character similarity map- allthefinite-statemethods,inconjunctionwiththe
+pings, and how it compares to the amount of in- OpenGrm NGram library (Roark et al., 2012) for
+formation encoded in the human annotations. We trainingthetransitionmodelspecifically. Wetrain
+compare them by evaluating the effect of the in- the character-level n-gram models with Witten–
+formativepriors(describedin§3.2)ontheperfor- Bell smoothing (Witten and Bell, 1991) of orders
+mance of the unsupervised model and comparing from two to six. Since the WFSTs encoding full
+ittotheperformanceofthesupervisedmodel. higher-order models become very large (for ex-
+ample, the Russiansix-grammodelhas 3Mstates
+Methods We compare the performance of our
+and 13M arcs), we shrink all the models except
+model trained in three different setups: unsuper-
+for the bigram one using relative entropy prun-
+vised with a uniform prior on the emission pa-
+ing (Stolcke, 1998). However, since pruning de-
+rameters, unsupervised with informative phonetic
+creases the quality of the language model, we ob-
+and visual priors (§3.2), and supervised. We ad-
+serve most of the improvement in accuracy while
+ditionally compare them to a commercial online
+trainingwiththeunprunedbigrammodel,andthe
+decoding system for each language (directly en-
+subsequent order increases lead to relatively mi-
+codinghumanknowledgeaboutthetransliteration
+nor gains. Hyperparameter settings for training
+process) and a character-level unsupervised neu-
+the transition and emission WFSTs are described
+ral machine translation architecture (encoding no
+inAppendixB.
+assumptionsabouttheunderlyingprocessatall).
+We optimize the delay limit for each language
+Wetraintheunsupervisedmodelswiththestep-
+separately, obtaining best results with 2 for Rus-
+wise EM algorithm as described in §3.3.1, per-
+sian and 5 for Arabic. To approximate the mono-
+forming stochastic updates and making only one
+pass over the entire training set. The supervised 8https://www.yamli.com/
+Arabic Russian Original Latin
+Unsupervised: uniformprior 0.735 0.660 r /r/ r(.93),p(.05)
+Unsupervised: phoneticprior 0.377 0.222 b /b/ b(.95),6(.02)
+Unsupervised: visualprior — 0.372 v /v/ v(.87),8(.05),w(.05)
+Unsupervised: combinedprior — 0.212
+⁄/w,u:,o:/ w(.48),o(.33),u(.06)
+Supervised 0.225* 0.140 (cid:30)/x/ 5(.76),k(.24)
+UNMT 0.791 0.242
+Commercial 0.206 0.137 Table4: Emissionprobabilitieslearnedbythesu-
+pervisedmodel(comparetoTable1). Allsubstitu-
+Table 3: Character error rate for different experi-
+tionswithprobabilitygreaterthan0.01areshown.
+mental setups. We compare unsupervised models
+with and without informative priors with the su-
+pervised model (trained on validation data) and a Effectofpriors Theunsupervisedmodelswith-
+commercial online system. We do not have a vi- out an informative prior perform poorly for either
+sual prior for Arabic due to the Arabic–Latin vi- language, which means that there is not enough
+sualcharactersimilaritynotbeingcapturedbythe signalinthelanguagemodelaloneunderthetrain-
+restrictive confusables list that defines the prior ingconstraintsweenforce. Possibly,thealgorithm
+(see §3.2). Each supervised and unsupervised couldhaveconvergedtoabetterlocaloptimumif
+experiment is performed with 5 random restarts. wedidnotusetheonlinealgorithmandpruneboth
+*The Arabic supervised experiment result is for thelanguagemodelandtheemissionmodel;how-
+the model trained on the validation set; training ever,thatexperimentwouldbeinfeasiblyslow. In-
+onthe5Ktrainingsetyields0.226. corporatingaphoneticpriorreducestheerrorrate
+by 0.36 and 0.44 for Arabic and Russian respec-
+tively, which provides a substantial improvement
+tonic word-level alignment between the original while maintaining the efficiency advantage. The
+andLatinsequences,werestricttheoperationson visualpriorforRussianappearstobeslightlyless
+the space character to only three: insertion, dele- helpful,improvingCERby0.29. Weattributethe
+tion, and substitution with itself. We apply the betterperformanceofthemodelwiththephonetic
+same to the punctuation marks (with specialized prior to the sparsity and restrictiveness of the vi-
+substitutions for certain Arabic symbols, such as suallyconfusablesymbolmappings,oritcouldbe
+?
+? ). This substantially reduces the number of due to the phonetic substitutions being more pop-
+→
+arcs in the emission WFST, as punctuation marks ularwithusers. Finally, combiningthetwopriors
+makeupoverhalfofeachofthealphabets. for Russian leads to a slight additional improve-
+mentinaccuracyoverthephoneticprioronly.
+Evaluation We use character error rate (CER) as
+Weadditionallyverifythatthephoneticandvi-
+ourevaluationmetric. WecomputeCERasthera-
+sual similarity-based substitutions are prominent
+tioofthecharacter-leveleditdistancebetweenthe
+in informal romanization by inspecting the emis-
+predicted original script sequence and the human
+sion parameters learned by the supervised model
+annotationtothelengthoftheannotationsequence
+with a uniform prior (Table 4). We observe that:
+incharacters.
+(a)thehighest-probabilitysubstitutionscanbeex-
+plainedbyeitherphoneticorvisualsimilarity,and
+6 Resultsandanalysis
+(b)theexternalmappingsweuseforourpriorsare
+indeedappropriatesincethesupervisedmodelre-
+The CER values for the models we compare are
+coversthesamemappingsintheannotateddata.
+presented in Table 3. One trend we notice is that
+the error rate is lower for Russian than for Arabic Error analysis Figure 4 shows some of the el-
+inalltheexperiments,includingtheuniformprior ements of the confusion matrices for the test pre-
+setting, which suggests that decoding Arabizi is dictionsofthebest-performingunsupervisedmod-
+an inherently harder task. Some of the errors of els in both languages. We see that many of
+theArabiccommercialsystemcouldbeexplained the frequent errors are caused by the model fail-
+bythedecoderpredictionsbeingplausiblebutnot ing to disambiguate between two plausible de-
+matchingtheCODAorthographyofthereference. codings of a Latin character, either mapped to it
+throughdifferenttypesofsimilarity(n /n/[pho-
+netic] n [visual]p ,n [visual] h [pho- ه 7 26 20 8 0 0 88
+→ ← → ←
+netic]h /x/),orthesameone(visual8 8 v ,
+phonetic £ /h/ h (cid:26) /è/ ); such ca→ ses c← ould س 0 73 3 н 155 123 3
+→ ←
+beambiguousforhumanstodecodeaswell.
+ع 28 1 29 ь 101 0 2
+OthererrorsinFigure4illustratethelimitations
+of our parameterization and the resources we rely إ ش ح х п в
+on. Ourmodeldoesnotallowone-to-manyalign-
+ments,whichleadstodigraphinterpretationerrors Figure4: Fragmentsoftheconfusionmatrixcom-
+suchasx/s/+£/h/ sh M/S/. Somearti- paringtesttimepredictionsofthebest-performing
+→ ←
+facts of the resources our priors are based on also unsupervisedmodelsforArabic(left)andRussian
+pollutetheresults: forexample,theconfusionbe- (right)tohumanannotations. Eachnumberrepre-
+tween(cid:126) andh inRussianisexplainedbytheRus- sents the count of the corresponding substitution
+sian soft sign (cid:126) , which has no English phonetic inthebestalignment(editdistancepath)between
+equivalent,beingarbitrarilymappedtotheLatinx the predicted and gold sequences, summed over
+inoneofthephonetickeyboardlayouts. the test set. Rows stand for predictions, columns
+correspondtogroundtruth.
+Comparison to UNMT The unsupervised neu-
+ral model trained on Russian performs only
+marginally worse than the unsupervised WFST itself performs poorly, introducing an informative
+model with an informative prior, demonstrating priorthatencodesthenotionofphoneticorvisual
+that with a sufficient amount of data the neu- character similarity brings its performance sub-
+ral architecture is powerful enough to learn the stantiallyclosertothatofthesupervisedmodel.
+character substitution rules without the need for The informative priors used in our experiments
+the inductive bias. However, we cannot say the are constructed using sets of character mappings
+same about Arabic—with a smaller training set compiled for other purposes but using the same
+(see Table 2), the UNMT model is outperformed underlying principle (phonetic keyboard layouts
+bytheunsupervisedWFSTevenwithoutaninfor- and the Unicode confusable symbol list). While
+mative prior. The main difference in the perfor- thesemappingsprovideaconvenientwaytoavoid
+mancebetweenthetwomodelscomesdowntothe formalizing the complex notions of the phonetic
+trade-off between structure and power: although andvisualsimilarity,theyarerestrictiveanddonot
+theneuralarchitecturecaptureslong-rangedepen- captureallthediverseaspectsofsimilaritythatid-
+dencies better due to having a stronger language iosyncratic romanization uses, so designing more
+model, it does not provide an easy way of en- suitable priors via operationalizing the concept of
+forcingcharacter-levelconstraintsonthedecoding character similarity could be a promising direc-
+process, which the WFST model encodes by de- tionforfuturework. Anotherresearchavenuethat
+sign. Asaresult,weobservethatwhiletheUNMT couldbeexploredismodelingspecificuserprefer-
+model can recover whole words more success- ences: sinceeachuserlikelyfavorsacertainsetof
+fully (for Russian it achieves 45.8 BLEU score, character substitutions, allowing user-specific pa-
+while the best-performing unsupervised WFST is rameterscouldimprovedecodingandbeusefulfor
+at20.4),italsotendstoarbitrarilyinsertorrepeat authorshipattribution.
+wordsintheoutput,whichleadstohigherCER.
+Acknowledgments
+7 Conclusion
+This project is funded in part by the NSF under
+This paper tackles the problem of decoding non- grants 1618044 and 1936155, and by the NEH
+standardizedinformalromanizationusedinsocial under grant HAA256044-17. The authors thank
+mediaintotheoriginalorthographywithoutparal- JohnWieting, ShrutiRijhwani, DavidMortensen,
+lel text. We train a WFST noisy-channel model Nikita Srivatsan, and Mahmoud Al Ismail for
+to decode romanized Egyptian Arabic and Rus- helpful discussion, Junxian He for help with the
+siantotheiroriginalscriptswiththestepwiseEM UNMT experiments, Stas Kashepava for data an-
+algorithmcombinedwithcurriculumlearningand notation, and the three anonymous reviewers for
+demonstratethatwhiletheunsupervisedmodelby theirvaluablefeedback.
+References Kareem Darwish, Walid Magdy, and Ahmed Mourad.
+2012. Languageprocessingforarabicmicroblogre-
+Mohamed Al-Badrashiny, Ramy Eskander, Nizar trieval. In Proceedings of the 21st ACM Interna-
+Habash, and Owen Rambow. 2014. Automatic tional Conference on Information and Knowledge
+transliteration of Romanized dialectal Arabic. In Management, CIKM ’12, page 2427–2430, New
+ProceedingsoftheEighteenthConferenceonCom-
+York, NY, USA. Association for Computing Ma-
+putational Natural Language Learning, pages 30–
+chinery.
+38, Ann Arbor, Michigan. Association for Compu-
+tationalLinguistics.
+Jason Eisner. 2002. Parameter estimation for prob-
+abilistic finite-state transducers. In Proceedings
+Cyril Allauzen, Mehryar Mohri, and Brian Roark.
+of the 40th Annual Meeting of the Association for
+2003. Generalized algorithms for constructing sta-
+ComputationalLinguistics,pages1–8,Philadelphia,
+tisticallanguagemodels. InProceedingsofthe41st
+Pennsylvania,USA.AssociationforComputational
+Annual Meeting of the Association for Computa-
+Linguistics.
+tionalLinguistics,pages40–47,Sapporo,Japan.As-
+sociationforComputationalLinguistics.
+Ramy Eskander, Mohamed Al-Badrashiny, Nizar
+CyrilAllauzen,MichaelRiley,JohanSchalkwyk,Wo- Habash, and Owen Rambow. 2014. Foreign words
+jciechSkut,andMehryarMohri.2007. OpenFst: A and the automatic processing of Arabic social me-
+generalandefficientweightedfinite-statetransducer diatextwritteninRomanscript. InProceedingsof
+library. In Proceedings of the Ninth International theFirstWorkshoponComputationalApproachesto
+Conference on Implementation and Application of CodeSwitching,pages1–12,Doha,Qatar.Associa-
+Automata, (CIAA 2007), volume 4783 of Lecture tionforComputationalLinguistics.
+NotesinComputerScience, pages11–23.Springer.
+http://www.openfst.org. EvgeniyGabrilovichandAlexGontmakher.2002. The
+homographattack. Commun.ACM,45(2):128.
+Yoshua Bengio, Jérôme Louradour, Ronan Collobert,
+and Jason Weston. 2009. Curriculum learning. In NizarHabash, MonaDiab,andOwenRambow.2012.
+Proceedings of the 26th Annual International Con- Conventional orthography for dialectal Arabic. In
+ference on Machine Learning, ICML ’09, page ProceedingsoftheEighthInternationalConference
+41–48,NewYork,NY,USA.AssociationforCom- onLanguageResourcesandEvaluation(LREC’12),
+putingMachinery. pages 711–718, Istanbul, Turkey. European Lan-
+guageResourcesAssociation(ELRA).
+Ann Bies, Zhiyi Song, Mohamed Maamouri, Stephen
+Grimes,HaejoongLee,JonathanWright,Stephanie
+JunxianHe, XinyiWang, GrahamNeubig, andTaylor
+Strassel, NizarHabash, RamyEskander, andOwen
+Berg-Kirkpatrick.2020. Aprobabilisticformulation
+Rambow.2014. TransliterationofArabiziintoAra- ofunsupervisedtextstyletransfer. InInternational
+bic orthography: Developing a parallel annotated ConferenceonLearningRepresentations.
+Arabizi-ArabicscriptSMS/chatcorpus. InProceed-
+ings of the EMNLP 2014 Workshop on Arabic Nat-
+Lars Hellsten, Brian Roark, Prasoon Goyal, Cyril Al-
+ural Language Processing (ANLP), pages 93–103,
+lauzen, Françoise Beaufays, Tom Ouyang, Michael
+Doha, Qatar. Association for Computational Lin-
+Riley,andDavidRybach.2017. Transliteratedmo-
+guistics.
+bile keyboard input via weighted finite-state trans-
+ducers. In Proceedings of the 13th International
+AimiliosChalamandaris,AthanassiosProtopapas,Pir-
+Conference on Finite State Methods and Natural
+rosTsiakoulis,andSpyrosRaptis.2006. AllGreek
+Language Processing (FSMNLP 2017), pages 10–
+to me! An automatic Greeklish to Greek translit-
+19, Umeå, Sweden. Association for Computational
+eration system. In Proceedings of the Fifth Inter-
+Linguistics.
+national Conference on Language Resources and
+Evaluation(LREC’06),Genoa,Italy.EuropeanLan-
+Kevin Knight and Jonathan Graehl. 1998. Ma-
+guageResourcesAssociation(ELRA).
+chine transliteration. Computational Linguistics,
+24(4):599–612.
+Aimilios Chalamandaris, Pirros Tsiakoulis, Spyros
+Raptis, G Giannopoulos, and George Carayannis.
+2004. Bypassing Greeklish! In Proceedings of Guillaume Lample, Alexis Conneau, Ludovic De-
+the Fourth International Conference on Language noyer, and Marc’Aurelio Ranzato. 2018. Unsuper-
+ResourcesandEvaluation(LREC’04),Lisbon,Por- vised machine translation using monolingual cor-
+tugal. European Language Resources Association poraonly. InInternationalConferenceonLearning
+(ELRA).
+Representations.
+KareemDarwish.2014. Arabizidetectionandconver- GuillaumeLample,SandeepSubramanian,EricSmith,
+siontoArabic. InProceedingsoftheEMNLP2014 Ludovic Denoyer, Marc’Aurelio Ranzato, and Y-
+Workshop on Arabic Natural Language Processing Lan Boureau. 2019. Multiple-attribute text rewrit-
+(ANLP), pages 217–224, Doha, Qatar. Association ing. In International Conference on Learning Rep-
+forComputationalLinguistics. resentations.
+Percy Liang and Dan Klein. 2009. Online EM for Ian H Witten and Timothy C Bell. 1991. The zero-
+unsupervised models. In Proceedings of Human frequency problem: Estimating the probabilities of
+Language Technologies: The 2009 Annual Confer- novel events in adaptive text compression. IEEE
+enceoftheNorthAmericanChapteroftheAssocia- transactions on information theory, 37(4):1085–
+tionforComputationalLinguistics,pages611–619, 1094.
+Boulder, Colorado. Association for Computational
+Linguistics. Lawrence Wolf-Sonkin, Vlad Schogol, Brian Roark,
+andMichaelRiley.2019. Latinscriptkeyboardsfor
+South Asian languages with finite-state normaliza-
+Olga N Lyashevskaya and Sergey A Sharov. 2009.
+Frequency dictionary of modern Russian based tion. InProceedingsofthe14thInternationalCon-
+ference on Finite-State Methods and Natural Lan-
+on the Russian National Corpus [Chastotnyy slo-
+var’ sovremennogo russkogo jazyka (na mate- guage Processing, pages 108–117, Dresden, Ger-
+riale Nacional’nogo korpusa russkogo jazyka)]. many.AssociationforComputationalLinguistics.
+Azbukovnik,Moscow.
+Martin Paulsen. 2014. Translit: Computer-mediated
+digraphia on the Runet. Digital Russia: The Lan-
+guage, CultureandPoliticsofNewMediaCommu-
+nication.
+Nima Pourdamghani and Kevin Knight. 2017. Deci-
+phering related languages. In Proceedings of the
+2017 Conference on Empirical Methods in Natu-
+ralLanguageProcessing,pages2513–2518,Copen-
+hagen, Denmark. Association for Computational
+Linguistics.
+Sujith Ravi and Kevin Knight. 2009. Learning
+phonememappingsfortransliterationwithoutparal-
+leldata. InProceedingsofHumanLanguageTech-
+nologies: The2009AnnualConferenceoftheNorth
+American Chapter of the Association for Computa-
+tionalLinguistics,pages37–45,Boulder,Colorado.
+AssociationforComputationalLinguistics.
+BrianRoark,RichardSproat,CyrilAllauzen,Michael
+Riley, Jeffrey Sorensen, and Terry Tai. 2012. The
+OpenGrm open-source finite-state grammar soft-
+warelibraries. InProceedingsoftheACL2012Sys-
+tem Demonstrations, pages 61–66, Jeju Island, Ko-
+rea.AssociationforComputationalLinguistics.
+Tatiana Shavrina and Olga Shapovalova. 2017. To
+themethodologyofcorpusconstructionformachine
+learning: Taiga syntax tree corpus and parser. In
+Proc. CORPORA 2017 International Conference,
+pages78–84,St.Petersburg.
+Zhiyi Song, Stephanie Strassel, Haejoong Lee, Kevin
+Walker, Jonathan Wright, Jennifer Garland, Dana
+Fore,BrianGainor,PrestonCabe,ThomasThomas,
+Brendan Callahan, and Ann Sawyer. 2014. Col-
+lectingnaturalSMSandchatconversationsinmul-
+tiple languages: The BOLT phase 2 corpus. In
+Proceedings of the Ninth International Conference
+onLanguageResourcesandEvaluation(LREC’14),
+pages 1699–1704, Reykjavik, Iceland. European
+LanguageResourcesAssociation(ELRA).
+Andreas Stolcke. 1998. Entropy-based pruning of
+backoff language models. In Proc. DARPA Broad-
+cast News Transcription and Understanding Work-
+shop,pages270––274.
+A Datacollectionandannotation B Hyperparametersettings
+Preprocessing We generate a set of 270 candi- WFST model The Witten–Bell smoothing pa-
+datetransliterationsof26Russianwordstouseas rameter for the language model is set to 10, and
+queries. However, many of the produced combi- the relative entropy pruning threshold is 10−5 for
+nations are highly unlikely and yield no results, the trigram model and 2 10−5 for higher-order
+·
+andsomehappentosharethespellingwithwords models. Unsupervised training is performed in
+in other languages (most often other Slavic lan- batches of size 10 and the language model order
+guages that use Latin script, such as Polish). We is increased every 100 batches. While training
+scrape public posts on user and group pages, re- withthebigrammodel,wedisallowinsertionsand
+taining only the information about which posts freeze all the deletion probabilities at e−100. The
+were authored by the same user, and manually EM stepsize decay rate is β = 0.9. The emission
+go over the collected set to filter out coincidental arcpruningthresholdisgraduallydecreasedfrom
+results. We additionally preprocess the collected 5to4.5(inthenegativelogprobabilityspace). We
+data by normalizing punctuation and removing perform multiple random restarts for each experi-
+non-ASCIIcharactersandemoji. Wealsoreplace ment, initializing the emission distribution to uni-
+allsubstringsofthesamecharacterrepeatedmore formplusrandomnoise.
+than twice to only two repetitions, as suggested
+UNMTbaseline Ourunsupervisedneuralbase-
+by Darwish et al. (2012), since these repetitions
+line uses a single-layer LSTM with hidden state
+aremorelikelytobeawrittenexpressionofemo-
+size512forboththeencoderandthedecoder. The
+tion than to be explained by the underlying Rus-
+embedding dimension is set to 128. For the de-
+sian sentence. The same preprocessing steps are
+noising autoencoding loss, we adopt the default
+applied to the original script side of the data (the
+noise model and hyperparameters as described
+annotations and the monolingual language model
+by Lample et al. (2018). The autoencoding loss
+trainingcorpus)aswell.
+isannealedoverthefirst3epochs.
+Annotation guidelines While transliterating, Wetunethemaximumtrainingsequencelength
+annotators perform orthographic normalization (controlling how much training data is used) and
+wherever possible, correcting typos and errors in the maximum allowed decoding length by opti-
+word boundaries; grammatical errors are not cor- mizing the validation set CER. In our case, the
+rected. Tokens that do not require transliteration maximum output length is important because the
+(foreign words, emoticons) or ones that annota- evaluation metric penalizes the discrepancy in
+tor fails to identify (proper names, badly mis- length between the prediction and the reference;
+spelled words) are removed from the romanized we observe the best results when setting it to 40
+sentenceandnottransliterated. Althoughitmeans characters for Arabic and 180 for Russian. At
+thatsomeofthetestsetsentenceswillnotexactly training time, we filter out sequences longer than
+represent the original romanized sequence, it will 100 characters for either language, which consti-
+helpusensurethatweareonlytestingourmodel’s tute1%oftheavailableArabictrainingdata(both
+ability to transliterate rather than make word-by- theArabic-onlyLMtrainingsetandtheLatin-only
+wordnormalizationdecisions. trainingsetcombined)butalmost70%oftheRus-
+Inaddition,200ofthevalidationsequencesare siandata. Surprisingly,theRussianmodeltrained
+dually annotated to measure the inter-annotator ontheremaining30%achievesbetterresultsthan
+agreement. We evaluate it using character er- the one trained on the full data; we hypothesize
+ror rate (CER; edit distance between the two se- that the improvement comes from having a more
+quencesnormalizedbythelengthofthereference balancedtrainingset,sincethefulldataisheavily
+sequence),thesamemetricweusetoevaluatethe skewedtowardstheCyrillicside(LMtrainingset)
+model’s performance. In this case, since neither otherwise(seeTable2).
+oftheannotationsisthegroundtruth,wecompute
+CER in both directions and average. Despite the
+discrepancies caused by the annotators deleting
+unknown words at their discretion, average CER
+isonly0.014,whichindicatesaveryhighlevelof
+agreement.

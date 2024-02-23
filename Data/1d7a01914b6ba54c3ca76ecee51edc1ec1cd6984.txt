@@ -1,0 +1,953 @@
+StylePooling: AutomaticTextStyleObfuscationforImproved
+ClassificationFairness
+FatemehsadatMireshghallah,TaylorBerg-Kirkpatrick
+UniversityofCaliforniaSanDiego,
+{fatemeh, tberg}@ucsd.edu
+Abstract age, orgender. Inmanyinstances, theinputdata
+Textstylecanrevealsensitiveattributesofthe usedformakinghigh-stakesdecisionsistextthatis
+author (e.g. race or age) to the reader, which authoredbyahumancandidate–forexample,hir-
+can,inturn,leadtoprivacyviolationsandbias ingdecisionsareoftenbasedonbiosandpersonal
+inbothhumanandalgorithmicdecisionsbased statements.Recentwork(De-Arteagaetal.,2019)
+ontext.Forexample,thestyleofwritinginjob
+showsthatautomatichiring-decisionmodelstrained
+applications might reveal protected attributes
+onbiosarelesslikelytoselectfemalecandidatesfor
+ofthecandidatewhichcouldleadtobiasinhir-
+certainroles(e.g.architect,softwareengineer,and
+ingdecisions,regardlessofwhetherhiringde-
+cisionsaremadealgorithmicallyorbyhumans. surgeon)evenwhenthegenderoftheauthorisnot
+We propose a VAE-based framework that ob- explicitlyprovidedtothesystem.Biasis,ofcourse,
+fuscates stylistic features of human-generated notlimitedtoalgorithmicdecisions,humansmake
+text through style transfer by automatically biased decisions based on text, even when the
+re-writingthetextitself. Ourframeworkoper-
+protectedattributesoftheauthorarenotexplicitly
+ationalizes the notion of obfuscated style in a
+revealed (Pedreshi et al., 2008). Together, these
+flexible way that enables two distinct notions
+results indicate that both algorithms and humans
+ofobfuscatedstyle: (1)aminimalnotionthat
+can (1) decipher protected attributes of authors
+effectivelyintersectsthevariousstylesseenin
+training, and (2) a maximal notion that seeks basedonstylisticfeaturesoftext,and(2)whether
+toobfuscatebyaddingstylisticfeaturesofall consciouslyornot,bebiasedbythisinformation.
+sensitiveattributestotext,ineffect,computing
+A large body of prior work has attempted to
+a union of styles. Our style-obfuscation
+address algorithmic bias by modifying different
+frameworkcanbeusedformultiplepurposes,
+stages of the natural language processing (NLP)
+however, we demonstrate its effectiveness in
+pipeline. For example, Ravfogel et al. (2020) at-
+improving the fairness of downstream classi-
+fiers. Wealsoconductacomprehensivestudy tempttode-biaswordembeddingsusedbyNLPsys-
+on style pooling’s effect on fluency, semantic tems,whileElazarandGoldberg(2018)addressthe
+consistency,andattributeremovalfromtext,in biasinlearnedmodelrepresentationsandencodings.
+twoandthreedomainstyleobfuscation.1
+Whileeffectiveinmanycases,suchapproachesdo
+1 Introduction nothingtomitigatebiasindecisionsmadebyhu-
+Machine learning (ML) algorithms are used in mansbasedontext. Weproposeafundamentally
+a wide range of tasks, including high-stakes differentapproach. Ratherthanmitigatingbiasin
+applicationslikedeterminingcreditratings,setting learningalgorithmsthatmakedecisionsbasedon
+insurancepolicyrates,makinghiringdecisions,and text,weproposeaframeworkthatobfuscatesstylis-
+performingfacialrecognition. Ithasbeenshown ticfeaturesofhuman-generatedtextbyautomati-
+that such algorithms can produce outcomes that callyre-writingthetextitself.Byobfuscatingstylis-
+arebiasedtowardsa certain genderorrace(Buo- ticfeatures,readers(humanoralgorithms)willbe
+lamwiniandGebru,2018;Silvaetal.,2021;Sheng lessabletoinferprotectedattributesthatenablebias.
+etal.,2021). We introduce a novel framework that enables
+Ideally, high-stakes decisions made by either ‘style pooling’: the automatic transduction of
+humansorMLalgorithms,shouldnotbeinfluenced user-generated text to a central, obfuscated style.
+byirrelevant, protectedattributeslikenationality, Notions of ‘centrality’ can themselves introduce
+bias – for example, a system might learn to
+1Code, models, and data is available at https:
+//github.com/mireshghallah/style-pooling obfuscatebymappingalltexttothedominantstyle
+Table1: ExampleBlogsentencestransformedwithA4NT(Shettyetal.,2018)andourproposedIntersectionand
+Unionobfuscations. OurIntersectionobfuscationaimsatchangingthestylesuchthatitdoesnotreflecteitherteen
+oradultstyle. However,theunion,triestoreflectbothbymakingchangeslikeadding“...” tothebeginningofthe
+sentence(adultstyle)whilekeepingthe“grr”(teenstyle).Orbyaddingexclamationmarksattheendofthesentence.
+Age InputSentence(OriginalData) A4NT(Baseline) Intersection Union
+Teen grr...nowigetcoldquicker. grrnowigetcoldlol. hmmm...nowigetcold. ...grr...nowigetcoldquicker.
+Teen itwassofrickenhilarious. itwasso boringhilarious. itwasso utterlyhilarious. itwasso totallyhilarious
+Adult welli’vejustbeen toobusy. welli’vejustbeen kindafun. welli’vejustbeen toobusy. welli’vejustbeen toobusy.
+Adult thesewere commonphrases. thesewere commonteacher. thesewere common. thesewere common!!
+seeninitstrainingcorpus.Thismight‘white-wash’ Domain 1: Language models
+Authors 10-20 years old trained from each domain
+text,ignoringstylisticfeaturesofunderrepresented pD 1(y) pD 2(y) pD 3(y)
+groupsinthelearnednotionofcentralstyle. Our Domain 2: x x
+1 2
+frameworkoperationalizesthenotionofcentrality Au 2th 0-o 3r 0s U Att ve gra pn oc oe- lil nev gel MTo ink e pn o- ole lv ine gl
+inamoreflexibleway:ourprobabilisticapproach years old p Inter(y) p Union(y)
+allowsustochoosebetweentwodistinctnotions x 3 y 3 y 2 OR
+ofcentrality.First,wedefineavariantofourmodel y
+1 KL(q(y|x)||p(y))
+w ceh ni tc rh alis sti yn lc ee tn ht aiv ti ez fe fed ct to ivl ee la yrn ina tem rsi en cim tsa tl hn eo vt aio rin ouo sf x 4 y 4 y 5 Inference Prior
+network
+styles seen in training. This is achieved through Guide
+Domain 3:
+thedesignofthisvariant’sprobabilisticprior. We Authors x Decoder x i O inb ts re ar iv ne id n gt e dx at t a
+furtherequipthisvariantwithanovel“de-boosting” year3 s0 - o4 ld0 5 I nn ef te wr oen rkce y i O lab tefu nts c va at re id a b t leext
+mechanism,whichamplifiestheuseofwordsthat
+are less likely to leak sensitive attributes, and de- Figure 1: Proposed unsupervised framework for style
+incentivizestheuseofwordswhosepresencemight pooling: inducing a centralized obfuscated style. x
+i
+hintataparticularsensitiveattribute. Second,we represent observed text which are clustered by their
+sensitive attribute (age). y are corresponding latent
+proposeanalternativepriorthatinsteadincentivizes i
+variables representing the induced obfuscated text.
+amaximalnotionofstylethatseekstoobfuscateby
+Trainingleveragesanamortizedinferencesetupsimilar
+addingstylisticfeaturesofallprotectedattributesto
+to a VAE-style training, but, critically the prior is pro-
+text–ineffect,computingaunionofstyles.Table1
+duced by pooling language models from each domain
+shows our intersection and union obfuscation using two different strategies targeting (1) intersected
+applied to sentences from the Blogs dataset, and styleand(2)theunionofallstylesinthecorpus.
+highlightsthedifferencesbetweenthem.
+misspellings and replaces them by the dominant
+Whileweproposeboththeseobfuscationsinour
+spellingoftheword99.20%ofthetime,whileour
+frameworkandleaveittotheuserstochoose,itis
+unionobfuscationspreadsthemisspellingsintothe
+worth noting that the cognitive process literature
+othertwodomains46.40%ofthetime. Then,we
+shows that when humans are confronted with
+evaluateourframeworkontheBlogsdata(Schler
+conflictingbiasinginformation,theytendtoform
+et al., 2006), where the sensitive attribute is age,
+an opinion about the conflicting text, based on
+andwemeasuretheimpactourobfuscationshave
+theirownimplicitbiases(RichterandMaier,2017).
+on the fairness of a job classifier, using the the
+Therefore, removing sensitive stylistic features
+TPR-gap measure from De-Arteaga et al. (2019).
+maybemoreeffectivethancombiningthem.This
+Wealsoevaluatetheremovalofsensitiveattributes,
+is also commensurate with our findings, where
+fluencyofthegeneratedtext, andtheuncertainty
+we observed that intersection more successfully
+ofasensitiveattributeclassifierforourframework,
+improvesthefairnessmetric(Section4.2.1).
+inbothtwoandthreedomainsetups.
+Weextensivelyevaluateourproposedframework
+on a wide range of tasks. First, we compare
+2 ProposedMethod
+and contrast our “intersection” and “union”
+obfuscations on a modified version of the Yelp In this section, we first introduce our model
+dataset(Shenetal.,2017)wherewehavecreated structure,thendescribeourstyle-poolingpriorsand
+threestylisticdomainsbydeliberatelymisspelling theunsupervisedlearningandinferencetechniques
+three disjoint sets of words. We show that our we leverage for this model class. Finally, we
+intersectionobfuscationsuccessfullyremovesthese introduceourstylede-boostingmechanism.
+2.1 ModelStructure ofobservedutterancesinthetrainingdata.Thein-
+Consideratrainingcorpusconsistingofutterances tersectionprior,p (y),iscomputedbytakingthe
+Inter
+produced by authors with various protected sumofthelikelihoodsofanentireutteranceacross
+attributes. In Figure 1, we depict a grouping of thelanguagemodelsfromallM domains(andthen
+authors by age into three domains. We let x re-normalizing to ensure that resulting prior is a
+i
+represent an individual observed text utterance valid distribution). This utterance-level average
+in the corpus, and assume M domains (sensitive poolingapproachincentivizesa“majority-voting”
+attributeclasses)inthedataset.y isalatentvariable effect,inwhichthemodelispressuredtoremoveany
+i
+thatrepresentstheobfuscatedversionofx .Hence, wordsandstylisticfeaturesthatarecharacteristicof
+i
+y isatextvaluedlatent,whilex isatextvalued onedomain,butnottheothers,andconvergetofea-
+i i
+observation. Weletd(i)denotethedomainofthe turesthataresharedbythemajorityofthedomains.
+ithsampleinthedataset. Withthisdefinition,our Thereforethepriorforintersectionbecomes:
+generativeprocessassumeseachsentencex i,with p Inter(y i)= M1 (cid:88)M
+j
+pDj(y i) (3)
+correspondingdomaind(i),isgeneratedasfollows:
+Incontrast,theunionprior,p (y),computesthe
+First,alatentsentencey issampledfromacentral Union
+i
+likelihoodofanutteranceaccordingtotheminimum
+prior,p (y ),whichisdomainagnostic. Then,
+prior i
+likelihoodacrosseachdomain’slanguagemodelat
+x issampledconditionedony fromatransduction
+i i eachtokenposition,t.2 Throughexperimentation
+model,p(x |y
+;θd(i)
+).
+WeletθDj
+representthe
+i i y→x y→x (Sec.4.1)weempiricallyobservedthatthisprior
+parameters of the transduction model for the jth
+rewards the model for inserting as many stylistic
+domain. Weextensivelydiscussp inthenext
+prior featuresaspossiblethatareuniquetoeachdomain.
+section.Fornow,weassumethepriordistributions
+arepretrainedontheobserveddataandtherefore
+pUnion(yi)∝(cid:89)T min(pD1(yi,t|yi,<t),...,pDM(yi,t|yi,<t))
+t
+(4)
+omit their parameters for simplicity of notation. 2.3 LearningandInference
+Together,thisgivesthefollowingjointlikelihood: Training is accomplished using an approach
+p(XD1,...,XDM,Y;θD1 ,...,θDM ) from (He et al., 2020): We employ seq2seq
+y→x y→x
+inferencenetworksanduseanamortizedinference
+=(cid:89)N
+p(cid:0) x i|y i;θ yd →(i) x)p prior(cid:0) y i(cid:1)
+(1)
+schemesimilartothatusedinaconventionalVAE,
+i=1 butforsequentialdiscretelatents.
+Thelogmarginallikelihoodoftheobserveddata,
+Ideally, learning should directly optimize the
+whichweapproximateduringtraining,canbewrit-
+log data likelihood, which is the marginal shown
+tenas:
+in Eq. 2. However, due to our model’s neural
+logp(XD1,...,XDM;θ yD →1 x,...,θ yD →M x) parameterization, the marginal is intractable. To
+=log(cid:88) p(XD1,...,XDM;θD1 ,...,θDM ) (2) overcometheintractabilityofcomputingthetrue
+y→x y→x
+Y
+data likelihood, we adopt amortized variational
+NeuralArchitectures. Weselectaparameteriza-
+inference(KingmaandWelling,2013)toderivea
+tionforourtransductiondistributionsthatmakes
+surrogateobjectiveforlearningtheevidencelower
+noindependenceassumptions.Weuseanencoder-
+bound(ELBO)onlogmarginallikelihood:
+decoder architecture based on the standard atten-
+tionalSeq2Seqmodelwhichhasbeenshowntobe logp(XD1,...,XDM;θD1 ,...,θDM )
+y→x y→x
+successful across various tasks (Bahdanau et al., ≥L (XD1,...,XDM;θD1 ,...,θDM ,φ )
+ELBO y→x y→x x→y
+2015;Rushetal.,2015).Ourpriordistributionsfor =(cid:88)N (cid:104) E [logp(x |y ;θd(i) )]
+eachdomainarebuiltusingrecurrentlanguagemod- i q(yi|xi;φx→y) i i y→x
+(cid:124) (cid:123)(cid:122) (cid:125)
+elswhichalsomakenoindependenceassumptions. Reconstructionlikelihood
+(cid:0) (cid:1)(cid:105)
+−D q(y |x ;φ ))||p (y ) (5)
+2.2 PriorDistributions KL i i y→x prior i
+(cid:124) (cid:123)(cid:122) (cid:125)
+Thecriticalcomponentofourframeworkthatincen-
+KLregularizer
+tivizesobfuscationareourspecializedpriors,asde-
+This new objective introduces q(y|x; φ ),
+pictedinFigure1.Weintroducetwopriorvariants, x→y
+whichrepresentstheinferencenetworkdistribution
+p (y)andp (y),whichincentivizeinduction
+Inter Union
+ofintersectedstylesandtheunionofallstyles,re- 2Thetoken-wiseminofthelanguagemodelsisnot,itself,a
+spectively.EachpriorisassembledoutofM (here normalizeddistribution.However,wecantreatitasimplicitly
+normalized in our training objective (discussed in the next
+M =3)separatelanguagemodels–pD1,pD2,...,
+section)becausetheabsenceofnormalizationonlycontributes
+pDM –eachtrainedonthecorrespondingdomain anadditiveconstanttoourobjective.
+that approximates the model’s true posterior,
+p(y|x;θ ). Learning operates by optimizing s
+=max(f wD1,f wD2,...,f wDM)−min(f wD1,f wD2,...,f wDM)
+x→y w max(fD1,fD2,...,fDM)
+the lower bound over both variational and model w w w
+(6)
+parameters. Once training is over, the posterior WherefD1 isfrequencyofwordwinthetraining
+w
+distributioncanbeusedforstyleobfuscation. corpusfordomainD ,dividedbytheoverallnum-
+1
+ThereconstructionandKLtermsinEq.5involve beroftokens(words)inthedomaincorpus.Using
+intractableexpectations,whichmeansweneedto thesescores,wemodifytheoutputlogitsofthede-
+approximate their gradients. To address this, we codersothattheoutputprobabilitydistributionover
+usetheGumbel-softmax(Jangetal.,2017)straight- thevocabularyforsampleiatsteptisgivenby:
+throughestimatortobackpropagategradientsfrom
+boththeKLandreconstructionlossterms. p(y i,t|y i,<t,x i)∝softmax(L i,t−γ∗S) (7)
+LengthControl.Duringthetrainingofthemodel, Here,L representsthelogitsatstept,whileSis
+i,t
+weobservedthatittendstorepeatthesameword thescorevectorforallthewordsinthevocabulary.
+whenitistryingtogenerateobfuscatedtext,y i.To γ is a multiplier that helps tune the amount of
+mitigatethis,weappendtwofloatingpointlengthto- de-boosting. Duetothenatureofthisde-boosting
+kenstotheinputoftheinferencenetworksdecoder mechanism,itmakessenseonlytouseitwiththe
+ateachstept,oneofthesetokenstellsthemodel intersectionobfuscationandnottheunion.
+whichstepitison,andtheothertellsithowmany
+stepsareleft(Kikuchietal.,2016;Huetal.,2017). 3 ExperimentalSetup
+Wealsoexperimentedwithpositionalembeddings
+Here,weprovideabriefdescriptionofourexperi-
+insteadoffloatingpointtokens,butweobservedthat
+mentalsetup.Ourcode,dataandmodelcheckpoints
+theyyieldworseconvergence.Anothermeasurewe
+areuploadedinthesupplementarymaterial.More
+taketoencourageshortersentenceswastohardstop
+detailsonthecode,modelconfigurations,datasets
+the decoding during training once the re-written
+and hyperparameters are provided in Appendix
+sentence had the same length as the original
+SectionsA.1,A.2,A.3andA.4.
+sentence. To further stabilize training we share
+parametersbetweentheinferencenetworkandthe 3.1 ModelConfigurations
+transductionmodels,appendinganembeddingto
+We used a single layer attentional LSTM-based
+theinputtoindicatetheoutputdomain.
+Seq2Seqencoder-decoderforalltheexperiments,
+2.4 StyleDe-boosting withhiddenlayersizeof512forbothencoderand
+To better encourage the removal of identifying decoder, and word embedding size of 128. For
+stylistic features, we introduce a de-boosting the attribute classifiers and language models, we
+mechanism, which incentivizes the use of words alsouseLSTMmodelswiththesamearchitecture,
+thatarelesslikelytoleaksensitiveattributes,and withafinalprojectionlayerofthesizeofsensitive
+de-incentivizes the use of words whose presence classes/vocabulary.
+might hint at a particular sensitive attribute. We
+3.2 Datasets
+build on the intuition that for a given word w in
+the vocabulary, if the probability that it belongs Synthetic Yelp dataset (Shen et al., 2017). We
+to domain m is similar to the probability that it shuffleallthesentencesintheYelpreviewsdataset
+belongs to domain k, for any given m,k within anddividethemintothreegroups(domains). We
+thepossibledomains,M,thenwecanassumethat then randomly choose 15 words from the top 20
+thisworddoesnotrevealstyle. However,ifthere highestfrequencywordsinthedataset,andallocate
+is a huge gap in the two probabilities, that word thesetoftop5words(W 1)toD 1(domain1),next
+mighthintatacertaindomainifitispresentinthe 5toD 2 andtheleastfrequent5wordstoD 3. We
+re-writtentext.Therefore,wedeviseanormalized misspellalloccurrencesofW 1inD 1,bychanging
+“stylescore”,s,foreachwordwinthevocabulary3: “word”to“11word11”.Wethenadd“11word11”to
+thevocabulary,anddothisforallthe5wordsinall3
+3Whilethisstylescoremayalsohighlightcontentthatis domains(15wordstotal).Afterthistransformation,
+characteristicofadomaininadditiontostylisticwordchoices, wehave3domainswithdisjointstylisticmarkers,
+wefindinexperimentsthatouruseofde-boostingdoesnotsub-
+which can help us more concretely analyze our
+stantiallyharmtheutilityofdownstreamclassifiers–indicating
+thatcontentislargelypreserved,evenwithde-boosting. obfuscationmechanism.
+Blogs dataset (Schler et al., 2006). The blogs notionofcentralitywearelookingfor.
+dataset is a collection of micro blogs containing A4NT (Shetty et al., 2018). “A4NT: Author
+over 3.3 million sentences along with annotation Attribute Anonymity by Adversarial Training of
+ofauthor’sageandoccupation. Weusethisdata Neural Machine Translation” is the most closely
+inbothtwoandthreedomainstylepooling,where relatedpastworkthatalsoattemptstoobfuscatetext
+wetreatageasthesensitiveattributeandbalance stylethroughautomaticre-writing.However,their
+the data so each domain has the same number of adversarialapproachusesadiscriminatornetwork
+sentences. In the two domain setup, we divide tohideprotectedattributessimplybymappingthe
+the data in two groups of teenagers and adults. styleofoneprotectedcategorytothatofanother.
+In the three style setup, we have three groups of PATR (Xu et al., 2019). Privacy Aware Text
+teenagers,youngadults(20s)andadults(peoplein Rewriting (PATR) is another work close to ours,
+their30sand40s).Weusethisdatasetformultiple which removes sensitive attributes through text
+evaluations including fairness. We compare our re-writingusingtranslationandadversariallearning.
+obfuscation to that of Shetty et al. (2018) in all Unlike style pooling, PATR, targets privacy and
+evaluationswiththisdata. is therefore not concerned with the union vs.
+Twitterdataset(Rangeletal.,2016).Weusedata intersectionofsensitiveattributes.
+fromthePAN16dataset,whichcontainsmanually Original.Weincludean“original”baselineinour
+annotated (from LinkedIn) age and gender of measurements, whichshowsthevalue ofagiven
+436 Twitter users, along with up to 1000 tweets metriciftheoriginalun-obfuscateddatawasused.
+from each user. We use this data for the purpose
+3.4 EvaluationMetrics
+of sensitive attribute (age) removal comparison
+withElazarandGoldberg(2018)inSectionA.7,and Below we discuss our evaluation metrics, all of
+havethereforeusedtheexactsamepreprocessing whicharemeasuredonthetestdata.
+andhandlingofthedataasdonebythem.
+3.4.1 Fairness
+DIAL dataset (Blodgett et al., 2016). This is a
+TPR-gap. Wefirstdefineaclassifierwhosemain
+Twitterdatasetwhichhasbinarydialectannotations
+taskistodetermineiftheoccupationofanauthor
+ofAfricanAmericanEnglish(AAE)andStandard
+is student or not, given text from their blog. We
+AmericanEnglish(SAE)4,setting“author’srace”
+set the age of the author as a sensitive attribute,
+as the sensitive attribute. We use this dataset for
+andwanttomeasurethebiasintheclassifier,given
+comparisonwiththeworkXuetal.(2019).
+age. Wefollow(De-Arteagaetal.,2019)anduse
+the “True Positive Rate gap in age” metric. This
+3.3 Baselines
+measurequantifiesthebiasinaclassifierbyfinding
+One language model prior (One-LM). This the gap between the true positive rate for each
+modelisaninstanceofourframeworkwhichuses sensitive attribute group (teen vs. adult). For a
+theoutputdistributionofasinglelanguagemodel binary sensitive attribute a (age) and a true class
+astheprior.FortheYelpSyntheticdatathissingle (fortheclassifier’smaintask)y,wedefine:
+LMistrainedontheoriginaldatawhichdoesnot
+haveourmodificationsandwouldprovidetheideal TPR =P(Yˆ=y|A=a,Y =y) (8)
+a,y
+“intersection”, since the original data itself does GAPTPR=TPR −TPR (9)
+a,y a,y a(cid:48),y
+not have misspellings from any of our synthetic
+where A is the random variable denoting binary
+domainsandcanbeconsideredascentral. Inthe
+sensitive attribute with values a and a(cid:48). Y, Yˆ
+case of the Blogs data where we don’t have any
+are random variables denoting the correct class
+ideal centraldata whichis void ofstyle, we train
+and the predicted class, respectively. The lower
+anageclassifierandthenchoosethesentencesfrom
+the gap is, the more fair the classifier. We report
+thetrainingsetthattheclassifiermissclassifies.We
+GAP , which reflects how biased the
+create a new training set with these samples and Teen,Student
+classifieristowardsclassifyingteensasstudents.
+trainasingleLMonthem,anduseitfortheprior.
+Theintuitionisthatiftheclassifiercouldnotguess
+3.4.2 Linguistic
+thedomain,thesesamplesareprobablyclosetothe
+Back-Translation (BT) accuracy. We translate
+the obfuscated samples back to their original
+4Usingstandardfornon-AAEmightnotbethemostsuitable
+naming,butweuseithereongiventhelackofabettersubstitute. domainusingthemodel, andthenforeachtoken
+see if it has been correctly back-translated to its Table 2: Results for the Synthetic Yelp dataset with 3
+domains. Corrected showswhat%ofmodifiedwords
+originornot.Weusethismetrictoseewhetherthe
+inadomainwerecorrectedbacktotheiroriginalformat.
+obfuscatedversioncontainssufficientinformation
+Spreadshowsthereverse.
+aboutcontenttoreconstructtheoriginal.
+GPT-2PPL.Wefeedourobfuscatedtestsentences Intersection Union One-LM
+toahuggingface(Radfordetal.,2019)pre-trained BTAccuracy(%) 92.47 94.52 95.58
+Corrected(%) 99.20 45.17 99.87
+GPT-2 medium model, and report its perplexity
+Remaining(%) 0.61 54.37 0.00
+(PPL),asanautomaticmeasureoffluency.Lower Removed(%) 0.18 0.46 0.12
+PPLhintsatmorefluenttext. Spread(%) 0.18 46.40 0.00
+ClsAccuracy(%) 33.48 34.99 33.35
+BLEU Score. In the Yelp Synthetic data experi-
+BLEU 81.74 70.86 93.01
+ments,sincewehavetheoriginal(notmisspelled)
+text,wecancalculateandreporttheBLEUscore.
+themisspellingscorrected,remainingandremoved
+GLEU Score. We use GLEU (Wu et al., 2016)
+foreachdomain.Theseshouldallsumupto100%.
+scoreasanothermetricforevaluatingthefluency
+The Spread is the average ratio of the number of
+ofthegeneratedsentences.
+wordsfromonedomainthathavebeenchangedto
+Lexical Diversity (Lex. Div.) To better quantify
+misspellings from another domain. For instance,
+thedifferencesbetweendifferentobfuscations,we
+ifthereare100occurrencesof“word”outsideD
+1
+calculatethelexicaldiversityasaratiowherethe
+before obfuscation, if 40 of them are converted
+sizeofthevocabularyofthemodel’soutputtextis
+to“11word11”afterobfuscation, thenthespread
+thenumerator,andthedenominatoristheoverall
+wouldbe40%. TheOne-LMcanbeconsideredas
+sizeofthemodel’soutputtext(numberofallthe
+an“oraclebaseline”inthiscase,sinceitwastrained
+tokensintheoutput).
+onoriginal(nomisspellings)data.
+3.4.3 Sensitive-AttributeClassification The main goal of this controlled experiment
+Sensitive-attribute Classifier (Clsf.) accuracy. is to compare and contrast our intersection and
+To evaluate the removal of sensitive attributes, unionobfuscations.FromtheTablewecanseethat
+wetrainasensitive-attributeclassifier,anduseits both our obfuscations lead to high fidelity (back-
+accuracyasametric.Theclosertheaccuracyisto translation accuracy) and semantic consistency
+chancelevel(randomguess),themoresuccessful (BLEUscore). Theyalsobothrenderthedomain
+istheremoval. However, thereisacaveattothis classifier very close to chance level (33.33%).
+metric: itisnotalwaysclearhowtheclassifieris Themaindifferencesbetweenthesetwomethods
+makingitsdecision,ifitisbasedoncontent,orstyle. becomesmoreclearwhenwelookatthecorrected,
+Therefore,thismetricaloneisnotconclusive. remaining,andspreadnumbers. Theintersection
+Entropy. To better measure how uncertain the obfuscationwithitsaveragepooling,demonstrates
+classifier becomes, we also compute its average a majority voting behavior which incentivizes
+Entropyacrossalltestsamples.Entropyisalways correcting the misspellings since 2 out of the 3
+between [0.0,1.0] for two domain classification languagemodelsadvocateforthecorrectspelling.
+and[0.0,1.59]forthreedomainclassification.The Therefore99.20%ofthemisspellingsarecorrected
+higher it is, the more uncertain the classifier is usingintersection,veryclosetotheoraclebaseline.
+(moredesirableforourpurpose). TheUnionprior,ontheotherhand,correctsonly
+Confident Response (CR) percentage. We 45.17% of the misspellings, and lets 54.37% of
+calculatethepercentageoftheresponsesfromthe themtoremainastheyare.Italsoconverts46.40%
+classifierforwhichitwasmorethan75%sure. ofthecorrectlyspelledwordsinotherdomainsto
+misspellings. Thisshowsthattheunionisinfact
+4 ExperimentalResults
+mixing the styles, creating sentences that might
+4.1 SyntheticYelpData havemorethanonemisspellinginthem.
+Table 2 shows the experimental results for the
+Synthetic Yelp dataset experiment, where we
+4.2 BlogsData
+trained our proposed framework using the three
+syntheticdomainswithmisspellings,asexplained Tables 3, 5 and 6 summarize the experimental
+in Section 3.2. The Corrected, Remaining and resultsfortheBlogsdataset.Below,wewillexplain
+Removedpercentagesrefertotheaverageratioof eachexperimentinmoredetail.
+4.2.1 FairnessResults two and three domain obfuscations, respectively.
+Table 3 shows the results for the fairness metric SinceA4NTcannotbeappliedtonon-binarystyle
+measurements on text generated using different obfuscations as is, there are no results for it in
+obfuscations,for“Occupation”classifiers.Wehave threedomains. Wecanseethatforbothtwoand
+selected asubset of the Blogsdata for this exper- three domains the de-boosting (denoted as DB)
+iment,whereauthoroccupationiseitherstudentor offersatrade-offbetweenthelinguisticqualityof
+arts,andtheageiseitherteenoradult(twodomain thegeneratedtextandtheobfuscationofsensitive
+obfuscation).wehavetakenanapproachsimilarto attributes. ComparedtotheOne-LMbaseline,for
+thatofRavfogeletal.(2020),wherewecreate4dif- corresponding levels of de-boosting, our Inter-
+ferentlevelsofimbalance.Inallcases,thedataset section obfuscation is almost always superior, in
+isbalancedwithrespecttobothoccupationandage. bothtextqualityandobfuscation.TheIntersection
+Wechangeonlytheproportionofeachagewithin obfuscation with de-boosting multiplier of 25
+each occupation class (e.g., in the 0.8 ratio, the outperformsA4NT,withlowerclassifieraccuracy,
+studentoccupationclassiscomposedof80%teens higherentropyandmuchlowerConfidentResponse
+and20%adults,whiletheartsclassiscomposedof (CR) rate from the classifier. In general, the
+20%teensand80%adults).Foreachimbalancera- Intersectionobfuscation,evenwithoutde-boosting
+tiowetraintheclassifierontheoriginalimbalanced doeswellonEntropyandCR,whichshowsthatour
+data,andthentestitwithoriginalandautmotically methodisdoingwellatcreatingdoubtintermsof
+generateddatafromdifferentbaselines. whattheageoftheauthoris. Onecaveathowever,
+BasedonTable3,wecanseethatourIntersection acrossbothtwoandthreedomainobfuscationsis
+obfuscationcanimprovefairness(TPR-gap)with the classifier accuracy, which does not decrease
+littleharmtotheclassifieraccuracy(Occupation), much. We hypothesize that one reason for this
+incomparisontotheoriginaldataandA4NT.We couldbethedependencybetweenstyleandcontent,
+can trade-off classifier accuracy and fairness, by and that the sensitive-attribute classifier could be
+increasingthede-boosting(DB)multiplier. Inthe basingitsdecisionsoncontent,thereforechanging
+Table,IntersectionshowsIntersectionobfuscation thestylewouldnothidethesensitiveattribute.
+withdifferentDBlevels. InthecaseofDB=40, Our Union obfuscation is behaving differently
+we lose slightly more utility, but observe much from the Intersection, and is inferior in terms of
+betterfairness. obfuscatingthetext,withhigherclassifieraccuracy
+A4NT’s performance in terms of the fairness andlowerentropy. However,ithashigherlexical
+metric(TPR-Gap)iscomparabletoourIntersection diversity, which could hint at it trying to keep
+obfuscation(evenwithoutde-boosting),however, sentencesdiverseand“addingstyles",whereasthe
+inmaintainingoccupationaccuracy(utility),A4NT Intersectionisonlykeepingthecommonwordsand
+performs much more poorly. We presume this is isthereforedecreasingthelexicaldiversity.
+becauseA4NTremovessensitiveattributessolely
+based on hints from a discriminator, and the low 4.3 ComparisonwithPATR
+occupation accuracy suggests the discriminator
+Table4providesacomparisonbetweenourstyle
+captures the content more than it captures style,
+pooling method, and PATR (Xu et al., 2019). α
+thereforeitchangesthemeaningandstructureof
+is knob used by PATR to tune the intensity of
+the sentences as well. Our human judgments for
+attribute removal, and the classifier accuracy on
+semantic consistency and fluency in Section 4.4
+non-modifiedtextis86.3%.Wecanseethatwithout
+support this hypothesis. Our Union obfuscation,
+de-boosting, our intersection method drops the
+however, does not improve the fairness. We
+classifieraccuracyto74.05%withaGLEUscore
+hypothesizethiscouldbecausedbykeeping/adding
+of 26.32. PATR drops the classifier accuracy to
+biasing words, which can perpetuate the existing
+74.85%, but with a worse level of GLEU. With
+impartialitiesintheclassifier,similartohowhuman
+de-boosting,however,wecanachieveaclassifier
+cognitionworks(RichterandMaier,2017).
+accuracyof62.12%withGLEUof17.2,whereas
+4.2.2 LinguisticandSensitive-attribute PATRreportsaccuracyof65.75%foramuchlower
+ClassificationResults GLEU of 9.67 when α is increased. This shows
+ThetopsectionofTables5and6showthelinguistic that our de-boosting mechanism can provide an
+andsensitive-attributeclassificationmetricsforthe advantagebygivingalowerprobabilitytoattribute
+Table3: FairnessresultsfortheBlogsdata. Themaintaskisclassifyingiftheauthoroccupationisstudentornot.
+HigheroccupationaccuracyandlowerTPR-gaparebetter. DBdenotesourstylede-boostingtechnique, andthe
+numbernexttoitshowsitsmultiplier.Largermultipliermeansstrongerstyleobfuscation.
+OccupationAccuracy(Utility) TPR-gap(Fairness)
+Ratio Intersection Intersection
+Original A4NT Union Original A4NT Union
+NoDB DB=25 DB=40 NoDB DB=25 DB=40
+0.95 74.56 59.35 74.77 71.12 69.73 73.22 0.54 0.29 0.23 0.23 0.21 0.51
+0.80 65.55 54.74 65.31 65.12 59.60 65.43 0.35 0.21 0.35 0.18 0.18 0.36
+0.65 59.01 52.73 58.41 56.68 54.45 57.19 0.12 0.05 0.11 0.11 0.11 0.15
+0.50 58.09 53.47 56.21 53.6 53.18 55.49 0.04 0.08 0.05 0.05 0.03 0.05
+Table4: ComparisonwithPATR(Xuetal.,2019), on (2021a)andShengetal.(2019)proposeandanalyze
+theTwitterDIALdataset,wheretheauthor’sraceisthe
+benchmarks for evaluating fairness in different
+sensitiveattribute.
+applications. Ravfogeletal.(2020),Kanekoand
+PATR Intersection Bollegala (2019), Shin et al. (2020) and Kaneko
+Metric Union
+α=1 α=5 NoDB DB=20 and Bollegala (2021) attempt to de-bias word
+GLEU 24.77 9.67 26.32 17.21 26.25 embeddingsusedbyNLPsystems,whileElazarand
+Clsf.Acc(%) 74.85 65.75 74.05 62.12 73.27 Goldberg(2018);Barrettetal.(2019);Wangetal.
+(2021) attempt to de-bias model representations
+revealing components, while maintaining the andencodings.
+sentencestructure.Ourunionmethodalsoachieves Thereisalsoalargebodyofworkonmodifying
+73.27%accuracywith26.25GLEU,makingitmost learning algorithms and inference procedures
+suitableforcaseswherethesemanticconsistency to produce more fair outcomes (Agarwal et al.,
+ofthesentencesismostimportant. 2018;Madrasetal.,2018;Zafaretal.,2017;Han
+et al., 2021; Mireshghallah et al., 2021b). While
+4.4 EvaluationwithHumanJudgments
+effectiveinmanycases,suchapproachesdonothing
+Wedesigntwocrowd-sourcingtasksonAmazon
+to mitigate human bias in decisions based on
+MechanicalTurk.(1)Fluency:Weprovideworkers
+text. Fundamentally,ourframeworkisconcerned
+withapairofobfuscatedsentences,andaskthem
+with stylistic features of human-generated text.
+whichsentenceismorefluent. (2)SemanticCon-
+Thus, a large body of prior work on methods
+sistency: Weprovidetheoriginal(un-obfuscated)
+for unsupervised style transfer are related to our
+sentences,andaskworkerswhichoftheobfuscated
+approach (Santos et al., 2018; Yang et al., 2018;
+sentences is closer in meaning to the original
+Luoetal.,2019;Heetal.,2020). Thereisalsoa
+sentence. Themodelcheckpointsusedforhuman
+vastbodyofworkonstyleobfuscation(Emmery
+evaluations here are those whose fairness and
+etal.,2018;ReddyandKnight,2016;Bevendorff
+linguisticmetricsarereportedinTables3,5.Weuse
+etal.,2019;Shettyetal.,2018).
+ourintersectionobfuscation,withnode-boosting.
+OurworkismostcloselyrelatedtoShettyetal.
+Werandomlyselect188sentencesfromthetestset,
+(2018)and Xuetal.(2019). A4NT(Shettyetal.,
+and used the model outputs for human judgment.
+2018)attemptstoobfuscatetextstylethroughauto-
+For consistency, each pair of sentences is rated
+maticre-writing.However,theirapproachattempts
+by three workers and we take the majority vote.
+tohideprotectedattributessimplybymappingthe
+In terms of fluency, the workers preferred our
+styleofoneprotectedcategorytothatofanother.In
+obfuscations over those of A4NT for 60.38% of
+contrast,weseeknottomaptheauthor’stexttoan-
+thesentences.Intermsofsemanticconsistency,for
+otherauthor’sstyle,buttoacentralobfuscatedstyle.
+72.13%sentencestheyfoundourobfuscationsto
+Xuetal. proposePrivacyAwareTextRe-writing
+becloserinmeaningtotheoriginalones.
+(PATR),whichtakesasimilaradversariallearning
+5 RelatedWork
+translationbasedapproachtoaddressthisproblem
+A large body of prior work has attempted to and re-write text. One fundamental difference
+address algorithmic bias by modifying different between our style-pooling method and PATR is
+stages of the natural language processing (NLP) thatweprovidethechoiceofunionvs.intersection
+pipeline. Blodgett et al. (2021), Barikeri et al. of styles, which is concerned with the societal
+(2021),Farrandetal.(2020),Mireshghallahetal. aspectsofremovingsensitiveattributes,sincewe
+Table5:Linguisticandsensitive-attributeclassifierresultsforBlogsdata,consideringtwosensitiveagedomainsof
+teensandadults.ForBTaccuracyandentropyhigherisbetter,forPPLandConfidentResponse(CR)lowerisbetter.
+One-LM Intersection
+Metric Original A4NT Union
+NoDB DB=25 DB=40 NoDB DB=25 DB=40
+BTAccuracy(%) 100.00 66.49 94.47 92.88 90.60 95.41 87.39 88.63 96.88
+GPT-2PPL 41.71 44.85 39.51 53.65 66.21 41.6 42.80 58.15 42.07
+Lex.Div.(%) 3.22 2.28 2.52 1.82 1.09 2.50 1.47 0.97 2.71
+Clsf.Accuracy(%) 64.73 61.31 62.07 61.69 59.52 64.23 60.90 59.81 64.02
+Entropy 0.87 0.86 0.87 0.91 0.95 0.87 0.93 0.95 0.87
+CR(%) 14.21 15.72 13.44 6.49 2.80 13.95 4.78 2.47 14.22
+Table6:Linguisticandsensitive-attributeclassifierresultsforBlogsdata,consideringthreesensitiveagedomainsof
+teensandadults.ForBTaccuracyandentropyhigherisbetter,forPPLandConfidentResponse(CR)lowerisbetter.
+One-LM Intersection
+Metric Original A4NT Union
+NoDB DB=25 DB=40 NoDB DB=25 DB=40
+BTAccuracy(%) 100.00 – 93.84 93.64 87.83 89.09 89.25 82.47 93.30
+GPT-2PPL 41.70 – 43.49 48.99 84.61 48.15 49.70 69.08 42.66
+Lex.Div.(%) 3.41 – 2.46 1.81 0.94 1.97 1.02 0.77 2.86
+Clsf.Accuracy(%) 49.78 – 49.16 47.64 45.41 48.12 47.13 45.81 48.81
+Entropy 1.38 – 1.38 1.43 1.47 1.44 1.44 1.49 1.38
+CR(%) 43.00 – 43.33 38.89 30.75 38.76 35.37 28.02 45.88
+are targeting removal of bias. PATR, however, feedback.WealsothankJunxianHeforinsightful
+targetsprivacyandisthereforenotconcernedwith discussions.Additionally,wethankourcolleagues
+theunionvs.intersectionofsensitiveattributes. attheUCSDBergLabfortheirhelpfulcomments
+Finally,thereisabodyofworkonre-writingtext andfeedback.
+tomitigatethepotentialbiaseswithinthecontentof
+thetextitself. Maetal.proposePowerTransformer, EthicalConsiderations
+which rewrites text to correct the implicit and
+Our proposed model is intended to be used to
+potentiallyundesirablebiasincharacterportrayals.
+addressareal-worldfairnessissue. However,this
+Pryzantetal. proposeaframeworkthataddresses
+is an extremely complicated topic, and it should
+subjectivebiasintextand FieldandTsvetkovand
+betreatedwithcaution,especiallyupondeploying
+Zhou et al. introduce approaches to identifying
+possiblemitigationssuchasours.Onepotentialis-
+genderbiasagainstwomenatacommentleveland
+sueweseeisthechancethatsystemslikethismight
+dialectbiasintext,respectively.Theseworksfocus
+obfuscatetextbyconvergingtowardsthemajority
+onthetextcontent,andnotonthestylisticfeatures
+and erasing styles of marginalized communities.
+oftheauthor.
+We have tried to address this concern, and raise
+6 Conclusion
+discussionarounditinourintroductionandmodel
+We proposed a probabilistic VAE framework for design,byallowingformultipleoperationalizations
+automaticallyre-writingtextinordertoobfuscate ofa“central”style,andintroducingtheunionand
+stylistic features that might reveal sensitive intersection obfuscations. Defining a true notion
+attributesoftheauthor.Wedemonstratedinexper- ofcentralitythatwouldeffectivelyprotectsensitive
+imentsthatourproposedframeworkcanindeedre- attributes without erasing any specific styles of
+ducebiasindownstreamtextclassification.Finally, writingrequiresfurtherstudy.
+ourmodelposestwowaysofdefiningacentralstyle.
+Future work might consider further explorations
+ofalternativenotionsofstylisticcentrality. References
+Alekh Agarwal, Alina Beygelzimer, Miroslav Dudík,
+Acknowledgments
+JohnLangford,andHannaWallach.2018. Areduc-
+tionsapproachtofairclassification. InInternational
+The authors would like to thank the anonymous
+Conference on Machine Learning, pages 60–69.
+reviewers and meta-reviewers for their helpful PMLR.
+.gniL
+.fslC
+.gniL
+.fslC
+Dzmitry Bahdanau, Kyunghyun Cho, and Yoshua Yanai Elazar and Yoav Goldberg. 2018. Adversarial
+Bengio.2015. Neuralmachinetranslationbyjointly removalofdemographicattributesfromtextdata. In
+learning to align and translate. In Proceedings of Proceedings of the 2018 Conference on Empirical
+ICLR. Methods in Natural Language Processing, pages
+11–21.
+Soumya Barikeri, Anne Lauscher, Ivan Vulic´, and
+Goran Glavaš. 2021. RedditBias: A real-world Chris Emmery, Enrique Manjavacas, and Grzegorz
+resource for bias evaluation and debiasing of con- Chrupała.2018. Styleobfuscationbyinvariance. In
+versationallanguagemodels. InProceedingsofthe Proceedingsofthe27thInternationalConferenceon
+59th Annual Meeting of the Association for Com- ComputationalLinguistics,pages984–996.
+putational Linguistics and the 11th International
+Joint Conference on Natural Language Processing Tom Farrand, Fatemehsadat Mireshghallah, Sahib
+(Volume1: LongPapers),pages1941–1955,Online. Singh,andAndrewTrask.2020. Neitherprivatenor
+AssociationforComputationalLinguistics. fair:Impactofdataimbalanceonutilityandfairness
+in differential privacy. In Proceedings of the 2020
+Maria Barrett, Yova Kementchedjhieva, Yanai Elazar, WorkshoponPrivacy-PreservingMachineLearning
+DesmondElliott,andAndersSøgaard.2019. Adver- inPractice,pages15–19.
+sarial removal of demographic attributes revisited.
+InEMNLP/IJCNLP. AnjalieFieldandYuliaTsvetkov.2020. Unsupervised
+discoveryofimplicitgenderbias. InProceedingsof
+Janek Bevendorff, Martin Potthast, Matthias Hagen, the2020ConferenceonEmpiricalMethodsinNatu-
+andBennoStein.2019. Heuristicauthorshipobfus- ralLanguageProcessing(EMNLP),pages596–608.
+cation. InProceedingsofthe57thAnnualMeeting
+of the Association for Computational Linguistics, Xudong Han, Timothy Baldwin, and Trevor Cohn.
+pages1098–1108. 2021. DecouplingadversarialtrainingforfairNLP.
+In Findings of the Association for Computational
+Su Lin Blodgett, Lisa Green, and Brendan O’Connor. Linguistics: ACL-IJCNLP 2021, pages 471–477,
+2016. Demographic dialectal variation in social Online.AssociationforComputationalLinguistics.
+media: A case study of African-American English.
+In Proceedings of the 2016 Conference on Em- JunxianHe, XinyiWang, GrahamNeubig, andTaylor
+pirical Methods in Natural Language Processing, Berg-Kirkpatrick.2020. Aprobabilisticformulation
+pages 1119–1130, Austin, Texas. Association for of unsupervised text style transfer. arXiv preprint
+ComputationalLinguistics. arXiv:2002.03912.
+Su Lin Blodgett, Gilsinia Lopez, Alexandra Olteanu, Zhiting Hu, Zichao Yang, Xiaodan Liang, Ruslan
+RobertSim,andHannaWallach.2021. Stereotyping Salakhutdinov, and Eric P Xing. 2017. Toward
+Norwegian salmon: An inventory of pitfalls in controlledgenerationoftext. InICML.
+fairnessbenchmarkdatasets. InProceedingsofthe
+59th Annual Meeting of the Association for Com- Eric Jang, Shixiang Gu, and Ben Poole. 2017. Cate-
+putational Linguistics and the 11th International goricalreparameterizationwithgumbel-softmax. In
+Joint Conference on Natural Language Processing ProceedingsofICLR.
+(Volume1: LongPapers),pages1004–1015,Online.
+AssociationforComputationalLinguistics. Masahiro Kaneko and Danushka Bollegala. 2019.
+Gender-preserving debiasing for pre-trained word
+Samuel R Bowman, Luke Vilnis, Oriol Vinyals, An- embeddings. In Proceedings of the 57th Annual
+drewDai,RafalJozefowicz,andSamyBengio.2016. Meeting of the Association for Computational
+Generating sentences from a continuous space. In Linguistics,pages1641–1650.
+ProceedingsofConNLL.
+Masahiro Kaneko and Danushka Bollegala. 2021.
+Joy Buolamwini and Timnit Gebru. 2018. Gender Debiasing pre-trained contextualised embeddings.
+shades: Intersectional accuracy disparities in com- In Proceedings of the European Chapter of the
+mercial gender classification. In Conference on AssociationforComputationalLinguistics.
+fairness, accountability and transparency, pages
+77–91.PMLR. YutaKikuchi,GrahamNeubig,RyoheiSasano,Hiroya
+Takamura, and Manabu Okumura. 2016. Control-
+Maria De-Arteaga, Alexey Romanov, Hanna Wal- ling output length in neural encoder-decoders. In
+lach, Jennifer Chayes, Christian Borgs, Alexandra Proceedings of the 2016 Conference on Empirical
+Chouldechova, Sahin Geyik, Krishnaram Kentha- Methods in Natural Language Processing, pages
+padi,andAdamTaumanKalai.2019. Biasinbios:A 1328–1338.
+casestudyofsemanticrepresentationbiasinahigh-
+stakessetting. InproceedingsoftheConferenceon Diederik P Kingma and Max Welling. 2013. Auto-
+Fairness, Accountability, and Transparency, pages encoding variational bayes. arXiv preprint
+120–128. arXiv:1312.6114.
+FuliLuo,PengLi,JieZhou,PengchengYang,Baobao Alexander M Rush, Sumit Chopra, and Jason Weston.
+Chang, Zhifang Sui, and Xu Sun. 2019. A dual 2015. A neural attention model for abstractive
+reinforcementlearningframeworkforunsupervised sentencesummarization. InProceedingsofEMNLP.
+textstyletransfer. arXivpreprintarXiv:1905.10060.
+Cicero Nogueira dos Santos, Igor Melnyk, and Inkit
+XinyaoMa, MaartenSap, HannahRashkin, andYejin Padhi.2018. Fightingoffensivelanguageonsocial
+Choi. 2020. Powertransformer: Unsupervised media with unsupervised text style transfer. arXiv
+controllablerevisionforbiasedlanguagecorrection. preprintarXiv:1805.07685.
+InEMNLP.
+Jonathan Schler, Moshe Koppel, Shlomo Argamon,
+David Madras, Toni Pitassi, and Richard Zemel.
+andJamesWPennebaker.2006. Effectsofageand
+2018. Predict responsibly: Improving fairness and
+genderonblogging. InProceedingsofAAAI.
+accuracy by learning to defer. Advances in Neural
+InformationProcessingSystems,31:6147–6157. Tianxiao Shen, Tao Lei, Regina Barzilay, and Tommi
+Jaakkola. 2017. Style transfer from non-parallel
+Fatemehsadat Mireshghallah, Huseyin Inan, Marcello
+textbycross-alignment. InProceedingsofthe31st
+Hasegawa, Victor Rühle, Taylor Berg-Kirkpatrick,
+International Conference on Neural Information
+and Robert Sim. 2021a. Privacy regularization:
+ProcessingSystems,pages6833–6844.
+Joint privacy-utility optimization in LanguageMod-
+els. In Proceedings of the 2021 Conference of
+Emily Sheng, Kai-Wei Chang, Prem Natarajan, and
+the North American Chapter of the Association
+Nanyun Peng. 2019. The woman worked as a
+for Computational Linguistics: Human Language
+babysitter: On biases in language generation. In
+Technologies,pages3799–3807,Online.Association
+Proceedings of the 2019 Conference on Empirical
+forComputationalLinguistics.
+MethodsinNaturalLanguageProcessingandthe9th
+InternationalJointConferenceonNaturalLanguage
+Fatemehsadat Mireshghallah, Mohammadkazem
+Processing(EMNLP-IJCNLP),pages3407–3412.
+Taram,AliJalali,AhmedTahaTahaElthakeb,Dean
+Tullsen, and Hadi Esmaeilzadeh. 2021b. Not all
+Emily Sheng, Kai-Wei Chang, Premkumar Natarajan,
+featuresareequal:Discoveringessentialfeaturesfor
+andNanyunPeng.2021. Societalbiasesinlanguage
+preservingpredictionprivacy. InProceedingsofthe
+generation:Progressandchallenges. InProceedings
+WebConference2021,pages669–680.
+oftheConferenceofthe59thAnnualMeetingofthe
+Dino Pedreshi, Salvatore Ruggieri, and Franco Turini. AssociationforComputationalLinguistics(ACL).
+2008. Discrimination-aware data mining. In Pro-
+RakshithShetty, BerntSchiele, andMarioFritz.2018.
+ceedings of the 14th ACM SIGKDD international
+A4nt: Author attribute anonymity by adversarial
+conferenceonKnowledgediscoveryanddatamining,
+training of neural machine translation. In 27th
+pages560–568.
+USENIX Security Symposium (USENIX Security
+Reid Pryzant, Richard Diehl Martinez, Nathan Dass, 18), pages 1633–1650, Baltimore, MD. USENIX
+S. Kurohashi, Dan Jurafsky, and Diyi Yang. 2020. Association.
+Automaticallyneutralizingsubjectivebiasintext. In
+AAAI. SeungjaeShin,KyungwooSong,JoonHoJang,Hyemi
+Kim, Weonyoung Joo, and Il-Chul Moon. 2020.
+Alec Radford, Jeff Wu, Rewon Child, David Luan, Neutralizinggenderbiasinwordembeddingwithla-
+DarioAmodei,andIlyaSutskever.2019. Language tent disentanglement and counterfactual generation.
+modelsareunsupervisedmultitasklearners. InProceedingsofthe2020ConferenceonEmpirical
+MethodsinNaturalLanguageProcessing: Findings,
+FranciscoRangel,PaoloRosso,BenVerhoeven,Walter
+pages3126–3140.
+Daelemans,MartinPotthast,andBennoStein.2016.
+Overviewofthe4thauthorprofilingtaskatpan2016:
+Andrew Silva, Pradyumna Tambwekar, and Matthew
+cross-genre evaluations. Working Notes Papers of
+Gombolay. 2021. Towards a comprehensive under-
+theCLEF,2016:750–784.
+standingandaccurateevaluationofsocietalbiasesin
+pre-trainedtransformers. InProceedingsofthe2021
+Shauli Ravfogel, Yanai Elazar, Hila Gonen, Michael
+Conference of the North American Chapter of the
+Twiton, and Yoav Goldberg. 2020. Null it out:
+Association for Computational Linguistics: Human
+Guarding protected attributes by iterative nullspace
+Language Technologies, pages 2383–2389, Online.
+projection. arXivpreprintarXiv:2004.07667.
+AssociationforComputationalLinguistics.
+SravanaReddyandKevinKnight.2016. Obfuscating
+genderinsocialmediawriting. InProceedingsofthe Liwen Wang, Yuanmeng Yan, Keqing He, Yanan Wu,
+First Workshop on NLP and Computational Social and Weiran Xu. 2021. Dynamically disentangling
+Science,pages17–26. social bias from task-oriented representations with
+adversarial attack. In Proceedings of the 2021
+Tobias Richter and Johanna Maier. 2017. Compre- Conference of the North American Chapter of the
+hension of multiple documents with conflicting Association for Computational Linguistics: Human
+information: A two-step model of validation. Language Technologies, pages 3740–3750, Online.
+Educationalpsychologist,52(3):148–166. AssociationforComputationalLinguistics.
+YonghuiWu,MikeSchuster,ZhifengChen,QuocVLe,
+Mohammad Norouzi, Wolfgang Macherey, Maxim
+Krikun, YuanCao, QinGao, KlausMacherey, etal.
+2016. Google’s neural machine translation system:
+Bridging the gap between human and machine
+translation. arXivpreprintarXiv:1609.08144.
+QiongkaiXu, LizhenQu, ChenchenXu, andRanCui.
+2019. Privacy-awaretextrewriting. InProceedings
+of the 12th International Conference on Natural
+LanguageGeneration,pages247–257.
+Zichao Yang, Zhiting Hu, Chris Dyer, Eric P Xing,
+and Taylor Berg-Kirkpatrick. 2018. Unsuper-
+vised text style transfer using language models as
+discriminators. arXivpreprintarXiv:1805.11749.
+MuhammadBilalZafar,IsabelValera,ManuelGomez
+Rogriguez,andKrishnaPGummadi.2017. Fairness
+constraints: Mechanisms for fair classification. In
+ArtificialIntelligenceandStatistics,pages962–970.
+PMLR.
+Xuhui Zhou, Maarten Sap, Swabha Swayamdipta,
+Noah A Smith, and Yejin Choi. 2021. Challenges
+inautomateddebiasingfortoxiclanguagedetection.
+arXivpreprintarXiv:2102.00086.
+A Appendix A.3 DatasetDetails
+Yelp. Thetrainingsetcontains399,999sentences,
+A.1 ExperimentCode
+and test set consists of 30,000 sentences, both
+We have uploaded code, data and model check-
+divided equally between the 3 domains. The
+pointsneededforreproducingtheexperimentsin
+vocabulary size is 9.6k words. The misspelled
+https://github.com/mireshghallah/
+wordsofD ,D andD are“00great00,00this00,
+0 1 2
+style-pooling. There,youwillfindaRead
+00it00, 00to00, 00food00”, “11of11, 11place11,
+Mefilewhichincludesallthenecessarystepsand
+11for11,11good11,11service11”and“22they22,
+linktothedataandmodelcheckpoints.Inshort,you
+22are22,22in22,22very22,22my22”,respectively.
+needtodownloadthedataandmodelcheckpoints
+fromthelink.Whenyoudownloadthemodels-data Blogs. Theblogsdatasetisacollectionofmicro
+compressedfolder,extractit. Placethecontentof blogs from blogger.com which consists of
+the data folder and the models in corresponding 19,320 ‘documents’ (over 3.3 million sentences)
+foldersinthecode.Thepackagedependenciesare alongwithannotationofauthor’sage,gender,and
+allincludedinthedependenciesfile. Inorder occupation. Each document is a collection of an
+to create a similar setup, please install the exact individualauthor’sposts. Wewillusethisdatain
+versionmentionedthere. both two and three domain style-pooling, where
+Onceallthedirectoriesaresetup,youcantrain wetreatageasthesensitiveattributeandbalance
+your own models using the commands in the the data so each domain has the same number of
+Read Me,oryoucanevaluatethemodelswehave sentences. In the two domain setup, we divide
+alreadyprovided. Evaluationcodeisincludedin the data in two groups of teenagers, 13−18 and
+theresults_ipynbsfolder. adults 23−48. In the three style setup, we have
+threegroupsofteenagers(13−18),youngadults
+A.2 ModelConfigurations (23−28) and adults (33−48). The age groups
+19−22and29−32aremissingfromthedata.After
+Seq2Seq Model. For all the experiments, We
+preprocessingandbalancingthedataset,weend-up
+usesinglelayerLSTMswithhiddensizeof512as
+with1.2Milionsentencesinthetrainingset,400k
+boththeencoderanddecoder,andweuseaword
+sentences in the test for the 2 domain setup, and
+embedding size of 128. We apply dropout to the
+762ktrainingsentencesand192ktestsentencesfor
+readout states before softmax with a rate of 0.3.
+thetestset.Thereare10kwordsinthevocabulary.
+Weaddamaxpoolingoperationovertheencoder
+Allthedatasetsarebalanced.
+hiddenstatesbeforefeedingittothedecoder.
+LanguageModel: Yelpdata. WeuseanLSTM Twitter. There are 146.5k sentences in the
+languagemodelwithhiddensizeof512andword training set, and 11.2k sentences in the test
+embeddingsizeof128anddropoutvalueof0.3. set. We reproduced this data using this scripts
+fromElazarandGoldberg(2018)’sGitHubrepos-
+Language Model: Blog and Twitter data. We itory: https://github.com/yanaiela/
+useanLSTMlanguagemodelwithhiddensizeof demog-text-removal.
+2048andwordembeddingsizeof1024anddropout
+valueof0.3. A.4 Hyperparameters
+Forallexperiments,wesetthetrainingbatchsize
+Sensitive-attribute Classifiers. We use LSTM
+to32,thetestbatchsizeto128andthetemperature
+classifiersforclassifyingsensitiveattributes. The
+ofthesoftmaxto0.01.
+hiddensizeis512andwordembeddingsizeis128.
+Thelastlayersizeisthenumberofsensitiveclasses. KL weight hyperparameter: The KL term in
+Eq.5thatappearsnaturallyintheELBOobjective,
+GPT-2 We used this repository https: canbetreatedasaregularizerthatusesourp
+prior
+//github.com/priya-dwivedi/ toinducethetypeofstylewewant. Therefore,in
+Deep-Learning/tree/master/ practice,weaddaweightλtotheKLterminELBO
+GPT2-HarryPotter-Trainingtodownload since the regularization strength from our priors
+andfeeddatatotheGPT-2model,andgetthePPL variesdependingonthedatasets,trainingdatasize,
+score. orpriorstructures(Bowmanetal.,2016).
+Yelp. FortheYelpexperiments,thelearningrate We cloned their repository and used their
+issetto0.001andtheKLweight(λ)fortheUnion, code to process the dataset.We then created and
+One-LM and Intersection experiments are 0.03, trained the conversation and age classifiers, and
+0.03and0.02,respectively. reached an accuracy of 75.8% and 64.63% for
+them,respectively. Thesedroppedto73.28%and
+Blogs and Twitter. For the Blogs experiments,
+54.2%, after applying applying our intersection
+thelearningrateis0.0005,andtheKLweight(λ)
+method.Thisshowsthatforthisparticulartask,our
+is0.04(forboth2and3domains).
+re-writtentextcanout-performpriorwork.
+A.5 ComparisonwithA4NTDetails
+Tocomparewiththework“A4NT:AuthorAttribute
+Anonymity by Adversarial Training of Neural
+Machine Translation” (Shetty et al., 2018), we
+downloadedacheckpointoftheirpre-trainedmodel,
+available in their github repository: https:
+//github.com/rakshithShetty/
+A4NT-author-masking. Since we have
+alsousedthesamedatasetwiththesametrain/test
+separation,weusethemodelasisforevaluation.
+A.6 HumanEvaluationExperimentDetails
+OurcrowdworkersarerecruitedfromtheAmazon
+Mechanical Turk (AMT) platform. Each HIT
+requiredtheworkerstoansweraquestionregarding
+only one pair of sentences, and each worker was
+paid $0.1 per HIT. For English proficiency, the
+workerswererestrictedtobefromUSAorUK.For
+the semantic consistency test, the question asked
+fromtheTurkerswas: “Whichsentenceiscloser
+inmeaningtotheoriginalsentencebelow?”,where
+theoriginalsentenceandtheobfuscatedoneswhere
+provided to the workers. For fluency, we asked:
+“WhichsentenceismorefluentinEnglish?”.
+A.7 Comparison
+with ElazarandGoldberg(2018)
+Elazar and Goldberg (2018) aims at creating
+representations for text that could be used for a
+specificclassificationtask,whilehidingsensitive
+attributes. Although our approach deals with the
+textasopposedtorepresentationsandandcanbe
+appliedforawiderrangeofdownstreamtasks,we
+offer a brief comparison to this method. Elazar
+andGoldbergusetheTwitterdatasetRangeletal.
+(2016), set the sensitive attribute to be age, and
+trytoproducerepresentationsthatwouldperform
+wellonthemaintaskof“conversationdetection”
+(mentiondetection)onTweets.Ontheoriginaldata,
+theyreportanaccuracyof77.5%and64.8%fora
+classifierthattriestoclassifyconversationsandage,
+respectively,whichdropto72.5%and57.3%,after
+applyingtheiradversariallearningscheme.

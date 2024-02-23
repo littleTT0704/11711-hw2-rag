@@ -1,0 +1,651 @@
+On Dimensional Linguistic Properties of the Word Embedding Space
+VikasRaunak∗ VaibhavKumar∗
+CarnegieMellonUniversity CarnegieMellonUniversity
+vraunak@cs.cmu.edu vaibhav2@cs.cmu.edu
+VivekGupta FlorianMetze
+UniversityofUtah CarnegieMellonUniversity
+vgupta@cs.utah.edu fmetze@cs.cmu.edu
+Abstract In particular, the Principal Component Analysis
+(PCA) based post-processing algorithm proposed
+Word embeddings have become a staple of
+by(MuandViswanath,2018)hasledtosignificant
+several natural language processing tasks, yet
+gains in word and sentence similarity tasks, and
+much remains to be understood about their
+hasalsoprovedusefulindimensionalityreduction
+properties. In this work, we analyze word
+embeddings in terms of their principal com- (Raunaketal.,2019). Similarly,understandingthe
+ponents and arrive at a number of novel and geometry of word embeddings is another area of
+counterintuitive observations. In particular, activeresearch(MimnoandThompson,2017). In
+we characterize the utility of variance ex-
+contrast to previous work such as (Yin and Shen,
+plainedbytheprincipalcomponentsasaproxy
+2018), which focuses on optimal dimensionality
+for downstream performance. Furthermore,
+selectionforwordembeddings,weexplorethedi-
+throughsyntacticprobingoftheprincipalem-
+mensional properties of existing pre-trained word
+bedding space, we show that the syntactic in-
+formation captured by a principal component embeddings through their principal components.
+does not correlate with the amount of vari- Specifically,ourcontributionsareasfollows:
+ance it explains. Consequently, we investi-
+1. Weanalyzethewordembeddingsintermsof
+gate the limitations of variance based embed-
+dingpost-processing,usedinafewalgorithms their principal components and demonstrate
+such as (Mu and Viswanath, 2018; Raunak that their performance on both word similar-
+et al., 2019) and demonstrate that such post- ityandsentenceclassificationtaskssaturates
+processing is counter-productive in sentence wellbeforethefulldimensionality.
+classification and machine translation tasks.
+Finally, we offer a few precautionary guide- 2. We demonstrate that the amount of variance
+lines on applying variance based embedding captured by the principal components is a
+post-processingandexplainwhynon-isotropic poor representative for the downstream per-
+geometry might be integral to word embed-
+formance of the embeddings constructed us-
+dingperformance.
+ingtheverysameprincipalcomponents.
+1 Introduction
+3. We investigate the reasons behind the afore-
+Wordembeddingshaverevolutionizednaturallan- mentioned result through syntactic informa-
+guage processing by representing words as dense tion based dimensional linguistic probing
+real-valued vectors in a low dimensional space. tasks(Conneauetal.,2018)anddemonstrate
+Pre-trainedwordembeddingssuchasGlove(Pen- that the syntactic information captured by a
+nington et al., 2014), word2vec (Mikolov et al., principal component is independent of the
+2013) and fastText (Bojanowski et al., 2017), amountofvarianceitexplains.
+trained on large corpora are readily available for
+4. Wepointoutthelimitationsofvariancebased
+use in a variety of tasks. Subsequently, there has
+post-processingusedinafewalgorithms(Mu
+beenemphasisonpost-processingtheembeddings
+and Viswanath, 2018; Raunak et al., 2019)
+toimprovetheirperformanceondownstreamtasks
+and demonstrate that it leads to a decrease
+(Mu and Viswanath, 2018) or to induce linguis-
+inperformanceinsentenceclassificationand
+tic properties (Mrksˇic et al.; Faruqui et al., 2015).
+machine translation tasks, restricting its effi-
+∗equalcontribution cacymainlytosemanticsimilaritytasks.
+0202
+yaM
+02
+]LC.sc[
+2v11220.0191:viXra
+tence classification. We provide a brief introduc-
+tions to the both evaluation tasks of our experi-
+mentinthesub-sections. Fordetailsonthebench-
+marks, please refer to Conneau and Kiela (2018)
+for sentence classification and Faruqui and Dyer
+(2014)forwordsimilarity.
+For experiments in this section, we use 300
+dimensional a) Glove embeddings (trained on
+Wikipedia 201 + Gigaword 5 2), b) fastText em-
+beddings (trained on Wikipedia, UBMC web-
+base corpus and statmt.org news dataset 3) and
+Figure1: Rhox100onWordSimilarityTasks
+c) Word2vec embeddings (trained on the Google-
+News dataset 4. We use Glove embeddings for
+the word similarity tasks. For the sentence clas-
+sification tasks, we show results for fasttext and
+word2vec as well, in addition to Glove embed-
+dings. Forthesentenceclassificationtasksweuse
+LogisticRegressionastheclassifier,sinceitisthe
+simplest classification model and we are only in-
+terested in evaluating performance variation due
+the changes in representations. Thus, the con-
+vex objective used in the classifier avoids any op-
+timizer instability, making our entire evaluation
+pipelinedeterministicandexactlyreproducible.
+Figure2: AccuracyonSentenceClassificationTasks
+2.1 WordSimilarityTasks
+In Section 1, we provide an introduction to the
+The word similarity benchmarks (Faruqui and
+problem statement. In Section 2, we discuss the
+Dyer,2014)havewordpairs(WP)thathavebeen
+dimensional properties of word embeddings. In
+assignedsimilarityratingbyhumans. Whileeval-
+Section 3, we conduct a variance based analy-
+uating word embeddings, the similarity between
+sis by evaluating the word embeddings on sev-
+the words is calculated by the cosine similarity
+eral downstream tasks. In Section 4, we move on
+of their vector representations. Then, Spearmans
+to dimensional linguistic probing tasks followed
+rank correlation co-efficient (Rho) between the
+by Section 5, where we discuss variance based
+ranks produced using the cosine similarities and
+post-processing algorithms, and finally conclude
+the given human rankings is used for the perfor-
+in Section 7. To foster reproducibility, we have
+manceevaluation. Hence,forbetterwordsimilar-
+releasedthesourcecodealongwithpaper1.
+ity,theevaluationmetric(Rho)willbehigher.
+2 DimensionalPropertiesoftheWord Figure 1 shows the performance (Rho x 100)
+EmbeddingSpace of word embeddings (Glove) on 13 word similar-
+ity benchmarks w.r.t varying word embedding di-
+Principal components provide a natural basis for
+mensions. The similarities are computed by pro-
+studying the properties of an embedding space.
+jectingtheembeddingsintheprincipalcomponent
+In this work, we refer to the properties pertain-
+space. Each new evaluation cumulatively adds 10
+ingtotheprincipalcomponentsoftheembedding
+more principal components to the earlier embed-
+space as dimensional properties and the embed-
+dings,i.e. theunitsontheX-axisvaryintheincre-
+dingspaceobtainedbyprojectingtheembeddings
+mentsof10. Thus,weobtain30measurementsfor
+on the principal components as the principal em-
+eachdataset,rangingfromwordembeddingscon-
+beddingspace. Westudytheprincipalembedding
+structedusingthefirst10principalcomponentsto
+space and the dimensional properties in a number
+orignal 300 principal components. From Figure
+of different contexts such as word similarity, sen-
+2 https://stanford.io/2Gdv8uo
+1 https://github.com/vyraun/dlp 3 https://bit.ly/2FMTB4N
+4 https://bit.ly/2esteWf
+Table1: TestaccuracyofembeddingscomposedofTop-100(T),Middle-100(M)andBottom-100(B)principal
+components on sentence classification datasets. The highlighted cells correspond to one of the three cases - M
+outperformsT(orange),BoutperformsT(red)andBoutperformsM(yellow)
+.
+Split MR CR SUBJ MPQA SST2 SST5 TREC SICK-E MRPC
+Random-Embeddings 61.65 71.6 78.9 73.79 60.57 31.09 70.0 77.07 69.91
+Glove-Full 75.7 77.48 91.76 86.66 78.03 41.0 68.0 78.49 70.61
+Glove-T 70.74 73.67 90.1 81.58 72.49 37.24 61.8 75.71 71.94
+Glove-M 72.98 75.04 87.76 84.07 75.34 40.5 57.6 76.5 71.42
+Glove-B 67.62 73.01 83.68 81.61 69.52 36.11 57.0 72.82 70.96
+Word2vec-Full 77.65 79.26 90.76 88.3 79.68 42.44 83.0 78.24 72.58
+Word2vec-T 74.34 76.29 89.88 85.07 77.16 40.36 70.0 75.46 71.48
+Word2vec-M 72.91 73.43 82.39 82.76 72.65 38.69 66.0 70.53 71.36
+Word2vec-B 71.42 74.25 82.47 81.05 73.48 38.46 72.2 74.3 71.01
+fastText-Full 67.85 75.39 85.87 79.85 70.57 35.97 68.0 76.66 70.84
+fastText-T 69.42 67.76 87.69 84.64 74.35 36.83 74.8 66.04 70.61
+fastText-M 68.88 65.3 81.74 81.45 72.1 35.57 65.2 65.01 68.29
+fastText-B 66.45 64.21 79.89 79.83 69.96 31.22 69.4 63.77 67.94
+1,itisevidentthattheperformancesaturatescon- resultswithpretrained200D Gloveembedding. 5
+sistently at around 200 dimensions for all of the
+Analysis: To conclude, observations from both
+tasks, after which adding new principal compo-
+word similarity and sentence classification tasks,
+nentsdoesnotleadtomuchgaininperformance.
+of saturation in performance around 200, much
+beforetheoriginal300dimensionsimpliesredun-
+2.2 SentenceClassificationTasks dancyamongthedimensions(insection3wewill
+clarify why it doesn’t imply noise). Furthermore,
+The sentence classification tasks (Conneau and this observation is consistent across various em-
+Kiela, 2018) include binary classification tasks beddingtypes(Glove, fastTextandword2vec)for
+(MR, CR, SUBJ, MPQA), multiclass classifica- the sentence classification tasks, as demonstrated
+tiontasks(SST-FG,TREC),entailment(SICK-E), in Table 2. This also suggests a simple strategy
+semantic relatedness (STS-B) and Paraphrase de- toreducetheembeddingsizewhereinonethirdof
+tection (MRPC) tasks. As usual, the evaluation is the components could be reliably removed with-
+done by computing the classification accuracy on out affecting the performance on word similarity
+thetestset. or sentence classification tasks, leading to 33%
+memoryreduction.
+Figure 2 shows the performance (Test accu-
+racy) on 9 standard downstream sentence classi- 3 VarianceBasedAnalysis
+fication tasks (Conneau and Kiela, 2018) using
+thesameprocedureforconstructingwordembed- In this section, we characterize the redundancy
+dings (Glove) as in 2.1. Further, sentence vec- observed in Section 2, in terms of variance of
+torswereconstructedusinganaverageofthecon- the principal components. Specifically, we mea-
+tained word embeddings, which has been demon- sure downstream performance (on the sentence
+stratedtobeaverystrongbaselinefordownstream classification tasks of Section 2.2) of word em-
+tasks (Arora et al., 2017). From Figure 2, we can beddings against the amount of variance captured
+observe that, similar to the previous word simi- by the principal components (the variance ex-
+laritytasks,theperformancesaturatesconsistently plained or captured by a principal component is
+at around 200 dimensions for all of the tasks, af- the variance of the embeddings when projected
+terwhichincrementingtheembeddingswithaddi- onto that principal component; hereon, we refer
+tionalprincipalcomponentsdoesnotleadtomuch to the fraction of variance explained by a princi-
+gains in performance. We also report results for pal component simply as variance explained by
+original (300D) and post processed PCA reduced that component). Similar to the previous sec-
+(200D) word embeddings for other types (fast-
+5 word embeddings for 200D for other embedding types
+Text,Glove)inTable2. InTable2,wealsoreport (fasttext,word2vec)arenotpubliclyavailable.
+Table 2: Performance on sentence classification tasks of various embeddings (300 dimensional) and their post-
+processedPCAreducedcounterpartsof200dimensions.
+Embedding MR CR SUBJ MPQA SST2 SST5 TREC SICK-E MRPC
+Glove 75.7 77.48 91.76 86.66 78.03 41.0 68.0 78.49 70.61
+Glove-PCA 74.62 76.95 91.6 85.97 77.16 40.18 66.6 77.02 72.99
+Glove-200 74.69 77.91 91.18 86.52 77.98 40.05 66.4 77.47 72.23
+Word2vec 77.65 79.26 90.76 88.30 79.68 42.44 83.0 78.24 72.58
+Word2vec-PCA 76.53 78.12 90.50 86.74 79.63 41.49 77.6 76.54 72.17
+fastText 67.85 75.39 85.87 79.85 70.57 35.9 68.0 76.66 70.84
+fastText-PCA 66.83 74.46 85.26 78.91 69.85 36.11 66.0 76.50 68.75
+Table 3: TheVarianceforeachoftheT,M,Bsplitsofthe uses subword information. So, to summarize we
+embeddings.
+constructedaltogether9embeddingsplits(3from
+Glove Word2vec fastText each of the 3 embedding types), which differ sig-
+T 0.529 0.628 0.745 nificantly in terms of the variance explained by
+M 0.371 0.221 0.162 theirconstituentcomponents.
+B 0.100 0.151 0.093
+We use the 100 dimensional embedding obtain
+tion, we use 300 dimensional Glove embeddings fromtheseveralsplits(T,M,B)andtypes(Glove,
+(trainedonWikipedia201+Gigaword52)forex-
+fastText, Word2vec) as features for downstream
+periments in this section, along with publically sentence classification tasks, as in Section 2.2,
+released fastText (trained on Wikipedia, UBMC except that, now, each of the embedding feature
+webbase corpus and statmt.org news dataset3 and has 100 dimensions. The experiments are de-
+Word2vec (trained on the GoogleNews dataset4) signed to test whether the variance explained by
+embeddings,bothof300dimensions. a split is closely correlated with the downstream
+For each of the embedding types, we first con- performance metric (classification accuracy) for
+struct word embeddings using only top 100 prin- eachofthethreeembeddingtypes. Table1shows
+cipal components (T), the middle 100 principal the results on 9 sentence classification tasks, for
+components (M) and the bottom 100 principal each embedding split, forall thethree embedding
+components (B). Then, we compute the variance types. In the table, the highlighted cells represent
+for each split by aggregating the variance of the the cases where classification accuracy of the
+100 principal components of each split for all lower variance split exceeds that of the corre-
+three embedding types. Table 3 highlights how sponding higher variance split. Each annotated
+thetotalvarianceisdividedacrossthethreesplits. cell corresponds to one of the three cases - M
+The T embeddings have the first 100 principal outperforms T (orange), B outperforms T
+components (PCs), so the highest variance ex- (red) and B outperforms M (yellow). For
+plained, while the B embeddings have the bot- the comparisons between T and M splits, in 6
+tom 100 components, thereby the least variance out of 27 such comparisons, the M embeddings
+explained. Furthermore,thevarianceexplainedby outperform the T embeddings. Similarly, for
+the principal components for the same split also comparisons between M and B embeddings, the
+differsignificantlyacrossthedifferentembedding B embeddings outperform the M embeddings in
+types. Forexample,fastTexthasmorevarianceex- 7 out of 27 cases and for comparisons between
+plained, when compared to Glove and Word2vec, T and B embeddings, in 2 out of 27 cases the
+for the split T, while Glove has the most variance B embeddings outperform the T embeddings.
+explained, among the three embedding types, for Further, in a number of cases (although not
+the split M. Lastly, Word2vec explains more vari- highlighted), such as on the MRPC task, the T
+ance than Glove and fastText for the split B. The andMsplitsdifferverylittleinperformance. The
+differences are expected since, the three embed- same is true for M and B splits on tasks such as
+ding types differ considerably in their training al- MPQAandCR.Suchcasesareleastprominentin
+gorithms. While Word2vec uses negative sam- fastText, probably due to the extremely large gap
+pling, Glove derives semantic relationships from inthevarianceexplainedbetweentheT,MandT,
+the word-word co-occurrence matrix and fastText Bsplits.
+tion required for downstream sentence classifica-
+tiontasksisdistributedindependentlywithrespect
+to the principal components’. To explore the va-
+lidityoftheproposedhypothesis,weleveragetwo
+linguistic probing tasks, namely TreeDepth and
+TopConst (Conneau et al., 2018). These probing
+tasksaredesignedtotestwhethersentenceembed-
+dingsaresensitivetothesyntacticpropertiesofthe
+encoded sentences. The TreeDepth task (a 8-way
+classification problem) tests whether the model
+can predict the depth of the hierarchical syntac-
+tic structure of the sentence. For doing well on
+theTreeDepthtask,theembeddingshavetogroup
+sentences by the depth of the longest path from
+root to any leaf. In the TopConst task (a 20-way
+classification problem), a sentence must be clas-
+sified in terms of the sequence of its constituents
+occurring immediately below the sentence node
+of its hierarchical structure. Therefore, for good
+performance on the TopConst task, the embed-
+dings have to capture latent syntactic structures
+and cluster them by constituent types. The ran-
+Figure3: Analysisofindividualprincipalcomponents
+dom baselines for the TreeDepth and TopConst
+onthetwosyntacticinformationbasedlinguisticprob-
+tasksare12.5and5.0respectively,whilefull300-
+ingtasks:TopConst(top)andTreeDepth(bottom).The
+dimensional Glove embeddings obtain accuracies
+Y-axisrepresentstheTestaccuracyonthetwotasks.
+of37and68percentrespectively.
+Toevaluatethesyntacticinformationcontained
+Analysis: FromTable1itisevidentthattheper-
+in each of the principal components, we first con-
+formance drop betweenthe T, M, Bsplits is quite
+struct one-dimensional word embeddings by pro-
+lowforanumberoftasks,whichishighlycontrary
+jecting word vectors onto a single principal com-
+to the expectation, given the large differences in
+ponent. Then we use these word embeddings
+thevarianceexplained(Table3). Further,thereare
+to construct sentence vectors, as in Section 2.2,
+alsomanycaseswherelowervarianceembeddings
+which are used as features for the two classifi-
+(BandM)outperformtheemedddings(MandT)
+cation tasks. For good performance, the single
+with higher variance, for all the three embedding
+component sentence vector has to distinguish be-
+types. These results demonstrate that for word
+tween the probing tasks output classes. There-
+embeddings, the variance explained by the prin-
+fore, the performance on these tasks can be used
+cipal components is not sufficient for explaining
+to isolate the behavior of individual components
+their downstream performance. In other words,
+withrespecttothesyntacticinformationcaptured.
+the variance explained by the principal compo-
+Themotivationhereisthatifthesyntacticallydis-
+nentsisaweakrepresentativeofdownstreamper-
+criminative components would vary considerably,
+formance. This is in contrast to the widely used
+then we can isolate the behavior of the individ-
+practice of using the variance explained by the
+ualcomponentsandseetheircorrespondencewith
+principalcomponentsasafundamentaltooltoas-
+the rank of the principal component. Figure 3 de-
+sess the quality of the corresponding representa-
+picts the scores (Test classification accuracy) on
+tions(JolliffeandCadima,2016).
+TopConst and TreeDepth tasks respectively. The
+average performance of the one-dimensional rep-
+4 DimensionalLinguisticProbingTasks
+resentations has mean ± standard deviation of
+18.38 ± 0.64 and 6.71 ± 0.72 for the TreeDepth
+A plausible hypothesis to explain the better per-
+andTopConsttasksrespectively.
+formance of M and B embeddings (Table 1) in
+the earlier section is that ‘the syntactic informa- Analysis: The average performance of the one-
+dimensionalrepresentationsonbothtasksismuch theMembeddings. FortheTopConsttaskaswell,
+lower than full dimension embeddings but well the B embeddings outperform M embeddings for
+above the random baseline. However, many indi- GloveandfastText,whereasforWord2vec,itout-
+vidual compoenents far exceed the random base- performs the T embeddings. Thus, the discrep-
+line as well. As mentioned earlier, we wanted to ancy in performance on these syntactic probing
+probe whether such discriminativeness is ranked tasks is even more severe when compared to the
+according to variance. However from Figure 3, it sentence classification tasks evaluated in Section
+is evident that the performance across the dimen- 3. Theresultsalsovalidateourhypothesisthatthe
+sions does not have any particular trend (increas- variance explained by the embeddings is of little
+ing or decreasing) w.r.t to the rank of the princi- predictive strength in predicting its relative per-
+palcomponents. Infact,thepeakperformanceon formance.
+both the tasks is achieved by a component in the
+5 ThePostProcessingAlgorithm(PPA)
+bottom(B)splitoftheembeddings. Thisvalidates
+In this section, we briefly describe and then eval-
+the hypothesis that the syntactic information cap-
+uate the post-processing algorithm (PPA) by (Mu
+tured by a principal component is independent of
+andViswanath,2018),whichachieveshighscores
+theamountofvarianceitexplains.
+on Word and Semantic textual similarity tasks
+(Agirreetal.,2012). Thealgorithm(PPA)islisted
+Table 4: Classification Accuracy for Linguistic Prob-
+below as Algorithm 1. PPA removes the projec-
+ingTasksusingtheT,M,Bsplitsoftheembeddings.
+Here also, the highlighted cells correspond to one of tionsoftopprincipalcomponentsfromeachofthe
+thethreecases-MoutperformsT ( orange),Bout- word vectors, making the individual word vectors
+performsT(red)andBoutperformsM(yellow) more discriminative. The algorithm could be re-
+garded as pushing the word embeddings towards
+Embedding TopConst TreeDepth a more isotropic space (Arora et al., 2016), by
+Glove-T 28.1 28.2 eliminating the common parts (mean vector and
+Glove-M 26.0 24.8 topprincipalcomponentsoftheembeddingspace)
+Glove-B 27.1 26.9
+from the individual word embeddings. How-
+Word2vec-T 23.9 42.5
+ever,itisworthrevisitingtheassumptionwhether
+Word2vec-M 24.3 43.5
+isotropy (or angular isotropy more specifically)
+Word2vec-B 23.7 44.6
+of the embedding space is universally beneficial
+fastText-T 31.2 50.7
+with respect to downstream tasks. In this section,
+fastText-M 29.3 51.0
+fastText-B 30.6 56.8 we stress test this assumption on a range of sen-
+tenceclassification andmachine translation tasks.
+Tofurthervalidatethehypothesis,werepeatthe Ourfundamentalintuitionisthatsincethesetasks
+experiment described in Section 3 for each of the require the embedding space to capture syntac-
+embedding types, except on the synctatic probing tic properties much more significantly than word-
+tasksofTopConstandTreeDepthinTable4. Simi- similarity tasks, enforcing isotropy could lead to
+lartoTable1,eachannotatedcellinTable4corre- worseperformance.
+spondstooneofthethreecases-Moutperforms
+T(orange),BoutperformsT(red)andBout- Algorithm1:PostProcessingAlgorithmPPA(X,D)
+Data:EmbeddingMatrixX,ThresholdParameterD
+performs M (yellow). For the comparisons be-
+Result:Post-ProcessedWordEmbeddingMatrixX
+tween T and M splits, in 3 out of 6 such compar- /* Subtract Mean Embedding */
+isons,theMembeddingsoutperformtheTembed- 1 X=X-X;
+dings. Similarly, for comparisons between M and
+/* Compute PCA Components */
+2 u i=PCA(X),wherei=1,2,...d;
+B embeddings, the B embeddings outperform the /* Remove Top-D Components */
+Membeddingsin5outof6casesandforcompar- 3 forallvinXdo
+isons between T and B embeddings, in 2 out of 6 4 v=v−(cid:80)D i=1(uT i ·v)u i
+5 end
+casestheBembeddingsoutperformtheTembed-
+dings. In other words, table 4 shows that for the
+TreeDepth task, the B embeddings significantly 5.1 SentenceClassificationTasks
+outperform T and M embeddings for word2vec WecomparetheperformanceofPPA(withacon-
+and fastText, whereas for Glove, it outperforms stant D=5 across all the embeddings) on the 9
+Table5:Performanceonsentenceclassificationtasksofvariousembeddingsandtheirpost-processed(PPA)coun-
+terparts.The red coloredcellsdenotethecaseswheretheoriginalembeddingsoutperformedtheirpost-processed
+(PPA)counterparts.
+Embedding MR CR SUBJ MPQA SST2 SST5 TREC SICK-E MRPC
+Glove(300dim) 75.7 77.48 91.76 86.66 78.03 41.0 68.8 78.49 70.61
+PPAonGlove 75.57 77.48 91.01 86.67 77.98 40.72 65.8 78.53 71.59
+Word2vec(300dim) 77.65 79.23 90.76 88.30 79.68 42.44 82.6 78.24 72.64
+PPAonWord2vec 77.33 79.5 90.59 88.12 79.41 42.71 83.4 78.26 72.58
+fastText(300dim) 74.16 71.63 89.56 87.12 79.24 39.14 79.4 72.34 70.14
+PPAonfastText 74.59 71.63 89.4 86.9 79.13 39.64 80.2 72.36 70.09
+downstream sentence classification tasks, as in obtained from PPA based dimensionality reduc-
+Section 3. The results are presented in Table 5. tion (Raunak et al., 2019). This shows that the
+In our work, we adhere to the linear evaluation variancebasedpost-processingalgorithmssuchas
+protocolanduseasimplelogisticregressionclas- PPA (Mu and Viswanath, 2018) and PPA-PCA
+sifier in evaluating word representations (Arora (Raunak et al., 2019), when used in downstream
+etal.,2019;Guptaetal.,2020),whereas(Muand tasks have significant limitations, which could be
+Viswanath, 2018) use a neural network as their attributedtothelossofsyntacticinformation.
+classifier. The red coloredcellsinTable5denote
+5.2 MachineTranslation
+the cases where the original embeddings outper-
+formed their Post Processed (PPA) counterparts. Recently, (Qi et al., 2018) have shown that pre-
+Such cases occurred in 14 out of 27 comparisons trained embeddings lead to significant gains in
+in Table 5. The results in Table 5 show that post- performance for the translation of three low re-
+processing doesn’t always lead to accuracy gains source languages namely, Azerbaijani (AZ), Be-
+andcanbecounterproductiveinanumberoftasks. larusian (BE) and Galician (GL) into English
+(EN). Here, we demonstrate the impact of the
+Analysis: The results in Table 5 are contrary to
+post processing algorithm on machine translation
+theexpectationthatpushingthewordembeddings
+(MT) tasks. We replicate the experimental set-
+towardsisotropywouldleadtobetterdownstream
+tings of (Qi et al., 2018) and use a standard 1
+performance. This suggests that within the con-
+layerencoder-decodermodelwithattention(Bah-
+text of downstream sentence classification tasks,
+danau et al., 2015) and a beam size of 5. Prior
+projecting word vectors away from the top com-
+totraining,weinitializetheencoderwithfastText
+ponentsleadstoalossof‘useful’information. To
+word embeddings (no other embeddings are pub-
+explainthislossof‘useful’information,wecould
+lically available for these languages) trained on
+use the analysis from Figure 3. From Figure 3,
+Wikipedia6. We then use PPA on the pre-trained
+it is evident that the top dimensions also contain
+embeddingsandtrainagain. Theresultsoftheex-
+syntacticinformation,thelossofwhichadversely
+perimentsarepresentedinTable6.
+impactsdownstreamclassificationtasks,whichby
+construction, benefitfrombothsemanticandsyn- Analysis: From the results, it is evident that re-
+tactic information. Also, by just removing the moving the top principal component(s) leads to a
+mean (no top component nullification as in PPA), consistent drop in BLEU scores across the three
+we notice almost zero change in performance for language pairs. The observations are consistent
+mostofthesentenceclassificationtasksinTable5 with the previous section, in that removing top
+(the highest change was for TREC, of −0.4, still components hurts performance in non-similarity
+quitelowwhencomparedto−4.4forPPA),which based tasks. This can again be explained using
+demonstrablyshowsthatremovingthemeanmust the analysis from earlier section i.e. instead of
+be ruled out as the possible cause for the drop in strengthening the embeddings, removing the top
+classificationaccuracies. componentsleadstoalossof‘useful’information
+for the Machine translation task. Further, simi-
+On the same tasks, we also observe a drop
+lar to the previous section, we can specifically at-
+in sentence classification accuracy (2.37, 1.99,
+tribute the performance drop to the loss of syn-
+3.94 average drop on word2vec, Glove, fastText
+respectively) using 150 dimensional embeddings 6 https://bit.ly/2WkHQ0Y
+tactic information, since the top components are 6 RelatedWork
+atleastasequallyimportantforsyntacticinforma-
+Duetothewidespreadutilityofwordembeddings,
+tionastheothercomponents,thus,nullifyingthem
+a number of recent works have explored further
+hurtsperformance.
+improving the embeddings post-hoc, as well as
+tryingtobetterunderstandandmanipulatethege-
+Table6:BLEUscoresoverthreedifferentlow-resource
+ometryoftheembeddingspace.
+languagepairswithpretrainedemebddingsandTopD
+componentsremovedusingPPA. Green cellsdenotes Post-Processing Word Embeddings A number
+topscores. of recent works have been proposed to enhance
+word embedding quality post-hoc (Mrksˇic et al.;
+AZ->EN BE->EN GL->EN
+Faruqui et al., 2014; Mu and Viswanath, 2018).
+Pre-Trained 3.24 6.09 15.91
+Theirapplicationsrangefrombettermodelingse-
+PPA(D=1) 3.19 6.02 14.81
+manticsimilarities,improvingdownstreamclassi-
+PPA(D=2) 3.07 5.50 13.88
+fication performance to dimensionality reduction
+PPA(D=3) 3.04 5.26 13.27
+PPA(D=4) 2.92 4.75 13.24 oftheembeddings(Raunaketal.,2019).
+Word Embedding Geometry The linear alge-
+braic structure emergent in word embeddings
+5.3 SummaryandDiscussion
+has received considerable attention (Allen and
+To summarize our experiments on variance based Hospedales, 2019; Arora et al., 2018), and theo-
+post-processing,weconcludethefollowing: retical links have been established between neu-
+ral embedding algorithms and factorization based
+techniques (Levy and Goldberg, 2014). Another
+1. We can not rely on principal components for
+prominent line of work has been along the direc-
+manipulating word embeddings as freely as
+tion of probing tasks (Conneau and Kiela, 2018),
+the current literature suggests. While elimi-
+which use proxy classification tasks to compar-
+natingthe‘commonparts’helpsimprovethe
+atively measure the presence of certain syntac-
+discriminativenessbetweenthewordembed-
+tic/semanticpropertiesintheembeddingspace.
+dings (thereby refining the word similarity
+scores),pushingtheembeddingstowardsan- Ourworkfocusesonthedimensionalproperties
+gular isotropy does not lead to performance of the embedding space in the principal compo-
+gainindownstreamtasks,e.g. sentenceclas- nentbasis,andalsoanalyzesafewpost-processing
+sificationandmachinetranslation. Although, algorithms,thuscontributingtotheexistinglitera-
+we did not assume any generative model for tureonboththeareasofembeddinganalysis.
+the embeddings in any of the explanations
+7 ConclusionandFutureWork
+(unlike(Aroraetal.,2016),whichmakesuse
+oftheisotropyassumptiontoexplainempiri-
+To conclude, besides elucidating redundancy in
+cal observations in factorizing the PMI ma-
+the word embedding space, we demonstrate that
+trix), our work further casts doubt on the
+the variance explained by the word embeddings’
+isotropy assumption for word embeddings
+principal components is not a reliable proxy for
+and suggests that non-isotropy may be inte-
+thedownstreamutilityofthecorrespondingrepre-
+graltoperformanceondownstreamtasks.
+sentations and that the syntactic information cap-
+tured by a principal component does not depend
+2. Furthermore, worse performance in non- on the amount of variance it explains. Further,
+similarity tasks can be attributed to the loss we show that variance based post-processing al-
+of syntactic information contained in the top gorithms such as PPA is not suitable for tasks
+components, suggesting that the specific ge- whichrelymoreonsyntax,suchassentenceclas-
+ometry created through the ‘common parts’ sification and machine translation. Going further,
+isintegraltoembeddingscapturingsyntactic we wish to explore whether the geometric intu-
+properties. Establishing a link between the itions developed in our work could be leveraged
+syntactic properties of the embedding space forcontextualizedembeddingssuchasElMo(Pe-
+and its non-isotropy would be an interesting ters et al., 2018), BERT (Devlin et al., 2019), and
+directiontoexploreforfuturework. Roberta(Liuetal.,2019),etc.
+References deepbidirectionaltransformersforlanguageunder-
+standing. In Proceedings of the 2019 Conference
+Eneko Agirre, Mona Diab, Daniel Cer, and Aitor
+of the North American Chapter of the Association
+Gonzalez-Agirre.2012. Semeval-2012task6: Api-
+for Computational Linguistics: Human Language
+lotonsemantictextualsimilarity. InProceedingsof
+Technologies, Volume 1 (Long and Short Papers),
+theFirstJointConferenceonLexicalandComputa-
+pages4171–4186,Minneapolis,Minnesota.Associ-
+tionalSemantics-Volume1:Proceedingsofthemain
+ationforComputationalLinguistics.
+conferenceandthesharedtask,andVolume2: Pro-
+ceedingsoftheSixthInternationalWorkshoponSe- Manaal Faruqui, Jesse Dodge, Sujay K Jauhar, Chris
+mantic Evaluation, pages 385–393. Association for Dyer, Eduard Hovy, and Noah A Smith. 2014.
+ComputationalLinguistics. Retrofitting word vectors to semantic lexicons.
+arXivpreprintarXiv:1411.4166.
+Carl Allen and Timothy Hospedales. 2019. Analo-
+gies explained: Towards understanding word em- Manaal Faruqui, Jesse Dodge, Sujay Kumar Jauhar,
+beddings. In International Conference on Machine ChrisDyer,EduardHovy,andNoahASmith.2015.
+Learning,pages223–231. Retrofitting word vectors to semantic lexicons. In
+Proceedings of the 2015 Conference of the North
+SanjeevArora,YuanzhiLi,YingyuLiang,TengyuMa,
+American Chapter of the Association for Computa-
+andAndrejRisteski.2016. Alatentvariablemodel
+tional Linguistics: Human Language Technologies,
+approachtopmi-basedwordembeddings. Transac-
+pages1606–1615.
+tionsoftheAssociationforComputationalLinguis-
+tics,4:385–399. Manaal Faruqui and Chris Dyer. 2014. Community
+evaluation and exchange of word vectors at word-
+SanjeevArora,YuanzhiLi,YingyuLiang,TengyuMa, vectors. org. In Proceedings of 52nd Annual Meet-
+and Andrej Risteski. 2018. Linear algebraic struc- ing of the Association for Computational Linguis-
+tureofwordsenses, withapplicationstopolysemy. tics: SystemDemonstrations,pages19–24.
+Transactions of the Association for Computational
+Linguistics,6:483–495. VivekGupta, AnkitSaw, PegahNokhiz, PraneethNe-
+trapalli, Piyush Rai, and Partha Talukdar. 2020. P-
+Sanjeev Arora, Yingyu Liang, and Tengyu Ma. 2017. sif: Document embeddings using partition averag-
+A simple but tough-to-beat baseline for sentence ing. InProceedingsoftheAAAIConferenceonAr-
+embeddings. International Conference of Learning tificialIntelligence.
+Representation.
+IanTJolliffeandJorgeCadima.2016. Principalcom-
+Sanjeev Arora, Yingyu Liang, and Tengyu Ma. 2019. ponentanalysis: areviewandrecentdevelopments.
+A simple but tough-to-beat baseline for sentence Philosophical Transactions of the Royal Society A:
+embeddings. In 5th International Conference on Mathematical, Physical and Engineering Sciences,
+LearningRepresentations,ICLR2017. 374(2065):20150202.
+DzmitryBahdanau,KyunghyunCho,andYoshuaBen- Omer Levy and Yoav Goldberg. 2014. Neural word
+gio. 2015. Neural machine translation by jointly embedding as implicit matrix factorization. In Ad-
+learning to align and translate. In 3rd Inter- vances in neural information processing systems,
+national Conference on Learning Representations, pages2177–2185.
+ICLR2015.
+YinhanLiu,MyleOtt,NamanGoyal,JingfeiDu,Man-
+PiotrBojanowski,EdouardGrave,ArmandJoulin,and dar Joshi, Danqi Chen, Omer Levy, Mike Lewis,
+TomasMikolov.2017. Enrichingwordvectorswith Luke Zettlemoyer, and Veselin Stoyanov. 2019.
+subword information. Transactions of the Associa- Roberta: A robustly optimized bert pretraining ap-
+tionofComputationalLinguistics,5(1):135–146. proach. arXivpreprintarXiv:1907.11692.
+AlexisConneauandDouweKiela.2018. Senteval: An TomasMikolov,IlyaSutskever,KaiChen,GregSCor-
+evaluationtoolkitforuniversalsentencerepresenta- rado, and Jeff Dean. 2013. Distributed representa-
+tions. In Proceedings of the Eleventh International tionsofwordsandphrasesandtheircompositional-
+ConferenceonLanguageResourcesandEvaluation ity. In Advances in neural information processing
+(LREC2018). systems,pages3111–3119.
+Alexis Conneau, German Kruszewski, Guillaume DavidMimnoandLaureThompson.2017. Thestrange
+Lample, Loic Barrault, and Marco Baroni. 2018. geometry of skip-gram with negative sampling. In
+What you can cram into a single vector: Probing Proceedings of the 2017 Conference on Empirical
+sentence embeddings for linguistic properties. In Methods in Natural Language Processing, pages
+Proceedings of the 56th Annual Meeting of the As- 2873–2878.
+sociationforComputationalLinguistics(Volume1:
+LongPapers),pages2126–2136. Nikola Mrksˇic, Diarmuid OSe´aghdha, Blaise Thom-
+son, and pages=142–148 year=2016 Gasˇic´, Mil-
+Jacob Devlin, Ming-Wei Chang, Kenton Lee, and ica and Rojas-Barahona, Lina and Su, Pei-Hao
+Kristina Toutanova. 2019. BERT: Pre-training of and Vandyke, David and Wen, Tsung-Hsien and
+Young, Steve, booktitle=Proceedings of NAACL-
+HLT. Counter-fittingwordvectorstolinguisticcon-
+straints.
+Jiaqi Mu and Pramod Viswanath. 2018. All-but-the-
+top: Simple and effective postprocessing for word
+representations. In International Conference on
+LearningRepresentations.
+Jeffrey Pennington, Richard Socher, and Christopher
+Manning. 2014. Glove: Global vectors for word
+representation. In Proceedings of the 2014 confer-
+enceonempiricalmethodsinnaturallanguagepro-
+cessing(EMNLP),pages1532–1543.
+Matthew Peters, Mark Neumann, Mohit Iyyer, Matt
+Gardner, Christopher Clark, Kenton Lee, and Luke
+Zettlemoyer. 2018. Deep contextualized word rep-
+resentations. In Proceedings of the 2018 Confer-
+ence of the North American Chapter of the Associ-
+ation for Computational Linguistics: Human Lan-
+guageTechnologies,Volume1(LongPapers),pages
+2227–2237.
+YeQi,DevendraSachan,MatthieuFelix,SargunaPad-
+manabhan, and Graham Neubig. 2018. When and
+why are pre-trained word embeddings useful for
+neural machine translation? In Proceedings of the
+2018ConferenceoftheNorthAmericanChapterof
+theAssociationforComputationalLinguistics: Hu-
+man Language Technologies, Volume 2 (Short Pa-
+pers),pages529–535.
+VikasRaunak,VivekGupta,andFlorianMetze.2019.
+Effective dimensionality reduction for word em-
+beddings. In Proceedings of the 4th Workshop
+on Representation Learning for NLP (RepL4NLP-
+2019), pages 235–243, Florence, Italy. Association
+forComputationalLinguistics.
+Zi Yin and Yuanyuan Shen. 2018. On the dimension-
+alityofwordembedding. InS.Bengio,H.Wallach,
+H. Larochelle, K. Grauman, N. Cesa-Bianchi, and
+R.Garnett,editors,AdvancesinNeuralInformation
+ProcessingSystems31,pages895–906.CurranAs-
+sociates,Inc.

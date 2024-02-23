@@ -1,0 +1,459 @@
+Comparative Analysis of Neural QA models on SQuAD
+SoumyaWadhwa KhyathiRaghaviChandu EricNyberg
+LanguageTechnologiesInstitute,CarnegieMellonUniversity
+{soumyaw, kchandu, en09}@andrew.cmu.edu
+Abstract etal.,2017). Anothercommonsourceislargeun-
+structuredtextdocumentsfromWikipediasuchas
+The task of Question Answering has
+in SQuAD (Rajpurkar et al., 2016), WikiReading
+gainedprominenceinthepastfewdecades
+(Hewlett et al., 2016) and WikiHop (Welbl et al.,
+for testing the ability of machines to un-
+2017). Thesedifferentsourcesimplicitlyaffectthe
+derstand natural language. Large datasets
+nature and properties of questions and answers in
+for Machine Reading have led to the de-
+thesedatasets. Basedonthedataset,certainneural
+velopment of neural models that cater to
+modelscapitalizeonthesebiaseswhileothersare
+deeper language understanding compared
+unable to. The ability to generalize across differ-
+to information retrieval tasks. Different
+ent sources and domains is a desirable character-
+components in these neural architectures
+istic for any machine reading system. Evaluating
+areintendedtotackledifferentchallenges.
+andanalyzingsystemsonQAtaskscanleadtoin-
+As a first step towards achieving gen-
+sights for advancements in machine reading and
+eralization across multiple domains, we
+natural language understanding, and Pen˜as et al.
+attempt to understand and compare the
+(2011)havealsopreviouslyworkedonthis.
+peculiarities of existing end-to-end neu-
+One of the first large MRC datasets (over 100k
+ral models on the Stanford Question An-
+QA pairs) is the Stanford Question Answering
+swering Dataset (SQuAD) by performing
+Dataset (SQuAD) (Rajpurkar et al., 2016). For
+quantitative as well as qualitative analysis
+itscollection, differentsetsofcrowd-workersfor-
+oftheresultsattainedbyeachofthem. We
+mulatedquestionsandanswersusingpassagesob-
+observed that prediction errors reflect cer-
+tainedfrom∼500Wikipediaarticles. Theanswer
+tain model-specific biases, which we fur-
+toeachquestionisaspaninthegivenpassage,and
+therdiscussinthispaper.
+manyeffectiveneuralQAmodelshavebeendevel-
+opedforthisdataset. Ourmainfocusinthiswork
+1 Introduction
+istoperformcomparativesubjectiveandempirical
+MachineReadingisataskinwhichamodelreads analysisoferrorsinanswerpredictionsbyfourtop
+apieceoftextandattemptstoformallyrepresentit performingmodelsontheSQuADleaderboard1.
+or performs a downstream task like Question An- We focused on Bi-Directional Attention Flow
+swering(QA).Neuralapproachestothelatterhave (BiDAF) (Seo et al., 2016), Gated Self-Matching
+gainedalotofprominenceespeciallyowingtothe Networks (R-Net) (Wang et al., 2017), Docu-
+recent spur in developing and publicly releasing ment Reader (DrQA) (Chen et al., 2017), Multi-
+large datasets on Machine Reading and Compre- Paragraph Reading Comprehension (DocQA)
+hension (MRC). These datasets are created from (Clark and Gardner, 2017), and the Logistic Re-
+differentunderlyingsourcessuchaswebresources gression baseline model (Rajpurkar et al., 2016)
+in MS MARCO (Nguyen et al., 2016); trivia We mainly choose these models since they have
+and web in QUASAR-S and QUASAR-T (Dhin- comparable high performance on the evaluation
+gra et al., 2017), SearchQA (Dunn et al., 2017), metrics and it is easy to replicate their results due
+TriviaQA (Joshi et al., 2017); news articles in to availability of open source implementations.
+CNN/DailyMail(Chenetal.),NewsQA(Trischler
+1https://rajpurkar.github.io/
+et al., 2016) and stories in NarrativeQA (Kocˇisky` SQuAD-explorer/
+Whilewelimitourselvestoin-domainanalysisof Document Reader (DrQA): This model, pro-
+the performance of these models on SQuAD in posedbyChenetal.(2017),focusesonanswering
+this paper, similar principles can be used to ex- open-domain factoid questions using Wikipedia,
+tend this work to study biases of combinations of but also performs well on SQuAD (skipping the
+different models on different datasets and thereby document retrieval stage). Its implementation4
+understandthegeneralizationcapabilitiesofthese has paragraph and question encoding layers, and
+neuralarchitectures. an output layer. The paragraph encoding is
+Theorganizationofthepaperisasfollows. Sec- computed by representing each context as a se-
+tion2givesacomprehensiveoverviewofthemod- quence of feature vectors derived from tokens:
+elsthatarecomparedinfurthersections. Section3 wordembedding,exactmatchwithquestionword,
+describesthedifferentexperimentsweconducted, POS/NER/TF and aligned question embedding,
+and discusses our observations. In Section 4, we and passing these as inputs to a recurrent neural
+summarize our main conclusions from this work network. Thequestionencodingisobtainedbyus-
+anddescribeourvisionforthefuture. ingwordembeddingsasinputstoarecurrentneu-
+ralnetwork.
+2 RelevantNeuralModels
+Multi-Paragraph Reading Comprehension
+We present a brief overview of the models which (DocQA): This model, proposed by Clark and
+weconsideredforouranalysisinthissection. Gardner (2017), aims to answer questions based
+on entire documents (multiple paras) rather than
+Bi-Directional Attention Flow (BiDAF): This specific paragraphs, but also gives good results
+model, proposed by Seo et al. (2016), is a hi- for SQuAD (considering the given paragraph as
+erarchical multi-stage end-to-end neural network the document). The implementation5 contains
+which takes inputs of different granularity (char- input, embedding (character and word-level),
+acter, word and phrase) to obtain a query-aware pre-processing (shared bidirectional GRU be-
+contextrepresentationusingmemory-lesscontext- tween question and passage), attention (similar
+to-query(C2Q)andquery-to-context(Q2C)atten- to BiDAF), self-attention (residual) and output
+tion. Thisrepresentationcanthenbeusedfordif- (bidirectionalGRUandlinearscoring)layers.
+ferent final tasks. Many versions of this model
+(with different types of input features) exist on LogisticRegression(LR): Thismodelwaspro-
+the SQuAD leaderboard, but the basic architec- posed as a baseline in the SQuAD dataset paper
+ture2(whichweuseforourexperimentsinthispa- (Rajpurkaretal.,2016)andusesfeaturesbasedon
+per) contains character, word and phrase embed- n-gram frequencies, lengths, part-of-speech tags,
+ding layers, followed by an attention flow layer, a constituency and dependency parse trees of ques-
+modelinglayerandanoutputlayer. tionsandpassagesasinputstoalogisticregression
+classifier6topredictwhethereachconstituentspan
+Gated Self-Matching Networks (R-Net): This isananswerornot.
+model,proposedbyWangetal.(2017),isamulti-
+layer end-to-end neural network whose novelty 3 ExperimentsandDiscussion
+lies in the use of a gated attention mechanism so
+We trained the aforementioned end-to-end neu-
+as to give different levels of importance to differ-
+ral models and compare their performance on the
+ent passage parts. It also uses self-matching at-
+SQuAD development set which contains 10,570
+tentionforthecontexttoaggregateevidencefrom
+question-answerpairsbasedonWikipediaarticles.
+the entire passage to refine the query-aware con-
+textrepresentationobtained. Thearchitecturecon-
+3.1 QuantitativeAnalysis
+tains character and word embedding layers, fol-
+lowed by question-passage encoding and match- To perform a systematic comparison of errors
+ing layers, a passage self-matching layer and an acrossdifferentmodels,weinvestigatethepredic-
+output layer. The implementation we used3 had tionsbasedonthefollowingcriteria.
+someminorchangesforincreasedefficiency.
+4
+https://github.com/facebookresearch/DrQA
+5
+https://github.com/allenai/document-qa
+2
+https://allenai.github.io/bi-att-flow/ 6
+https://worksheets.codalab.org/worksheets/
+3
+https://github.com/HKUST-KnowComp/R-Net 0xd53d03a48ef64b329c16b9baf0f99b0c/
+3.1.1 Span-LevelPerformance shorterpassages, whileR-NetandBiDAFareob-
+Thespan-levelperformanceismeasuredtypically served to be better for longer passages. However,
+by Exact Match (EM) and F1 metrics which are there are no systematic error patterns and overall
+reported with respect to the ground truth answer error rates, surprisingly, are not much higher for
+spans. These results are summarized in Table 1. longer passages. This means that predictions on
+The DocQA model gives the best overall perfor- longpassagesarealmostasgoodasonshort(pre-
+mancewhichalignswellwithourexpectation,ow- sumablyeasiertounderstand)passages.
+ing to the usage of and improvements in the prior
+3.1.4 QuestionLengthDistribution
+mechanismsintroducedinBiDAFandR-Net.
+Wealsodoasimilarerroranalysisforquestionsof
+Model BiDAF R-Net DrQA DocQA LR
+different lengths. Since there are very few ques-
+EM(%) 67.67 70.12 66.00 71.60 40.14
+F1(%) 77.31 78.94 76.28 80.78 50.98 tions which have length greater than 30, the es-
+CorrectSentence(%) 91.05 92.37 92.40 93.77 83.30 timate for range 30-34 is not very reliable. In
+Table1: SpanandSentenceLevelPerformance Figure 2, we observe that the error rate first de-
+creases and then increases for BiDAF, DrQA and
+DocQA. A plausible explanation for this is that
+3.1.2 Sentence-LevelPerformance
+shorter questions contain insufficient information
+To investigate trends at different granularities, we inordertobeabletoselectthecorrectanswerspan
+also measuresentence retrievalperformance. The and can hence be confusing, but it also becomes
+context given for each question-answer pair is difficult for end-to-end neural models to learn a
+split into sentences using the NLTK sentence to- good representation when the question becomes
+kenizer7, and the sentence-level accuracy of each longer and syntactically more complicated. How-
+of the models is computed (Table 1). Since the ever, R-Net has an irregular trend with respect to
+defaultsentencetokenizerforEnglishinNLTKis questionlength,whichisdifficulttoexplain.
+pre-trainedonPennTreebankdatawhichcontains
+formal language (news articles), we expect it to 3.1.5 AnswerLengthDistribution
+performreasonablywellonWikipediaarticlestoo. Foranswersofvaryinglengths,theerrorratesare
+Weobservethatallthemodelshavehighsentence- shown in Figure 3. Again, estimates for answers
+level accuracy, with DocQA outperforming the with length >16 are not very reliable since data
+other models with respect to this metric as well. is sparse for high answer lengths. Here, we ob-
+Interestingly, DrQA performs better on sentence serveanincreasingtrendinitiallyandthenaslight
+retrievalaccuracythanbothBiDAFandR-Net,but decrease (bell shape). This conforms to the hy-
+has a worse span-level exact match score, which pothesis that shorter answers are easier to predict
+isprobablybecauseoftherichfeaturevectorrep- than longer answers, but only up to a certain an-
+resentation of the passage due to the model’s fo- swer length (observed to be around 7 for most
+cus on open domain QA (and hence retrieval). models). Theslightlybetterperformanceforvery
+But,noneoftheseneuralmodelshavenear-perfect longanswersislikelyduetosuchanswershaving
+abilitytoidentifythecorrectsentence,and∼90% ahigherchanceofbeing(almost)entiresentences
+accuracy indicates that even if we have a perfect withsimplerquestionsbeingaskedaboutthem.
+answerselectionmethod,thisisthebestEMscore
+we can achieve. However, incorrect span identifi- 3.1.6 ErrorOverlap
+cation contributes more to errors in prediction for In Table 2, we analyze the number of erroneous
+allthemodels,asseenfromthedisparitybetween predictions which overlap for different pairs of
+the sentence-level accuracies and the final span- models, i.e., which belong to the intersection of
+levelexactmatchscorevalues. thesetsofincorrectanswersgeneratedbymodels
+in each (row, column) pair. Thus, the values in
+3.1.3 PassageLengthDistribution
+thetablerepresentasymmetricmatrixwithdiago-
+We analyze the impact of passage length on er-
+nalelementsindicatingthenumberoferrorswhich
+rors,sincethiscanbeanimportantfactorindeter-
+each model commits. This analysis can be use-
+miningthedifficultyofunderstandingthepassage.
+fulwhiledeterminingsuitablemodelsforcreating
+AsseeninFigure1,DocQAperformsthebeston
+metaensemblessincealowincorrectanswerover-
+7 lap indicates that the combined predictive power
+http://www.nltk.org/api/nltk.tokenize.html
+Figure1: PercentageoftotalQApairsforeachrangeofpassagelengthswhichhaveincorrectpredictions
+bydifferentmodels
+Figure2: PercentageoftotalQApairsforeachrangeofquestionlengthswhichhaveincorrectpredictions
+bydifferentmodels
+of the pair of models under consideration is high. range 20-25% indicating that an ensemble might
+We observe that most overlap values are in the giveconsiderablybetterperformancethanindivid-
+Figure 3: Percentage of total QA pairs for each answer length which have incorrect predictions by
+differentmodels
+ualmodels. DocQApairedwithothermodelsgen- of, each of these models can be trained indepen-
+erates low values, as expected, but the least value dently followed by multi-label classification (to
+is observed for the DocQA-DrQA pair probably select one of the generated answers) using tech-
+because they both use very different feature rep- niqueslikelogisticregression,afeed-forwardneu-
+resentationsandarchitectures,andhencegenerate ral network or a recurrent or convolutional neural
+diverseoutputs. NotethatDrQAisnotthesecond networkwithinputfeaturesbasedonthequestion,
+best performing model (among the ones we ana- the passage and their token overlap. The entire
+lyzed) when considered independently, but might networkcanalsobetrainedend-to-end.
+addmorevaluetoanensemblebecauseoftheob- Also,all5modelscombinedhaveanerrorover-
+servedansweroverlaptrends. lap of 13.68%, i.e., if we had a mechanism to
+perfectlychoosebetweenthesemodels,wewould
+Model BiDAF R-Net DrQA DocQA LR
+get an Exact Match score of 86.32%. This indi-
+BiDAF 32.33 21.97 22.56 21.22 26.58
+catesthatfutureworkbasedonensemblingdiffer-
+R-Net 21.97 29.88 22.06 21.35 24.99
+DrQA 22.56 22.06 34.00 20.95 27.49 ent neural models can give promising results and
+DocQA 21.22 21.35 20.95 28.40 23.59 isworthexploring.
+LR 26.58 24.99 27.49 23.59 59.86
+An example of a passage-question-answer that
+allofthemodelsgetwrongis:
+Table2: IncorrectAnswerOverlap(%)
+Passage: The University of Warsaw was estab-
+Onewayinwhichthisanalysiscanhelpinexplor- lished in 1816, when the partitions of Poland
+ingensemble-basedmethodsisthatinsteadoftry- separated Warsaw from the oldest and most
+ing all possible combinations of models, we can influential Polish academic center, in Krakow.
+adoptagreedyapproachbasedontheincorrectan- Warsaw University of Technology is the second
+sweroverlapmetrictodecidewhichmodeltoadd academic school of technology in the country,
+to the ensemble (and only if it leads to a statisti- and one of the largest in East-Central Europe,
+cally significant difference in this overlap). After employing 2,000 professors. Other institutions
+determininganapproximatelyoptimalsetofmod- for higher education include the Medical Uni-
+els which such an ensemble should be composed versity of Warsaw, the largest medical school
+in Poland and one of the most prestigious, the 3.2.2 Inference-BasedErrors
+National Defence University, highest military
+Multi-Sentence: This error category includes
+academic institution in Poland, the Fryderyk
+those cases where inference is required to be per-
+ChopinUniversityofMusictheoldestandlargest
+formed across 2 or more sentences in the given
+music school in Poland, and one of the largest in
+passage to be able to arrive at the answer, which
+Europe, the Warsaw School of Economics, the
+leads to an incorrect prediction based on only 1
+oldest and most renowned economic university
+passagesentence.
+in the country, and the Warsaw University of
+Life Sciences the largest agricultural university Paraphrase: This error category includes those
+foundedin1818. caseswherethequestionparaphrasescertainparts
+Question: What is one of the largest music ofthesentencethatitisaskingaboutwhichmakes
+schoolsinEurope? lexical pattern matching difficult and leads to er-
+Answer: FryderykChopinUniversityofMusic rorsinprediction.
+SameEntityTypeConfusion/UnitConfusion:
+Thispassage-question-answerisdifficultforauto-
+Thiserrorcategoryincludesthosecaseswherethe
+matic processing because there several entities of
+question is about an entity type which is present
+thesametype(school/university)inthepassage,
+multiple times in the passage and the model re-
+and the question is a paraphrase of one segment
+turnsadifferententitythanthegroundtruthentity
+ofaverylong,syntacticallycomplicatedsentence
+butofthesametype.
+whichcontainstheinformationrequiredtobeable
+toinferthecorrectanswer. Thispresentsaninter- Requires World Knowledge: This error cate-
+estingchallenge,andsuchqualitativeobservations gory includes questions which can not be an-
+can be used to formulate a general technique for swered using the given passage alone and require
+effectivelytestingmachinereadingsystems. external knowledge to solve, leading to incorrect
+predictions.
+3.2 QualitativeAnalysis
+Missing Inference: This category includes
+For qualitative error analysis, we sample 100
+inference-relatederrorswhichdon’tbelongtoany
+incorrect predictions (based on EM) from each
+oftheothercategoriesmentionedabove.
+model and try to find common error categories.
+Broadly, the errors observed were either because 3.2.3 Observations
+ofincorrectanswerspanboundariesorinabilityto In this section, we record the main observations
+inferthemeaningofthequestion/passage. Exam- fromourqualitativeerroranalysisandanalyzepo-
+ples of each error type are shown in Table 3, and tential reasons for the error trends observed. Fig-
+thesearefurtherdescribedbelow. ure4showsthedifferenttypesoferrorsinpredic-
+tionsbyvariousmodels.
+3.2.1 Boundary-BasedErrors
+WeobservethatBiDAFmakesmanyboundary-
+Incorrect answer boundary (longer): This er- based errors which indicates that a better output
+ror category includes those cases where the pre- layer(sincethisisresponsibleforspanidentifica-
+dictedspanislongerthanthegroundtruthanswer, tion–althougherrorsmighthavepercolatedfrom
+butcontainstheanswer. previous layers, most of these are cases where
+the model almost got the correct answer but not
+Incorrectanswerboundary(shorter): Thiser- exactly) or some post-processing of the answer
+ror category includes those cases where the pre- might help improve performance. Paraphrases
+dictedspanisshorterthanthegroundtruthanswer, also contribute to almost 15% of errors observed
+andisasubstringoftheanswer. which indicates that the question and the relevant
+parts of the context are not effectively matched in
+SoftCorrect: Thiserrorcategoryincludesthose thesecases.
+cases where the prediction is actually correct, but We observe that R-Net makes fewer boundary
+due to inclusion / exclusion of certain question errors, perhaps because self-attention enables it
+terms (such as units) along with the answer, it is to accumulate evidence and return better answer
+deemedincorrect. spans, although this leads to more errors of the
+ErrorType Passage Question PredictedAnswer
+Incorrect ... survey of 4,745 North American Lutherans aged 15-65 What did a survey of North 15-65foundthat,com-
+answer foundthat,comparedtotheotherminoritygroupsundercon- American Lutherans find that paredtotheothermi-
+boundary sideration,LutheransweretheleastprejudicedtowardJews. Lutherans felt about Jews nority groups under
+(longer) Nevertheless,ProfessorRichard(Dick)Geary,... compared to other minority consideration, Luther-
+groups? answeretheleastprej-
+udicedtowardJews
+Incorrect ... IntheUnitedStates,inorderforaprescriptionforacon- Whatconditionsmustbemet issuedforalegitimate
+answer trolledsubstancetobevalid, itmustbeissuedforalegiti- toprescribeacontrolledsub- medicalpurpose
+boundary matemedicalpurposebyalicensedpractitioneractinginthe stance?
+(shorter) courseoflegitimatedoctor-patientrelationship.Thefilling...
+SoftCorrect ... forthattime. ThevBNSinstalledoneofthefirstever Whatdidthenetworkinstallin OC-48c(2.5Gbit/s)IP
+production OC-48c (2.5 Gbit/s) IP links in February 1999 1999? links
+andwentontoupgradetheentirebackbone...
+Multi- ... UserDatagramProtocol(UDP)isanexampleofadata- X.25 uses what type network protocolsuite
+Sentence gramprotocol.Inthevirtualcallsystem...model.TheX.25 type?
+protocolsuiteusesthisnetworktype.
+Paraphrase ... ratherthanconsumers. Thereisnoknowncaseofany Has there ever been any- haseverbeencharged
+U.S.citizensbuyingCanadiandrugsforpersonalusewitha one charged with importing byauthorities
+prescription,whohaseverbeenchargedbyauthorities. drugs from Canada for per-
+sonalmedicinaluse?
+Same Entity ... afterthe1973oilcrisis, Honda, ToyotaandNissan, af- Name a luxury division of Acura, Lexus and In-
+Type / Unit fectedbythe1981voluntaryexportrestraints,openedUSas- Toyota. finiti
+Confusion semblyplantsandestablishedtheirluxurydivisions(Acura,
+Lexus and Infiniti, respectively) to distinguish themselves
+fromtheirmass-marketbrands.
+Requires ... disobedience in opposition to the decisions of non- Whatpublicentityoflearning governmental
+World governmentalagenciessuchastradeunions,banks,andpri- isoftentargetofcivildisobe-
+Knowledge vateuniversitiescanbejustifiedif... dience?
+Missing In- ... Killer T cells are a sub-group of T cells that kill cells What kind of T cells kill sub-group
+ference thatareinfectedwithviruses(andotherpathogens), orare cells that are infected with
+otherwisedamagedordysfunctional.AswithBcells... pathogens?
+Table3: Examplesoferrortypesobservedinthequalitativeanalysis-blueindicatesgroundtruth
+Figure4: Distributionoferrorsbyvariousmodelsacrossdifferentcategoriesusingmanualinspection
+‘shorter’ answer type than ‘longer’. Also, miss- sider the features used to represent each passage,
+inginferencecontributestoalmost20%oftheob- such as exact match with a question word, which
+served errors (not including multiple sentences or depend on lexical overlap between the question
+paraphrases). andpassage.
+Paraphrasingisthemostfrequenterrorcategory WeobservethatDocQAmakesmanyboundary
+observedforDrQA,whichmakessenseifwecon- errors too, again making more mistakes by pre-
+dicting shorter answers than expected in most of pre-processing / hyperparameters. We will con-
+the observed cases. A better root cause analysis tinue to work on this since the ability of a model
+canbeperformedbyvisualizingoutputsfromdif- to generalize and to be able to learn from a par-
+ferent layers and evaluating these, and we leave ticular domain and transfer some knowledge to a
+this in-depth investigation to future work. Also, differentdomainisaveryexcitingresearcharea.
+thehighnumberofSoftCorrectoutputsacrossall We also believe that such analysis can help cu-
+modelspointstosomedeficienciesintheSQuAD ratedatasetswhicharebetterindicatorsoftheac-
+annotations, which might limit the reliability of tual natural language ‘reading’ and ‘comprehend-
+theperformanceevaluationmetrics. ing’capabilitiesofmodelsratherthanfallingprey
+Although these state-of-the-art deep learning to shallow pattern matching. One way to achieve
+models for machine reading are supposed to have this is by building new challenges that are specif-
+inference capabilities, our error analysis above ically designed to put pressure on the identified
+points to their limitations. These insights can weaknessesofneuralmodels. Thus,wecanmove
+beusefulfordevelopingbenchmarksanddatasets towards the development of datasets and models
+whichenablerealisticevaluationofsystemswhich which truly push the envelope of the challenging
+aim to ‘solve’ the RC task. In Wadhwa et al. machinereadingtask.
+(2018), we take a first step in this direction by
+Acknowledgments
+proposing a method focused on questions involv-
+ing referential inference, a setting to which these We would like to thank Chaitanya Malaviya and
+modelsfailtogeneralizewell. Abhishek Chinni for their valuable feedback, and
+the Language Technologies Institute at CMU for
+4 ConclusionandFutureWork
+the GPU resources used in this work. We are
+also very grateful to the anonymous reviewers for
+Inthiswork, weanalyze-both quantitativelyand
+their insightful comments and suggestions, which
+qualitatively - results generated by 4 end-to-end
+helpeduspolishthepresentationofourwork.
+neural models on the Stanford Question Answer-
+ing Dataset. We observe interesting trends in the
+analysis, with some error patterns which are con- References
+sistent across different models and some others
+Danqi Chen, Jason Bolton, and Christopher D Man-
+which are specific to each model due to their dif-
+ning. Athoroughexaminationofthecnn/dailymail
+ferentinputfeaturesandarchitectures. Thisisim- readingcomprehensiontask.
+portant to be able to interpret and gain an intu-
+Danqi Chen, Adam Fisch, Jason Weston, and An-
+itionfortheeffectivefunctionsthatdifferentcom-
+toine Bordes. 2017. Reading wikipedia to an-
+ponents in a neural model architecture perform swer open-domain questions. arXiv preprint
+versus their intended functions, and also to un- arXiv:1704.00051.
+derstand model-specific biases. Eventually, this
+Christopher Clark and Matt Gardner. 2017. Simple
+can enable us to come up with new models in-
+and effective multi-paragraph reading comprehen-
+cludingspecificcomponentswhichtackletheseer- sion. arXivpreprintarXiv:1710.10723.
+rors. Alternatively, the overlap analysis demon-
+Bhuwan Dhingra, Kathryn Mazaitis, and William W
+strates that learning ensembles of different neural
+Cohen. 2017. Quasar: Datasets for question an-
+models to combine their individual strengths and swering by search and reading. arXiv preprint
+quirksmightbeaninterestingdirectiontoexplore arXiv:1707.03904.
+toachievebetterperformance.
+Matthew Dunn, Levent Sagun, Mike Higgins, Ugur
+Eventhoughthescopeofthispaperisrestricted Guney, Volkan Cirik, and Kyunghyun Cho. 2017.
+to SQuAD, similar analysis can be done for any Searchqa: A new q&a dataset augmented with
+context from a search engine. arXiv preprint
+datasets/models/features,togainabetterunder-
+arXiv:1704.05179.
+standing and enable a better assessment of state-
+of-the-art in neural machine reading. To this end, Daniel Hewlett, Alexandre Lacoste, Llion Jones, Illia
+we also performed some preliminary experiments Polosukhin, AndrewFandrianto, JayHan, Matthew
+Kelcey,andDavidBerthelot.2016. Wikireading: A
+on TriviaQA so as to analyze the difference be-
+novel large-scale language understanding task over
+tween the properties of the two datasets, but were
+wikipedia. InProceedingsofthe54thAnnualMeet-
+unable to replicate the published results owing to ingoftheAssociationforComputationalLinguistics
+(Volume1: LongPapers),pages1535–1545,Berlin,
+Germany. Association for Computational Linguis-
+tics.
+Mandar Joshi, Eunsol Choi, Daniel S Weld, and Luke
+Zettlemoyer.2017. Triviaqa: Alargescaledistantly
+supervisedchallengedatasetforreadingcomprehen-
+sion. arXivpreprintarXiv:1705.03551.
+Toma´sˇ Kocˇisky`, Jonathan Schwarz, Phil Blunsom,
+Chris Dyer, Karl Moritz Hermann, Ga´bor Melis,
+and Edward Grefenstette. 2017. The narrativeqa
+reading comprehension challenge. arXiv preprint
+arXiv:1712.07040.
+Tri Nguyen, Mir Rosenberg, Xia Song, Jianfeng Gao,
+Saurabh Tiwary, Rangan Majumder, and Li Deng.
+2016. Ms marco: A human generated machine
+reading comprehension dataset. arXiv preprint
+arXiv:1611.09268.
+Anselmo Pen˜as, Eduard H Hovy, Pamela Forner,
+A´lvaro Rodrigo, Richard FE Sutcliffe, Corina
+Forascu, and Caroline Sporleder. 2011. Overview
+ofqa4mreatclef2011: Questionansweringforma-
+chine reading evaluation. In CLEF (Notebook Pa-
+pers/Labs/Workshop),pages1–20.
+PranavRajpurkar,JianZhang,KonstantinLopyrev,and
+Percy Liang. 2016. Squad: 100,000+ questions for
+machine comprehension of text. In Proceedings of
+the2016ConferenceonEmpiricalMethodsinNatu-
+ralLanguageProcessing,pages2383–2392,Austin,
+Texas.AssociationforComputationalLinguistics.
+Minjoon Seo, Aniruddha Kembhavi, Ali Farhadi, and
+Hannaneh Hajishirzi. 2016. Bidirectional attention
+flow for machine comprehension. arXiv preprint
+arXiv:1611.01603.
+AdamTrischler,TongWang,XingdiYuan,JustinHar-
+ris, Alessandro Sordoni, Philip Bachman, and Ka-
+heer Suleman. 2016. Newsqa: A machine compre-
+hensiondataset. arXivpreprintarXiv:1611.09830.
+S. Wadhwa, V. Embar, M. Grabmair, and E. Nyberg.
+2018. Towards Inference-Oriented Reading Com-
+prehension: ParallelQA. ArXive-prints.
+Wenhui Wang, Nan Yang, Furu Wei, Baobao Chang,
+and Ming Zhou. 2017. Gated self-matching net-
+works for reading comprehension and question an-
+swering. In Proceedings of the 55th Annual Meet-
+ingoftheAssociationforComputationalLinguistics
+(Volume1:LongPapers),volume1,pages189–198.
+Johannes Welbl, Pontus Stenetorp, and Sebastian
+Riedel. 2017. Constructing datasets for multi-hop
+reading comprehension across documents. arXiv
+preprintarXiv:1710.06481.

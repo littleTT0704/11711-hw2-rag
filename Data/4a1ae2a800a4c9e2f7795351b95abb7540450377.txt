@@ -1,0 +1,958 @@
+Formal Grammars of Early Language
+Shuly Wintner1, Alon Lavie2, and Brian MacWhinney3
+1 Department of Computer Science, University of Haifa
+shuly@cs.haifa.ac.il
+2 Language Technologies Institute, Carnegie Mellon University
+alavie@cs.cmu.edu
+3 Department of Psychology, Carnegie Mellon university
+macw@cmu.edu
+Abstract. Weproposetomodelthedevelopmentoflanguagebyaseries
+of formal grammars, accounting for the linguistic capacity of children
+at the very early stages of mastering language. This approach provides
+a testbed for evaluating theories of language acquisition, in particular
+withrespecttotheextenttowhichinnate,language-specificmechanisms
+mustbeassumed.Specifically,wefocusonasinglechildlearningEnglish
+and use the CHILDES corpus for actual performance data. We describe
+a set of grammars which account for this child’s utterances between
+the ages 1;8.02 and 2;0.30. The coverage of the grammars is carefully
+evaluated by extracting grammatical relations from induced structures
+and comparing them with manually annotated labels.
+1 Introduction
+1.1 Language acquisition
+Two competing theories of language acquisition dominate the linguistic and
+psycho-linguisticcommunities[59,pp.257-258].One,thenativist approach,orig-
+inating in [14–16] and popularized by [47], claims that the linguistic capacity is
+innate,expressedasdedicated“languageorgans”inourbrains;therefore,certain
+linguistic universals are given to language learners for free, requiring only the
+tuning of a set parameters in order for language to be fully acquired. The other,
+emergentist explanation[2,56,37,38,40,41,59],claimsthatlanguageemergesas
+a result of various competing constraints which are all consistent with general
+cognitive abilities, and hence no dedicated provisions for universal grammar are
+required. Consequently,
+“[linguistic universals] do not consist of specific linguistic categories or
+constructions; they consist of general communicative functions such as
+reference and predication, or cognitive abilities such as the tendency to
+conceptualizeobjectsandeventscategorically,orinformation-processing
+skills such as those involved with rapid vocal sequences.” [58, p. 101].
+Furthermore, language is first acquired in an item-based pattern:
+“[young children] do not operate on the basis of any linguistic abstrac-
+tions, innate or otherwise. Fairly quickly, however, they find some pat-
+terns in the way concrete nouns are used and form something like a
+category of a noun, but schematization across larger constructions goes
+more slowly... The process of how children find patterns in the ambient
+language and then construct categories and schemas from them is not
+well understood at this point.” [58, pp. 106-107].
+Ourultimategoalinthisworkistoprovideaformalenvironmentinwhichthese
+two hypotheses can be rigorously evaluated.
+Childrenlearnlanguagegraduallyandinductively,ratherthanabruptlyand
+deductively [37]. Still, it is possible to isolate “snapshots” of language devel-
+opment which are qualitatively distinct from previous snapshots, e.g., by mov-
+ing from one word utterances to two words, exhibiting a new possibility for
+word order, introducing embedded clauses, etc. It should therefore be possible
+to construct grammars for each of these snapshots of language development in
+isolation, and then inspect the differences among those grammars. The underly-
+ing assumption of this work is that such snapshot grammars exhibit a gradual,
+smooth development which can be captured formally and accounted for mathe-
+matically.
+As an example of “snapshots” of language acquisition, consider the first five
+stages defined by [11], namely:
+1. Acquisitionofsemantic roles (e.g.,agent,patient,instrumentetc.)insimple
+sentences expressed by linear order and syntactic relations;
+2. Acquisition of semantic modulations such as number, specificity, tense, etc.,
+expressed morphologically or lexically;
+3. Modalities of the simple sentences, e.g., interrogative, negative and impera-
+tive sentences;
+4. Embedding, as in relative clauses or VP objects;
+5. Coordination of full sentences or partial phrases with deletion.
+[11] shows that these five stages correspond nicely to measures of grammar de-
+velopment, in particular mean length of utterance (MLU). However, there is
+nothing sacred in this number of stages and a finer granularity of representa-
+tion is certainly possible. There is also evidence that in some languages (e.g.,
+Hungarian) the order of the stages may be somewhat different [36]. A similar
+definition of “a phase-based model of language acquisition” is offered by [4], al-
+though the five stages she delineates are not identical to those of [11]. We will
+focus in this work only on the first 3–4 phases of [4], again dividing them up to
+a finer resolution.
+In order to investigate the development of child language, corpora which
+document linguistic interactions involving children are needed. The CHILDES
+database [39], containing transcripts of spoken interactions between children at
+variousstagesoflanguagedevelopmentwiththeirparents,providesvastamounts
+of useful data for linguistic, psychological, and sociological studies of child lan-
+guage development. Two developments make CHILDES an attractive experi-
+mental setup for investigating language acquisition. First, similar databases of
+child-adult linguistic interactions are constantly being collected and developed
+for a variety of languages. Furthermore, many of the corpora are morphologi-
+callyanalyzedandannotatedinacompatiblemanner,whichmakesitpossibleto
+compare language development across different languages. Second, the English
+CHILDESdatabasehasrecentlybeenannotatedwithgrammaticalrelations[51].
+This is useful for various practical applications (e.g., assessing the syntactic de-
+velopment of children, as in [52]), but is particularly attractive as it provides a
+way for automatically evaluating the coverage and, to some extent, the correct-
+ness of formal grammars which attempt to generate child language (see, e.g.,
+[7]).
+This paper presents some preliminary results. Following a discussion of re-
+lated work below, we describe in section 3 a set of formal grammars accounting
+fortheearlyutterancesofoneEnglishspeakingchild,Seth [44,45],asreflectedin
+theCHILDESdatabase[39].Faithfultotheitem-basedmodeloflanguageacqui-
+sition, the grammars that we develop are highly lexicalized (typed) unification
+grammars [13], inspired by Head-Driven Phrase Structure Grammar (HPSG,
+[48]). Such grammars provide means for expressing deep linguistic structures in
+anintegratedway.WeuseLKB[19]toimplementthegrammarsandapplythem
+to the data in the corpus, producing deep linguistic structures which describe
+the syntax, but also some aspects of the morphology and the semantics, of child
+utterances. In particular, we convert the structural descriptions produced by
+the grammars to the functional annotation of [51]. This facilitates an automatic
+evaluationofthecoverageofthegrammars(section4).Onourdevelopmentset,
+the error rate is lower than 10%.
+1.2 Formal grammars
+Formal grammars are mathematical systems for describing the structure of lan-
+guages, both formal and natural. In this work we employ unification grammars
+[65,66] and in particular unification grammars that are based on typed feature
+structures [13]. Such grammars underly linguistic theories such as Lexical Func-
+tionalGrammar[28]andHead-DrivenPhrase-StructureGrammars(HPSG)[48].
+Typed unification grammars are based on a signature consisting of a par-
+tial order of types, along with an appropriateness specification which lists the
+features which are appropriate for each type and the types of their values. The
+signature facilitates the specification of an ontology of linguistic entities, from
+basic signs to rules and grammars. The building blocks of unification grammars
+are feature structures, which are nested data structures licensed by the signa-
+ture.Grammarrulescanthenrefertoandmanipulatevariouspiecesofthedata
+encoded in feature structures, providing the linguist with powerful means for
+expressing linguistic theories in various strata: phonology, morphology, syntax,
+semantics and information structure. Unification grammars, and in particular
+HPSG grammars, have been used successfully for describing the structure of a
+variety of natural languages [26,3,29].
+Typed unification grammars are attractive as a grammatical formalism, and
+inparticularasanenvironmentforinvestigatinglanguageacquisition,forseveral
+reasons.First,grammarsaremulti-stratal,allowingfortheexpressionofvarious
+typesoflinguisticinformationandinteractionsthereofinthesamesortofobject.
+Second,grammarrulesarebasicallyconstraintswhichlimitthedomainofgram-
+matical utterances rather than procedures for generating linguistic structures.
+Third, such grammars are highly lexical: most of the information is encoded in
+the lexicon and rules tend to be few and very general. This goes hand in hand
+with item-basd theories of language acquisition. Finally, the unification opera-
+tion which is so essential to the formalism provides a natural implementation of
+unifying the effect of various competing constraints, although it currently does
+notclearlysupportthekindofviolableconstraintsthatareknownin,e.g.,opti-
+malitytheory[49].Whileunificationgrammars,asaconstraint-basedformalism,
+are adequate for characterizing structure, they may not be ideal for character-
+izing processes; as will be made clear in section 2, we focus in this work on the
+formalrepresentationoflinguisticknowledge,ratherthanontheprocesseswhich
+lead to its acquisition. Unification grammars, therefore, are a natural formalism
+to use for this task.
+One task that unification grammars may fail in is the truthful modeling of
+competition among different, incompatible constraints. This seems to be one of
+thecoremechanismsinlanguageacquisition,andisprobablybestmodeledwith
+somekindofstatisticalorprobabilisticframework.Weconjecturethatstochastic
+unificationgrammars[1,27]maybeadequateforthis,butweleavethisdirection
+for future research.
+1.3 Formal approaches to language acquisition
+Many existing theories of language acquisition focus on exploring how language
+develops, applying computational learning theory to the problem of language
+acquisition[62,5].Theyassumeaclassofformallanguagesandanalgorithmfor
+inducing a grammar from examples, and differ in the criterion of success (e.g.,
+identification in the limit [22] vs. PAC learning [60]), the class of algorithms
+thelearnerisassumedtoapply(accountingformemorylimitations,smoothness
+etc.) and the class of formal languages that can be learned.
+A different kind of formal approaches to language acquisition utilizes com-
+puter simulations; this line of research is sometimes called computational ap-
+proaches to language acquisition [10]. For a discussion of such approaches and
+theirinter-relationswithbehavioral,experimentalmethods,see[9].Ofparticular
+interestistheWhat and why vs. how dichotomythat[9]introduces:muchofthe
+research conducted under the computational framework seems to be interested
+inexplaininghow language(inanycase,certainaspectsoflanguage)isacquired.
+In this work we are interested in how linguistic knowledge is organized and how
+this organization develops as the child matures; in the terminology of [9], this is
+a what question, which we nevertheless address formally.
+Thedominantnativistapproachtolanguageacquisitionattemptstoplaceit
+inthecontextofprinciples and parameters theoriesoflanguage[14,17].Assum-
+ing some form of Universal Grammar with a set of parameters that have to be
+finelytunedasaparticularlanguageisacquired,[21]proposeatriggering learn-
+ing algorithm (TLA) which is aimed at setting the parameters correctly given
+positive examples. Some shortcomings of this algorithm were pointed out, e.g.,
+by [43], who propose a model with fewer assumptions and better convergence
+performance.
+Inthemainstreamofgenerativeapproachestosyntax,arepresentativework
+on language acquisition is [31], which attempts to answer the question “What
+is the best way to structure a grammar?” and in particular to investigate “the
+relation between the sequence of grammars that the child adopts, and the basic
+formation of the grammar.” One of the answers of [31] is very similar to our
+approach here; namely, that “the grammar is arranged along the lines of sub-
+grammars...sothatthechildpassesfromonetothenext.”However,[31]suffers
+fromtwomajorshortcomings.First,thisworkisnotinformedbyactualdata:the
+grammar fragments it provides are supposed to account for competence rather
+than performance. In this respect, it is interesting to quote [11, p. 56–58], who
+says:
+“notmanypeopleknowhowmuchcanbemilkedfrommereperformance
+inthecaseofsmallchildren...[Thiswork]isaboutknowledge;knowledge
+concerning grammar and the meanings coded by grammar. Knowledge
+inferred, of course, from performance...”
+Second,[31]is,tousetheterminologyof[56,p.136],“describedinlinguistically
+specific terms such that it is very difficult to relate them to cognition in other
+psychological domains”; in other words, this work is only accessible to experts
+in contemporary generative approaches to syntax.
+These two issues are remedied in [61]. Here, the Universal Grammar is im-
+plemented as a Unification-Based Generalised Categorial Grammar, embedded
+inadefaultinheritancenetworkoflexicaltypes.Thelearningalgorithmreceives
+inputfromacorpusofspontaneouschild-directedtranscribedspeech,annotated
+withlogicalforms,andsetstheparametersbasedonthisinput.Thisframework
+is used as a basis for investigating several aspects of language acquisition from
+data,focusingontheacquisitionofsubcategorizationframesandwordorderin-
+formation.However,thisworkisstillembeddedintheprinciplesandparameters
+framework,assuminga(veryelaborate)universalgrammarwhichisexpressedin
+unification-basedcategorialgrammarandalargesetofparameters,including89
+categorialparameters,18wordorderparametersetc.Astheworkfocusesonthe
+acquisition of verb arguments, only 1517 carefully selected sentences were se-
+lectedandannotated(outofamuchlargercorpus).Mostimportantly,thiswork
+concentratesonthe“how”oflanguageacquisition,discussinganarchitecturefor
+learningthelexiconandtheparametersofagrammar.Thefocusofourwork,in
+contrast,isexactlyonthecomponentwhich[61]assumesgiven,namelytheinter-
+nal representation of the grammar, and how this grammar changes as language
+develops. Our work is not committed to the full details of Government-Binding
+theory (or any other linguistic theory, for that matter); rather, we expect child
+grammars to naturally emerge from actual data rather than comply with pre-
+defined principles. For a detailed, well-argued criticism of the nativist approach
+see [54].
+Building on the work of [61], but assuming very limited innate linguistic
+mechanisms (e.g., the ability to recognize objects, segment words or combine
+constituents), and not subscribing to the principles and parameters discipline,
+[12] proposes a computational model for first language acquisition. The model,
+whichinferslinguisticstructurefromdata,isstatisticalandcancopewithnoisy
+input. The model is shown to outperform TLA on simple learning tasks. Again,
+this works focuses on the “how” rather than the “what”.
+Surprisingly,veryfewworksaddresstheissueofaccountingforchildlanguage
+data by means of formal grammars. It is worth mentioning that [11] himself
+developed formal grammars for describing the utterances in his corpus. He says
+(p. 56):
+“...the requirement to be fully explicit and develop rules that will really
+derivethesentencesyouhaveobtainedforcesakindofintenseexamina-
+tion and continuing re-examination of the data, and so is a good way to
+get to know it very well....”
+We do not stop at writing the grammars, and do not limit ourselves to the
+goal of getting to know the data. Rather, we investigate the possible changes in
+grammar as it develops and the constraints imposed on such changes. Perhaps
+the closest approach to the one we propose here is [25], which sketches
+“...a solution to the string-to-structure problem in first language acqui-
+sition within a set of emergentist assumptions that minimizes the need
+to assume innate linguistic knowledge, minimizes demands for linguistic
+analysis by the language learner, and exploits the projection of lexical
+propertiesofwords. Theseconceptualconstraintsminimize thenumber,
+complexity, and diversity of principles that have to develop in learning
+a grammar.”
+[25] sketches, very briefly, some milestones in language acquisition, and models
+them by means of an HPSG grammar which is gradually being developed to
+account for more data. The two most important principles for [25] are assuming
+noinnatelinguisticknowledge(rather,sheassumesgeneralcognitivecapabilities
+such as “the ability to discriminate kinds of things”, “the capacity to add to a
+store of propositional knowledge”, or “the ability to identify what is missing
+when something is missing”); and proposing a monotonic theory of grammar
+development, although exactly what is meant by monotonicity is not explicitly
+defined.
+[25]advocatestheuseofHPSGastheframeworkinwhichtomodellanguage
+acquisition. HPSG is chosen to demonstrate the emergentist theory mainly be-
+cause of its underlying architecture, in particular the use of a type signature
+and, separately, a set of well-defined formal principles. The signature provides
+anontologyofentities(e.g.,linguisticsigns),andtheprinciplesconstrainandre-
+strictthoseentities.[25]showsthatitispossibletoaccountforseveralstagesin
+child language development by means of a single mechanism: “incremental and
+largely monotonic changes to a type hierarchy that constitutes an increasingly
+less skeletal constraint-based grammar”.
+The main drawbacks of this work are two. First, while [25] lists several frag-
+ments of the proposed HPSG grammar, those fragments are never tested and
+their predictive power is never contrasted with actual corpora recording child
+language use. Second, the possible changes that grammars may undergo in the
+process of language development are never spelled out. Two of our goals in this
+work are to remedy these problems, by providing actual grammars that can
+(andare)testedagainsttheCHILDESdatabasecorpora;andbyformallydefin-
+ingagrammar refinement operatorthatwillaccountforthepossiblechangesin
+grammar development.
+2 Research objectives
+This work can be divided into two main sub-tasks: developing grammars for
+representative stages of child language data; and developing grammar refine-
+ment operators that will explain the possible changes in grammars as language
+develops.
+2.1 Grammar development
+Our departure point is the item-based, functional, emergentist theory of gram-
+mar acquisition; our grammars are therefore highly lexicalized, and assume few
+innate components. However, we do expect certain universal patterns to emerge
+from the multilingual data that we explore, and these patterns indeed inform
+and guide the development of the grammars. Faithful to the item-based model
+of language acquisition, the grammars that we develop are highly lexicalized
+(typed) unification grammars. As pointed out above, such grammars provide
+means for expressing deep linguistic structures in an integrated way. We use the
+LKB system [19] as our grammar development environment.
+In the first phase we manually developed a few grammars for some repre-
+sentative corpora, focusing on the Eve corpus [11,39] and the Seth corpus [44,
+45]. In the next phase we will extend the coverage of the grammars to more
+corpora, longitudinally accounting for a small number of individuals along the
+first few years of language acquisition. We will consequently extend the cover-
+age of the grammars to cover also data in other languages, for similar language
+development stages.
+The grammars are all applied to the data in the corpus, producing deep lin-
+guisticstructuresdescribingthesyntax,butalsosomeaspectsofthemorphology
+andthesemantics,oftheutterancesobservedinthedata.Inparticular,itispos-
+sible to automatically and deterministically convert the structural descriptions
+produced by the grammars to the functional annotation of [51].
+2.2 Grammar refinement
+Amajorresearchquestionthatweleaveforfutureresearchinvolvesthepossible
+changes that a grammar can undergo as language develops; we use the term
+grammar refinement to refer in general to any of several operators which may
+convert one grammar, accounting for some layer of language command, to a
+subsequent grammar, accounting for more developed linguistic capacity. Gram-
+mar refinement must have access to all the components of a grammar, and in
+particulartothetypesignatureonwhichagrammarisbasedandtothelexicon.
+Currentworkinunificationgrammarsfocusesonissuesofgrammarengineer-
+ing.Inarecentwork,[18]definetheconceptofsignaturemodules forunification
+grammars and show how several modules can combine through a merge op-
+eration. They introduce the concept of partially specified signature (PSSs) to
+abstract away from specific type- and feature-names in grammars. This work is
+extended in [55],where PSSs are extended to modules,facilitating the combina-
+tion of grammar fragments, which interact via an abstract interface, and which
+can be combined as needed to form full grammars. While this work is prelimi-
+nary,itsetsthestageforseveralpossibledevelopmentsincollaborativegrammar
+engineering. It is also a very promising starting point for defining “core” gram-
+mars which embody universal principles, and which can then be combined with
+more language specific and parochial modules and constraints.
+We believe that these results can provide the infra-structure for defining
+grammar refinement operators. Operations such as splitting an existing type
+to several subtypes (reflecting the child’s ability to make finer distinctions), or
+adding appropriate features to types (reflecting a more complex representation
+of a given sign), are easily definable with PSSs. Lexical acquisition can be ac-
+counted for by means of grammar union [63,64]. Acquisition and refinement of
+constructionscanalsobedefinedaschangestothetypesignature,followingthe
+encoding of constructions advocated by, e.g., [50]. In sum, unification grammars
+in general and those that are based on typed feature structures in particular
+provide suitable means for modeling language development; we hope to make
+significant contributions to such modeling in future extensions of this work.
+3 Formal grammars of children’s language
+In the preparation of the successive series of grammars for a single child’s lan-
+guage,weareconstrainedbythreerequirements.First,weareboundtobefaith-
+fultothedata:thegrammarsmustadequatelyaccountforthekindofutterances
+observedintheCHILDESdatathatdrivethisresearch,andthestructuresthey
+induce on utterances must be compatible with the existing syntactic annotation
+of[51](henceforth,GRASPannotation).Second,ourgrammarsmustbeconsis-
+tent with existing psycholinguistic theories which ground the formal description
+inwell-foundedexperimentalandtheoreticalresults.Formallyspeaking,itisal-
+ways possible to provide infinitely many different grammars for any given finite
+language; it is the predictions of the grammar and their theoretical adequacy
+which distinguish a good grammar from a better one. Finally, the rules that
+we stipulate must be learnable: one can imagine a postulated rule that is gen-
+eratively adequate and psycholinguistically plausible, but unlearnable. We will
+thereforestrivetodefinegrammarrefinementoperatorsthatarecompatiblewith
+existing theories of learnability.
+The forces that drive grammar development are manifold; a good gram-
+mar must simultaneously account for and generate phonological, intonational,
+morphological, syntactic, semantic and pragmatic structures. Since this work is
+preliminary, we are unable to provide such wealth of information, although the
+framework in which we work certainly facilitates it. Two examples suffice to
+delineate the types of linguistic structure that our grammars abstract over.
+It is clear that intonation plays a major part in (some) children’s first ut-
+terances [44]. The early speech of some children is interspersed with fillers, and
+“One function underlying production of these early fillers seems to be preser-
+vation of the number of syllables in and/or the prosodic rhythm of the target”
+[46, p. 234]. Along the same lines, [20] proposes that “much of the null and
+variable occurrence of functional categories in early speech can be more accu-
+rately explained by appealing to phonological rather than syntactic aspects of
+children’sdevelopinggrammars”.However,sinceaformaltheoryofphonological
+and intonational structures and their interaction with other components of the
+grammar, even in adult language, is still unavailable, we suppress a discussion
+of these aspects in the sequel.
+Similarly, [42] demonstrate that the very first utterances of children are bet-
+ter understood from a functional (i.e., pragmatic) point of view: “children’s
+earliest words express specific communicative function” that a focus on syntax
+and semantics fails to analyze correctly. We believe that information structure,
+speech-act and pragmatics in general are essential to understanding child lan-
+guage, but our current grammars do not specify such information, which is not
+sufficiently well understood to be formalized.
+3.1 Preliminaries
+LKB grammars consist of three main components: a signature, specifying the
+type hierarchy along with constraints on types; grammar rules, which specify
+phrasestructurecombinatorics;andalexicon,associatingfeaturestructureswith
+words. The examples below use the LKB syntax, which is described in detail in
+[19].
+We begin with an inventory of general-purpose types, such as lists and dif-
+ference lists (figure 1). These are needed mostly for technical reasons at this
+preliminary stage of the grammar, so we only mention them in passing.
+Next, we associate words with part of speech (POS) categories. It is clear
+that children can distinguish among some different POS categories from a very
+early age [30]. Several works address the question of the acquisition of POS cat-
+egories,andthepsychological,neurologicalandcomputationalunderpinningsof
+this process have been extensively investigated and described [33–35]. A classi-
+fication of POS categories is manifested in our grammar as in figure 2; co is a
+communicator, e.g., hi, bye, okay, please, and fil is a filler, e.g., uh.
+string := *top*.
+*list* := *top*.
+*ne-list* := *list* & [ FIRST *top*, REST *list* ].
+*null* := *list*.
+*diff-list* := *top* & [ LIST *list*, LAST *list* ].
+*empty-diff-list* := *diff-list* & [ LIST #list, LAST #list ].
+Fig.1. General purpose types
+cat := *top*.
+adj := cat.
+adv := cat.
+co := cat.
+fil := cat.
+nominal := cat.
+n := nominal.
+prop := nominal.
+prep := cat.
+v := cat.
+Fig.2. Parts of speech
+Similarly,weassumeasetofgrammatical relations (GRs) ofthesameinven-
+tory that is used by GRASP [51] to annotate the corpora. In this early stage of
+the grammar, we cannot assume that the child had learned any of those, so we
+resort to the general specification:
+gr := *top*.
+Furthermore, we define a structure for dependency relations. A dependency is a
+triple consisting of a type, which is a GR, and a head and a dependent, which
+are lexical structures:
+dep := *top* &
+[ GRTYPE gr,
+GRDEP lex,
+GRHEAD lex ].
+Lexical structures consist of a string, representing the standard orthography
+of the lexical item, and a GR. The string is merely a convenient abstraction
+over the actual phonological structure of the word, which should be properly
+modeled as an extension of the present work. The reason for the GR is that
+oftentimes it is the lexical item which determines the grammatical relation of
+some construction; we return to this below.
+lex := *top* &
+[ ORTH string,
+DEP gr ].
+Syntactic structures consist of a part of speech category; a sub-category,
+which we take to be a list of complements; and a list of specifiers, as in HPSG.
+The spr list will be used by non-heads to specify the heads they modify; it will
+either have a single element or be empty. In contrast, subcat lists are used by
+heads to specify their complements and may have zero or more elements.
+syn := *top* &
+[ CAT cat,
+SPR *list*,
+SUBCAT *list* ].
+Finally, we define constructions. A construction [23,57,24] is a collection of
+linguistic information pertaining to the form, combinatorics and meaning of an
+utterance,similarlytoHPSG’ssigns.Inourgrammars,weroughlyapproximate
+constructions by specifying the lexical and syntactic information structures of
+wordsandphrases,aswellasalistofgrammaticalrelationsgrsinlieuofseman-
+tics. Additionally, the feature string lists the surface form of the construction,
+as in figure 3.
+construction := *top* &
+[ LEX lex,
+SYN syn,
+GRS *diff-list*,
+STRING *diff-list* ].
+Fig.3. Constructions
+Of course, figure 3 only lists the very basic constructions, and sub-types of
+the type construction are defined and refined as the grammar develops. For our
+firstgrammarwecanassumethattwosub-typesaredefined,namelylexeme and
+phrase;theformerisassociatedwithlexicalitems,whereasthelatterhasinternal
+structure, expressed via (at least) the feature dtr1, standing for ‘daughter 1’,
+as in figure 4.
+lexeme := construction &
+[ LEX #lex,
+GRS *empty-diff-list*,
+STRING [ LIST [ FIRST #lex , REST #last ], LAST #last ] ].
+phrase := construction &
+[ DTR1 construction ].
+Fig.4. Lexemes and phrases
+3.2 Earliest language
+Thefirstgrammarreflectstheveryfirstutterancesrecordedinthecorpus;these
+are usually one-word utterances and holophrases [59, p. 261]. We constructed a
+lexiconofallsuchitemswhichoccurinthecorpus;eachitemisassociatedwitha
+featurestructureoftypelexeme,reflectingatleastitsorthographyandsyntactic
+(POS)category.Someexamplesarelistedinfigure5.Thetypeslex prop,lex adv
+etc. are defined as in figure 6.
+Julie := [ LEX [ ORTH "Julie" ] ] & lex_prop .
+back := [ LEX [ ORTH "back" ] ] & lex_adv .
+byebye := [ LEX [ ORTH "byebye" ] ] & lex_co .
+cake := [ LEX [ ORTH "cake" ] ] & lex_n .
+came := [ LEX [ ORTH "came" ] ] & lex_v .
+Fig.5. Some lexical items
+lex_adj := lexeme & [ SYN [ CAT adj ] ].
+lex_adv := lexeme & [ SYN [ CAT adv ], LEX [ DEP jct-rel ] ].
+lex_co := lexeme & [ SYN [ CAT co ] ].
+lex_fil := lexeme & [ SYN [ CAT fil ] ].
+lex_n := lexeme & [ SYN [ CAT n ] ].
+lex_prop := lexeme & [ SYN [ CAT prop ] ].
+lex_prep := lexeme & [ SYN [ CAT prep ] ].
+lex_v := lexeme & [ SYN [ CAT v ] ].
+Fig.6. Sub-types of lexeme
+Thesedefinitionsaresufficientforhandlingtheone-wordutterancesthatare
+observed in the first files of the Seth corpus.
+3.3 The emergence of constructions
+The next stage of language development allows for combinations of words and
+holophrases.Forexample,thefirstmulti-wordutterancesintheSethcorpusare
+came in; come in; had cake; had chocolate; orange juice; and right back. We
+view the latter two as holophrases, but the first four, which are augmented in
+subsequent data by utterances such as Dabee toast and swing high, justify the
+introduction of item-based constructions to the grammar.
+Exactly how constructions are learned by children remains largely unknown
+[32], and we do not attempt to address this question directly here. However,
+at least three types of constructions must be supported by a formal account of
+grammardevelopment.First,basicitemscanbeconcatenated,yielding“succes-
+sivesingle-wordutterances”[6];accordingto[8],thesearethefirstindicationsof
+syntaxinspeech.Second,pivot-schemas allowthecombinationofonehighlyfre-
+quent“event-word”(e.g.,more,It’s,I)withavarietyofitems.Third,item-based
+constructions allow more complex and more abstract combination, in which the
+construction itself adds, for the first time, to the semantics of the full utterance
+[59, pp. 263-264].
+Let us focus first on utterances such as came in; come in and had cake; had
+chocolate. By the end of the language learning process we may want to say that
+suchutterancesreflectverb–adjunct andverb–objectrelations,respectively.This
+isindeedhowtheseutterancesareannotatedinthecorpus.Therefore,duringthe
+learningprocessthechildmustsomehowacquiretheseconstructions.Apossible
+way of stepping through this process is outlined below.
+First,thegrammarmustallowbinarycombinationsofwords;thisiscaptured
+by the type binary-phrase, which is a sub-type of phrase. A binary-phrase has
+twodaughters,dtr1anddtr2.Furthermore,thelistof grsofthemotherisob-
+tainedbyconcatenatingthesamelistsinthetwodaughters,andthesameholds
+for string. In order to distinguish between the two daughters, we introduce
+the type headed-phrase, in which an additional feature, head-dtr, reflects (and
+is reentrant with) the head daughter, which can be either dtr1 or dtr2. The
+head daughter shares its lex structure and its main category, but not neces-
+sarily its subcategory, with its mother. We next define a binary-headed-phrase,
+a sub-type of both binary-phrase and headed-phrase, with an additional feature,
+non-head-dtr. These definitions are given in figure 7.
+binary-phrase := phrase &
+[ DTR1 [ GRS [ LIST #first, LAST #middle ],
+STRING [ LIST #str1, LAST #str3 ] ],
+DTR2 [ GRS [ LIST #middle, LAST #last ],
+STRING [ LIST #str3, LAST #str2 ] ],
+GRS [ LIST [ FIRST dep, REST #first ], LAST #last ],
+STRING [ LIST #str1, LAST #str2 ] ].
+headed-phrase := phrase &
+[ LEX #lex,
+SYN [ CAT #cat ],
+HEAD-DTR construction & [ LEX #lex, SYN [ CAT #cat ] ] ].
+binary-headed-phrase := headed-phrase & binary-phrase &
+[ NON-HEAD-DTR construction ].
+Fig.7. Binary phrases
+In both verb–adjunct and verb-object constructions, the head is the first
+daughter; furthermore, in both the second daughter is a dependent of the first.
+We therefore define two sub-types of binary-phrase, namely head-first and dep-
+second, which reflect these observations. A major difference between adjuncts
+and objects is that the latter are subcategorized for by the head verb; we de-
+fine two subtypes of binary-phrase which account to this distinction: in subcat-
+unchanged,thesubcategorizationofthemotherandtheheaddaughterareiden-
+tical, whereas in subcat1 constructions the head daughter specifies its object ar-
+gument,whichisremovedfromthesubcategorizationlistthatispropagatedto
+themother.Withthesedefinitionsinplace,obj-construction andjct-construction
+are defined as in figure 8.
+head-first := binary-headed-phrase &
+[ HEAD-DTR #head-dtr,
+DTR1 #head-dtr,
+NON-HEAD-DTR #non-head-dtr,
+DTR2 #non-head-dtr ].
+dep-second := binary-phrase &
+[ GRS [ LIST [ FIRST [ GRHEAD #dep1, GRDEP #dep2 ] ] ],
+DTR1 [ LEX #dep1 ],
+DTR2 [ LEX #dep2 ] ].
+subcat-unchanged := binary-headed-phrase &
+[ SYN [ SUBCAT #subcat, SPR #spr ],
+HEAD-DTR [ SYN [ SUBCAT #subcat, SPR #spr ] ] ].
+subcat1 := binary-headed-phrase &
+[ SYN [ SUBCAT #rest, SPR #spr ],
+HEAD-DTR [ SYN [ SPR #spr ] ],
+DTR2 #head-dtr,
+DTR1 [ SYN [ SUBCAT [ FIRST #head-dtr, REST #rest ] ] ] ].
+obj-construction := head-first & dep-second & subcat1 &
+[ GRS.LIST.FIRST.GRTYPE obj-rel ].
+jct-construction := head-first & dep-second & subcat-unchanged &
+[ GRS.LIST.FIRST.GRTYPE jct-rel ].
+Fig.8. Types of binary phrases
+The only grammar rules that are needed for this elementary stage are two:
+oneforeachtypeofconstructions.Theserulesaredepictedinfigure9.Whilethe
+rulesinduceisomorphictreesontheutteranceshadcake andcomein(figure10),
+thefeaturestructuresinducesbythegrammaronthetwostringsaresignificantly
+different (figure 11). In fact, words such as in are categorized as adverbs for
+convenience only. We do not claim that the child had acquired the category of
+adverbsyet;rather,itisclearthatheusessomeverbswithsomeadjuncts,asin
+comeinorswinghigh.Itisalsoclearthattheseconstructionsaredifferentfrom,
+say, had cake or had chocolate. We therefore classify “words which can follow
+verbs”asadjuncts,and“nounswhichcanfollowtheverbhave”asobjects.Also,
+the rule which allows objects to combine with verbs is general: it can apply to
+any verb. It is well known that only few verbs are used in early language, and
+thatargumentstructureisacquiredinanitem-basedfashion[24].Therulecould
+therefore have been stated in terms of a particular verb, by specifically referring
+to the lex feature of the verb, or to a group of verbs, by specifying a sub-type
+of verb.
+vp_v_np_rule := obj-construction &
+[ SYN [ CAT v ],
+DTR2 [ SYN np ] ] .
+vp_v_advp_rule := jct-construction &
+[ SYN [ CAT v ],
+DTR2 [ SYN [ CAT adv ] ] ] .
+Fig.9. Two phrase-structure rules
+Fig.10. Two trees
+The first utterance in the Seth corpus which is clearly not an instance of
+either the verb–object or the verb-adjunct constructions is Dabee toast (Dabee
+is the child’s grandmother). We treat such utterances as vocative constructions:
+the first word of the construction is a proper name, and the second is uncon-
+strained.Fewadditionstothegrammararerequiredinordertoaccountforsuch
+utterances. In a vocative construction, the head is the second daughter, and the
+first word is a dependent of the second; we therefore add the types head-second
+anddep-first,analogouslytohead-first anddep-second.Also,theresultingphrase
+is saturated, as no further modification is allowed. We subsequently add a sub-
+cat0 construction which specifies that the subcategorization list of the mother
+is empty. A voc-construction is a sub-type of both. One rule is added, too, as
+shown in figure 12.
+Fig.11. Feature structures of two two-word utterances
+head-second := binary-headed-phrase &
+[ HEAD-DTR #head-dtr,
+DTR2 #head-dtr,
+NON-HEAD-DTR #non-head-dtr,
+DTR1 #non-head-dtr ].
+dep-first := binary-phrase &
+[ GRS [ LIST [ FIRST [ GRHEAD #dep2, GRDEP #dep1 ] ] ],
+DTR1 [ LEX #dep1 ],
+DTR2 [ LEX #dep2 ] ].
+subcat0 := binary-phrase &
+[ SYN [ SUBCAT *null*, SPR *null* ] ].
+voc-construction := dep-first & subcat0 & subcat1 &
+[ GRS.LIST.FIRST.GRTYPE voc-rel ].
+vocative_rule := voc-construction &
+[ DTR1 [ SYN [ CAT prop ] ] ] .
+Fig.12. Accounting for vocative constructions
+3.4 Towards full syntax
+Theinfra-structuresetupabovefacilitatesaformalaccountofthevarioustypes
+of constructions learned at this early stage. In the first files of the Seth corpus
+different kinds of multi-word utterances are observed, including Dabee toast;
+swing high; Uncle Bob; bird outside; I bet; kiss it; come see me; put shoes on;
+take a bite and who loves you. These phrases represent various grammatical
+relations, and while some of them are pivot-based or item-based, others may be
+the beginning of the emerging syntax. We describe below the extensions to the
+grammar which are required to account for these new data.
+Let us first account for the emergence of subjects, as in I bet. We add a
+sub-type of nominal, called pronoun, of which I is an instance. We also add a
+sub-type of gr, namely subj-gr. A subject construction is a special case of the
+newly introduced specifier–head construction, in which the first daughter is the
+specifier of the head of the second daughter, and subcat is empty and shared
+between the mother and the head daughter. Also, the first constituent depends
+onthesecond,hencethetypespecificationandgrammarrulelistedinfigure13.
+spr-head := binary-headed-phrase & dep-first &
+[ SYN [ SUBCAT #subcat & *null*, SPR *null* ],
+HEAD-DTR #head-dtr & [ SYN [ SUBCAT #subcat ] ],
+DTR1 #spr-dtr,
+DTR2 #head-dtr & [ SYN [ SPR [ FIRST #spr-dtr ] ] ] ].
+subj-construction := spr-head & [ GRS.LIST.FIRST.GRTYPE subj-rel ].
+s_np_vp_rule := subj-construction &
+[ SYN clause,
+DTR1 [ SYN np ],
+DTR2 [ SYN [ CAT v ] ] ] .
+Fig.13. Accounting for subject constructions
+Wenowmoveontotheemergenceofdeterminers,asintakeabite.Weneed
+an additional sub-type of cat, namely determiner, and an additional sub-type
+of gr, namely det-rel. Like subjects, determiner are specifiers of their heads, but
+unlike subjects they specify the category of their heads in their lexical types, as
+shown in figure 14.
+det-construction := spr-head & [ GRS.LIST.FIRST.GRTYPE det-rel ].
+lex_det := lexeme &
+[ SYN [ CAT det, SPR [ FIRST [ SYN np ], REST *null* ] ] ].
+np_det_n_rule := det-construction &
+[ SYN np,
+DTR1 lex_det,
+DTR2 lex_n ] .
+Fig.14. Accounting for determiner constructions
+The trees induced by the grammar on I bet and take a bite are depicted in
+figure 15. Of course, with the available constructions the grammar can generate
+morecomplexstructures,suchasItakeabite,whicharenotobservedinthedata
+at this early stage. We take this to be a performance constraint on grammatical
+competence,whichisbetterrealizedbylimiting,e.g.,thelengthoftheutterances
+or the degree of tree nesting.
+Fig.15. Two more trees
+Immediatelyaftertheappearanceofdeterminers,quantifiersareobservedin
+the data in very similar constructions: some toast, some juice. In addition to
+the introduction of the types qn (a sub-type of cat) and quant-rel (a sub-type
+of gr), no additional construction type is needed. Rather, we specify quantifiers
+lexically analogously to determiners, and add a designated rule which is almost
+identical to the determiner rule, see figure 16.
+lex_qn := lexeme &
+[ SYN [ CAT qn, SPR [ FIRST [ SYN np ], REST *null* ] ] ].
+np_qn_n_rule := det-construction &
+[ SYN np,
+DTR1 lex_qn,
+DTR2 lex_n ] .
+Fig.16. Accounting for quantifiers
+Anotherconstructionthatisobservedinthisearlystageinvolvescommunica-
+tors:wordssuchashi,oh,please oryes,followedbysomeothershortutterance,
+asinohgood orpleaseDaddy.Theseareaccountedforbytheintroductionofa
+newsub-typeofgr,namelycom-rel;anewconstructiontype,com-construction;
+and an additional rule, depicted in figure 17.
+At a very early age children begin to develop more complex syntactic struc-
+tures. Seth, for example, produces an interrogative construction at the age of
+com-construction := head-second & dep-first & subcat1 &
+[ GRS.LIST.FIRST.GRTYPE com-rel ].
+communicator_rule := com-construction &
+[ DTR1 lex_co
+] .
+Fig.17. Accounting for communicator constructions
+twentymonths.Itiswhatgeesesay,whosemeaningcanbeinterpretedfromthe
+followingutteranceinthecorpus:hisfatherrepeatingwhatdothegeesesay? In
+whatfollowsweprovideanaccountofsuchconstructions,inspiredbytheHPSG
+treatment of “movement”, or transformations, using slash categories.
+First, we split the type pronoun into two sub-types, pers-pro and wh-pro,
+distinguishing between personal and interrogative pronouns, respectively. We
+similarly split lex-pro into lex-pers-pro and lex-wh-pro. Also, in order to limit
+the extraction of the object in utterances like what geese say to transitive verbs
+only,wedefinethetypelex-trans,whichisasub-typeoflex-v whichhasasingle,
+noun phrase element on its subcat list.
+Next, we augment the type construction by adding a feature slash, whose
+value is a list. We expect at most one element on slash lists, an instance of the
+type slash:
+slash := *top* &
+[ CONST construction,
+SLASH-DEP dep ].
+When an expected argument is “moved”, as in the case of the object of say
+in the running example, it is removed from the subcat list of its mother and
+stored in the slash list. This is accounted for by gap constructions. Such ele-
+ments are expected to be realized higher up the tree as wh-pronouns; they are
+then matched against the stored element in the slash list of the second daugh-
+ter, through the filler construction. These two constructions, along with some
+additional supporting types, are depicted in figure 18 (some additional, minor
+modificationsarerequiredinthegrammarinordertopropagatethevalueofthe
+slash feature along the derivation). The resulting tree is depicted in figure 19.
+4 Evaluation
+In order to evaluate the plausibility of the grammars, we extracted from the
+structures that they induce on child utterances the sequence of grammatical
+relations, and compared them to the manual GRASP annotations. We briefly
+describethemethodologyanddiscusstheresultsoftheevaluationinthissection.
+First, we manually annotated a subset of the Seth corpus, focusing only on
+child utterances and ignoring any adult ones, using the GRASP scheme. We
+unary-phrase := phrase &
+[ DTR1 [ GRS #grs, STRING #str ],
+GRS #grs,
+STRING #str ].
+unary-headed-phrase := headed-phrase & unary-phrase &
+[ HEAD-DTR #dtr,
+DTR1 #dtr ].
+gap := unary-headed-phrase &
+[ SYN [ SUBCAT #rest, SPR #spr ],
+SLASH [ FIRST [ CONST #missing-dtr,
+SLASH-DEP [ GRTYPE obj-rel ] ] ],
+DTR1 [ SYN [ SUBCAT [ FIRST #missing-dtr, REST #rest ], SPR #spr ] ] ].
+filler := head-second & dep-first &
+[ DTR2 [ SYN #syn, SLASH [ FIRST [ CONST #dtr,
+SLASH-DEP [ GRTYPE #grtype ] ] ] ],
+DTR1 #dtr & [ SYN [ CAT wh-pro ] ],
+SYN #syn,
+GRS.LIST.FIRST.GRTYPE #grtype ].
+Fig.18. Gaps and fillers
+Fig.19. Filler-gap constructions
+then extracted from this subset only those utterances that are well-formed, i.e.,
+include only words which occur in the lexicon (as opposed to filler syllables, un-
+recognizedsoundsetc.)These516utterancesconstituteourdevelopmentcorpus.
+We then parsed the utterances with the set of grammars described above. From
+the resulting feature structures we extracted the values of the grs feature, and
+converted them to GRASP format.
+Table 1 lists the number of errors of the parser, in terms of unlabeled and
+labeled dependencies, with respect to the manually annotated corpus. Since the
+corpuscontainsmanyrepetitionswepresentboththenumberofutterancetokens
+(total) and the number of utterance types (unique occurrences).
+# utterances# of GRs Grammar Errors
+File unlabeledlabeled
+# % # %
+0a tokens 107 234 48 21 48 21
+0a types 38 82 6 7 6 7
+1a tokens 108 223 3 1 7 3
+1a types 38 79 3 4 5 6
+2a tokens 115 247 16 6 18 7
+2a types 45 105 13 12 15 14
+2b tokens 68 142 12 8 12 8
+2b types 30 64 6 9 6 9
+3a tokens 118 240 0 0 0 0
+3a types 34 72 0 0 0 0
+Total tokens 516 1086 79 7.9 85 7.8
+Total types 185 402 28 6.9 32 7.9
+Table 1. Evaluation results, development set
+5 Conclusion
+We presented a sequence of grammars which adequately cover the first stages of
+the emergence of syntax in the language of one child. The structures produced
+bythegrammarswereevaluatedagainstamanuallyannotatedcorpus,revealing
+a low error rate (below 10%). These are preliminary results, and the evaluation
+is very basic, but we believe that the results are promising.
+Space considerations prevent us from listing the complete grammars. How-
+ever, we note that the changes introduced in each grammar, compared to the
+previous one, consist only of two operations: adding types, by splitting a single
+type to two or more sub-types; and adding constraints on types, in the form of
+additional features or reentrancy constraints. This is an encouraging outcome:
+in a very well-founded, mathematical sense, our grammars are monotonically
+increasing.
+Thispreliminaryworkwillbecontinuedinthreemaintracks.First,weintend
+tocontinuethedevelopmentofthegrammars,accountingformoreconstructions
+and evaluating the accuracy on the entire Seth corpus, as well as on other man-
+ually annotated child language corpora. Second, we will develop mechanisms of
+grammar engineering that will facilitate both the definition of refinement oper-
+ators and the modular development of sequences of grammars. Finally, we will
+account for competition among constraints, setting the stage for a theory which
+could also explain how these grammars can be learned from data.
+Acknowledgements
+ThisresearchwassupportedbyGrantNo.2007241fromtheUnitedStates-Israel
+Binational Science Foundation (BSF). This work was supported in part by the
+National Science Foundation under grant IIS-0414630. We are grateful to Eric
+Davis for his invaluable help.
+References
+1. StevenP.Abney.Stochasticattribute-valuegrammars.ComputationalLinguistics,
+23(4):597–618, 1997.
+2. Elizabeth Bates and Brian MacWhinney. Competition, variation, and language
+learning. InBrianMacWhinney,editor,Mechanismsoflanguageacquisition,chap-
+ter 6, pages 157–193. Lawrence Erlbaum Associates, Hillsdale, New Jersey, 1987.
+3. Emily M. Bender, Dan Flickinger, Fredrik Fouvry, and Melanie Siegel. Shared
+representation in multilingual grammar engineering. Research on Language and
+Computation, 3:131–138, 2005.
+4. RuthA.Berman. Betweenemergenceandmastery:Thelongdevelopmentalroute
+oflanguageacquisition. InRuthA.Berman,editor,Language development across
+childhood and adolescence, volume 3 of Trends in Language Acquisition Research,
+pages 9–34. John Benjamins, Amsterdam/Philadelphia, 2004.
+5. StefanoBertolo. Acquisition,formaltheoriesof. InRobertA.WilsonandFrankC.
+Keil, editors, The MIT Encyclopedia of the Cognitive Sciences. Bradford Books,
+September 2001.
+6. Lois Bloom. One word at a time: The use of single word utterances before syntax.
+Mouton, The Hague, 1973.
+7. Gideon Borensztajn, Willem Zuidema, and Rens Bod. Children’s grammars grow
+moreabstractwithage-evidencefromanautomaticprocedureforidentifyingthe
+productive units of language. In Proceedings of CogSci, 2008.
+8. George Branigan. Some reasons why successive single word utterances are not.
+Journal of Child Language, 6:411–421, 1979.
+9. Michael R. Brent. Advances in the computational study of language acquisition.
+In Michael R. Brent, editor, Computational Approaches to Language Acquisition,
+CognitionSpecialIssues,chapter1,pages1–38.TheMITPress,Cambridge,MA,
+1997.
+10. Michael R. Brent, editor. Computational Approaches to Language Acquisition.
+Cognition Special Issues. The MIT Press, Cambridge, MA, 1997.
+11. Roger Brown. A first language: the Early stages. Harvard University Press, Cam-
+bridge, Massachusetts, 1973.
+12. Paula J. Buttery. Computational models for first language acquisition. Techni-
+cal Report UCAM-CL-TR-675, University of Cambridge, Computer Laboratory,
+November 2006.
+13. Bob Carpenter. The Logic of Typed Feature Structures. Cambridge Tracts in
+Theoretical Computer Science. Cambridge University Press, 1992.
+14. Noam Chomsky. Aspects of the theory of syntax. MIT Press, 1965.
+15. Noam Chomsky. Language and Mind. Harcourt Brace Juvanovich, New York,
+1968.
+16. NoamChomsky.Rulesandrepresentations.BehavioralandBrainSciences,3:1–61,
+1980.
+17. NoamChomskyandHowardLasnik. Thetheoryofprinciplesandparameters. In
+JoachimJacobs,ArnimvonStechow,WolfgangSternefeld,andTheoVannemann,
+editors,Syntax:AnInternationalHandbookofContemporaryResearch,pages506–
+569. Walter de Gruyter, Berlin, 1993. Reprinted in Noam Chomsky (1995), The
+Minimalist Program, Cambridge, Mass.: MIT Press, 13–127.
+18. Yael Cohen-Sygal and Shuly Wintner. Partially specified signatures: a vehicle for
+grammarmodularity. InProceedingsofColing–ACL2006,pages145–152,Sydney,
+Australia, July 2006.
+19. AnnCopestake. Implementing TypedFeatureStructureGrammars. CSLIPublica-
+tions, Stanford, 2002.
+20. Katherine Demuth. On the ‘underspecification’ of functional categories in early
+grammars. In B. Lust, M. Sun˜er, and J. Whitman, editors, Syntactic theory and
+first language acquisition: cross-linguistic perspectives, pages 119–134. Lawrence
+Erlbaum Associates, Hillsdale, New Jersey, 1994.
+21. EdwardGibsonandKenWexler.Triggers.LinguisticInquiry,25(4):407–454,1994.
+22. E. Mark Gold. Language identification in the limit. Information and Control,
+10(5):447–474, May 1967.
+23. Adele Goldberg. Constructions. A Construction Grammar approach to argument
+structure. University of Chicago Press, Chicago, 1995.
+24. AdeleGoldberg. Constructions at Work: the nature of generalization in language.
+Oxford University Press, Oxford, 2006.
+25. GeorgiaM.Green. Modellinggrammargrowth;universalgrammarwithoutinnate
+principles or parameters, July 2003. Unpubl. ms., University of Illinois.
+26. Erhard W. Hinrichs, W. Detmar Meurers, and Shuly Wintner. Linguistic theory
+andgrammarimplementation.ResearchonLanguageandComputation,2:155–163,
+2004.
+27. MarkJohnsonandStefanRiezler. Statisticalmodelsoflanguagelearninganduse.
+Cognitive Science, 26(3):239–253, 2002.
+28. Ronald Kaplan and Joan Bresnan. Lexical functional grammar: A formal system
+forgrammaticalrepresentation. InJ.Bresnan,editor,The Mental Representation
+of Grammatical Relations, pages 173–281. MIT Press, Cambridge, Mass., 1982.
+29. Tracy Holloway King, Martin Forst, Jonas Kuhn, and Miriam Butt. The feature
+spaceinparallelgrammarwriting.ResearchonLanguageandComputation,3:139–
+163, 2005.
+30. Marie Labelle. The acquisition of grammatical categories: a state of the art. In
+Henri Cohen and Claire Lefebvre, editors, Handbook of categorization in cognitive
+science, pages 433–457. Elsevier, 2005.
+31. David Lebeaux. Language acquisition and the form of the grammar. John Ben-
+jamins, 2000.
+32. Yonata Levy and Izchak M. Schlesinger. The child’s early categories: approaches
+to language acquisition theory. In Levy et al. [33], chapter 9, pages 261–276.
+33. Yonata Levy, Izchak M. Schlesinger, and Martin D. S. Braine, editors. Categories
+and Processes in Language Acquisition. Lawrence Erlbaum Associates, Hillsdale,
+New Jersey, 1988.
+34. Ping Li. Language acquisition in a self-organizing neural network model. In
+P.Quinlan,editor,Connectionist models of development: Developmental processes
+inrealandartificialneuralnetworks.PsychologyPress,HoveandNewYork,2003.
+35. Ping Li, Igor Farkas, and Brian MacWhinney. Early lexical development in a
+self-organizing neural network. Neural Network, 17:1345–1362, 2004.
+36. BrianMacWhinney. Rules,rote,andanalogyinmorphologicalformationsbyHun-
+garian children. Journal of Child Language, 2:65–77, 1975.
+37. Brian MacWhinney. Models of the emergence of language. Annual Review of
+Psychology, 49:199–227, 1998.
+38. BrianMacWhinney,editor.Theemergenceoflanguage.CarnegieMellonSymposia
+on Cognition. Lawrence Erlbaum Associates, Mahwah, New Jersey, 1999.
+39. Brian MacWhinney. The CHILDES Project: Tools for Analyzing Talk. Lawrence
+Erlbaum Associates, Mahwah, NJ, third edition, 2000.
+40. BrianMacWhinney. Amultipleprocesssolutiontothelogicalproblemoflanguage
+acquisition. Journal of Child Language, 31:883–914, 2004.
+41. Brian MacWhinney. A unified model of language acquisition. In J. Kroll and
+A. De Groot, editors, Handbook of bilingualism: Psycholinguistic approaches. Ox-
+ford University Press, 2004.
+42. Anat Ninio and Catherine E. Snow. Language acquisition through language use:
+the functional source of children’s early utterances. In Levy et al. [33], chapter 1,
+pages 11–30.
+43. Partha Niyogi and Robert C. Berwick. A language learning model for finite pa-
+rameter spaces. Cognition, 61(1-2):161–193, 1996.
+44. Ann M. Peters. The Units of Language Acquisition. Monographs in Applied Psy-
+cholinguistics. Cambridge University Press, New York, 1983.
+45. AnnM.Peters. Strategiesintheacquisitionofsyntax. InPaulFletcherandBrian
+MacWhinney, editors, The handbook of child language, pages 462–482. Blackwell,
+Oxford, 1995.
+46. AnnM.Peters. Fillersyllables:whatistheirstatusinemerginggrammar? Journal
+of Child Language, 28:229–242, 2001.
+47. StevenPinker. TheLanguageInstinct. WilliamMorrowandCompany,NewYork,
+1994.
+48. CarlPollardandIvanA.Sag. Head-DrivenPhraseStructureGrammar. University
+of Chicago Press and CSLI Publications, 1994.
+49. Alan Prince and Paul Smolensky. Optimality: from neural networks to universal
+grammar. Science, 275:1604–1610, March 1997.
+50. Ivan A. Sag. English relative clause constructions. Journal of Linguistics,
+33(2):431–484, 1997.
+51. KenjiSagae,EricDavis,AlonLavie,BrianMacWhinney,andShulyWintner.High-
+accuracy annotation and parsing of CHILDES transcripts. In Proceedings of the
+ACL-2007WorkshoponCognitiveAspectsofComputationalLanguageAcquisition,
+pages 25–32, Prague, Czech Republic, June 2007. Association for Computational
+Linguistics.
+52. Kenji Sagae, Alon Lavie, and Brian MacWhinney. Automatic measurement of
+syntacticdevelopmentinchildlanguage.InProceedingsofthe43rdAnnualMeeting
+of the Association for Computational Linguistics (ACL’05), pages 197–204, Ann
+Arbor, Michigan, June 2005. Association for Computational Linguistics.
+53. Kenji Sagae, Brian MacWhinney, and Alon Lavie. Automatic parsing of parent-
+child interactions. Behavior Research Methods, Instruments, and Computers,
+36:113–126, 2004.
+54. Geoffrey Sampson. The ‘Language Instinct’ Debate. Continuum, London, revised
+edition, 2005.
+55. Yael Sygal and Shuly Wintner. Type signature modules. In Philippe de Groote,
+editor, Proceedings of FG 2008: The 13th conference on Formal Grammar, pages
+113–128, August 2008.
+56. Michael Tomasello. Language is not an instinct. Cognitive Development, 10:131–
+156, 1995.
+57. MichaelTomasello.Constructingalanguage.HarvardUniversityPress,Cambridge
+and London, 2003.
+58. MichaelTomasello.Onthedifferentoriginsofsymbolsandgrammars.InMortenH.
+Christiansen and Simon Kirby, editors, Language Evolution, Studies in the Evo-
+lution of Language, chapter 6, pages 94–110. Oxford University Press, Oxford,
+2003.
+59. MichaelTomasello. Acquiringlinguisticconstructions. InD.KuhnandR.Siegler,
+editors, Handbook of Child Psychology, pages 255–298. Wiley, New York, 2006.
+60. Leslie G. Valiant. A theory of the learnable. Commun. ACM, 27(11):1134–1142,
+1984.
+61. AlineVillavicencio. TheAcquisitionofaUnification-BasedGeneralisedCategorial
+Grammar. TechnicalreportUCAM-CL-TR-533,ComputerLaboratory,University
+of Cambridge, April 2001.
+62. KennethWexlerandPeterW.Culicover.Formalprinciplesoflanguageacquisition.
+The MIT Press, Cambridge, MA, 1980.
+63. Shuly Wintner. Modular context-free grammars. Grammars, 5(1):41–63, 2002.
+64. Shuly Wintner. On the semantics of unification grammars. Grammars, 6(2):145–
+153, August 2003.
+65. Shuly Wintner. Introduction to unification grammars. In Zolta´n E´sik, Carlos
+Mart´ın-Vide, and Victor Mitrana, editors, Recent Advances in Formal Languages
+and Applications, volume 25 of Studies in Computational Intelligence, chapter 13,
+pages 321–342. Springer, 2006.
+66. ShulyWintner. Unification:Computationalissues. InKeithBrown,editor,Ency-
+clopedia of Language and Linguistics,volume13,pages238–250.Elsevier,Oxford,
+second edition, 2006.

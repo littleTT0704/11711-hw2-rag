@@ -1,0 +1,1164 @@
+USB: A Unified Summarization Benchmark
+Across Tasks and Domains
+KundanKrishna♣ PrakharGupta♣ SanjanaRamprasad♢
+ByronC.Wallace♢ JeffreyP.Bigham♣ ZacharyC.Lipton♣
+♣ CarnegieMellonUniversity
+♢NortheasternUniversity
+{kundank,prakharg,jbigham,zlipton}@andrew.cmu.edu
+{ramprasad.sa,b.wallace}@northeastern.edu
+Abstract previousworkhasprimarilyfocusedonevaluating
+themodels’abilitytogeneratesummariessimilar
+While the NLP community has produced nu-
+to reference summaries, neglecting key auxiliary
+meroussummarizationbenchmarks,nonepro-
+propertiesoftextsummarizationsystems.
+vide the rich annotations required to simulta-
+neouslyaddressmanyimportantproblemsre- Recentresearchhashighlightedtheimportance
+latedtocontrolandreliability. Weintroducea of addressing additional aspects in text summa-
+Wikipedia-derivedbenchmark,complemented rization. Theseaspectsincludetheabilitytosteer
+byarichsetofcrowd-sourcedannotations,that summariesbycontrollingitsfocusonatopicoron
+supports8interrelatedtasks:(i)extractivesum-
+specificpartsofthesourcetext(Gehrmannetal.,
+marization;(ii)abstractivesummarization;(iii)
+2019). Furthermore,thereisanincreasingempha-
+topic-basedsummarization;(iv)compressing
+sisonensuringfactualcorrectnessandimplement-
+selected sentences into a one-line summary;
+(v)surfacingevidenceforasummarysentence; ing mechanisms to eliminate factual errors from
+(vi) predicting the factual accuracy of a sum- modeloutputs(Scialometal.,2021;Balachandran
+mary sentence; (vii) identifying unsubstanti- etal.,2022). Similarly,tofostertrustintheoutputs,
+ated spans in a summary sentence; (viii) cor-
+itisdesirableforsummarizationsystemstopresent
+rectingfactualerrorsinsummaries. Wecom-
+evidencefromsourcesthatcorroboratethegener-
+parevariousmethodsonthisbenchmarkand
+atedsummaries. Asmodelshaveimprovedingen-
+discover that on multiple tasks, moderately-
+erating coherent and readable summaries (Goyal
+sized fine-tuned models consistently outper-
+formmuchlargerfew-shotpromptedlanguage et al., 2022), these auxiliary considerations have
+models. For factuality-related tasks, we also gainedimportance. Aligningsummarieswithuser
+evaluate existing heuristics to create training requirements and ensuring sufficient factual sup-
+data and find that training on them results in portarecriticalfrontiersinsummarizationresearch.
+worseperformancethantrainingon20×less
+Thecurrentsummarizationbenchmarksfailtopro-
+human-labeled data. Our articles draw from
+videacomprehensiveevaluationofmodelcapabil-
+6domains,facilitatingcross-domainanalysis.
+ities across various summarization tasks, encom-
+Onsometasks,theamountoftrainingdatamat-
+passingpropertiessuchasfactualityandcontrolla-
+tersmorethanthedomainwhereitcomesfrom,
+while for other tasks training specifically on bility.
+datafromthetargetdomain,eveniflimited,is Inthiswork,weintroduce USB,acomprehen-
+morebeneficial. 1
+sive benchmark for text summarization that sup-
+portseightauxiliarytasks. Thebenchmarkincludes
+1 Introduction
+labeleddatasetswithhigh-qualityhumanannota-
+Automatictextsummarizationhasbeenanimpor- tionscollectedfromdiversedocumentsacrosssix
+tant,activeresearchsub-areainNLPforovertwo domains. To create the benchmark, we sampled
+decades(Radevetal.,2002;Nenkovaetal.,2011; Wikipediaarticlesfromvariouscategories,suchas
+El-Kassasetal.,2021). Numeroussummarization people,organizations,andevents. Weutilizedthe
+benchmarks have been proposed to facilitate the introductory section of the articles as a reference
+developmentofsummarizationmethods(Nallapati summaryandtheremainingcontentasthesource
+etal.,2016;Narayanetal.,2018;WangandLing, text,resultinginimperfectsource-"summary"pairs.
+2016;Gliwaetal.,2019). However,themajorityof Human annotators then searched for evidence to
+supporteachsummarysentence. Ifevidencewas
+1The dataset can be downloaded from https://
+github.com/kukrishna/usb lacking, corresponding spans or entire sentences
+3202
+ceD
+4
+]LC.sc[
+2v69241.5032:viXra
+Figure1: Aschematicofourdataset,annotations,andthesupportedtasks. Theexampleshown(abridged)displays
+theeditsmadebyahumanannotatorontheinitialcandidatesummary(deletionsinredwithstrike-through;additions
+ingreen). Everysummarysentenceissupportedbyoneormoreevidencesentenceshighlightedinblue.
+wereremoved. Wheneverconflictingevidencewas those trained on heuristically generated labeled
+encountered,thesummarywasrevisedwithmini- datasets,evenwhenthelatterare20×larger.
+maleditstoalignwiththeavailableevidence. The A common challenge to real-world adoption
+resultingannotationscanberepurposedtocreate of models is their use in resource-poor domains
+labeleddatasetsfor8usefultasks(Figure1). where one does not have access to abundant la-
+Weofferthefirsthuman-labeledtrainingdatasets beled training data. We compare how the size
+for various summarization tasks, including evi- of available training data matters vis-a-vis its do-
+dence extraction and identifying spans in sum- mainfordifferentsummarizationtasks. Wefound
+marieswithoutsupportingevidence. Thesedatasets thatfortasksrelatedtofactualcorrectnessofsum-
+enablethetrainingandevaluationofmodelsspecif- maries, theamountoftrainingdatamattersmore
+icallyforthesecrucialaspects. Webenchmarkthe thanitsdomain;butforothertaskshavingdomain-
+performanceofseveralmodelssuchasinstruction- specifictrainingdatamattersmore. Ourbenchmark
+tunedencoder-decodermodelsandLLMsonour is explicitly segmented into 6 domains based on
+tasks,includingbothfine-tuningandwellasfew- Wikipediacategories,andhenceprovidesanatural
+shot prompting based approaches. Notably, we test-bedforsuchdomaintransferstudies.
+found that fine-tuning even small models (fewer
+Summaryofcontributions:
+thanabillionparameters)substantiallyoutperforms
+few-shot prompting of much larger open-source
+• Multi-domain benchmark for training and
+andprivatelargelanguagemodels.
+evaluatingmodelson8differenttasksdealing
+Prioreffortshavereliedonheuristicstogenerate withsomecriticalbutunderstudiedaspectsof
+synthetictrainingdataforcertaintasksincludedin textsummarization.
+ourbenchmark. Forinstance,acommonheuristic
+• Comprehensive evaluation of models and
+employedislexicaloverlaptoidentifyandextract
+trainingstrategies,includingfine-tuning,few-
+supportingevidence(ChenandBansal,2018). Sim-
+shotprompting,andmulti-tasktraining.
+ilarly,artificialfactualerrorshavebeenintroduced
+intosummariestotrainmodelsforfactualityclassi-
+• Comparisonofrelativevalueoftrainingdata
+ficationorcorrection(Krys´cin´skietal.,2020;Bal-
+labelsgeneratedbyhumansversusheuristics,
+achandranetal.,2022). Althoughsuchautomatic
+showingthatformultipletasks,humananno-
+approachesenableeasycreationoflargetraining
+tationsyieldbettermodelsevenwith20×less
+datasets,heuristicallyderivedannotationsaretypi-
+trainingdata.
+callynoisycomparedtohumanannotations. Our
+findingsdemonstratethatmodelstrainedonmin- • Practicalinsightsaboutout-of-domaingener-
+imal amount of human-labeled data outperform alization for different tasks, identifying the
+tasks for which the size of the training data overlapping parts. To derive a good document-
+mattersmorethanitbeingfromaspecifictar- summarypairfromanarticle,thereshouldideally
+getdomain. bealargeamountofoverlapbetweentheoverview
+partandremainingarticle. Otherwise,afterhuman
+2 DatasetCuration annotation(toremovepartsofthesummaryunsup-
+portedbythecorrespondingdocument)onewould
+Tocreatethe USB benchmark, wefirstcollected
+beleftwithlittletextinthesummary.
+asetofmanualannotationsonWikipediaarticles.
+Given an article, with the overview section
+Wethenusedthecollectedannotationstocreatela-
+represented by S and the remaining part repre-
+beleddataforthebenchmarktasks. Inthissection
+sentedbyD,webrokethesummaryintosentences
+wedescribetheprocessofcollectingthesemanual
+s s s ...s usingSpacy3. Wecalculatedhowmany
+1 2 3 n
+annotations. We consider the text in a Wikipedia
+ofthesummarysentenceshaveatleastoneentity
+articleoverview(leading)sectionasthetargetsum-
+whichisalsopresentinD. Forthisstep,weauto-
+mary S, and the rest of the article as D. In well-
+maticallymarkedentitiesinS andD byconsider-
+writtenarticles,theoverviewsection(S)provides
+ingallthewordswithinternalhyperlinkstoother
+abroadsummaryofthearticle,andtherestofthe
+Wikipedia pages as entities. If two hyperlinked
+article(D)providesspecifics. Hence,thecontent
+words pointed to the same page, they were con-
+inS whichhighlightspartsofD canbeeffectively
+sidered the same entity. For annotation, we only
+considered its summary. However, for S to be a
+retained articles that have more than 75% of sen-
+validsummaryofD,weneedtoremovecontents
+tences in S with at least one entity overlapping
+withinitthatmentionnewinformationthatisnot
+withD. Wealsocontrolledforsummarylengthby
+presentinD andcannotbeinferredfromit.
+discardinganyarticlewhereS hasfewerthan4or
+We recruited annotators and asked them to ex-
+morethan12sentences.
+ecute the following tasks: (1) Find and annotate
+evidence in D for each summary sentence of S,
+Flaggingentityoverlapstohelpannotatorsfind
+and;(2)DeletepartsofS thatarenotsupportedby
+evidence Tohelpannotatorsfindevidencesup-
+D. This yields a document-summary pair where
+portinganygivensummarysentence,ourinterface
+thesummaryisfullysupportedbythedocument,
+highlightsentitiespresentinthatsentenceandalso
+and the supporting evidence is explicitly marked.
+inthesourcedocument,withadifferentcolorfor
+Weprovideadetaileddescriptionofourdatacre-
+eachentity. Tomaximizethenumberofentitiesde-
+ationprocessbelow.
+tected,wetookaunionofentitiesextractedusing
+Retrieval of Wikipedia articles We down- Wikipedia’shyperlinks,SpacyandDBpedia. 4
+loadedtheWikipediaEnglisharticlesdumpfrom
+Selection and monitoring of Mechanical Turk
+1 July 2022. We extracted the articles from this
+Workers We ran a qualification task on Me-
+corpususingtheWikiextractortool.2 Wedropped
+chanicalTurk,taskingworkerswithannotatingone
+tablesandlistsduringextraction,butretainedsec-
+document-summarypairaccordingtotheprovided
+tion headers. We used a set of category filters to
+instructions. To take this qualifier, we required
+retrievepagesaboutspecifictypesofentitieswhich
+workershaveaHITapprovalrate> 95%,andhave
+helpsusincreatingadatasetwithdiversedomains.
+morethan1000approvedHITS.Eachworkerwas
+We manually filtered domains to select those in
+allowedtotakethequalificationtaskonlyonce. All
+whicharticlesgenerallyhadasubstantialpartofS
+workersweregiventhesamedocument-summary
+supportedbyevidencepresentinD. Weretrieved
+pairforannotation. Atotalof174workerstookthe
+articlesforthefollowing6domains: biographies,
+qualificationtask. Outofthese, 28workerswere
+companies, schools, newspapers, landmarks, and
+approvedbycheckingtheirannotationqualityman-
+disasters.
+ually. Theapprovedworkerswerethenpermitted
+Selecting documents for annotation Our toworkonthemaintaskwheretheywereaskedto
+heuristic is to assume that the overview section annotatedifferentdocument-summarypairs. Each
+of a Wikipedia article will feature a significant pair was annotated by exactly one worker. After
+amountofoverlapwiththeremainingpartwhich 300 annotations for the main task, we analyzed
+wouldberetainedaftertheannotatorsremovenon-
+3https://spacy.io
+2https://github.com/attardi/wikiextractor 4https://www.dbpedia-spotlight.org
+theannotationqualityoftheresponsesagain. For thatitcontains. Wedefinetheideal“reference”ex-
+manyapprovedworkers,theannotationqualityon tractivesummaryasthesetofallsourcesentences
+themaintaskwassignificantlyworsethanthequal- markedasevidenceforthesummary.
+ificationtask,andhencewerestrictedtheworker
+Abstractive Summarization (ABS): Generate a
+set to only 3 workers whose annotation quality
+multi-sentence summary of the source document
+wasmuchbetterthantherest(hereafterreferredto
+bynotjustsimplyselectingimportantcontent,but
+as primary workers). The remaining annotations
+alsorephrasingitforsuccinctnessandcoherence.
+were done by these workers, and a total of 1988
+Thegroundtruthisthefull-lengthsummarycreated
+document-summarypairswereannotated.
+aftertheannotators’edits.
+Verifyingannotations Duetothecomplexityof FactualityClassification(FAC):Predictifasum-
+the annotation task, evidence has not been anno- marysentenceisfactuallycorrectandsufficiently
+tatedinsomepartsinthesummariesafterthefirst supportedbytheinformationpresentinthesource.
+round. Toaddressthis,wetrainedamodeltopre- We create labeled data by assigning non-factual
+dictunsupportedspansinsummaries. Specifically, andfactuallabelstothebeforeandafterversions
+wetrainedmodelsthatacceptaninitialsummary ofeacheditedsummarysentence,withthemarked
+sentencesandtheevidenceannotatedbythework- evidenceassourcecontextfedintheinput.
+ers as the input, and then predict which spans in
+FixingFactuality(FIX):Givenafactuallyincor-
+sweredeletedbytheannotatortointheirsubmit-
+rectsummarysentence,editittomakeitfactually
+tedversions′. Weappliedthismodeltothesum-
+correct,withreferencetothesourcetext. Wecre-
+marysentencessubmittedbyannotatorstopredict
+ateannotationsusingpre-editedsummarysentence
+unsupported spans in them. We fine-tuned Flan-
+andthemarkedevidenceastheinput,andthepost-
+T5 XL (Chung et al., 2022) for this task. We di-
+editedsentenceasthetarget.
+videdthesetofdocument-summarypairsannotated
+byourprimaryworkersintotwohalves,traineda Topic-basedSummarization(TOPIC):Giventhe
+modeloneachhalf,andusedittopredicttheunsup- sourcearticleandatopic,thetaskistogeneratea
+portedspansintheotherhalf. Weusedoneofthese summaryforagiventopicfromasourcearticle. We
+modelsforpredictionontheremainingdocument- useWikipediasectionheadersastopicsandselect
+summary pairs submitted by other workers. Us- summary sentences from our labeled dataset that
+ing these model predictions, we selected around have evidence from a single section only. These
+20% of the total summary sentences most likely sentences act as target summaries, while the full
+to contain unsupported spans, and flagged them documentandsectionheaderserveasinput.
+for verification. This included about 15% of the Multi-sentenceCompression(COMP):Givena
+sentencesannotatedbyprimaryworkersand45% clusterofsentencesfromthesourcedocument,gen-
+of sentences annotated by other workers, which erateasinglesentencesummarythatincorporates
+alignswithourmanualinspectionofqualityofthe information from all of them. We create labeled
+workers’annotations. Wethendesignedaslightly dataforthisbyusingeachsummarysentenceasa
+modifiedinterfacefortheverificationtask,where targetanditsmarkedevidenceastheinput.
+summary sentences have highlights showing po-
+EvidenceExtraction(EVEXT):Givenasource
+tentiallyunsupportedcontent,andtheworkerscan
+documentandasummarysentence,identifyamin-
+selectadditionalevidenceoreditthesummaryas
+imalsetofsourcesentenceswhichcollectivelypro-
+before. After incorporating the changes made in
+vide supporting evidence for all facts present in
+thisverificationround,wearrivedatthefinalver-
+thatsummarysentence. Thelabeleddataconsists
+sionoftheannotatedcorpus.
+ofeachsummarysentenceandthefullsourcedoc-
+umentasinput,andtheevidencelinksmarkedby
+3 TaskDefinitions
+annotatorsasthegroundtruth.
+Wederivedlabeleddatasetsfortasksusingthecol-
+UnsupportedSpanPrediction(UNSUP):Given
+lectedannotations. Theresultingbenchmarkcon-
+a summary sentence and a set of sentences from
+sistsofthefollowing8tasks:
+thesourceprovidingevidence,predictspansinthe
+ExtractiveSummarization(EXT):Giventhefull summarywhicharenotsupportedbytheevidence.
+documentasinput,extractallimportantsentences To create labeled data, we select those summary
+Domain Count Domain Count Buchholz,2000). Fortheremainingtasksweuse
+Biographies 1514 Companies 97 standardbinaryclassificationmetrics.
+Schools 150 Landmarks 50 Fortheclassification/spanpredictiontasksinour
+Disasters 145 Newspapers 32
+benchmark,wefine-tuneRoberta-Large (Liuetal.
+2019; Table 2). We recast these as seq2seq tasks
+Table 1: Number of annotated documents in various
+andfine-tunevariantsofT5modelsoneachofthe
+domainsplitsofourbenchmark. Total1988documents
+acrossalldomains. 8tasks. Weincludetheoriginal(Raffeletal.,2020)
+and the instruction-tuned Flan version (Chung
+sentences where annotators only made deletions etal.,2022). T5LargeoutperformsRoberta-Large
+(noadditionsorreplacements). Theinputisthepre- onalltheclassification/spanpredictiontasks. Flan-
+edit summary sentence and the marked evidence, T5LargeperformssimilarlytoT5Large,though
+and the gold target is the set of spans that were achievesnotablegainsonUnsupportedSpanPre-
+deletedfromthesummarybyannotators. diction. Flan-T5XLconsistentlyimprovesperfor-
+manceoverlargermodelsonalmostalltasks,sug-
+4 DatasetOverviewandStatistics
+gestingmodelsizehelps(Table2). Wealsotrain
+a multi-task variant of Flan-T5-XL (on all tasks
+The USB is a benchmark comprising 6 different
+jointly). Thismostlyretainssimilarperformance
+domains with a varying number of instances in
+asadedicatedXLmodeltrainedonlyonthattask,
+each (Table 1). We use a 40:20:40 split for train,
+except for Evidence Extraction and Unsupported
+validation and test set size for each domain, ex-
+SpanPrediction(Table2).
+ceptthelandmarksandnewspapersdomainsdue
+Werunlargelanguagemodelsincludingpublicly
+tosmallsize. Articlesfromthesetwodomainsare
+released models (for research purposes) such as
+kept as challenging test sets to measure the out-
+Llama(Touvronetal.,2023)andVicuna(Chiang
+of-domaingeneralization. Lengthdistributionsof
+etal.,2023),andclosedmodelssuchasOpenAI’s
+sourcedocumentsandtheirsummariesareshown
+gpt-3.5-turbo5,i.e.,ChatGPT.Fortaskswherethe
+inFigure3intheAppendix. Bothexhibitlong-tail
+full document is fed as input, we use 4 examples
+distributionswithlengthysequences—about32%
+forfew-shotpromptingowingtolimitationsinthe
+ofsourcedocumentshavemorethan2000words
+maximumfeasiblesequencelengthforthesemod-
+and10%ofsummarieshavemorethan200words.
+els, while for the rest we use 16 examples (for
+Wealsofindthat27%ofsummarysentencescor-
+details,seetheAppendix). ChatGPTconsistently
+respond to 4 or more marked evidence sentences
+outperformedVicuna-13BandLlama-13Bonall
+(Figure3intheAppendix). Thissuggestsahighde-
+tasksexceptFixingFactuality. Thisisbecausefor
+greeofabstractiveness,becauseinformationneeds
+theFixingFactualitytask,ChatGPTalmostalways
+to be combined from many source sentences and
+addsnewunnecessaryinformationtothesummary,
+expressedinasinglesentence. Annotatorsdeleted
+evenafterpromptingittonotdothat. Comparedto
+about22%ofthewordsonaveragefromtheinitial
+ChatGPT,finetunedmodelsperformbetteronev-
+summary presented to them, while adding about
+erytask. Theperformancedifferenceislargestfor
+2%newwords.
+factuality-based tasks such as Unsupported Span
+5 BenchmarkingDifferentModels Prediction,EvidenceExtraction,andFixingFactu-
+ality. ChatGPTdoescomparativelywellontasks
+Werunasuiteofmodelsonalltasksinourbench-
+thatinvolvegeneratingsummaries.
+markandpresenttheresultsinTable2. Forthisset
+Sinceautomaticmetricsformeasuringsummary
+ofexperiments,weusetheconsolidatedtrain,vali-
+qualitylikeROUGE(Lin,2004)donotnecessar-
+dationandtestsplits,whichareaunionofthecor-
+ilymirrorhumanpreference(CohanandGoharian,
+respondingsplitsfromalldomains. Fortasksthat
+2016),weconductedhumanevaluationofthegen-
+involve generation of summaries, we use Rouge
+eratedsummariesintheCOMP,ABSandTOPIC
+score(Lin,2004)asthemetric. Weshowgeomet-
+tasks. Wecollectratingsforsummariesgenerated
+ricmeanofthe1,2,andLvariantsforsuccinctness
+byFlan-T5andChatGPTfor50randomlyselected
+(Table 2). One exception is the Fixing Factuality
+documentsfromthetestset,usingaquestionnaire
+task for which we use exact match as the metric.
+(seetheAppendixformoredetails). Wefoundthat
+ForUnsupportedSpanPrediction,wemeasurethe
+F1scorebasedonBIOtaggingformat(Sangand 5
+Weusedthefrozenversioncodenamedgpt-3.5-turbo-0301
+Model COMP EVEXT EXT FAC FIX ABS TOPIC UNSUP
+Metric→ Rouge F1 AUC AUC ExactMatch Rouge Rouge F1
+Fine-tunedmodels
+RoBERTa-Large - 71.01 84.06 92.69 - - - 49.21
+T5-Large 41.97 77.22 87.00 94.89 31.26 33.44 23.81 51.71
+Flan-T5-Large 43.23 77.71 87.99 95.15 32.94 32.05 23.62 58.57
+Flan-T5-XL 44.87 79.23 87.81 95.30 35.10 32.69 24.26 64.94
+Flan-T5-XL(multitask) 44.32 76.64 86.44 95.38 36.71 31.83 23.46 58.51
+Few-shotpromptedLLMs
+Llama-13B 28.12 5.56 52.90 49.34 8.20 5.51 2.47 0.63
+Vicuna-13B 31.35 6.65 52.76 55.28 4.28 5.56 2.84 1.47
+GPT-3.5-turbo 33.21 26.78 61.63 60.81 3.29 29.77 14.59 7.80
+Table2: Performanceofmodelsondifferenttasksevaluatedonthefulltestdataset. Tasks: COMP:Multi-sentence
+CompressionEVEXT:EvidenceExtractionFAC:FactualityClassificationFIX:FixingFactualityABS:Abstractive
+Summarization(offulldocument)EXT:ExtractiveSummarizationTOPIC:Topic-basedSummarizationUNSUP:
+UnsupportedSpanPrediction
+onaverage,ChatGPT’ssummariesaremostlypre- what they were trained on. Our benchmark has
+ferredoverFlan-T5-XLmodel’ssummariesforall trainingdatafrom4domains(i.e. excludingland-
+3summarygenerationtasksintermsofrelevance marksandnewspapers),withdifferentamountsof
+andfactuality(Table3). Thissuggeststhatwhile labeled data for each. To control for training set
+fine-tunedmodelsproducesummariesclosertothe size,werandomlysubsampleannotateddocuments
+ground truth in the dataset (thus achieving high for each domain to isolate 40, 19, and 38 docu-
+ROUGE),humansmayfindthesummariesoffew- ments for train, validation and test splits. These
+shot prompted LLMs better. For example, in the sizesofthesplitswerechosentomatchthesmallest
+Topic-based summarization task, while Flan-T5- ofthe4domainsi.e. companies(Table1).
+XLproducessummarieswithanaveragelengthof
+We train and evaluate Flan-T5 Large models
+46.3words,ChatGPTgeneratessummarieswithan
+on different domains and plot average scores for
+averagelength of 110.2 words. The ground truth
+alltaskstrainingandtestdomainpairinFigure2.
+summaries for that task are 36.9 words long on
+Modelstrainedonthesamedomainasthetestdo-
+average, which is more closely matched by Flan-
+main perform best or negligibly close to it. But
+T5-XL, but the much longer summaries of Chat-
+acrosstestdomains,thebestout-of-domaintrained
+GPTareconsideredbetterbyhumanannotatorsas
+modelhas< 15%performancedropcomparedto
+reflectedinthehumanratings(Table3).
+this, showing respectable average out-of-domain
+FortheFixingFactuality(FIX)task,wecompare
+performance. Goingbythein-domainperformance
+thefixed summariesgeneratedbyFlan-T5-XLand
+of models trained on equal amounts of data, the
+ChatGPT,askingwhichofthem(i)removemore
+biographiesdomainistheeasiestandthedisasters
+factual errors; (ii) mistakenly remove more cor-
+domain is the most difficult. One distinction be-
+rectinformation;(iii)addmorenewinformation;
+tweenthedisastersdomainandotherswhichmight
+to the initially provided incorrect summary. We
+explainitsdifficultyisthatitdealswithsummariz-
+found that while ChatGPT removes more factual
+inganeventratherthananentity.
+errorsfromsummariesthanFlan-T5,itoftendoes
+Foreachtaskinourbenchmark,weinvestigate
+sobyremovinglotsof(evenfactual)information
+whether having access to a large training dataset
+altogether,andreplacingitwithnewcontenttoef-
+(irrespective of domain) is more important than
+fectivelymakeanewdifferentsummary(Table3).
+havingtrainingdatafromthetestdomain. Weuse
+thetestsplitsof3domains(companies,disasters,
+6 Out-Of-DomainPerformanceonTasks
+and schools), and on each of them we evaluate 3
+We next evaluate the performance of fine-tuned differentmodelstrainedon: (1)Thetrainingsplit
+models when tested on a domain different from of the same domain; (2) The training split of the
+AbstractiveSummarization(ABS)
+Question Flan-T5 GPT-3.5-turbo
+Whichofthefollowingsummariesisbetterintermsofeffectivelysummarizingthegiven 36.4% 39.7%
+fullcontent?
+Whichofthefollowingsummariesismorefactual,accuratelyrepresentingtheinformation 33.8% 33.1%
+presentedinthegivenfullcontent?
+Multi-sentenceCompression(COMP)
+Question Flan-T5 GPT-3.5-turbo
+Whichofthetwosummariescoversmoreinformationtouchinguponallthehighlighted 27.6% 50.0%
+sentences?
+Whichofthefollowingsummariesismorefactual,accuratelyrepresentingtheinformation 21.1% 38.8%
+presentedinthedocument?
+Topic-basedSummarization(TOPIC)
+Question Flan-T5 GPT-3.5-turbo
+Whichofthetwosummariesisbetterintermsofeffectivelysummarizingthegiventopic? 10.0% 85.3%
+Whichofthetwosummariesismorerelatedtoandexclusivetothegiventopic? 11.3% 77.3%
+FixingFactuality(FIX)
+Question Flan-T5 GPT-3.5-turbo
+Whichofthetwosummariesremovesmorecontradictory/unsupportedinformationfromthe 18.0% 38.0%
+incorrectsummary,inreferencetothecontext?
+Whichofthetwosummariesremovesmorecorrectinformation(whichisactuallywell- 3.0% 24.0%
+supportedbythecontext)fromtheincorrectsummary?
+Whichofthetwosummariesaddsmorenewfactscomparedtotheincorrectsummary? 2.0% 67.0%
+Table3: Winrateformodeloutputsalongdifferentaspectsasindicatedinhumanevaluationfordifferenttasks
+TrainingDomain COMP EVEXT EXT FAC FIX ABS TOPIC UNSUP
+Metric→ Rouge F1 AUC AUC ExactMatch Rouge Rouge F1
+Companies
+Companies 30.02 61.61 66.36 90.10 11.76 19.30 18.51 7.41
+Biographies -1.83 +2.07 +2.22 -2.80 -5.88 -3.19 -3.62 -7.41
+Biographies(full) +0.67 +6.42 +16.57 +3.84 +20.59 +0.40 -2.92 +46.85
+Disasters
+Disasters 31.69 52.89 77.89 77.67 3.03 21.68 16.95 5.80
+Biographies -2.75 +7.15 -9.84 +6.91 -1.01 -5.31 -1.54 -5.80
+Biographies(full) -2.09 +12.52 +6.36 +12.55 +15.15 +0.45 +0.78 +40.22
+Schools
+Schools 38.63 62.72 73.92 88.89 3.19 28.89 25.04 2.70
+Biographies -2.09 -0.24 -0.72 -1.84 +2.13 -8.45 -5.67 +0.12
+Biographies(full) +0.69 +5.20 +10.60 +3.44 +26.60 -4.88 -4.51 +37.98
+Table4: Out-Of-Domainevaluationoffine-tunedFlan-T5-Largemodels. Ineachsectionofthetable,weevaluate
+3 variants - A) Model trained on the test domain (Companies, Disasters & Schools), B) Model trained on the
+Biographies domain (training sets of A and B are subsampled to have equal number of datapoints: train-40,
+validation-19,test-38),andC)Modelvarianttrainedonthefullbiographiesdatasetwith607datapointsfortraining.
+Factualityrelatedtasksbenefitgreatlyfromanabundanceoftrainingdata,evenifit’snotfromthetargetdomain.
+biographiesdomain,and;(3)Thefulltrainingsplit and biographies domain leads to comparable or
+of the biographies domain (before subsampling) worseperformanceofthelatter(Table4).
+whichcontains607annotateddocuments. Training However, training on the full train set of the
+onequivalentamountsofdatafromthetestdomain biographiesdomainachievesmuchhigherperfor-
+EvidenceExtraction
+F1
+SuperPAL(Ernstetal.,2021) 53.8
+ROUGE(ChenandBansal,2018) 40.9
+Entityoverlap 47.0
+Humanannotations100%(N=765) 77.7
+Humanannotations5% 70.9
+FactualityClassification
+AUC
+FactEdit(Balachandranetal.,2022) 74.6
+FactCC(Krys´cin´skietal.,2020) 68.9
+Humanannotations100% 95.1
+Humanannotations5% 90.4
+Figure2:Averagecross-domainmodelperformance(us-
+Fixfactuality
+ingFlan-T5-Large)onbenchmarktasks. Alldomains
+aresubsampledtouseequalnumberofannotateddocu- ExactMatch
+ments(train–40,validation–19,test–38).
+FactEdit(Balachandranetal.,2022) 1.0
+FactCC(Krys´cin´skietal.,2020) 0.8
+manceonmanytasks,despitethedomainshift(Ta-
+Humanannotations100% 32.9
+ble4). GainsaremostvisibleontheUnsupported
+Humanannotations5% 11.2
+Span Prediction and Fixing Factuality tasks. By
+contrast,fortasksrequiringsummarygeneration, Table5:Comparinguseofhumanannotationsvsheuris-
+usingthelargebiographiestrainingsetoftendoes tic annotations for finetuning Flan-T5 Large models.
+worsethanusingthe15×smallerin-domaintrain Wealsoreportperformancewhenfinetuningon5%of
+set. This might happen because domain-specific thetrainingsetwithhumanannotations.
+knowledge is required to learn the style of sum-
+maries to generate for a given domain. On the
+ROUGE-L to derive references. Finally, we use
+otherhand,factualityrelatedtaskstendtobemore
+SuperPAL(Ernstetal.,2021)asanout-of-the-box
+objective(e.g.,judgingfactualcorrectness),andso
+solutiontopredictevidencelabelsforourdataset’s
+modelskillsaretransferrableacrossdomains.
+summaries,andthenusethemformodeltraining.
+Totrainmodelstodetectorfixfactualerrors,we
+7 ComparisonwithHeuristicAnnotations
+artificially introduce errors into summaries to be
+Forsometasksinourbenchmark,pastworkshave usedasexemplars. Wedothisviatransformations
+usedheuristicstocreatelargelabeledtrainingdata suchasswappingentities,numbers,pronouns,in-
+sets as an alternative to collecting manual anno- troducing negation, and so on, inspired by prior
+tations(ChenandBansal,2018;Krys´cin´skietal., work(Krys´cin´skietal.,2020). Togeneratediverse
+2020; Balachandran et al., 2022). We use such errorsandhallucinations,wefollowBalachandran
+proposed heuristics to train models and compare et al. (2022); we mask parts of the summary out
+themwithmodelstrainedonhigh-quality,human andthenusealanguagemodeltoinfillthesewith
+annotated data. We conduct experiments on the (mostlyunsupported)information.
+EvidenceExtraction,FactualityClassificationand Wetrainmodelsfor3tasksonbothheuristically-
+Fixing Factuality tasks. Because the primary ad- generatedandmanuallyannotatedtrainingdatasets,
+vantageofheuristic-generatedtrainingsetsistheir andevaluatethemoncleanhuman-labeledtestsets.
+size, we also assess how smaller human-labeled Trainingonhuman-annotateddataperformsbetter
+trainingsetsfareincomparison. thanallheuristic-basedalternativesacrossalltasks
+FortheEvidenceExtractiontask,weuselexical (Table5). Next,wetrainmodelsonsubsetsofthe
+overlapasaproxytoderive“reference”evidence manuallyannotateddatasetswithvaryingsizesand
+alignments. For example, we select the source compare their performance on the test sets; this
+sentencewiththehighestROUGE-Lscorewitha showshowevenalittlehuman-annotateddatacan
+summary sentence as its evidence, as outlined in outperform large amounts of heuristic-generated
+ChenandBansal(2018). Wealsocreateatraining datafordifferenttasks. Foreachofthethreetasks,
+setvariantwhereentityoverlapisusedinsteadof theperformanceachievedusingonly5%ofthehu-
+man annotated training set, still outperforms the sionweintroduceamuchlargermanuallylabeled
+heuristicallylabeledfulltrainingset(Table5). This dataset than prior works (Slobodkin et al., 2022).
+highlights the value in collecting manual annota- Priorresearchhasmostlyapproachedtopicbased
+tions,evenifinsmallquantities,overusingheuris- summarizationbyadoptingapredefinedsetoftop-
+ticstogeneratetrainingdatalabels. ics (Krishna and Srinivasan, 2018; Akhtar et al.,
+2017;Hayashietal.,2021). However,wedidnot
+8 RelatedWork restrictthesetoftopicsinourdataset,resultingin
+alongtailof(potentiallychallenging)raretopics.
+Thetasksinourbenchmarkhavebeenstudiedin
+priorworktovaryingdegrees. Thegreatestamount 9 Conclusion
+ofattentionhasgonetothetasksofextractivesum-
+We introduced the USB benchmark comprising
+marization (Wong et al., 2008; Kågebäck et al.,
+tasks to measure model performance across dif-
+2014; Zhang et al., 2016; Nallapati et al., 2017),
+ferent text summarization sub-tasks. We showed
+and abstractive summarization (Liu and Lapata,
+thatfine-tunedsmallermodelsoutperformfew-shot
+2019;Zhangetal.,2020;Raffeletal.,2020;Lewis
+promptingofmuchlargerLLMsbyalargemargin
+etal.,2020;Goyaletal.,2022). Thereexistplenty
+ontasksrelatedtoappraisingthefactualityofsum-
+ofdatasetsforabstractivesummarization(Narayan
+maries. Westudiedhowfine-tunedsummarization
+etal.,2018;Seeetal.,2017;Kimetal.,2019;Wang
+modelsperformonout-of-domaindata,andidenti-
+and Ling, 2016). However, many of them were
+fiedseveraltaskswherethetrainingdatasetsizeis
+createdheuristically,with“targets”beingautomat-
+moreimportantthanitsdomain.
+ically extracted via rules from documents pulled
+Finally,weshowedthatratherthantrainingmod-
+from the web. This can lead to poor quality ref-
+elsonlargevolumesofheuristicallylabeleddata,
+erencesummaries(BommasaniandCardie,2020;
+onecangetbetterperformancebycreatingamuch
+Krishna et al., 2022), and training on them can
+smaller(≈ 20×smaller)manuallylabeledtraining
+yield models prone to generating hallucinations
+setinstead. TheresultantUSBbenchmarkpermits
+(Nanetal.,2021;Jietal.,2022). Bycontrast,we
+thetrainingofmodelsforusefultaskssuchasex-
+use manual annotation to ensure that summaries
+tractingevidenceforasummary,correctingfactual
+arefullysupportedbysources,resultinginahigh
+errorsinit,andgeneratingsummariesfocusedon
+qualityabstractivesummarizationdataset.
+specific topics. Our hope is that this benchmark
+Pastworksforpredictingfactualcorrectnessof
+spursfurtherresearchonthesetasksandwillserve
+summariesincorporatequestion-answeringmodels
+asabarometerforprogressinthem.
+andnaturallanguageinferencemethods(Scialom
+etal.,2021;Fabbrietal.,2022;GoyalandDurrett, 10 Acknowledgements
+2021), or use synthetically introduced factual er-
+rors (Krys´cin´ski et al., 2020) to train models. In We gratefully acknowledge the National Science
+contrast, the USB benchmark introduces a high- Foundation (RI 2211954, RI 2211955, and FAI
+qualitymanuallyannotateddatasetforpredicting 2040929), UPMC, Highmark Health, Abridge,
+factual correctness. For the task of editing sum- Ford Research, Mozilla, the PwC Center, Ama-
+mariestofixfactualerrors,datasetswithbothsyn- zon AI, JP Morgan Chase, the Block Center, the
+thetic and model-generated errors have been cre- CenterforMachineLearningandHealth,andthe
+ated(Balachandranetal.,2022;Liuetal.,2022). CMUSoftwareEngineeringInstitute(SEI)viaDe-
+The task of unsupported span prediction is akin partmentofDefensecontractFA8702-15-D-0002.
+todetectinghallucinatedcontentingeneratedsum-
+11 Limitations
+maries,andtothebestofourknowledge,nolabeled
+datasetexistsforthistask. Despite efforts to collect a diverse dataset, the
+For extracting evidence for a summary, past benchmarkusedinthisstudymaystillexhibitcer-
+works have used lexical overlap based heuris- tainbiases. Thesamplingprocessandtheselection
+tics(ChenandBansal,2018;Lebanoffetal.,2019). of Wikipedia articles as the primary data source
+Amanuallyannotateddatasetforthetaskwasin- couldintroduceinherentbiases,potentiallyaffect-
+troduced by Ernst et al. (2021), albeit our work ingthegeneralizabilityoftheresults. Thesebiases
+providesasubstantiallylargermanuallyannotated maystemfromthespecificdomainsortopicscov-
+dataset. Similarly, for multi-sentence compres- ered in the dataset, as well as the way in which
+Wikipediaarticlesarewrittenandformatted. The thesummarywhichwereflaggedforverification,
+dataset’srelianceonWikipediaarticlesasthepri- whichcanbeaslowas1sentence. Thecreationof
+marysourceofdatamightnotadequatelyrepresent the entire dataset costed about 6000 USD includ-
+thenuancesandchallengesencounteredindiffer- ingplatformfeespaidtoAMTandserverhosting
+ent domains or sources. One prominent example costs.
+isconversationswhicharefrequentlyusedinsum- UseofproprietaryLLMs: WeincludedtheGPT-
+marizationresearchbutarenotrepresentedinthe 3.5-turbo large-language-model from OpenAI in
+benchmark. Similarly,amodel’sabilitytodetecter- ourexperimentssinceithasdemonstratedexcellent
+rors/hallucinationsinsummariesinthebenchmark performanceondiverseNLPtasksinzero-shotand
+maynotnecessarilyreflectitsabilitytodetecter- few-shot settings. Unfortunately, OpenAI could
+rors more broadly in summaries generated by a discontinue hosting the model in future at which
+varietyofmodels. point it may not be possible to reproduce its re-
+Whilethebenchmarkdatasetwasannotatedby sults on the tasks proposed in this work. For this
+humanannotators,itisimportanttoacknowledge reason we have also included results with public
+thepossibilityofannotationerrorsorinconsisten- open-sourceLLMslikeLlamaandVicuna,asthese
+cies. Despiteeffortstoensurehigh-qualityannota- models are publicly available and hence their re-
+tions, the presence of errors should be taken into sultscanalwaysbereproduced.
+accountwheninterpretingtheresults. Humananno-
+tationissubjectivebynature,anddifferentannota-
+References
+torsmayhavevaryinginterpretationsinsomesitua-
+tions,e.g.,decidingwhetherafactinthesummary NadeemAkhtar,NashezZubair,AbhishekKumar,and
+requiresexplicitevidenceorshouldbepresumed TameemAhmad.2017. Aspectbasedsentimentori-
+ented summarization of hotel reviews. Procedia
+ascommonknowledge.
+ComputerScience,115(C):563–571.
+12 EthicsStatement VidhishaBalachandran,HannanehHajishirzi,William
+Cohen,andYuliaTsvetkov.2022. Correctingdiverse
+Potential biases: When selecting the pool of an- factualerrorsinabstractivesummarizationviapost-
+editingandlanguagemodelinfilling. arXivpreprint
+notatorsonAmazonMechanicalTurk(AMT)for
+arXiv:2210.12378.
+creatingthedataset,werequiredtheirlocationtobe
+theUnitedStates. ThiswasdonesincetheUShas Rishi Bommasani and Claire Cardie. 2020. Intrinsic
+evaluation of summarization datasets. In Proceed-
+averylargepopulationofnativeEnglishspeakers,
+ingsofthe2020ConferenceonEmpiricalMethods
+whichcanhelpingettinghighqualityannotations. in Natural Language Processing (EMNLP), pages
+However,thisgeographicalrestrictioncanalsolead 8075–8096.
+to biases in the annotation process. For example,
+Yen-ChunChenandMohitBansal.2018. Fastabstrac-
+itwouldaffectwhat’sconsideredcommonknowl- tivesummarizationwithreinforce-selectedsentence
+edgewhenassessingevidenceforsummaries. An rewriting. InProceedingsofthe56thAnnualMeet-
+annotatorfromtheUnitedStateswouldlikelycon- ingoftheAssociationforComputationalLinguistics
+(Volume1: LongPapers),pages675–686.
+sideraperson’sbirthinLosAngelesasevidence
+ofthembeingfromCalifornia,becausetheyknow Wei-Lin Chiang, Zhuohan Li, Zi Lin, Ying Sheng,
+Los Angeles is in that state. However, if it were ZhanghaoWu,HaoZhang,LianminZheng,Siyuan
+Zhuang,YonghaoZhuang,JosephE.Gonzalez,Ion
+someothercityandstateinacountryunfamiliarto
+Stoica, and Eric P. Xing. 2023. Vicuna: An open-
+them,theymaynotmakeasimilarinference.
+sourcechatbotimpressinggpt-4with90%*chatgpt
+Compensation for annotators: For the initial quality.
+qualificationtask,workerswerepaid2USD.After
+Hyung Won Chung, Le Hou, Shayne Longpre, Bar-
+selecting the qualified workers, for the main an- ret Zoph, Yi Tay, William Fedus, Eric Li, Xuezhi
+notation task workers were paid 2 to 3 USD per Wang,MostafaDehghani,SiddharthaBrahma,etal.
+2022. Scalinginstruction-finetunedlanguagemodels.
+document-summary pair, depending on the num-
+arXivpreprintarXiv:2210.11416.
+ber of sentences in the summary and the domain
+where it came from (we observed that some do- Arman Cohan and Nazli Goharian. 2016. Revisiting
+summarizationevaluationforscientificarticles. In
+mainsweremoredifficult). Forthesecondround
+ProceedingsoftheTenthInternationalConference
+forverification,wepaidannotatorsbetween0.3to
+onLanguageResourcesandEvaluation(LREC’16),
+1.0USDdependingonthenumberofsentencesin pages806–813.
+WafaaSEl-Kassas,CherifRSalama,AhmedARafea, KundanKrishna,SopanKhosla,JeffreyPBigham,and
+andHodaKMohamed.2021. Automatictextsum- ZacharyCLipton.2021. Generatingsoapnotesfrom
+marization: Acomprehensivesurvey. Expertsystems doctor-patientconversationsusingmodularsumma-
+withapplications,165:113679. rizationtechniques. InProceedingsofthe59thAn-
+nualMeetingoftheAssociationforComputational
+OriErnst,OriShapira,RamakanthPasunuru,Michael Linguisticsandthe11thInternationalJointConfer-
+Lepioshkin, Jacob Goldberger, Mohit Bansal, and ence on Natural Language Processing (Volume 1:
+IdoDagan.2021. Summary-sourceproposition-level LongPapers),pages4958–4972.
+alignment: Task, datasets and supervised baseline.
+InProceedingsofthe25thConferenceonComputa- Kundan Krishna and Balaji Vasan Srinivasan. 2018.
+tionalNaturalLanguageLearning,pages310–322. Generating topic-oriented summaries using neural
+attention. InNAACL-HLT.
+AlexanderRichardFabbri,Chien-ShengWu,Wenhao
+Liu, and Caiming Xiong. 2022. Qafacteval: Im- KundanKrishna,YaoZhao,JieRen,BalajiLakshmi-
+provedqa-basedfactualconsistencyevaluationfor narayanan,JiamingLuo,MohammadSaleh,andPe-
+summarization. InProceedingsofthe2022Confer- ter J Liu. 2022. Improving the robustness of sum-
+enceoftheNorthAmericanChapteroftheAssoci- marizationmodelsbydetectingandremovinginput
+ation for Computational Linguistics: Human Lan- noise. arXivpreprintarXiv:2212.09928.
+guageTechnologies,pages2587–2601.
+WojciechKrys´cin´ski,BryanMcCann,CaimingXiong,
+and Richard Socher. 2020. Evaluating the factual
+SebastianGehrmann,HendrikStrobelt,RobertKrüger,
+consistency of abstractive text summarization. In
+HanspeterPfister,andAlexanderMRush.2019. Vi-
+Proceedings of the 2020 Conference on Empirical
+sualinteractionwithdeeplearningmodelsthrough
+MethodsinNaturalLanguageProcessing(EMNLP),
+collaborativesemanticinference. IEEEtransactions
+pages9332–9346.
+onvisualizationandcomputergraphics,26(1):884–
+894.
+LoganLebanoff,KaiqiangSong,FranckDernoncourt,
+DooSoonKim,SeokhwanKim,WalterChang,and
+BogdanGliwa,IwonaMochol,MaciejBiesek,andAlek-
+FeiLiu.2019. Scoringsentencesingletonsandpairs
+sander Wawer. 2019. Samsum corpus: A human-
+forabstractivesummarization. InProceedingsofthe
+annotated dialogue dataset for abstractive summa-
+57thAnnualMeetingoftheAssociationforCompu-
+rization. EMNLP-IJCNLP2019,page70.
+tationalLinguistics,pages2175–2189.
+TanyaGoyalandGregDurrett.2021. Annotatingand
+Mike Lewis, Yinhan Liu, Naman Goyal, Marjan
+modeling fine-grained factuality in summarization.
+Ghazvininejad,AbdelrahmanMohamed,OmerLevy,
+InProceedingsofthe2021ConferenceoftheNorth
+VeselinStoyanov,andLukeZettlemoyer.2020. Bart:
+AmericanChapteroftheAssociationforComputa-
+Denoisingsequence-to-sequencepre-trainingfornat-
+tionalLinguistics: HumanLanguageTechnologies,
+urallanguagegeneration,translation,andcomprehen-
+pages1449–1462.
+sion. InProceedingsofthe58thAnnualMeetingof
+theAssociationforComputationalLinguistics,pages
+TanyaGoyal, JunyiJessyLi, andGregDurrett.2022.
+7871–7880.
+News summarization and evaluation in the era of
+gpt-3. arXivpreprintarXiv:2209.12356.
+Chin-YewLin.2004. Rouge: Apackageforautomatic
+evaluation of summaries. In Text summarization
+HiroakiHayashi,PrashantBudania,PengWang,Chris
+branchesout,pages74–81.
+Ackerson, Raj Neervannan, and Graham Neubig.
+2021. Wikiasp: Adatasetformulti-domainaspect-
+YangLiuandMirellaLapata.2019. Textsummarization
+basedsummarization. TransactionsoftheAssocia-
+withpretrainedencoders. InProceedingsofEMNLP-
+tionforComputationalLinguistics,9:211–225.
+IJCNLP2019,pages3721–3731.
+Ziwei Ji, Nayeon Lee, Rita Frieske, Tiezheng Yu, YinhanLiu,MyleOtt,NamanGoyal,JingfeiDu,Man-
+DanSu,YanXu,EtsukoIshii,YejinBang,Andrea dar Joshi, Danqi Chen, Omer Levy, Mike Lewis,
+Madotto,andPascaleFung.2022. Surveyofhalluci- Luke Zettlemoyer, and Veselin Stoyanov. 2019.
+nationinnaturallanguagegeneration. ACMComput- Roberta: A robustly optimized bert pretraining ap-
+ingSurveys. proach. arXivpreprintarXiv:1907.11692.
+MikaelKågebäck,OlofMogren,NinaTahmasebi,and YixinLiu,BudhadityaDeb,MilagroTeruel,AaronHal-
+DevdattDubhashi.2014. Extractivesummarization faker, Dragomir Radev, and Ahmed H Awadallah.
+usingcontinuousvectorspacemodels. InProceed- 2022. Onimprovingsummarizationfactualconsis-
+ingsofthe2ndWorkshoponContinuousVectorSpace tencyfromnaturallanguagefeedback. arXivpreprint
+Models and their Compositionality (CVSC), pages arXiv:2212.09968.
+31–39.
+RameshNallapati,FeifeiZhai,andBowenZhou.2017.
+ByeongchangKim,HyunwooKim,andGunheeKim. Summarunner: A recurrent neural network based
+2019. Abstractivesummarizationofredditpostswith sequencemodelforextractivesummarizationofdoc-
+multi-level memory networks. In Proceedings of uments. InThirty-firstAAAIconferenceonartificial
+NAACL-HLT,pages2519–2531. intelligence.
+Ramesh Nallapati, Bowen Zhou, Cicero dos Santos, HugoTouvron,ThibautLavril,GautierIzacard,Xavier
+Çag˘larGulçehre,andBingXiang.2016. Abstractive Martinet,Marie-AnneLachaux,TimothéeLacroix,
+textsummarizationusingsequence-to-sequencernns Baptiste Rozière, Naman Goyal, Eric Hambro,
+and beyond. In Proceedings of The 20th SIGNLL Faisal Azhar, et al. 2023. Llama: Open and effi-
+Conference on Computational Natural Language cient foundation language models. arXiv preprint
+Learning,pages280–290. arXiv:2302.13971.
+Feng Nan, Ramesh Nallapati, Zhiguo Wang, Cicero LuWangandWangLing.2016. Neuralnetwork-based
+dosSantos,HenghuiZhu,DejiaoZhang,Kathleen abstractgenerationforopinionsandarguments. In
+Mckeown,andBingXiang.2021. Entity-levelfac- Proceedings of the 2016 Conference of the North
+tual consistency of abstractive text summarization. AmericanChapteroftheAssociationforComputa-
+InProceedingsofthe16thConferenceoftheEuro- tionalLinguistics: HumanLanguageTechnologies,
+peanChapteroftheAssociationforComputational pages47–57.
+Linguistics: MainVolume,pages2727–2733.
+Kam-FaiWong,MingliWu,andWenjieLi.2008. Ex-
+Shashi Narayan, Shay B. Cohen, and Mirella Lapata. tractive summarization using supervised and semi-
+2018. Don’tgivemethedetails,justthesummary! supervisedlearning. InProceedingsofthe22ndin-
+topic-aware convolutional neural networks for ex- ternationalconferenceoncomputationallinguistics
+tremesummarization. ArXiv,abs/1808.08745. (Coling2008),pages985–992.
+AniNenkova.2006. Summarizationevaluationfortext JingqingZhang,YaoZhao,MohammadSaleh,andPe-
+andspeech: issuesandapproaches. InNinthInterna- terLiu.2020. Pegasus: Pre-trainingwithextracted
+tionalConferenceonSpokenLanguageProcessing. gap-sentencesforabstractivesummarization. InIn-
+ternationalConferenceonMachineLearning,pages
+AniNenkova,KathleenMcKeown,etal.2011. Auto-
+11328–11339.PMLR.
+maticsummarization. FoundationsandTrends®in
+InformationRetrieval,5(2–3):103–233. YongZhang,JooErMeng,andMahardhikaPratama.
+2016. Extractivedocumentsummarizationbasedon
+Dragomir Radev, Eduard Hovy, and Kathleen McKe-
+convolutionalneuralnetworks. InIECON2016-42nd
+own.2002. Introductiontothespecialissueonsum-
+AnnualConferenceoftheIEEEIndustrialElectronics
+marization. Computational linguistics, 28(4):399–
+Society,pages918–922.IEEE.
+408.
+ColinRaffel,NoamShazeer,AdamRoberts,Katherine
+Lee,SharanNarang,MichaelMatena,YanqiZhou,
+WeiLi,andPeterJLiu.2020. Exploringthelimits
+oftransferlearningwithaunifiedtext-to-texttrans-
+former. JournalofMachineLearningResearch,21:1–
+67.
+ErikTjongKimSangandSabineBuchholz.2000. In-
+troductiontotheconll-2000sharedtaskchunking. In
+FourthConferenceonComputationalNaturalLan-
+guageLearningandtheSecondLearningLanguage
+inLogicWorkshop.
+ThomasScialom,Paul-AlexisDray,SylvainLamprier,
+BenjaminPiwowarski,JacopoStaiano,AlexWang,
+andPatrickGallinari.2021. Questeval: Summariza-
+tionasksforfact-basedevaluation. InProceedings
+of the 2021 Conference on Empirical Methods in
+NaturalLanguageProcessing,pages6594–6604.
+AbigailSee,PeterJLiu,andChristopherDManning.
+2017. Gettothepoint: Summarizationwithpointer-
+generatornetworks. InProceedingsofthe55thAn-
+nualMeetingoftheAssociationforComputational
+Linguistics (Volume 1: Long Papers), pages 1073–
+1083.
+AvivSlobodkin,PaulRoit,EranHirsch,OriErnst,and
+IdoDagan.2022. Controlledtextreduction. InPro-
+ceedingsofthe2022ConferenceonEmpiricalMeth-
+ods in Natural Language Processing, pages 5699–
+5715,AbuDhabi,UnitedArabEmirates.Association
+forComputationalLinguistics.
+cation, the target is a single Yes/No based on the
+label. Duringinference,wemeasuretheprobabili-
+A Appendix tiesofgeneratedYes/Notokenswhichallowsusto
+measureAUCscorestoo. ForUnsupportedSpan
+A.1 Sampledatapointsfordifferenttasks
+Prediction,wegeneratedthegroundtruthtargetby
+Weshowasamplelabeleddatapointforeachtask surroundingtheunsupportedspansinthesummary
+from the validation set of USB in Figure 5 and withbegin-spanandend-spantags.
+Figure6.
+Llama/Vicuna For Llama and Vicuna we use
+A.2 Instructionsusedinmodelinputs theexactsameinputformatting. Comparedtothe
+Flan-T5dataformatting,weuseadifferentsetof
+WelisttheinstructionsusedintheinputstoFlan-T5
+instructionsforthesemodels,aftertryingoutplau-
+modelsinTable6,Llama-13BinTable7,Vicuna-
+sible variants for each task on the validation set.
+13BinTable8,andGPT-3.5-turboinTable9.
+We provide 4 different instances as few-shot ex-
+amplesfollowingtheinstructionineachdatapoint
+A.3 Implementationdetailsformodels
+foreachtask. Thefew-shotexamplesarechosen
+In this section we outline the architectures, and
+bysamplingfromthetrainingsetwithoutreplace-
+input/outputformattingusedfordifferentmodels
+ment. Due to limitations in sequence length, we
+used in our experiments. Additionally, we report
+only use a maximum of 2048 tokens for the few-
+thehyperparametersusedduringtrainingandinfer-
+shotexamples. Forthetaskswhichrequirethefull
+enceforeachmodelinTable10.
+document in the input (i.e. ABS, EXT, EVEXT,
+Roberta For the Factuality Classification task, TOPIC), we use 4 examples with each having a
+we feed in the evidence and summary separated maximumof512tokens. Fortheremainingtasks,
+by the SEP token into a standard classifier setup, weuse16exampleseachwithamaximumlength
+which applies a linear layer with sigmoid activa- of128tokens. Thefew-shotexamplesaresampled
+tionontopoftheCLSembedding. ForEvidence (withoutreplacement)fromthetrainingsetwhile
+Extraction,weusethesamearchitectureandinput creating the prompt for each datapoint in the test
+individualpairsofasummarysentencewitheach set. Since these are decoder-only models which
+source sentence to make a prediction for each of essentially generate plausible completions of the
+them. FortheExtractiveSummarizationtask,we input string, we preface each output with a word
+useahierarchicalarchitectureidenticaltotheone (e.g. “SUMMARY:”,“LABELS:”)inthefew-shot
+describedasBERT-LSTMinKrishnaetal.(2021), examples and at the end of the prompt to trigger
+except that we use a Roberta encoder instead of thegenerationoftherequiredsummary/labels.
+BERT.ForUnsupportedSpanPrediction,weframe
+GPT-3.5-turbo Theformattingofinputandout-
+itasasequencetaggingproblemwherethegiven
+putisexactlythesameasforLlama/Vicunaforall
+summarysentenceandevidencearepassedthrough
+tasks except Evidence Extraction and Extractive
+Roberta and a linear layer with sigmoid predicts
+Summarization. Forthesetwotasks,wefoundthat
+whethereachtokenissupportedornot. Thecon-
+thismodelperformedmuchbetterifwepromptedit
+secutive positive predictions are concatenated to
+togeneratethesourcesentenceidswhichshouldbe
+turnthemintospans.
+assignedthepositivelabel,insteadofgeneratinga
+T5/Flan-T5 We preface each input with an in- Yes/Nopredictionforeachsourcesentence. Sowe
+struction for the task to be done, followed by the changedtheoutputformattinginourfew-shotex-
+text from the source/summary to be input. We amplesaccordingly. Forthismodeltoo,wechoose
+frametheEvidenceExtractionandExtractiveSum- adifferentsetofinstructionsforthetasksbyexper-
+marization tasks as a sequence of Yes/No predic- imenting with different options on the validation
+tionsforeachsentenceinthesource. Eachsource set.
+sentence in the input is prefixed by an enumer-
+A.4 Humanevaluationofmodeloutputs
+ated sentence id (e.g. SENT34), and the ground
+truthtargetisthesequenceofallsentenceids,with Itiswell-acknowledgedthatROUGE(Lin,2004)
+a Yes/No following each according to it’s posi- is an imperfect automatic metric to assess sum-
+tive/negativelabel(e.g. “SENT0YesSENT1No maryquality,andmaynotaccuratelyreflecthuman
+SENT2No...”). Similarly, forFactualityClassifi- preferences(Nenkova,2006;CohanandGoharian,
+2016; Goyal et al., 2022). Hence, we also con-
+ducted human evaluation for some tasks, where
+we show summaries generated by the best fine-
+tuned model (Flan-T5-XL) and the best fewshot-
+promptedLLM(GPT-3.5-turbo)andaskannotators
+tochoosethebetteronealongdifferentdimensions
+(Table3).
+For the tasks of Abstractive Summarization
+(ABS),Multi-sentenceCompression(COMP),and
+Topic-basedSummarization(TOPIC),wecollected
+annotationsfor50pairsofsummaries,with3an-
+notators rating each pair. For these 3 tasks, we
+didnotscreenworkersbasedonqualificationtasks
+sinceevaluatingoverallsummaryqualityisasub-
+jectivetaskanditisbettertohaveadiverseopinion
+fromalargepopulation,ratherthanasmallsetof
+manuallyselectedpeople.
+EvaluatingmodeloutputsfortheFixingFactual-
+ity(FIX)taskisamoredifficultbutobjectivejob.
+The increased difficulty comes from the need to
+carefullynotetheeditsmadebythemodelsonthe
+originalincorrectsummaryandthendecideonthe
+factualvalidityandnecessityofeachedit. Sowe
+screenedannotatorsviaaqualificationtaskonMe-
+chanicalTurkandselected2annotatorstoconduct
+the human evaluation for this specific task. Each
+pairofmodeloutputswasratedbybothannotators.
+Figure3: Distributionofnumberofwordsinthesourceandthesummary,andthenumberofsourcesentences
+markedasevidencepersummarysentence.
+Task Instruction
+Multi-sentenceCompression(COMP) Summarizethefollowingcontentinasingleline.
+AbstractiveSummarization(ABS) Summarizethefollowingcontent.
+FixingFactuality(FIX) Rewritethegivensummaryofthecontenttomakeit
+factuallycorrect.
+UnsupportedSpanPrediction(UNSUP) Annotate parts of the summary which are not sup-
+portedbyevidencefromthecontent.
+Topic-basedSummarization(TOPIC) Summarizethegivencontentforthefollowingtopic.
+FactualityClassification(FAC) Is there sufficient evidence for the summary in the
+content?
+ExtractiveSummarization(EXT) Foreachsentence,predictifitisimportant.
+EvidenceExtraction(EVEXT) Foreachsentenceinthecontent,predictifitprovides
+anyevidencefortheclaim.
+Table6: InstructionsusedininputstoFlan-T5models
+Figure4: Screenshotoftheinterfaceusedforcollectingannotations. Thesummaryisshownontheleftandthe
+sourceontheright. Entitiesintheactivesummarylinearehighlightedtohelpfindevidencequickly. Ascratchpad
+isprovidedwhereuserscankeeptrackofthepartsofthesummaryforwhichevidencehasbeenmarked.
+Task Instruction
+Multi-sentenceCompression(COMP) Writeaone-linesummaryofthecontentshownbe-
+low.
+EvidenceExtraction(EVEXT) Go over each sentence in the content, and decide
+if it supports the claim or not. Answer in Yes for
+a sentence if it supports the claim, and answer No
+otherwise.
+FactualityClassification(FAC) Is there sufficient evidence for the summary in the
+content?
+FixingFactuality(FIX) Rewritethegivensummaryofthecontenttomakeit
+factuallycorrect.
+AbstractiveSummarization(ABS) Writeaconcisesummaryofthefollowingparagraph
+Topic-basedSummarization(TOPIC) Summarizethegivencontentforthefollowingtopic.
+ExtractiveSummarization(EXT) For each sentence in the given content, label it as
+Yes if it is noteworthy enough to be included in a
+summary,orNootherwise.
+UnsupportedSpanPrediction(UNSUP) Regenerate the given summary, while surrounding
+those parts which do not have any supporting evi-
+denceinthecontentusing[]and[/]tags
+Table7: InstructionsusedininputstotheLlama-13Bmodel
+Task Instruction
+Multi-sentenceCompression(COMP) Writeasinglesentencesummarizingtheimportant
+pointsinthegivencontent.
+EvidenceExtraction(EVEXT) Predictwhichsentencesinthegivencontentcanbe
+usedtoinferfactsintheclaim.
+FactualityClassification(FAC) Decideifthefollowingsummaryisconsistentwith
+the corresponding content. Note that consistency
+meansallinformationinthesummaryissupported
+bythecontent. Explainyourreasoningstepbystep
+thenanswer(yesorno)thequestion
+FixingFactuality(FIX) Rewritethefollowingsummarytomakeitfactually
+accurate
+AbstractiveSummarization(ABS) Draftasummaryforthegivendocument.
+Topic-basedSummarization(TOPIC) Generate a summary of the given content covering
+thegiventopic.
+ExtractiveSummarization(EXT) Foreachsentence,predictifitisimportant.
+UnsupportedSpanPrediction(UNSUP) Annotate parts of the summary which are not sup-
+portedbyevidencefromthecontent
+Table8: InstructionsusedininputstotheVicuna-13Bmodel
+Task Instruction
+Multi-sentenceCompression(COMP) Summarizethefollowingcontentinasingleline.
+EvidenceExtraction(EVEXT) Belowisaclaimalongwithitscorrespondingcontent.
+Identifyandlistallthesentenceswithinthecontent
+thatpartiallyorentirelysupporttheclaim.
+FactualityClassification(FAC) Decideifthefollowingsummaryisconsistentwith
+the corresponding content. Note that consistency
+meansallinformationinthesummaryissupported
+bythecontent. Answeryesorno.
+FixingFactuality(FIX) The summary might be incorrect. How would you
+rewriteittomakeitfactuallyaccurate? Makeaslittle
+changesaspossible. Donotaddanynewinformation
+tothesummary.
+AbstractiveSummarization(ABS) Draftasummaryforthegivendocument.
+Topic-basedSummarization(TOPIC) Create a short summary of the given content that
+touchesuponinformationwhichfallunderthespeci-
+fiedtopic.
+ExtractiveSummarization(EXT) Forthetaskofextractivesummarization,listallthe
+SENTsofthecontentwhichwouldbeincludedinits
+summary.
+UnsupportedSpanPrediction(UNSUP) Gooverthegivensummarycarefully,andregenerate
+it while surrounding any parts which are not sup-
+portedbythecontentusing[]and[/]tags
+Table9: InstructionsusedininputstotheGPT-3.5-turbomodel
+Model Task Learningrate BatchSize Maxinputlength Maxoutputlength
+Roberta-Large FAC 1e-5 32 512 -
+Roberta-Large EXT 1e-5 32 128×128ψ -
+Roberta-Large EVEXT 2e-5 2048 128 -
+Roberta-Large UNSUP 2e-5 32 512 -
+T5-Large (All) 5e-5 32 8192 768
+FlanT5-Large (All) 5e-5 32 8192 768
+FlanT5-XL (All) 5e-5 64 1536 512
+Llama-13B (All) - - 6144 512
+Vicuna-13B (All) - - 6144 512
+GPT-3.5-turbo (All) - - Variableϕ Variableϕ
+Table10: Hyperparametersusedfortrainingandinferencewithdifferentmodels. ψ: 128sentenceseachwith
+maximumof128tokensfedintoahierarchicalmodel. ϕ: GPT-3.5-turbohasarelativelysmalllimitof4096tokens
+includingboththeinput(withfew-shotexamples)andtheoutput,andsowetruncatetheinputonaper-taskbasisto
+leavetokenbudgetequaltothemaximumoutputlengthinthetrainsplitforthattask.
+EvidenceExtraction
+Accuracy AUC F1 Precision Recall
+SuperPAL(Ernstetal.,2021) 98.1 95.8 53.8 82.1 40.0
+ROUGE(ChenandBansal,2018) 95.9 88.5 40.9 33.7 52.1
+Entityoverlap 95.7 92.5 47.0 35.6 69.4
+Humanannotations100%(N=765) 98.8 99.0 77.7 77.0 78.4
+Humanannotations20% 98.7 98.4 74.7 78.9 70.8
+Humanannotations10% 98.5 98.1 72.4 73.0 71.8
+Humanannotations5% 98.4 97.7 70.9 70.8 70.9
+FactualityClassification
+Accuracy AUC F1 Precision Recall
+FactEdit(Balachandranetal.,2022) 55.7 74.6 29.4 72.6 18.4
+FactCC(Krys´cin´skietal.,2020) 52.9 68.9 20.1 66.3 11.8
+Humanannotations100% 88.1 95.1 87.5 92.3 83.2
+Humanannotations20% 86.7 93.9 86.1 90.6 82.0
+Humanannotations10% 83.4 91.8 81.6 91.7 73.5
+Humanannotations5% 82.6 90.4 82.5 83.2 81.7
+Fixfactuality
+ExactMatch Rouge-1 Rouge-2 Rouge-L
+FactEdit(Balachandranetal.,2022) 1.0 81.6 73.0 81.0
+FactCC(Krys´cin´skietal.,2020) 0.8 81.9 73.6 81.4
+Humanannotations100% 32.9 91.9 86.5 91.4
+Humanannotations20% 28.8 90.3 84.3 89.8
+Humanannotations10% 15.3 85.7 78.5 85.1
+Humanannotations5% 11.2 83.9 76.1 83.3
+Table11: Comparisionbetweenusinghumanannotationsvsheuristicannotationsfortrainingmodels—Flan-T5-
+Large. Wealsoreportperformancewhenfinetuningonsmallerfractionsofthetrainingsetwithhumanannotations.
+Abstrac(cid:415)ve INPUT DOCUMENT:
+Summariza(cid:415)on D'Vauntes Smith-Rivera
+(ABS) High school career
+Smith-Rivera started high school at North Central High School in Indianapolis,
+and led his team to a state championship in his sophomore year.
+He transferred to the basketball specialty Oak Hill Academy in Virginia for his
+senior year, and he helped lead the team to the 2012 na(cid:415)onal championship
+He was recruited by Xavier, UCLA, Louisville, Memphis, NC State, and
+Georgetown.
+…
+TARGET D'Vauntes Smith-Rivera is a professional basketball player who last played for
+Koroivos of the Greek Basket League.
+He played high school basketball for North Central in Indianapolis and Oak
+Hill Academy in Virginia.
+…
+Mul(cid:415)-sentence INPUT SOURCE SENTENCES:
+Compression Odenkirk was hired as a writer at "Saturday Night Live" in 1987 and worked
+(COMP) there through 1991.
+Odenkirk's friendship with Ben S(cid:415)ller, with whom he briefly shared an office
+at "SNL", would lead to his being hired for the cast of "The Ben S(cid:415)ller Show"
+in 1992.
+Working as both a writer and actor on the show, he created and starred in
+the memorable sketch "Manson Lassie", and helped the show win an Emmy
+Award for wri(cid:415)ng.
+TARGET From the late 1980s to 1990s, Odenkirk wrote for television shows "Saturday
+Night Live" and "The Ben S(cid:415)ller Show", winning an Emmy Award for wri(cid:415)ng.
+Extrac(cid:415)ve INPUT DOCUMENT:
+Summariza(cid:415)on SENT0: D'Vauntes Smith-Rivera
+(EXT) SENT1: High school career
+SENT2: Smith-Rivera started high school at North Central High School in
+Indianapolis, and led his team to a state championship in his sophomore year.
+SENT3: He transferred to the basketball specialty Oak Hill Academy in Virginia
+for his senior year, and he helped lead the team to the 2012 na(cid:415)onal
+championship.
+SENT4: He was recruited by Xavier, UCLA, Louisville, Memphis, NC State, and
+Georgetown.
+…
+TARGET SENT0 SENT2 SENT4…
+Topic-based INPUT DOCUMENT:
+Summariza(cid:415)on Arkema S.A.
+(TOPIC) Arkema was created when French oil major Total restructured its chemicals
+business.
+The restructuring was a gradual process that began many years earlier:
+…
+TOPIC NAME: Organiza(cid:415)on
+TARGET Arkema is organized into three business segments: Coa(cid:415)ng Solu(cid:415)ons,
+Industrial Chemicals, and Performance Products.
+Figure5: Sampleinput-outputpairsfordifferenttasksfromthevalidationsetofUSB
+Factuality INPUT EVIDENCE:
+Classifica(cid:415)on In 2014 YG also expanded into the beauty industry with the crea(cid:415)on of its cosme(cid:415)cs brand
+(FAC) Moonshot.
+YG Plus Inc., previously named Phoenix Holdings Inc., is a publicly traded media and
+adver(cid:415)sing company acquired by YG Entertainment in November 2014.
+SUMMARY:
+In addi(cid:415)on, the company operates a number of subsidiary ventures under a separate public
+traded company, YG Plus, which includes a clothing line, a golf management agency, and a
+cosme(cid:415)cs brand.
+TARGET Incorrect
+Unsupported Span INPUT EVIDENCE:
+Predic(cid:415)on David Mar(cid:415)n McIntosh
+(UNSUP) McIntosh was born in Oakland, California, the son of Jean Marie (Slough), a judge, and
+Norman McIntosh.
+He graduated with a B.A. (cum laude) in 1980, and later received a J.D. from University of
+Chicago Law School in 1983.
+…
+Incumbent Democrat U.S. Congressman Philip Sharp of Indiana's 2nd congressional district
+decided to re(cid:415)re.
+McIntosh decided to run and won the Republican primary with a plurality of 43% in a four
+candidate field.
+In the general elec(cid:415)on, he defeated Democra(cid:415)c Secretary of State of Indiana Joe Hogse(cid:425)
+54%-46%.
+SUMMARY: David Mar(cid:415)n McIntosh (born June 8, 1958) is an American a(cid:425)orney and
+Republican Party poli(cid:415)cian who served as the U.S. representa(cid:415)ve for Indiana's 2nd
+congressional district from 1995 to 2001.
+TARGET David Mar(cid:415)n McIntosh ( born June 8 , 1958 ) is an American a(cid:425)orney and Republican Party
+poli(cid:415)cian who served as the U.S. representa(cid:415)ve for Indiana 's 2nd congressional district from
+1995 to 2001 .
+Fixing Factuality INPUT EVIDENCE:
+(FIX) In 2009, Jordan returned to the F1 scene as a pundit for BBC Sport F1 coverage alongside
+Jake Humphrey (who was later replaced by Suzi Perry) and David Coulthard.
+In March 2016 he was announced as Channel 4's lead analyst for C4F1.
+SUMMARY:
+He was the chief analyst for Formula One coverage on the BBC from 2009 to 2015 before
+joining Channel 4 a(cid:332)er BBC pulled out in 2016.
+TARGET He was the a pundit for Formula One coverage on the BBC from 2009 before joining Channel
+4 in 2016.
+Evidence Extrac(cid:415)on INPUT DOCUMENT:
+(EVEXT) SENT0: 2012 Istanbul rally to commemorate the Khojaly massacre
+SENT1: "Jus(cid:415)ce for Khojaly" campaign.
+SENT2: "Jus(cid:415)ce for Khojaly", or "JFK" for short, is an Interna(cid:415)onal Awareness Campaign,
+ini(cid:415)ated on 8 May 2008 under the mo(cid:425)o of "Jus(cid:415)ce for Khojaly, Freedom for Karabakh".
+…
+SENT6: Around 200,000 par(cid:415)cipants for the 20th anniversary remembrance of the Khojaly
+Massacre vic(cid:415)ms, dozens of youth and student organiza(cid:415)ons, public unions, Turkish
+organiza(cid:415)ons and movements par(cid:415)cipated in the rally.
+…
+SENT17: Various slogans included, "We are all from Khojaly", "Stop Armenian aggression",
+"Do not forget Turkic people genocide by Armenian gangs in southern Azerbaijan", "One
+na(cid:415)on, two countries, Jus(cid:415)ce for Khojaly!", and "Stop Armenian lies".
+…
+SUMMARY:
+The demonstra(cid:415)on with slogan "We are all from Khojaly" had around 200,000 par(cid:415)cipants.
+TARGET SENT6 SENT17
+Figure6: Sampleinput-outputpairsfordifferenttasksfromthevalidationsetofUSB

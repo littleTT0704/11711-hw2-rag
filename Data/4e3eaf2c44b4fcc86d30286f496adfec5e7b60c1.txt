@@ -1,0 +1,379 @@
+Adapting Open Domain Fact Extraction and Verification to COVID-FACT
+through In-Domain Language Modeling
+ZhenghaoLiu1,2,ChenyanXiong5,ZhuyunDai6,SiSun4,MaosongSun1,3,ZhiyuanLiu1,3
+1DepartmentofComputerScienceandTechnology,TsinghuaUniversity,Beijing,China
+InstituteforArtificialIntelligence,TsinghuaUniversity,Beijing,China
+BeijingNationalResearchCenterforInformationScienceandTechnology
+2StateKeyLabonIntelligentTechnologyandSystems,TsinghuaUniversity,Beijing,China
+3BeijingAcademyofArtificialIntelligence
+4DepartmentofElectronicEngineering,TsinghuaUniversity,Beijing,China
+5MicrosoftResearch,Redmond,USA
+6CarnegieMellonUniversity,USA
+Abstract limittheperformanceofCOVID-FACTchecking.
+The state-of-the-art model (Wadden et al., 2020)
+With the epidemic of COVID-19, verifying
+achievesonly46.6%precisionoffactverification,
+thescientificallyfalseonlineinformation,such
+whichishardtobetrustedforusers.
+as fake news and maliciously fabricated state-
+ThispaperpresentstheScientificKGAT(SciK-
+ments,hasbecomecrucial. However,thelack
+of training data in the scientific domain lim- GAT)todealwithlow-resourceCOVID-FACTver-
+itstheperformanceoffactverificationmodels. ification. SciKGAT employs the in-domain lan-
+This paper proposes an in-domain language guagemodelinthefactextractionandverification
+modelingmethodforfactextractionandverifi- pipeline(Thorneetal.,2018;Waddenetal.,2020)
+cation systems. We come up with SciKGAT
+to adapt fact-checking into COVID domain. The
+to combine the advantages of open-domain
+in-domain language model transfers COVID do-
+literature search, state-of-the-art fact verifica-
+mainknowledgeintopre-trainedlanguagemodels
+tion systems and in-domain medical knowl-
+edgethroughlanguagemodeling. Ourexperi- withcontinuoustrainingandlearnsmedicaltoken
+mentsonSCIFACT,adatasetofexpert-written semantics towards COVID with mask language
+scientificfactverification,showthatSciKGAT modelbasedtraining. Thestate-of-the-artfactver-
+achieves30%absoluteimprovementonpreci- ificationmodelKGAT(Liuetal.,2020;Yeetal.,
+sion. Our analyses show that such improve-
+2020)isalsousedinSciKGATformulti-evidence
+ment thrives from our in-domain language
+reasoninginthefactverificationmodule.
+model by picking up more related evidence
+Our experiments show that the in-domain lan-
+pieces and accurate fact verification. Our
+codesanddataarereleasedviaGithub1. guage modelings achieve better performance for
+various components in the whole fact extraction
+1 Introduction andverificationpipelinebyachievingmoreaccu-
+rateevidenceselectionandfactverification. Ourin-
+Onlinecontentswithfalseinformation,suchaslies,
+domainlanguagemodelingsimprovethefactveri-
+rumors and conspiracy theories, have been grow-
+ficationperformancewithmorethan10%absolute
+ingsignificantlyandspreadingwidelyduringthe
+F scoreand30%absoluteprecision(from46.6%
+COVID-19epidemic. Anautomaticfact-checking 1
+to76%)thanpreviousstate-of-the-artonSCIFACT.
+systemisurgentlyneededtocheckthesescientific
+Suchimprovementshowsthatourmodelprovides
+claims,whichcanavoidundesiredconsequences.
+asetofsolutionsforlow-resourcefactverification
+Automaticfact-checkinghasdrawnlotsofattention
+tasks,suchasCOVID-19.
+fromNLPcommunity. Researchersmainlyfocus
+onstoppingmisinformationtransmissionthrough
+2 RelatedWork
+videosandtexts(Cinellietal.,2020;Hossainetal.,
+2020;Lietal.,2020;Serranoetal.,2020).
+Existing fact extraction and verification models
+The scientific fact verification task (Wadden
+usuallyemployathree-steppipelinesystem(Chen
+etal.,2020)iscomeuptodealwithCOVID-FACT
+etal.,2017): documentretrieval(abstractretrieval),
+with high-quality articles of spanning domains
+sentenceselection(rationaleselection)andfactver-
+frombasicsciencetoclinicalmedicine. Neverthe-
+ification(Thorneetal.,2018;Waddenetal.,2020).
+less,thesmall-scaletrainingdataofSCIFACTmay
+The preliminary fact verification methods con-
+1https://github.com/thunlp/KernelGAT catenateallevidencepieces(Nieetal.,2019;Wad-
+denetal.,2020)forfactverification. KGAT(Liu Similarly, for the evidence e of the retrieved
+et al., 2020) conducts fine-grained multiple evi- abstracta,wecangettherepresentationH ofclaim
+dencereasoningwithagraphandachievesthestate- andevidencepair(cid:104)c,e(cid:105):
+of-the-artforfactverification(Yeetal.,2020).
+H =BERT([CLS]◦c◦[SEP]◦e◦[SEP]). (3)
+Thereasoningabilityofthepre-trainedlanguage
+modeliscrucialandhelpsimprovefactverification Thenwepredicttherelevancelabely ofclaim
+r
+performance (Devlin et al., 2019; Li et al., 2019; candevidencee:
+Zhou et al., 2019; Soleimani et al., 2019). Some
+work(Beltagyetal.,2019;Leeetal.,2020)trans- p(y r|c,e)=softmax yr(MLP(H 0)). (4)
+fers medical domain knowledge into pre-trained
+The related evidence pieces (p(y = 0|c,e) <
+r
+language models for better medical semantic un-
+p(y = 1|c,e))arereservedtoformtheretrieved
+r
+derstanding,whichprovidesapotentialwaytodeal
+evidencesetE = {e ,...,e }ofeachabstracta.
+1 q
+withCOVID-FACTcheckingproblem.
+FactVerification. Fortheclaimcandretrieved
+evidencesetE,factverificationmodelaimstopre-
+3 Methodology
+dictclaimlabely. Weemploythestate-of-the-art
+This section describes our SciKGAT for fact ex- model KGAT (Liu et al., 2020) as our fact veri-
+traction and verification. We first introduce the fication module. For the i-th evidence e in the
+i
+pipelineoffactextractionandverification(Sec.3.1) evidence set E, we can get the sentence pair rep-
+andthencontinuouslytraintheBERTbasedmodel resentationHi ofthei-thpair(cid:104)c,e(cid:105)throughBERT.
+i
+(Sec.3.2)forthewhole. Thentheprobabilityofclaimlabelyiscalculated:
+3.1 Preliminary p(y|c,E)=KGAT(H1,...,Hq). (5)
+Givenaclaimc,weaimtopredicttheclaimlabely.
+Weusuallyimplementthefactextractionandveri- 3.2 ContinuousIn-DomainTraining
+ficationpipelinewiththreesteps: abstractretrieval,
+Todealwiththelow-resourceCOVID-FACTcheck-
+rationaleselectionandfactverification.
+ing, we propose continuous training methods to
+AbstractRetrieval. Fortheclaimcandabstract
+transfer domain knowledge into pretrained lan-
+D = {a ,...,a }, we aim to retrieve three ab-
+1 l guagemodels.
+stractsforthefollowingsteps.
+For COVID-FACT checking, the medical do-
+Wefirstretrievetop-100abstractswithTF-IDF
+main knowledge is useful to understand medical
+fromtheabstractcollectionD,whichisthesame
+words(Beltagyetal.,2019). However,thesemed-
+as the previous work (Wadden et al., 2020). For
+ical domain pre-trained language models will be
+theclaimcandabstractabstracta = {e ,...,e }
+1 k out-of-datewiththemedicaldevelopmentoremer-
+withk evidencepiecesandtitlet,weconcatenate
+genceofanewvirus,suchasCOVID-19.
+claim, title and abstract to get the representation
+Continuousin-domaintrainingprovidesapoten-
+Heofthepair(cid:104)c,a(cid:105)withBERT(Devlinetal.,2019):
+tial way to deal with this problem with the latest
+medical corpus. Hence we come up with two in-
+H=BERT([CLS]◦c◦[SEP]◦t◦a◦[SEP]), (1)
+domainlanguagemodelsforthefactextractionand
+where ◦ is the concatenate operation. The repre- verificationpipelinewithcontinuoustraining.
+sentation H of(cid:104)c,a(cid:105)consists of representations of Rationale prediction based training. We first
+tokens from both claim and evidence. The 0-th comeupwiththerationalepredictionstyletraining
+representationH 0 denotesthe[CLS]representa- to continuously train BERT for better reasoning
+tion. Therelevancelabely a betweenclaimcand ability towards the COVID-FACT. For the claim
+abstractaiscalculated: andevidence(cid:104)c,e(cid:105),weoptimizeBERTmodelwith
+supervisionsfromSCIFACT:
+p(y |c,a)=softmax (MLP(H )). (2)
+a ya 0
+L (c,e)=CrossEntropy(p(y |c,e),y∗), (6)
+r r r
+We rerank abstracts according to the probability
+p(y = 1|c,a)andtop-3abstractsarereserved. wherey∗ denotesthegroundtruthrationalepredic-
+a r
+Rationale Selection. Given the retrieved ab- tionlabelofthepair(cid:104)c,e(cid:105). Thenwegetasupervised
+stract a, rationale selection focuses on selecting in-domainlanguagemodel,BERT-RP,forthefact
+relevantsentencesforfactverification. verificationmodule.
+Developmentset TestingSet
+Model
+SentenceLevel AbstractLevel SentenceLevel AbstractLevel
+Prec. Rec. F1 Prec. Rec. F1 Prec. Rec. F1 Prec. Rec. F1
+Baselines
+SciBERT 45.78 38.52 41.84 51.93 44.98 48.21 - - - - - -
+RoBERTa 46.51 38.25 41.98 53.30 46.41 49.62 38.6 40.5 39.5 46.6 46.4 46.5
+SciKGAT
+KGAT 57.07 31.97 40.98 72.73 38.28 50.16 - - - - - -
+SciKGAT(w.A) 42.07 47.81 44.76 47.66 58.37 52.47 40.50 48.38 44.09 47.06 57.66 51.82
+SciKGAT(w.AR) 50.00 47.81 48.88 53.15 56.46 54.76 41.67 45.95 43.70 47.47 54.96 50.94
+SciKGAT(Full) 74.36 39.62 51.69 84.26 43.54 57.41 61.15 42.97 50.48 76.09 47.30 58.33
+Table1: OverallPerformanceofFactExtractionandVerification. RoBERTaisthelargeversion. SciKGAT(w. A)
+andSciKGAT(w. AR)areablationmodelswiththeabstractretrievalandevidenceselectionofSciKGAT.
+Mask language model based training. To help Evaluation Metrics. Precision, Recall and F
+1
+the model better comprehend the semantics of scoreareusedtoevaluatemodelperformance,fol-
+COVID related words, we substitute tokens with lowing SCIFACT (Wadden et al., 2020). These
+[MASK]andaskthemodeltogenerateappropri- evaluationsareinspiredbyFEVERscore(Thorne
+atetokensforfillingit. Withcontinuoustraining, etal.,2018)andconsideriftheevidenceisselected
+the language model now sees the language from correctlyfromtheabstractlevelandsentencelevel.
+thenewcorpus,thusbeingabletopickupthenew Baselines. Since the scientific fact verifica-
+terminologies, such as COVID-19. The continu- tion task is recently released, our baselines are
+oustrainingwithCOVIDrelatedcorpusisableto mainly from Wadden et al. (2020). They first
+better capture the context/semantics of such new use TF-IDF for abstract retrieval and then use
+terminologies(Gururanganetal.,2020). RoBERTa (Large) and SiBERT for rationale se-
+We use data from COVID-19 Open Research lection. KGAT and RoBERTa (Large) are lever-
+DatasetChallenge2 forcontinuoustraining,which agedforfactverification. Therationaleselection
+towardsthemedicaltopic. Inthiscorpus,thereare moduleistrainedwithSCIFACTandthefactveri-
+about 86K papers before 2020, which are about ficationmoduleistrainedwithdatafromFEVER
+coronavirusesbutnotaboutCOVID-19,and54K andSCIFACT(Waddenetal.,2020).
+papersafter2020. BasedonthefiltersusedbyAI2 Implementation Details. In all experiments,
+tocreatethisdataset,thosepapersthatafter2020 weuseSciBERT,RoBERTa(Base)andRoBERTa
+arealmostaboutCOVID-19. Thusroughlythere (Large)(Liuetal.,2019;Beltagyetal.,2019),and
+areabout40%papersinthiscorpusthatareabout inherit huggingface’s PyTorch implementation3.
+COVID-19(Wangetal.,2020). Adamisutilizedforparameteroptimization. For
+rationale selection, we keep the same setting as
+4 ExperimentalMethodology Waddenetal.(2020). Forabstractretrievalandfact
+verification,wesetthemaxlengthto256,learning
+Thissectiondescribesthedataset,evaluationmet-
+rateto2e-5,batchsizeto8andaccumulatestepto
+rics,baselines,andimplementationdetails.
+4 during training. The other parameters are kept
+Dataset. The recently released dataset SCI-
+thesamewithKGAT(Liuetal.,2020).
+FACT (Wadden et al., 2020) is leveraged in our
+Fortheabstractretrievalmodule,wefollowthe
+experiments. Itconsistsof1,409annotatedclaims
+previouswork(MacAvaneyetal.,2020)andfine-
+with 5,183 scientific articles. All claims are
+tuneourin-domainlanguagemodelwiththemedi-
+classifiedasSUPPORT,CONTRADICTorNOT
+calcorpusfromMS-MARCO(Bajajetal.,2016)to
+ENOUGHINFO.Thetraining,developmentand
+fitourabstractretrievalmoduletotheopen-domain
+testing sets contain 809, 300 and 300 claims, re-
+COVIDrelatedliteraturesearch.
+spectively. FEVER (Thorne et al., 2018) is also
+used by official baselines to train the fact verifi- 5 EvaluationResult
+cationmodulesofbaselinesandourmodels. The
+FEVERconsistsof185,455annotatedclaimswith Thissectionfirstteststheoverallperformanceof
+5,416,537Wikipediadocuments. SciKGAT. Then it studies the impacts of our in-
+domain language modeling techniques in knowl-
+2https://www.kaggle.com/allen-institute-for-ai/CORD-
+19-research-challenge 3https://github.com/huggingface/pytorch-transformers
+EvidenceRetrieval FactChecking
+Ablation Model RankingAccuracy SentenceLevel AbstractLevel
+Prec. Rec. F1 Prec. Rec. F1 Prec. Rec. F1
+Abstract TF-IDF 16.11 69.38 26.15 46.51 38.25 41.98 53.30 46.41 49.62
+Retrieval w.SciBERT 19.78 85.17 32.10 42.09 47.27 44.53 48.18 56.94 52.19
+w.SciBERT-MLM 20.33 87.56 33.00 42.07 47.81 44.76 47.66 58.37 52.47
+Rationale SciBERT 36.90 65.03 47.08 43.22 46.99 45.03 48.94 55.02 51.80
+Selection SciBERT-MLM 43.73 60.93 50.91 50.00 47.81 48.88 53.15 56.46 54.76
+Fact SciBERT 43.73 60.93 50.91 36.55 38.25 37.38 36.92 45.93 40.94
+Verification w.KGAT - - - 51.61 34.97 41.69 58.99 39.23 47.13
+w.KGAT(RPInit) - - - 60.10 33.33 42.88 66.38 36.84 47.38
+w.KGAT(MLMInit) - - - 56.00 34.43 42.64 65.32 38.76 48.65
+RoBERTa-Base 43.73 60.93 50.91 42.72 36.89 39.59 44.50 46.41 45.43
+w.KGAT - - - 61.05 31.69 41.73 68.87 34.93 46.35
+w.KGAT(RPInit) - - - 61.19 36.61 45.81 67.48 39.71 50.00
+w.KGAT(MLMInit) - - - 60.35 37.43 46.21 67.19 41.15 51.04
+RoBERTa-Large 43.73 60.93 50.91 50.00 47.81 48.88 53.15 56.46 54.76
+w.KGAT - - - 62.87 40.71 49.42 72.39 46.41 56.56
+w.KGAT(RPInit) - - - 73.47 39.34 51.25 83.33 43.06 56.78
+w.KGAT(MLMInit) - - - 74.36 39.62 51.69 84.26 43.54 57.41
+Table2:In-DomainLanguageModelPerformanceofFactExtractionandVerificationonDevelopmentSet.Model
+performancewithSciBERTonbothabstractretrievalandrationaleselectionscenariosispresented. Forfactverifi-
+cation,thein-domainlanguagemodelingmethods,MLM(MaskLanguageModel)andRP(RationalePrediction),
+areevaluatedwiththestate-of-the-artfactverificationmodelKGAT(Liuetal.,2020;Yeetal.,2020).
+Claim:Basophilscounteractdiseasedevelopmentinpatients model has the ability to provide high quality and
+withsystemiclupuserythematosus(SLE).
+Evidence1: ... basophilsandIgEautoantibodiesamplify convincedCOVID-FACTverificationresults.
+autoantibodyproductionthatleadstolupusnephritis...
+Evidence2:IndividualswithSLEalsohaveelevatedserum 5.2 In-DomainEffectiveness
+IgE,self-reactiveIgEsandactivatedbasophilsthat...
+SciKGAT:ContradictRoBERTa:NotEnoughInfo Inthisexperiment,weevaluatetheimpactsofthe
+Claim:Inadulttissue,mostTcellsarememoryTcells.
+in-domain language model on individual fact ex-
+Evidence1:Whereasadulttissuescontainapredominance
+ofmemoryTcells,inpediatricbloodandtissuesthemain tractionandverificationcomponentsofSciKGAT.
+subsetconsistsofnaiverecentthymicemigrants...
+As shown in Table 2, we first compare SciB-
+SciKGAT:SupportKGAT:Contradict
+ERTandSciBERT-MLMontheabstractretrieval
+Table3: ExamplesofFactVerification. Allmodelsare and rationale selection tasks. Then we fix the se-
+implementedwithRoBERTa(Large). Thecontentsare
+lectedevidenceandevaluatethereasoningability
+emphasizedthatcanverifythegivenclaim.
+ofthefactverificationmodule,usingtwokindsof
+in-domain language models, MLM model (mask
+edgetransfer. Finally,itprovidescasestudies. languagemodeltraining)andRPmodel(rationale
+predictiontraining)withthreeBERTvariants.
+5.1 OverallPerformance
+For abstract retrieval and rationale selection,
+The overall performance of SciKGAT is shown SciBERT-MLM shows better ranking accuracy
+in Table 1. The official baseline model uses TF- thanSciBERT,andconsequentlyresultsinbetter
+IDFforabstractretrievalandRoBERTa(Large)for fact verification results. It demonstrates that the
+rationale selection and fact verification, which is masklanguagemodel learnsspecificmedicaldo-
+state-of-the-art. WeaddmodulesofSciKGATstep mainknowledgethroughthelatestCOVIDrelated
+bysteptoevaluatethemodel’seffectiveness. papersandthrivesonourevidenceselectionparts
+SciKGAT(w. A)andSciKGAT(w. AR)show withcontinuoustraining.
+significant improvement than baselines, which Thenweevaluatetheeffectivenessofin-domain
+demonstrates our literature search with an in- languagemodelsonfactverificationwithvarious
+domain language model is effective in selecting BERTbasedmodels. Ourin-domainlanguagemod-
+related evidence from abstract and sentence lev- els significantly improve fact verification perfor-
+els. Forfactverification,ourSciKGATimproves manceandillustratetheirstrongerreasoningability
+pipelineperformancebyachieving30%improve- comparedtovanillapre-trainedlanguagemodels.
+mentonlabelpredictionprecision. Thehighpre- Compare to the RP model, MLM model usually
+cision of fact verification demonstrates that our achieves better performance. Importantly, MLM
+model does not rely on annotation data, provid- References
+ingacommonresolutionforCOVIDrelatedtasks.
+Payal Bajaj, Daniel Campos, Nick Craswell, Li Deng,
+TheconsistentimprovementonallBERTvariants
+Jianfeng Gao, Xiaodong Liu, Rangan Majumder,
+furthermanifeststherobustnessofourmodel. Andrew McNamara, Bhaskar Mitra, Tri Nguyen,
+etal.2016. Msmarco: Ahumangeneratedmachine
+5.3 CaseStudy reading comprehension dataset. arXiv preprint
+arXiv:1611.09268.
+AsshowninTable3,twoexamplesfromthedevel-
+opmentsetareusedtoillustrateSciKGAT’seffec- IzBeltagy,ArmanCohan,andKyleLo.2019. Scibert:
+tivenessforfactverification. Pretrained contextualized embeddings for scientific
+In the first example, both evidence 1 and evi- text. arXivpreprintarXiv:1903.10676.
+dence2indicatethatbasophilscanleadtosystemic
+DanqiChen, AdamFisch, JasonWeston, andAntoine
+lupuserythematosus,whichcontradictstheclaim.
+Bordes. 2017. Reading wikipedia to answer open-
+Theconcatenationbasedmodel,RoBERTa,failsto domain questions. In Proceedings of ACL, pages
+verifytheclaim,whileSciKGATmakestheright 1870–1879.
+prediction. It demonstrates the effectiveness of
+Matteo Cinelli, Walter Quattrociocchi, Alessandro
+KGAT’sfine-grainedreasoningwithmultipleevi-
+Galeazzi,CarloMicheleValensise,EmanueleBrug-
+dencepieces. Inthesecondexample,theevidence noli,AnaLuciaSchmidt,PaolaZola,FabianaZollo,
+piece indicates that memory T cells are the most andAntonioScala.2020. Thecovid-19socialmedia
+infodemic. arXivpreprintarXiv:2003.05004.
+in T cells for adults. SciKGAT predicts claim la-
+belcorrectlyandshowsitseffectivenessbyrecog-
+Jacob Devlin, Ming-Wei Chang, Kenton Lee, and
+nizingandcomprehendingthesemedicalphrases, Kristina Toutanova. 2019. BERT: Pre-training of
+whichthankstothein-domainlanguagemodeling. deep bidirectional transformers for language under-
+standing. In Proceedings of NAACL, pages 4171–
+6 Conclusion 4186.
+Thispaperpresentsin-domainlanguagemodeling Suchin Gururangan, Ana Marasovic´, Swabha
+Swayamdipta, Kyle Lo, Iz Beltagy, Doug Downey,
+methodsforopendomainfactextractionandveri-
+and Noah A. Smith. 2020. Don’t stop pretraining:
+fication,whichtransferdomainknowledgeforthe
+Adapt language models to domains and tasks. In
+COVID-FACT checking task. Our experiments ProceedingsofACL,pages8342–8360.
+show thatourpipelinesignificantlyimproves the
+fact-checking performance of the state-of-the-art TamannaHossain, RobertLLoganIV,ArjunaUgarte,
+Yoshitomo Matsubara, Sameer Singh, and Sean
+modelwithmorethan30%absolutepredictionpre-
+Young.2020. Detectingcovid-19misinformationon
+cision. Ouranalysesillustratethatourmodelhas socialmedia.
+strongerreasoningabilitywithcontinuoustraining
+andbenefitsfromCOVIDrelatedknowledge. Jinhyuk Lee, Wonjin Yoon, Sungdong Kim,
+Donghyeon Kim, Sunkyu Kim, Chan Ho So, and
+Acknowledgments JaewooKang.2020. Biobert: apre-trainedbiomed-
+ical language representation model for biomedical
+This work is supported by the National Key RD textmining. Bioinformatics,36(4):1234–1240.
+Program of China (2020AAA0105200), Beijing
+Tianda Li, Xiaodan Zhu, Quan Liu, Qian Chen, Zhi-
+AcademyofArtificialIntelligence(BAAI)andthe
+gang Chen, and Si Wei. 2019. Several experi-
+NExT++projectfromtheNationalResearchFoun- ments on investigating pretraining and knowledge-
+dation, Prime Minister’s Office, Singapore under enhanced models for natural language inference.
+arXivpreprintarXiv:1904.12104.
+itsIRC@SingaporeFundingInitiative.
+Yunyao Li, Tyrone Grandison, Patricia Silveyra,
+Ali Douraghy, Xinyu Guan, Thomas Kieselbach,
+Chengkai Li, and Haiqi Zhang. 2020. Jennifer for
+covid-19: Annlp-poweredchatbotbuiltforthepeo-
+pleandbythepeopletocombatmisinformation.
+YinhanLiu,MyleOtt,NamanGoyal,JingfeiDu,Man-
+dar Joshi, Danqi Chen, Omer Levy, Mike Lewis,
+Luke Zettlemoyer, and Veselin Stoyanov. 2019.
+Roberta:ArobustlyoptimizedBERTpretrainingap-
+proach. arXivpreprintarXiv:1907.11692.
+Zhenghao Liu, Chenyan Xiong, Maosong Sun, and FEVER: a large-scale dataset for fact extraction
+Zhiyuan Liu. 2020. Fine-grained fact verification andVERification. InProceedingsofNAACL,pages
+withkernelgraphattentionnetwork. InProceedings 809–819.
+ofACL,pages7342–7351.
+David Wadden, Kyle Lo, Lucy Lu Wang, Shanchuan
+Sean MacAvaney, Arman Cohan, and Nazli Gohar- Lin,MadeleinevanZuylen,ArmanCohan,andHan-
+ian. 2020. Sledge: A simple yet effective baseline naneh Hajishirzi. 2020. Fact or fiction: Verifying
+for coronavirus scientific knowledge search. arXiv scientificclaims. arXivpreprintarXiv:2004.14974.
+preprintarXiv:2005.02365.
+Lucy Lu Wang, Kyle Lo, Yoganand Chandrasekhar,
+Yixin Nie, Haonan Chen, and Mohit Bansal. 2019. RussellReas,JiangjiangYang,DarrinEide,Kathryn
+Combiningfactextractionandverificationwithneu- Funk,RodneyKinney,ZiyangLiu,WilliamMerrill,
+ralsemanticmatchingnetworks. InProceedingsof et al. 2020. Cord-19: The covid-19 open research
+AAAI,pages6859–6866. dataset. ArXiv.
+Juan Carlos Medina Serrano, Orestis Papakyriakopou- Deming Ye, Yankai Lin, Jiaju Du, Zhenghao Liu,
+los, and Simon Hegelich. 2020. Nlp-based feature Maosong Sun, and Zhiyuan Liu. 2020. Coreferen-
+extractionforthedetectionofcovid-19misinforma- tial reasoning learning for language representation.
+tionvideosonyoutube. arXivpreprintarXiv:2004.06870.
+Amir Soleimani, Christof Monz, and Marcel Worring. Jie Zhou, Xu Han, Cheng Yang, Zhiyuan Liu, Lifeng
+2019. BERTforevidenceretrievalandclaimverifi- Wang, Changcheng Li, and Maosong Sun. 2019.
+cation. arXivpreprintarXiv:1910.02655. GEAR: Graph-based evidence aggregating and rea-
+soningforfactverification. InProceedingsofACL,
+James Thorne, Andreas Vlachos, Christos pages892–901.
+Christodoulopoulos, and Arpit Mittal. 2018.

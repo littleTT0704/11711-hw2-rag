@@ -1,0 +1,714 @@
+Fine-grained Fact Verification with Kernel Graph Attention Network
+ZhenghaoLiu1 ChenyanXiong2 MaosongSun1 ZhiyuanLiu1
+1DepartmentofComputerScienceandTechnology,TsinghuaUniversity,Beijing,China
+InstituteforArtificialIntelligence,TsinghuaUniversity,Beijing,China
+StateKeyLabonIntelligentTechnologyandSystems,TsinghuaUniversity,Beijing,China
+2MicrosoftResearchAI,Redmond,USA
+Abstract
+Al Jardine is an American rhythm guitarist Claim
+Fact Verification requires fine-grained natural
+language inference capability that finds sub-
+tlecluestoidentifythesyntacticalandseman- Alan Charles Jardine (born
+tically correct but not well-supported claims. September 3, 1942) is an
+American musician, singer
+This paper presents Kernel Graph Attention
+and songwriter who co-
+Network (KGAT), which conducts more fine- founded the Beach Boys. Evidence
+grained fact verification with kernel-based at- Reasoning
+He is best known as the
+tentions. Given a claim and a set of po- band's rhythm guitarist,
+tential evidence sentences that form an evi- and for occasionally
+singing lead vocals on
+dence graph, KGAT introduces node kernels,
+singles.
+whichbettermeasuretheimportanceoftheev-
+idencenode,andedgekernels,whichconduct
+fine-grainedevidencepropagationinthegraph,
+SUPPORTS REFUTES NOT ENOUGH INFO Verification
+into Graph Attention Networks for more ac-
+curate fact verification. KGAT achieves a
+70.38% FEVER score and significantly out- Figure1: AnExampleofFactVerificationSystem.
+performs existing fact verification models on
+FEVER, a large-scale benchmark for fact ver-
+ification. Our analyses illustrate that, com- retrieverelatedevidencesentencesfromtheback-
+pared to dot-product attentions, the kernel-
+groundcorpus,conductjointreasoningoverthese
+basedattentionconcentratesmoreonrelevant
+sentences,andaggregatethesignalstoverifythe
+evidence sentences and meaningful clues in
+claimintegrity(Nieetal.,2019a;Zhouetal.,2019;
+the evidence graph, which is the main source
+Yonedaetal.,2018;Hanselowskietal.,2018).
+ofKGAT’seffectiveness. Allsourcecodesof
+this work are available at https://github. Therearetwochallengesforevidencereasoning
+com/thunlp/KernelGAT. and aggregation in fact verification. One is that
+no ground truth evidence is given; the evidence
+1 Introduction
+sentencesareretrievedfrombackgroundcorpora,
+Online contents with false information, such as whichinevitablycontainnoise. Theotheristhatthe
+fakenews,politicaldeception,andonlinerumors, falseclaimsareoftendeliberatelyfabricated;they
+havebeengrowingsignificantlyandspreadwidely maybesemanticallycorrectbutarenotsupported.
+overthepastseveralyears. Howtoautomatically This makes fact verification a rather challenging
+“factcheck”theintegrityoftextualcontents,topre- task,asitrequiresthefine-grainedreasoningability
+ventthespreadoffakenews,andtoavoidtheun- todistinguishthesubtledifferencesbetweentruth
+desiredsocialinfluencesofmaliciouslyfabricated andfalsestatements(Zhouetal.,2019).
+statements,isurgentlyneededforoursociety. Thispaperpresentsanewneuralstructuralrea-
+Recentresearchformulatesthisproblemasthe soning model, Kernel Graph Attention Network
+factverificationtask,whichtargetstoautomatically (KGAT),thatprovidesmorefine-grainedevidence
+verifytheintegrityofstatementsusingtrustworthy selectionandreasoningcapabilityforfactverifica-
+corpora,e.g.,Wikipedia(Thorneetal.,2018a). For tion using neural matching kernels (Xiong et al.,
+example,asshowninFigure1,asystemcouldfirst 2017;Daietal.,2018). Givenretrievedevidence
+1202
+nuJ
+02
+]LC.sc[
+4v69790.0191:viXra
+pieces, KGAT first constructs an evidence graph, a graph model (Velicˇkovic´ et al., 2017; Scarselli
+usingclaimandevidenceasgraphnodesandfully- etal.,2008;KipfandWelling,2017). Zhongetal.
+connectededges. Itthenutilizestwosetsofkernels, (2019)furtheremploysXLNet(Yangetal.,2019)
+one on the edges, which selectively summarize andestablishesasemantic-levelgraphforreason-
+cluesforamorefine-grainednoderepresentation ing for a better performance. These graph based
+andpropagatecluesamongneighbornodesthrough modelsestablishnodeinteractionsforjointreason-
+amulti-layergraphattention;andtheotheronthe ingoverseveralevidencepieces.
+nodes,whichperformsmoreaccurateevidencese- ManyfactverificationsystemsleverageNatural
+lectionbybettermatchingevidencewiththeclaim. LanguageInference(NLI)techniques(Chenetal.,
+These signals are combined by KGAT, to jointly 2017b; Ghaeini et al., 2018; Parikh et al., 2016;
+learn and reason on the evidence graph for more Radford et al., 2018; Peters et al., 2018; Li et al.,
+accuratefactverification. 2019) to verify the claim. The NLI task aims to
+In our experiments on FEVER (Thorne et al., classifytherelationshipbetweenapairofpremise
+2018a),alarge-scalefactverificationbenchmark, andhypothesisaseitherentailment,contradiction
+KGAT achieves a 70.38% FEVER score, signifi- orneutral,similartotheFEVERtask,thoughthe
+cantly outperforming previous BERT and Graph laterrequiressystemstofindtheevidencepieces
+Neural Network (GNN) based approaches (Zhou themselvesandthereareoftenmultipleevidence
+et al., 2019). Our experiments demonstrate pieces. OneofthemostwidelyusedNLImodelsin
+KGAT’s strong effectiveness especially on facts FEVERisEnhancedSequentialInferenceModel
+that require multiple evidence reasoning: our (ESIM)(Chenetal.,2017b),whichemployssome
+kernel-basedattentionsprovidemoresparseandfo- forms of hard or soft alignment to associate the
+cusedattentionpatterns,whicharethemainsource relevantsub-componentsbetweenpremiseandhy-
+ofKGAT’seffectiveness. pothesis. BERT,thepre-traineddeepbidirectional
+Transformer,hasalsobeenusedforbettertextrep-
+2 RelatedWork
+resentationinFEVERandachievedbetterperfor-
+mance (Devlin et al., 2019; Li et al., 2019; Zhou
+TheFEVERsharedtask(Thorneetal.,2018a)aims
+etal.,2019;Soleimanietal.,2019).
+to develop automatic fact verification systems to
+The recent development of neural information
+checktheveracityofhuman-generatedclaimsby
+retrieval models, especially the interaction based
+extractingevidencefromWikipedia. Therecently
+ones, have shown promising effectiveness in ex-
+launched FEVER shared task 1.0 is hosted as a
+tractingsoftmatchpatternsfromquery-document
+competitiononCodalab1 withablindtestsetand
+interactions(Huetal.,2014;Pangetal.,2016;Guo
+hasdrawnlotsofattentionfromNLPcommunity.
+et al., 2016; Xiong et al., 2017; Dai et al., 2018).
+Existingfactverificationmodelsusuallyemploy
+Oneoftheeffectivewaystomodeltextmatchesis
+FEVER’s official baseline (Thorne et al., 2018a)
+to leverage matching kernels (Xiong et al., 2017;
+with a three-step pipeline system (Chen et al.,
+Daietal.,2018),whichsummarizewordorphrase
+2017a): documentretrieval,sentenceretrievaland
+interactions in the learned embedding space be-
+claim verification. Many of them mainly focus
+tween query and documents. The kernel extracts
+on the claim verification step. Nie et al. (2019a)
+matchingpatternswhichprovideavarietyofrele-
+concatenates all evidence together to verify the
+vancematchsignalsandshowsstrongperformance
+claim. One can also conduct reasoning for each
+invariousad-hocretrievaldataset(DaiandCallan,
+claim evidence pair and aggregate them to the
+2019). Recentresearchalsohasshownkernelscan
+claimlabel(Lukenetal.,2018;Yonedaetal.,2018;
+beintegratedwithcontextualizedrepresentations,
+Hanselowskietal.,2018). TwoWingOS(Yinand
+i.e.,BERT,tobettermodeltherelevancebetween
+Roth,2018)furtherincorporatesevidenceidentifi-
+queryanddocuments(MacAvaneyetal.,2019).
+cationtoimproveclaimverification.
+GEAR(Zhouetal.,2019)formulatesclaimver-
+3 KernelGraphAttentionNetwork
+ification as a graph reasoning task and provides
+two kinds of attentions. It conducts reasoning
+This section describes our Kernel Graph Atten-
+and aggregation over claim evidence pairs with
+tion Network (KGAT) and its application in Fact
+Verification. Followingpreviousresearch,KGAT
+1https://competitions.codalab.org/
+competitions/18814 firstconstructsanevidencegraphusingretrieved
+evidence sentences D = {e1,...,ep,...,el} for Evidence Reasoning
+claimc,andthenusestheevidencegraphtopredict Joint Evidence
+MLP
+theclaimlabely (Sec.3.1and3.2). Asshownin Reasoning
+Figure2,thereasoningmodelincludestwomain ' 1 23 #(%|' 1,*)
+components: EvidencePropagationwithEdgeKer-
+Edge
+nels(Sec.3.3)andEvidenceSelectionwithNode ' 24 #(%|' ,*)
+Kernel , ,
+Kernels(Sec.3.4).
+' 20 #(%|',*)
+- -
+3.1 ReasoningwithEvidenceGraph
+Claim
+Similar to previous research (Zhou et al., 2019), Evidence Selection Label
+#(%|G)
+KGAT constructs the evidence graph G by us-
+"⃗ Node Kernel MLP
+ing each claim-evidence pair as a node and con-
+nectsallnodepairswithedges,makingitafully- /⃗ 1('3) #(' |*)
+3 1
+connected evidence graph with l nodes: N =
+{n1,...,np,...,nl}. /⃗ 1('4) #(' |*)
+4 ,
+KGATunifiesbothmultipleandsingleevidence
+reasoning scenarios and produces a probability /⃗ 1('0) #('|*)
+0 -
+P(y|c,D)topredictclaimlabely. Differentfrom
+previous work (Zhou et al., 2019), we follow the
+Figure2: KGATArchitecture.
+standardgraphlabelpredictionsettingingraphneu-
+ralnetwork(Velicˇkovic´ etal.,2017)andsplitthe
+predictionintotwocomponents: 1)thelabelpredic-
+Wikipediatitleand“[SEP]”).UsingtheBERTen-
+tionineachnodeconditionedonthewholegraph coder,wegetthetokenhiddenstatesHp withthe
+P(y|np,G);2)theevidenceselectionprobability
+givennodenp:
+P(np|G):
+Hp =BERT(np). (3)
+l
+P(y|c,D)=(cid:88) P(y|c,ep,D)P(ep|c,D), (1)
+Therepresentationofthefirsttoken(“[CLS]”)
+p=1
+isdenotedastheinitialrepresentationofnodenp:
+orinthegraphnotation:
+zp =Hp. (4)
+0
+l
+P(y|G)=(cid:88) P(y|np,G)P(np|G). (2) TherestofthesequencesHp arealsoused
+1:m+n
+p=1 torepresenttheclaimandevidencetokens: Hp
+1:m
+ThejointreasoningprobabilityP(y|np,G)calcu- for the claim tokens and H mp
++1:m+n
+for the evi-
+dencetokens.
+latesnodelabelpredictionwithmultipleevidence.
+Thereadoutmodule(Knyazevetal.,2019)calcu-
+3.3 EdgeKernelforEvidencePropagation
+latestheprobabilityP(np|G)andattentivelycom-
+binesper-nodesignalsforprediction. Theevidencepropagationandper-nodelabelpre-
+The rest of this section describes the initializa- dictioninKGATareconductedbyEdgeKernels,
+tionofnoderepresentations(np)inSec.3.2,thecal- which attentively propagate information among
+culationofper-nodepredictionsP(y|np,G)with nodes in the graph G along the edges with the
+Edge Kernels (Sec. 3.3), and the readout module kernelattentionmechanism.
+P(np|G)withNodeKernels(Sec.3.4). Specifically,KGATcalculatesthenodenp’srep-
+resentationvpwiththekernelattentionmechanism,
+3.2 InitialNodeRepresentations andusesittoproducetheper-nodeclaimprediction
+y:
+The node representations are initialized by feed-
+vp =Edge-Kernel(np,G),
+ingtheconcatenatedsequenceofclaim,document (5)
+P(y|np,G)=softmax (Linear(vp)).
+(Wiki)title,andevidencesentence,topre-trained y
+BERTmodel(Devlinetal.,2019). Specifically,in TheedgekernelofKGATconductsahierarchi-
+the node n , the claim and evidence correspond calattentionmechanismtopropagateinformation
+p
+to m tokens (with “[SEP]”) and n tokens (with between nodes. It uses token level attentions to
+produce node representations and sentence level where◦denotestheconcatenateoperatorandzp is
+attentionstopropagateinformationalongedges. theinitialrepresentationofnp.
+Token Level Attention. The token level atten- Then the p-th node’s representation is updated
+tionuseskernelstogetthefine-grainedrepresenta- by combining the neighbor node representations
+tionzˆq→p ofneighbornodenq,accordingtonode zˆq→p withtheattention:
+np. Thecontentpropagationandtheattentionare
+l
+controlledbykernels. vp =((cid:88) βq→p·zˆq→p)◦zp. (12)
+Togettheattentionweightαq→p fori-thtoken q=1
+i
+innq,wefirstconductatranslationmatrixMq→p
+It updates the node representation with its neigh-
+betweenq-thnodeandp-thnode. Eachelementof
+bors,andtheupdatedinformationareselectedfirst
+thetranslationmatrixMq→p inMq→pisthecosine
+ij by the token level attention (Eq. 9) and then the
+similarityoftheircorrespondingtokens’BERTrep-
+sentencelevelattention(Eq.11).
+resentations:
+Sentence Level Claim Label Prediction. The
+Mq→p =cos(Hq,Hp). (6) updatedp-thnoderepresentationvp isusedtocal-
+ij i j culatetheclaimlabelprobabilityP(y|np):
+Then we use K kernels to extract the match-
+ingfeatureK(cid:126)(Mq→p)fromthetranslationmatrix P(y|np,G)=softmax y(Linear(vp)). (13)
+i
+Mq→p (Xiongetal.,2017;Daietal.,2018;Qiao The prediction of the label probability for each
+etal.,2019;MacAvaneyetal.,2019): node is also conditioned on the entire graph G,
+as the node representation is updated by gather
+K(cid:126)(Mq→p)={K (Mq→p),...,K (Mq→p)}. (7)
+i 1 i K i informationfromitsgraphneighbors.
+EachkernelK utilizesaGaussiankerneltoextract
+k 3.4 NodeKernelforEvidenceAggregation
+features and summarizes the translation score to
+The per-node predictions are combined by the
+supportmulti-levelinteractions:
+“readout”functioningraphneuralnetworks(Zhou
+K
+(Mq→p)=log(cid:88) exp(−(M iq j→p−µ k)2
+), (8)
+et al., 2019), where KGAT uses node kernels to
+k i 2δ2 learntheimportanceofeachevidence.
+j k
+Itfirstusesnodekernelstocalculatethereadout
+where µ
+k
+and δ
+k
+are the mean and width for the representationφ(np)foreachnodenp:
+k-thkernel,whichcapturesacertainlevelofinter-
+φ(np)=Node-Kernel(np). (14)
+actionsbetweenthetokens(Xiongetal.,2017).
+Theneachtoken’sattentionweightαq→p
+iscal-
+i Similar to the edge kernels, we first conduct a
+culatedusingalinearlayer: translationmatrixMc→ep betweenthep-thclaim
+andevidence,usingtheirhiddenstatesetHp
+and
+αq→p =softmax (Linear(K(cid:126)(Mq→p))). (9) 1:m
+i i i Hp
+.
+ThekernelmatchfeaturesK(cid:126)(Mc→ep)
+m+1:m+n i
+The attention weights are used to combine the onthetranslationmatrixarecombinedtoproduce
+tokenrepresentations(zˆq→p): thenodeselectionrepresentationφ(np):
+zˆq→p =m (cid:88)+n α iq→p·H iq, (10) φ(np)= m1 ·(cid:88)m K(cid:126)(M ic→ep ). (15)
+i=1 i=1
+which encodes the content signals to propagate Thisrepresentationisusedinthereadouttocal-
+fromnodenq tonodenp. culatep-thevidenceselectionprobabilityP(np|G):
+Sentence Level Attention. The sentence level
+P(np|G)=softmax (Linear(φ(np))). (16)
+attentioncombinesneighbornodeinformationto p
+node representation vp. The aggregation is done KGAT leverages the kernels multi-level soft
+by a graph attention mechanism, the same with matchingcapability(Xiongetal.,2017)toweight
+previouswork(Zhouetal.,2019). the node-level predictions in the evidence graph
+Itfirstcalculatetheattentionweightβq→p ofnq basedontheirrelevancewiththeclaim:
+nodeaccordingtothep-thnodenp:
+l
+P(y|G)=(cid:88) P(y|np,G)P(np|G). (17)
+βq→p =softmax (MLP(zp◦zˆq→p)), (11)
+q p=1
+Thewholemodelistrainedend-to-endbyminimiz- Split SUPPORTED REFUTED NOTENOUGHINFO
+Train 80,035 29,775 35,639
+ingthecrossentropyloss:
+Dev 6,666 6,666 6,666
+Test 6,666 6,666 6,666
+L=CrossEntropy(y∗,P(y|G)), (18)
+Table1: StatisticsofFEVERDataset.
+usingthegroundtruthverificationlabely∗.
+4 ExperimentalMethodology work (Zhou et al., 2019). BERT-pair and BERT-
+concatregardclaim-evidencepairindividuallyor
+Thissectiondescribesthedataset,evaluationmet-
+concatenateallevidencetogethertopredictclaim
+rics,baselines,andimplementationdetailsinour
+label. GEAR utilizes a graph attention network
+experiments.
+to extract supplement information from other ev-
+Dataset. A large scale public fact verification
+idence and aggregate all evidence through an at-
+dataset FEVER (Thorne et al., 2018a) is used in
+tention layer. Soleimani et al. (2019); Nie et al.
+ourexperiments. TheFEVERconsistsof185,455
+(2019b) are also compared in our experiments.
+annotatedclaimswith5,416,537Wikipediadocu-
+TheyimplementBERTsentenceretrievalforabet-
+ments from the June 2017 Wikipedia dump. All
+ter performance. In addition, we replace kernel
+claimsareclassifiedasSUPPORTS,REFUTESor
+with dot product to implement our GAT version,
+NOTENOUGHINFObyannotators. Thedataset
+whichissimilartoGEAR,toevaluatekernel’sef-
+partitioniskeptthesamewiththeFEVERShared
+fectiveness.
+Task(Thorneetal.,2018b)asshowninTable1.
+Implementation Details. The rest of this sec-
+Evaluation Metrics. The official evaluation
+tiondescribesourimplementationdetails.
+metrics2 for claim verification include Label Ac-
+Document retrieval. The document retrieval
+curacy (LA) and FEVER score. LA is a general
+stepretrievesrelatedWikipediapagesandiskept
+evaluationmetric,whichcalculatesclaimclassifi-
+thesamewithpreviouswork(Hanselowskietal.,
+cationaccuracyratewithoutconsideringretrieved
+2018; Zhou et al., 2019; Soleimani et al., 2019).
+evidence. TheFEVERscoreconsiderswhetherone
+Foragivenclaim,itfirstutilizestheconstituency
+complete set of golden evidence is provided and
+parser in AllenNLP (Gardner et al., 2018) to ex-
+betterreflectstheinferenceability.
+tract all phrases which potentially indicate enti-
+We also evaluate Golden FEVER (GFEVER)
+ties. Thenit usesthese phrases asqueries to find
+scores,whichistheFEVERscorebutwithgolden
+relevant Wikipedia pages through the online Me-
+evidenceprovidedtothesystem,aneasiersetting. diaWiki API3. Then the convinced article are re-
+Precision, Recall and F1 are used to evaluate ev-
+served(Hanselowskietal.,2018).
+idence sentence retrieval accuracy using the pro-
+Sentenceretrieval. Thesentenceretrievalpartfo-
+videdsentencelevellabels(whetherthesentence
+cusesonselectingrelatedsentencesfromretrieved
+isevidenceornottoverifytheclaim).
+pages. Therearetwosentenceretrievalmodelsin
+Baselines. The baselines include top models our experiments: ESIM based sentence retrieval
+duringFEVER1.0taskandBERTbasedmodels. and BERT based sentence retrieval. The ESIM
+ThreetopmodelsinFEVER1.0sharedtaskare basedsentenceretrievalkeepsthesameasthepre-
+compared. Athene(Hanselowskietal.,2018)and viouswork(Hanselowskietal.,2018;Zhouetal.,
+UNCNLP(Nieetal.,2019a)utilizeESIMtoen- 2019). The base version of BERT is used to im-
+code claim evidence pairs. UCL MRG (Yoneda plementourBERTbasedsentenceretrievalmodel.
+etal.,2018)leveragesConvolutionalNeuralNet- Weusethe“[CLS]”hiddenstatetorepresentclaim
+work(CNN)toencodeclaimandevidence. These andevidencesentencepair. Thenalearningtorank
+threemodelsaggregateevidencebyattentionmech- layerisleveragedtoproject“[CLS]”hiddenstate
+anismorlabelaggregationcomponent. torankingscore. Pairwiselossisusedtooptimize
+The BERT based models are our main base- therankingmodel. Somework(Zhaoetal.,2020;
+lines,theysignificantlyoutperformpreviousmeth- Yeetal.,2020)alsoemploysourBERTbasedsen-
+odswithoutpre-training. BERT-pair,BERT-concat tenceretrievalintheirexperiments.
+and GEAR are three baselines from the previous Claimverification. Duringtraining, wesetthe
+2https://github.com/sheffieldnlp/ 3https://www.mediawiki.org/wiki/API:
+fever-scorer Main_page
+Dev Test Model Prec@5 Rec@5 F1@5 FEVER
+Model
+LA FEVER LA FEVER ESIM 24.08 86.72 37.69 71.70
+Dev
+Athene(Hanselowskietal.,2018) 68.49 64.74 65.46 61.58 BERT 27.29 94.37 42.34 75.88
+UCLMRG(Yonedaetal.,2018) 69.66 65.41 67.62 62.52 ESIM 23.51 84.66 36.80 68.16
+UNCNLP(Nieetal.,2019a) 69.72 66.49 68.21 64.21 Test BERT 25.21 87.47 39.14 69.40
+BERTConcat(Zhouetal.,2019) 73.67 68.89 71.01 65.64
+BERTPair(Zhouetal.,2019) 73.30 68.90 69.75 65.18
+Table 3: Evidence Sentence Retrieval Accuracy. Sen-
+GEAR(Zhouetal.,2019) 74.84 70.69 71.60 67.10
+GAT(BERTBase)w.ESIMRetrieval 75.13 71.04 72.03 67.56 tence level Precision, Recall and F1 are evaluated by
+KGAT(BERTBase)w.ESIMRetrieval 75.51 71.61 72.48 68.16
+officialevaluation(Thorneetal.,2018a).
+SR-MRS(Nieetal.,2019b) 75.12 70.18 72.56 67.26
+BERT(Base)(Soleimanietal.,2019) 73.51 71.38 70.67 68.50
+KGAT(BERTBase) 78.02 75.88 72.81 69.40
+BERT(Large)(Soleimanietal.,2019) 74.59 72.42 71.86 69.66
+KGAT(BERTLarge) 77.91 75.86 73.61 70.24 It illustrates the effectiveness of KGAT among
+KGAT(RoBERTaLarge) 78.29 76.11 74.07 70.38
+graphbasedreasoningmodels. WithBERTbased
+Table2: FactVerificationAccuracy. Theperformances sentence retrieval, our KGAT also outperforms
+oftopmodelsduringFEVER1.0sharedtaskandBERT BERT (Base) (Soleimani et al., 2019) by almost
+basedmodelswithdifferentscenariosarepresented.
+1%FEVERscore,showingconsistenteffectiveness
+withdifferentsentenceretrievalmodels. Whenus-
+ingBERT(Large)astheencoder,KGATalsoout-
+batchsizeto4andaccumulatestepto8. Allmodels
+performsthecorrespondingversionofSoleimani
+areevaluatedwithLAonthedevelopmentsetand
+etal.(2019). KGATwithRoBERTaperformsthe
+trainedfortwoepochs. Thetraininganddevelop-
+best compared with all previously published re-
+mentsetsarebuiltwithgoldenevidenceandhigher
+searchonallevaluationmetrics. CorefBERT(Ye
+rankedevidencewithsentenceretrieval. Allclaims
+etal.,2020)extendsourKGATarchitectureandex-
+are assigned with five pieces of evidence. The
+plicitlymodelsco-referringrelationshipincontext
+BERT(Base),BERT(Large)andRoBERTa(Liu
+forbetterperformance.
+etal.,2019)areevaluatedinclaimverification.
+The sentence retrieval performances of ESIM
+Inourexperiments,themaxlengthissetto130.
+andBERTarecomparedinTable3. TheBERTsen-
+AllmodelsareimplementedwithPyTorch. BERT
+tenceretrievaloutperformsESIMsentenceretrieval
+inheritshuggingface’simplementation4. Adamop-
+significantly,thusalsohelpsimproveKGAT’srea-
+timizerisusedwithlearningrate=5e-5andwarm
+soningaccuracy. Nevertheless,formorefaircom-
+up proportion = 0.1. The kernel size is set to 21,
+parisons,ourfollowingexperimentsareallbased
+thesameaspreviouswork(Qiaoetal.,2019).
+onESIMsentenceretrieval,whichistheoneused
+byGEAR,ourmainbaseline(Zhouetal.,2019).
+5 EvaluationResult
+Theexperimentsareconductedtostudytheperfor- 5.2 PerformanceonDifferentScenarios
+mance of KGAT, its advantages on different rea- Thisexperimentstudiestheeffectivenessofkernel
+soningscenarios,andtheeffectivenessofkernels. onmultipleandsingleevidencereasoningscenar-
+ios,aswellasthecontributionofkernels.
+5.1 OverallPerformance
+The verifiable instances are separated (except
+The fact verification performances are shown in instanceswith“NOTENOUGHINFO”label)into
+Table 2. Several testing scenarios are conducted two groups according to the golden evidence la-
+to compare KGAT effectiveness to BERT based bels. Ifmorethanoneevidencepiecesarerequired,
+baselines: BERT (Base) Encoder with ESIM re- theclaimisconsideredasrequiringmulti-evidence
+trievedsentences,withBERTretrievedsentences, reasoning. Thesingleevidencereasoningsetand
+andBERT(Large)EncoderwithBERTretrieved themultipleevidencereasoningsetcontain11,372
+sentences. (85.3%)and1,960(14.7%)instances,respectively.
+Compared with baseline models, KGAT is the WealsoevaluatetwoadditionalKGATvariations:
+best on all testing scenarios. With ESIM sen- KGAT-Nodewhichonlyuseskernelsonthenode,
+tence retrieval, same as the previous work (Zhou with the edge kernels replaced by standard dot-
+etal.,2019;Hanselowskietal.,2018),KGATout- productionattention,andKGAT-Edgewhichonly
+performs the graph attention models GEAR and useskernelsontheedge. Theresultsofthesesys-
+our GAT on both development and testing sets. temsonthetwoscenariosareshowninTable4.
+KGAT-Node outperforms GAT by more than
+4https://github.com/huggingface/
+pytorch-transformers 0.3% on both single and multiple reasoning sce-
+Reasoning Model LA GFEVER FEVER
+GEAR 66.38 n.a. 37.96 -0.25%
+GAT 66.12 84.39 38.21 -
+Multiple KGAT-Node 65.51 83.88 38.52 0.31%
+KGAT-Edge 65.87 84.90 39.08 0.87%
+KGAT-Full 65.92 85.15 39.23 1.02%
+GEAR 78.14 n.a. 75.73 -1.69%
+GAT 79.79 81.96 77.42 -
+Single KGAT-Node 79.92 82.29 77.73 0.31%
+(a) EdgeAttention. (b) NodeAttention.
+KGAT-Edge 79.90 82.41 77.58 0.16%
+KGAT-Full 80.33 82.62 78.07 0.65%
+Figure 3: Attention Weight Entropy on Evidence
+Graph,fromKGATandGAT,ofgraphedgesandnodes.
+Table 4: Claim Verification Accuracy on Claims that
+Uniform weights’ entropy is also shown for compari-
+requires Multiple and Single evidence Pieces. Stan-
+son. Lessentropyshowsmoreconcentratedattention.
+dard GAT with no kernel (GAT), with only node ker-
+nel(KGAT-Node),withonlyedgekernel(KGAT-Edge)
+andthefullmodel(KGAT-Full)arecompared.
+narios. As expected, it does not help much on
+GFEVER, because the golden evidence is given
+and node selection is not required. It illustrates
+KGAT-Node mainly focuses on choosing appro- (a) AttentionDistribution. (b) EvidenceRecall.
+priateevidenceandassigningaccuratecombining
+weightsinthereadout. Figure 4: Evidence Selection Effectiveness of KGAT
+and GAT. Fig 4(a) shows the distribution of atten-
+KGAT-Edge outperforms GAT by more than
+tion weights on evidence nodes p(np), sorted by their
+0.8% and 0.1% on multiple and single evidence
+weights; Fig 4(b) evaluates the recall of selecting the
+reasoningscenarios,respectively. Itseffectiveness
+goldenstandardevidencenodesatdifferentdepths.
+ismostlyoncombiningtheinformationfrommul-
+tipleevidencepieces.
+Themultipleandsingleevidencereasoningsce- thekernelattentionsinKGAT,thedot-productat-
+nariosevaluatethereasoningabilityfromdifferent tentions in GAT, and the uniform attentions are
+aspects. Thesingleevidencereasoningmainlyfo- showninFigure3.
+cusesonselectingthemostrelevantevidenceand TheentropyofEdgeattentionisshowninFig-
+inference with single evidence. It mainly evalu- ure 3(a). Both GAT and KGAT show a smaller
+ates model de-noising ability with the retrieved entropyofthetokenattentionthantheuniformdis-
+evidence. The multiple evidence reasoning is a tribution. It illustrates that GAT and KGAT have
+harderandmorecomplexscenario,requiringmod- the ability to assign more weight to some impor-
+elstosummarizenecessarycluesandreasonover tanttokenswithbothdotproductbasedandkernel
+multipleevidence. Itemphasizestoevaluatetheev- basedattentions. Comparedtothedot-productat-
+idenceinteractionsforthejointreasoning. KGAT- tentions in GAT, KGAT’s Edge attention focuses
+Nodeshowsconsistentimprovementonbothtwo onfewertokensandhasasmallerentropy.
+reasoningscenarios,whichdemonstratestheimpor- The entropy of Node attentions are plotted in
+tantroleofevidenceselection. KGAT-Edge,onthe Figure3(b). GAT’sattentionsdistributealmostthe
+otherhand,ismoreeffectiveonmultiplereasoning same with the uniform distribution, while KGAT
+scenariosastheEdgeKernelshelpbetterpropagate hasconcentratedNodeattentionsonafewevidence
+informationalongtheedges. sentences. As shown in the next experiment, the
+kernelbasednodeattentionsfocusonthecorrect
+5.3 EffectivenessofKernelinKGAT
+evidence pieces and de-noises the retrieved sen-
+Thissetofexperimentsfurtherillustratetheinflu- tences,whichareusefulforclaimverification.
+encesofkernelsinKGAT. More Accurate Evidence Selection. This ex-
+More Concentrated Attention. This ex- periment evaluates the effectiveness of KGAT-
+periment studies kernel attentions by their en- Nodethroughattentiondistributionandevidence
+tropy,whichreflectswhetherthelearnedattention recall. TheresultsareshowninFigure4.
+weights are focused or scattered. The entropy of We first obtain the node attention score in the
+Claim:AlJardineisanAmericanrhythmguitarist.
+(1)[AlJardine]AlanCharlesJardine(bornSeptember3,
+1942)isanAmericanmusician,singerandsongwriterwho
+co-foundedtheBeachBoys.
+(2)[AlJardine]Heisbestknownastheband’srhythmgui-
+tarist,andforoccasionallysingingleadvocalsonsinglessuch
+as“HelpMe,Rhonda”(1965),“ThenIKissedHer”(1965)
+and“ComeGowithMe”(1978).
+(a) GAT. (b) KGAT. (3)[AlJardine]In2010,Jardinereleasedhisdebutsolostu-
+dioalbum,APostcardfromCalifornia.
+Figure5:TheAttentionWeightDistributionfromGAT (4)[AlJardine]In1988,JardinewasinductedintotheRock
+andRollHallofFameasamemberoftheBeachBoys.
+and KGAT on evidence sentence tokens. Top 10% to-
+(5)[Jardine]RayJardineAmericanrockclimber,lightweight
+kensarepresented. Therestfollowsstandardlongtail
+backpacker,inventor,authorandglobaladventurer.
+distributions.
+Label:SUPPORT
+Table 5: An example claim (Zhou et al., 2019) whose
+verificationrequiresmultiplepiecesofevidence.
+evidence graph from KGAT or GAT, and calcu-
+late the statistics of the maximum one for each
+6 CaseStudy
+claim, as most of which only require single evi-
+dencetoverify. Theattentionscoreofthehighest Table 5 shows the example claim used in
+attended evidence node for each claim is plotted GEAR (Zhou et al., 2019) and the evidence sen-
+in Figure 4(a). As expected, KGAT concentrates tences retrieved by ESIM, among which the first
+itsweighttoselectevidencenodesandprovidesa twoarerequiredevidencepieces. Figure6presents
+focusedattention. thedistributionofattentionsfromthefirstevidence
+to the tokens in the second evidence (α2→1) in
+Then the evidence selection accuracy is eval- i
+KGAT(EdgeKernel)andGAT(dot-product).
+uated by their evidence recall. We first rank all
+The first evidence verifies that “Al Jardine is
+evidencepiecesforeachclaim. Thentheevidence
+an American musician” but does not enough in-
+recall with different ranking depths is plotted in
+formation about whether “Al Jardine is a rhythm
+Figure4(b). KGATachievesamuchhigherrecall
+guitarist”. TheedgekernelsfromKGATaccurately
+ontoprankingpositions—onlythefirstrankedsen-
+pickuptheadditionalinformationevidence(1)re-
+tencecoversnearly80%ofgroundtruthevidence,
+quired from evidence (2): “rhythm guitarist”. It
+showingthenodekernels’abilitytoselectcorrect
+effectivelyfillsthemissinginformationandcom-
+evidence. This also indicates the potential of the
+pletesthereasoningchain. Interesting,“AlJardine”
+nodekernelsinthesentenceretrievalstage,which
+alsoreceivesmoreattention,whichhelpstoverify
+wereserveforfutureworkasthispaperfocuseson
+iftheinformationinthesecondevidenceisabout
+thereasoningstage.
+thecorrectperson. Thiskernelattentionpatternis
+Fine-Grained Evidence Propagation. The more intuitive and effective than the dot-product
+third analysis studies the distribution of KGAT- attentioninGAT.Thelateronescattersalmostuni-
+Edge’s attention which is used to propagate the formly across all tokens and hard to explain how
+evidencecluesintheevidencegraph. thejointreasoningisconducted. Thisseemstobe
+a common challenge of the dot-product attention
+Figure5plotstheattentionweightdistribution
+inTransformers(Clarketal.,2019).
+oftheedgeattentionscoresinKGATandGAT,one
+fromkernelsandonefromdot-products. Theker-
+7 Conclusion
+nelattentionsagainaremoreconcentrated: KGAT
+focuses fewer words while GAT’s dot-product ThispaperpresentsKGAT,whichuseskernelsin
+attentions are almost equally distributed among GraphNeuralNetworkstoconductmoreaccurate
+all words. This observation of the scattered dot- evidenceselectionandfine-grainedjointreasoning.
+product attention is consistent with previous re- Ourexperimentsshowthatkernelsleadtothemore
+search (Clark et al., 2019). As shown in the next accuratefactverification. Ourstudiesillustratethe
+casestudy,theedgekernelsprovideafine-grained two kernels play different roles and contribute to
+andintuitiveattentionpatternwhencombiningevi- differentaspectscrucialforfactverification. While
+dencecluesfrommultiplepieces. thedot-productattentionsareratherscatteredand
+forsoft-matchingn-gramsinad-hocsearch. InPro-
+ceedingsofWSDM,pages126–134.
+Jacob Devlin, Ming-Wei Chang, Kenton Lee, and
+Kristina Toutanova. 2019. BERT: Pre-training of
+deep bidirectional transformers for language under-
+standing. In Proceedings of NAACL, pages 4171–
+4186.
+Matt Gardner, Joel Grus, Mark Neumann, Oyvind
+Tafjord,PradeepDasigi,NelsonFLiu,MatthewPe-
+ters,MichaelSchmitz,andLukeZettlemoyer.2018.
+AllenNLP: A deep semantic natural language pro-
+Figure6: EdgeAttentionWeightsonEvidenceTokens. cessing platform. In Proceedings of Workshop for
+Darkerredindicateshigherattentionweights. NLPOpenSourceSoftware(NLP-OSS),pages1–6.
+Reza Ghaeini, Sadid A Hasan, Vivek Datla, Joey Liu,
+hardtoexplain, thekernel-basedattentionsshow Kathy Lee, Ashequl Qadir, Yuan Ling, Aaditya
+intuitiveandeffectiveattentionpatterns: thenode Prakash, Xiaoli Fern, and Oladimeji Farri. 2018.
+Dr-bilstm: Dependent reading bidirectional LSTM
+kernelsfocusmoreonthecorrectevidencepieces;
+for natural language inference. In Proceedings of
+the edge kernels accurately gather the necessary
+NAACL,pages1460–1469.
+informationfromonenodetotheothertocomplete
+Jiafeng Guo, Yixing Fan, Qingyao Ai, and W.Bruce
+thereasoningchain. Inthefuture,wewillfurther
+Croft. 2016. A deep relevance matching model for
+studythispropertiesofkernel-basedattentionsin
+ad-hocretrieval. InProceedingsofCIKM,pages55–
+neuralnetworks,bothintheeffectivenessfrontand 64.
+alsotheexplainabilityfront.
+Andreas Hanselowski, Hao Zhang, Zile Li, Daniil
+Acknowledgments Sorokin, Benjamin Schiller, Claudia Schulz, and
+IrynaGurevych.2018. UKP-athene:Multi-sentence
+This research is jointly supported by the NSFC textualentailmentforclaimverification. InProceed-
+ings of the First Workshop on Fact Extraction and
+project under the grant no. 61661146007, the
+VERification(FEVER),pages103–108.
+fundsofBeijingAdvancedInnovationCenterfor
+Language Resources (No. TYZ19005), and the Baotian Hu, Zhengdong Lu, Hang Li, and Qingcai
+Chen.2014. Convolutionalneuralnetworkarchitec-
+NExT++ project, the National Research Founda-
+tures for matching natural language sentences. In
+tion,PrimeMinister’sOffice,Singaporeunderits
+ProceedingsofNIPS,pages2042–2050.
+IRC@SingaporeFundingInitiative.
+Thomas N Kipf and Max Welling. 2017. Semi-
+supervised classification with graph convolutional
+References networks. InProceedingsofICLR.
+DanqiChen, AdamFisch, JasonWeston, andAntoine Boris Knyazev, Graham W Taylor, and Mohamed R
+Bordes. 2017a. Reading wikipedia to answer open- Amer. 2019. Understanding attention and general-
+domain questions. In Proceedings of ACL, pages izationingraphneuralnetworks. InProceedingsof
+1870–1879. NeurIPS,pages4202–4212.
+QianChen,XiaodanZhu,Zhen-HuaLing,SiWei,Hui Tianda Li, Xiaodan Zhu, Quan Liu, Qian Chen, Zhi-
+Jiang, and Diana Inkpen. 2017b. Enhanced LSTM gang Chen, and Si Wei. 2019. Several experi-
+for natural language inference. In Proceedings of ments on investigating pretraining and knowledge-
+ACL,pages1657–1668. enhanced models for natural language inference.
+arXivpreprintarXiv:1904.12104.
+Kevin Clark, Urvashi Khandelwal, Omer Levy, and
+Christopher D Manning. 2019. What does BERT YinhanLiu,MyleOtt,NamanGoyal,JingfeiDu,Man-
+look at? an analysis of BERT’s attention. In Pro- dar Joshi, Danqi Chen, Omer Levy, Mike Lewis,
+ceedings of the 2019 ACL Workshop BlackboxNLP: Luke Zettlemoyer, and Veselin Stoyanov. 2019.
+Analyzing and Interpreting Neural Networks for Roberta:ArobustlyoptimizedBERTpretrainingap-
+NLP,pages276–286. proach. arXivpreprintarXiv:1907.11692.
+Zhuyun Dai and Jamie Callan. 2019. Deeper text un- Jackson Luken, Nanjiang Jiang, and Marie-Catherine
+derstanding for ir with contextual neural language de Marneffe. 2018. QED: A fact verification sys-
+modeling. InProceedingsofSIGIR,pages985–988. temforthefeversharedtask. InProceedingsofthe
+FirstWorkshoponFactExtractionandVERification
+Zhuyun Dai, Chenyan Xiong, Jamie Callan, and
+(FEVER),pages156–160.
+Zhiyuan Liu. 2018. Convolutional neural networks
+Sean MacAvaney, Andrew Yates, Arman Cohan, and James Thorne, Andreas Vlachos, Oana Cocarascu,
+Nazli Goharian. 2019. CEDR: contextualized em- Christos Christodoulopoulos, and Arpit Mittal.
+beddings for document ranking. In Proceedings of 2018b. The fact extraction and verification
+SIGIR,pages1101––1104. (FEVER) shared task. In Proceedings of the
+FirstWorkshoponFactExtractionandVERification
+Yixin Nie, Haonan Chen, and Mohit Bansal. 2019a. (FEVER),pages1–9.
+Combiningfactextractionandverificationwithneu-
+ralsemanticmatchingnetworks. InProceedingsof PetarVelicˇkovic´,GuillemCucurull,ArantxaCasanova,
+AAAI,pages6859–6866. Adriana Romero, Pietro Lio, and Yoshua Bengio.
+2017. Graph attention networks. arXiv preprint
+Yixin Nie, Songhe Wang, and Mohit Bansal. 2019b. arXiv:1710.10903.
+Revealing the importance of semantic retrieval for
+machine reading at scale. In Proceedings of Chenyan Xiong, Zhuyun Dai, Jamie Callan, Zhiyuan
+EMNLP,pages2553–2566. Liu,andRussellPower.2017. End-to-endneuralad-
+hocrankingwithkernelpooling. InProceedingsof
+LiangPang,YanyanLan,JiafengGuo,JunXu,Shengx- SIGIR,pages55–64.
+ianWan,andXueqiCheng.2016. Textmatchingas
+image recognition. In Proceedings of AAAI, pages Zhilin Yang, Zihang Dai, Yiming Yang, Jaime Car-
+2793–2799. bonell,RuslanSalakhutdinov,andQuocVLe.2019.
+Xlnet: Generalized autoregressive pretraining for
+Ankur Parikh, Oscar Ta¨ckstro¨m, Dipanjan Das, and languageunderstanding. InProceedingsofNeurIPS,
+Jakob Uszkoreit. 2016. A decomposable attention pages5754–5764.
+model for natural language inference. In Proceed-
+ingsofEMNLP,pages2249–2255. Deming Ye, Yankai Lin, Jiaju Du, Zhenghao Liu,
+Maosong Sun, and Zhiyuan Liu. 2020. Coreferen-
+MatthewEPeters, MarkNeumann, MohitIyyer, Matt tial reasoning learning for language representation.
+Gardner, Christopher Clark, Kenton Lee, and Luke arXivpreprintarXiv:2004.06870.
+Zettlemoyer.2018. Deepcontextualizedwordrepre-
+sentations. In Proceedings of NAACL, pages 2227– Wenpeng Yin and Dan Roth. 2018. TwoWingOS: A
+2237. two-wingoptimizationstrategyforevidentialclaim
+verification. InProceedingsofEMNLP,pages105–
+Yifan Qiao, Chenyan Xiong, Zhenghao Liu, and 114.
+ZhiyuanLiu.2019. Understandingthebehaviorsof
+bertinranking. arXivpreprintarXiv:1904.07531. Takuma Yoneda, Jeff Mitchell, Johannes Welbl, Pon-
+tusStenetorp,andSebastianRiedel.2018. UCLma-
+AlecRadford,KarthikNarasimhan,TimSalimans,and chinereadinggroup: Fourfactorframeworkforfact
+Ilya Sutskever. 2018. Improving language under- finding (HexaF). In Proceedings of the First Work-
+standingbygenerativepre-training. InProceedings shoponFactExtractionandVERification(FEVER),
+ofTechnicalreport,OpenAI. pages97–102.
+FrancoScarselli,MarcoGori,AhChungTsoi,Markus Chen Zhao, Chenyan Xiong, Corby Rosset, Xia
+Hagenbuchner,andGabrieleMonfardini.2008. The Song, Paul Bennett, and Saurabh Tiwary. 2020.
+graphneuralnetworkmodel. IEEETransactionson Transformer-xh: Multi-evidence reasoning with ex-
+NeuralNetworks,pages61–80. trahopattention. InProceedingsofICLR.
+Amir Soleimani, Christof Monz, and Marcel Worring. Wanjun Zhong, Jingjing Xu, Duyu Tang, Zenan Xu,
+2019. BERTforevidenceretrievalandclaimverifi- Nan Duan, Ming Zhou, Jiahai Wang, and Jian Yin.
+cation. arXivpreprintarXiv:1910.02655. 2019. Reasoningoversemantic-levelgraphforfact
+checking. arXivpreprintarXiv:1909.03745.
+James Thorne, Andreas Vlachos, Christos
+Christodoulopoulos, and Arpit Mittal. 2018a. Jie Zhou, Xu Han, Cheng Yang, Zhiyuan Liu, Lifeng
+FEVER: a large-scale dataset for fact extraction Wang, Changcheng Li, and Maosong Sun. 2019.
+andVERification. InProceedingsofNAACL,pages GEAR: Graph-based evidence aggregating and rea-
+809–819. soningforfactverification. InProceedingsofACL,
+pages892–901.

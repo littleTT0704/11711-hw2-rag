@@ -1,0 +1,363 @@
+Care4Lang at MEDIQA-Chat 2023: Fine-tuning Language Models for
+Classifying and Summarizing Clinical Dialogues
+∗
+AmalAlqahtani1,2,RanaSalama1,MonaDiab1,3,AbdouYoussef1
+1TheGeorgeWashingtonUniversity,DC,USA
+2KingSaudUniversity,Riyadh,KSA
+3MetaAI,USA
+{amalqahtani,raref,mtdiab,ayoussef}@gwu.edu
+Abstract important to: (1) capture all the medical condi-
+tions and terminology described in the dialogue
+Summarizingmedicalconversationsisoneof
+(eg. cough,fever,shortnessofbreathetc.);(2)dis-
+thetasksproposedbyMEDIQA-Chattopro-
+cernalltheaffirmativesandnegativesonmedical
+moteresearchonautomaticclinicalnotegen-
+erationfromdoctor-patientconversations. In conditionscorrectly(noallergies,havingacough
+this paper, we present our submission to this for2days);and,(3)biastowardscopyingfromthe
+taskusingfine-tunedlanguagemodels,includ- sourcetextwhilenotbeingcompletelyextractive.
+ingT5,BARTandBioGPTmodels. Thefine- Ourapproachinvolvesstudyingtheeffectiveness
+tuned models are evaluated using ensemble
+offine-tuningpre-trainedlanguagemodels,includ-
+metrics including ROUGE, BERTScore and
+ingT5,GPT,andBARTmodels. Wecomparethe
+BLEURT.Amongthefine-tunedmodels,Flan-
+effectiveness of pre-trained models on dialogues,
+T5 achieved the highest aggregated score for
+clinicaldata,andgeneralmodels.
+dialoguesummarization.
+1 Introduction SectionHeader Train Validation
+ALLERGY 60 4
+ASSESSMENT 34 4
+Clinical dialogue summarization has emerged as CHIEFCOMPLAINT 77 4
+acrucialtaskinclinicalnaturallanguageprocess- DIAGNOSIS 19 1
+DISPOSITION 15 2
+ing (NLP). In a clinical NLP dialogue between a EMERGENCYDEPARTMENTCOURSE 8 3
+EXAM 23 1
+doctor and a patient, relevant information about
+FAMILYHISTORY/SOCIALHISTORY 351 22
+thepatient’smedicalhistory,visitsummary,health GYNECOLOGICHISTORY 5 1
+HISTORYofPRESENTILLNESS 282 20
+condition, and other details are discussed. Sum- IMAGING 6 1
+marizingthesedialoguescansignificantlybenefit IMMUNIZATIONS 8 1
+LABS 2 1
+doctors by enabling them to quickly review key MEDICATIONS 54 7
+OTHERHISTORY 2 1
+pointsfrompastconversationsandextractrelevant
+PASTMEDICALHISTORY 118 4
+informationfromclinicalnoteswithouthavingto PASTSURGICALHISTORY 63 8
+PLAN 11 3
+sift through an extended transcript. Moreover, it PROCEDURES 3 1
+can assist doctors in making better decisions by REVIEWOFSYSTEMS 60 11
+Total 1201 100
+providing them with a concise and accurate con-
+versationrecord. Therefore,developingeffective Table1: OverviewofTaskASectionHeadersusedfor
+clinicaldialoguesummarizationsystemsisofgreat dialogueclassification.
+importanceinimprovingthequalityofhealthcare
+delivery. However, clinical dialogue summariza-
+2 SharedTaskandDataset
+tionpresentsuniquechallengesandgoalsthatdif-
+The MEDIQA-Chat 2023 proposed two shared
+ferfromsummarizationinotherdomains. Clinical
+tasksthatarerelatedtoclinicalnotesummarization
+summaries need to capture relevant information
+andgeneration(BenAbachaetal.,2023):
+basedonthecontextofthetext,likemedicalhisto-
+ries,follow-ups,orcurrentdiagnoses. 1. Dialogue2NoteSummarizationTask: Given
+Inthispaper,wedescribeoursubmissiontothe aconversationbetweenadoctorandpatient,
+MEDIQA-Chat shared task (Ben Abacha et al., thetaskistogenerateaclinicalnotesumma-
+2023)theDialogue2NoteSummarizationtask,task- rizing the conversation with one or multiple
+A. We observe that from the conversation it is note sections (e.g. Assessment, Past Medi-
+∗Thefirsttwoauthorscontributedequallytothiswork. calHistory,PastSurgicalHistory). Thistask
+524
+Proceedingsofthe5thClinicalNaturalLanguageProcessingWorkshop,pages524–528
+July14,2023©2023AssociationforComputationalLinguistics
+Doctor:Haveyouhadanysurgeriesinthepast?
+Patient:NopeIhavenot.
+Doctor:Anything?
+Patient:No.
+SectionHeader:PastSurgicalHistory
+Note/Summary:Hehasnothadanyprevioussurgery.
+Figure1: Anexampleofadoctor-patientdialogue,sec-
+tionheaderandsummary.
+Figure2: TheproposedapproachforTaskA
+includes two subtasks on the generation of
+specific sections (subtask A) and full notes measures for the quality of generated summaries
+(subtaskB)fromdoctor-patientconversations. and headers. ROUGE (Lin, 2004) is a concrete
+evaluationmetricforsummarizationthatconven-
+2. Note2Dialogue Generation Task: Given a
+tionallyadoptsasthestandardmetricforevaluat-
+clinicalnote,thetaskistogenerateasynthetic
+ingsummarizationtasks. ROUGEinvolvestheF1
+doctor-patientconversationrelatedtothein-
+scoresforROUGE-1,ROUGE-2,andROUGE-L.
+formationdescribedinthefullclinicalnote.
+Additionally,BLEUscores(Papinenietal.,2002),
+used in conjunction with ROUGE score to calcu-
+We participated on Dialogue2Note (subtask A).
+latethesemanticcorrelationofreferenceandpre-
+Inthistask,givenaconversationbetweenadoctor
+dictedsummariesbyutilizingtoken-levelmatching
+andapatient,thegoalistoproduce:
+functions. Furthermore,BERTScore(Zhangetal.,
+1. Asectionheaderwhichisoneoftwentynor- 2020) are calculated to capture semantic similar-
+malized section labels, shown in Table 1 to itiesbetweensummariesandtheircorresponding
+classifythetypeofconversation. referencetextatthesentencelevel. Eachofthese
+metricshasitsownstrengthsandweaknesses,and
+2. Asummarizationfortheconversationordia-
+combining them can help mitigate some of these
+logueintoconciseandcondensednotes. The
+limitationsandallowforamoreholisticviewofthe
+generatedsummariesshouldbetailoredtothe
+qualityofthegeneratedsummaries. Theensemble
+typeofinformationrequiredbasedonthesec-
+metriccanprovideamorerobustandreliableeval-
+tionheader.
+uationthattakesintoaccountboththelexicaland
+semanticsimilaritybetweensummariesandrefer-
+2.1 Dataset
+ences,aswellasthehumanjudgmentsofquality.
+Forthistask,adoctor-patientconversationsdataset
+issharedby(BenAbachaetal.,2023). Thedataset
+3 Approach
+consistsoftranscriptsofconversationaldialogues
+between doctors and patients. Each dialogue is For this submission, we fine-tuned a number of
+annotatedwithassociatedsectionheadersandcor- pre-trainedlanguagemodelsforimplicitclassifica-
+respondingsummarynotes. Thedatasetissplitinto tionofheadersandnotesummarization. Sincethe
+three subsets: a training set, a validation set, and expectedsummariesdifferinaccordancewiththe
+atestset. Thetrainingsetcontains1,201pairsof associatedsectionheader,wefine-tunedthemod-
+conversationsandtheirassociatedsectionheaders elsusingsupervisedtrainingtojointlyclassifyand
+and. Thevalidationsetcontains100pairsofcon- learncorrespondingsummariesusingtheprovided
+versationsandtheirsummaries,whilethetestset training dataset. All models were fine-tuned us-
+contains200conversations. Table1showsthesec- ingHuggingFaceTransformers(Wolfetal.,2019).
+tionheadersdistributionsoverthedataset. Figure1 Figure2showsageneralflowofourapproach.
+showsasnippetofthedatasetforadoctor-patient
+3.1 DataPreprocessing
+conversationalongwiththesectionheaderandthe
+summary. A key challenge in this task is to generate sum-
+mariesbasedontheassociatedsectionheader,this
+2.2 EvaluationMetric
+involves first classifying the dialogue into one of
+For task evaluation, an ensemble of metrics are the 20 given headers and accordingly generating
+usedtoensuremorecomprehensiveandaccurate a summary. To tackle this challenge, we initially
+525
+Model ROUGE-1 ROUGE-2 ROUGE-L Percision Recall F1 BLEU Agg.
+ValidationDataset Flan-T5Base 0.338 0.147 0.266 0.667 0.685 0.670 0.511 0.50
+Flan-T5Large 0.305 0.120 0.255 0.691 0.621 0.645 0.510 0.480
+Flan-T5SAMSum 0.348 0.149 0.264 0.660 0.696 0.672 0.52 0.510
+ClinicalT5 0.261 0.087 0.226 0.601 0.610 0.596 0.467 0.440
+BioGPT 0.170 0.061 0.125 0.481 0.589 0.519 0.359 0.349
+BART-Large 0.248 0.106 0.168 0.511 0.698 0.580 0.561 0.463
+BioBART 0.250 0.107 0.169 0.518 0.689 0.581 0.550 0.460
+TestDataset Flan-T5Base 0.344 0.155 0.280 0.671 0.685 0.672 0.508 0.508
+Flan-T5Large 0.332 0.140 0.283 0.689 0.644 0.485 0.492 0.508
+Flan-T5SAMSum 0.3581 0.165 0.289 0.6701 0.70 0.678 0.514 0.517
+Table 2: Results of different models fine-tuned for Task A on Validation and Testing Dataset as generated by
+MediQAsharedTask. Theprecision,recallandF1scoresarebasedonBERTScore. Agg. representsaggregated
+results. BestresultsperdatasetareinBold.
+Model % trainedontheSAMSumdataset4 containingabout
+Flan-T5Base 28
+16kmessenger-likeconversationswithsummaries.
+Flan-T5Large 49
+Flan-T5SAMSum 30 InadditiontoClinical-T5(Luetal.,2022)which
+ClinicalT5 43 isaT5modelpre-trainedonclinicaltext5
+BioGPT 23
+Bio-GPT (Luo et al., 2022) is a domain-specific
+BART-Large 63
+BioBART 69 generation pretrained model based on the Trans-
+former language model architecture. BioGPT is
+Table3: ResultsofSectionHeaderClassificationasa
+trainedon15millionPubMedabstractsandisused
+percentageofcorrectlyclassifiedheaders.
+forprocessingbiomedicaltextdata.
+BART (Lewis et al., 2019) for summarization 6.
+Model Accuracy
+Flan-T5Large 0.565 WealsousedBioBART(Yuanetal.,2022)which
+Flan-T5SAMSum 0.375 isaBARTmodelpretainedonbiomedicaldata7.
+Flan-T5Base 0.345
+4 EvaluationandResults
+Table4: ResultsofSectionHeaderClassificationfor
+theSharedTaskAfrompublishedresults
+Evaluation is performed using the metrics de-
+scribedin(BenAbachaetal.,2023)andmentioned
+in Section 2.2. The script provided in the shared
+preparethedatatoincorporateboththeheaderand
+task8wasusedforevaluatingthefine-tunedmodels.
+corresponding summary in the input data before
+Evaluationwasperformedonthevalidationdataset
+fine-tuning. We append labels to each dialogue
+only as the test dataset references are not avail-
+to tag headers and summaries as follows: "<Di-
+able. Table 4 shows the results of our fine-tuned
+alogue> Doctor: .. Patient:... <Header> header
+modelsusedfornotesummarizationonthevalida-
+<Summary>referencesummary".
+tiondataset. WelisttheROUGE-1,ROUGE-2and
+3.2 ModelVariants ROUGE-Lscores,inadditiontoBERTScore(pre-
+cision,recallandF1)andBLEUscores. Wealso
+We used a variant of different Sequence-to-
+include the aggregated score. The Table also in-
+Sequencemodelsforourexperimentsincluding:
+cludesthefinalrunsscorespublishedbyMEDIQA-
+T5 (Raffel et al., 2020) a unified text-to-text lan-
+Chat on the Test dataset. As shown in the table,
+guagemodel. WeusedFlan-T5(Chungetal.,2022)
+Flan-T5-SAMSum out-performed all models ex-
+that was further pre-trained on more tasks and
+languages. Different versions of this model in- 4https://huggingface.co/datasets/
+cludes,FLan-T5-base1,FLan-T5-large2 andFLan- samsum
+5https://huggingface.co/luqh/
+T5-SamSum3,aFlan-T5modelthatisfurtherpre-
+ClinicalT5-base
+6https://huggingface.co/facebook/
+1https://huggingface.co/google/ bart-large-xsum
+flan-t5-base 7https://huggingface.co/GanjinZero/
+2https://huggingface.co/google/ biobart-large
+flan-t5-large 8https://github.com/abachaa/
+3https://huggingface.co/google/ MEDIQA-Chat-2023/blob/main/scripts/
+flan-t5-base evaluate_summarization.py
+526
+ceptonBLEUscore. Onaverage,Flan-T5models weused,wefoundthatFlan-T5,originallytrained
+outperformed other models in header based sum- on dialogue datasets, outperformed other models
+marization,theyachievedhigherscoresinROUGE that were trained on clinical data or summariza-
+andBERTScores. Althoughtheydidn’tperformas tiontasks. Specifically,Flan-T5SAMSumoutper-
+wellonthenumberofmatchingheaders,resultsin formedallmodelsexceptforsummarizationscores.
+Table3. BARTmodelsachievedthehighestscores Itcanalsobeconcludedthatsummarizationmodels
+inBLEUscoreswithmorethan4%usingBART- trained on summarizing text, not dialogues, as in
+Largemodel. However,thereaggregatedscorewas BioGPT,performedpoorlyonsummarizationtasks.
+significantlylessthanFlan-T5SAMSum. BioGPT In contrast, BART models performed better than
+achieved the least scores across all metrics and theBioGPTmodel. Empirically,wefoundBioGPT
+headerclassification. Giventhebestmodelsfrom togeneratetextthatwasnotoriginallyinthetext,
+validation dataset evaluation, we submitted the 3 whichisconsideredcriticalinthecontextofhealth
+Flan-T5modelsthatachievedthebestscores;Flan- records. Finally,sinceFlan-T5SAMSumachieved
+T5 SAMSum, Flan-T5 Large and Flan-T5 Base. thebestresults,weanticipatethatfurtherunsuper-
+Table2showstheaccuracyresultsachievedonthe visedtrainingfortheFlan-T5languagemodelwith
+test dataset for the submitted runs. The best sub- clinicaldialogueswouldimprovetheresults.
+mittedmodelsareavailableonHuggingFace9 for
+resultsreplication. Limitations
+Generatingclinicalnotesorsummariesofclinical
+5 RelatedWork
+conversations using NLP technology is a rapidly
+Automated note generation from doctor-patient developing field with great potential. However,
+conversations has been the subject of several re- thereareseverallimitationstothistechnologythat
+cent studies in natural language processing and must be considered. Firstly, NLP models rely on
+healthcare. One line of research has focused on high-quality data to achieve accurate results. In
+developingmachinelearningmodelstoautomati- themedicalfield,obtainingsuchdatacanbechal-
+cally generate clinical notes from speech or text lenging due to privacy concerns and regulations.
+data, using deep learning and natural language Secondly,thecomplexandtechnicalnatureofmed-
+generationtechniques(Zhangetal.,2018;Enarvi ical language poses a challenge to NLP models,
+etal.,2020;Joshietal.,2020;Knolletal.,2022). which may struggle to understand and interpret
+Otherstudieshaveexploredtheuseofvoicerecog- medicalterminologyandabbreviationsaccurately.
+nitionandspeech-to-texttechnologiestotranscribe Additionally,clinicalconversationsofteninvolve
+doctor-patientconversationsandgeneratenotesin sensitiveinformationthatrequirescarefulhandling,
+real time (Zuchowski and Göller, 2022). Addi- makingitimportanttoensurethesecurityandpri-
+tionally,someresearchershaveinvestigatedusing vacyofgeneratedclinicalnotes. Thisfieldiscon-
+pre-trained language models, such as BERT and sideredasafetycriticalarea,wherehighprecision
+GPT, to improve the accuracy and efficiency of is expected, therefore, the use of NLP models in
+notegeneration(Chintaguntaetal.,2021). Overall, suchclinicalsettingsmustbeperformedwithcau-
+these efforts aim to reduce the burden on health- tionandundermedicalprofessionals’supervision
+care providers by automating the tedious task of toensurethegeneratednotes’accuracyandrelia-
+note-taking and ultimately improving the quality bility.
+andaccessibilityofpatientrecords.
+EthicsStatement
+6 Conclusion
+Whendevelopinganautomatedsystemforclinical
+We utilize several pre-trained models for Task A notegenerationfromdoctor-patientconversations,
+inMEDIQA-Chatsharedtask. Themainobjective it is crucial to consider various ethical considera-
+of this task is to develop clinical dialogue sum- tions. One such consideration is the privacy and
+marizationinaccordancewithaclassifiedsection confidentialityofpatientinformation. Thesystem
+headerforeverydialogue. Wefine-tuneddifferent mustbedesignedtocomplywithregulationsand
+models for our experiments. Among the models guidelinesforprotectingpatientdata. Additionally,
+theremustbeexplicitconsentprocesses,ensuring
+9https://huggingface.co/Amalq/
+flan-t5-base-samsum-taskA thatpatientsunderstandhowtheirdatawillbeused
+527
+andallowingthemtoopt-outifdesired. Thesystem Mike Lewis, Yinhan Liu, Naman Goyal, Marjan
+mustalsobedevelopedfairlyandtransparent,en- Ghazvininejad,AbdelrahmanMohamed,OmerLevy,
+Veselin Stoyanov, and Luke Zettlemoyer. 2019.
+suringitdoesnotperpetuatebiasesorcontributeto
+BART:denoisingsequence-to-sequencepre-training
+healthdisparities. Moreover,thesystemmustbeac-
+fornaturallanguagegeneration,translation,andcom-
+curateandreliable,aserrorsorinaccuraciescould prehension. CoRR,abs/1910.13461.
+leadtoincorrectdiagnosesortreatments. Overall,
+Chin-YewLin.2004. Rouge: Apackageforautomatic
+itisessentialtoapproachthedevelopmentofanau-
+evaluationofsummaries. page10.
+tomatedsystemforclinicalnotegenerationwitha
+QiuhaoLu,DejingDou,andThienNguyen.2022. Clin-
+solidethicalframeworktoensurethatitalignswith
+icalT5: A generative language model for clinical
+the highest standards of patient care and ethical text. In Findings of the Association for Computa-
+conduct. tionalLinguistics: EMNLP2022,pages5436–5443,
+AbuDhabi,UnitedArabEmirates.Associationfor
+ComputationalLinguistics.
+References Renqian Luo, Liai Sun, Yingce Xia, Tao Qin, Sheng
+Zhang, Hoifung Poon, and Tie-Yan Liu. 2022.
+AsmaBenAbacha,Wen-waiYim,GriffinAdams,Neal
+BioGPT: generative pre-trained transformer for
+Snider,andMelihaYetisgen.2023. Overviewofthe
+biomedical text generation and mining. Briefings
+mediqa-chat2023sharedtasksonthesummarization
+inBioinformatics,23(6). Bbac409.
+and generation of doctor-patient conversations. In
+ACL-ClinicalNLP2023. KishorePapineni,SalimRoukos,ToddWard,andWei-
+JingZhu.2002. Bleu: amethodforautomaticevalu-
+Asma Ben Abacha, Wen-wai Yim, Yadan Fan, and ationofmachinetranslation. InProceedingsofthe
+Thomas Lin. 2023. An empirical study of clinical 40thAnnualMeetingoftheAssociationforCompu-
+notegenerationfromdoctor-patientencounters. In tational Linguistics, pages 311–318, Philadelphia,
+Proceedingsofthe17thConferenceoftheEuropean Pennsylvania,USA.AssociationforComputational
+Chapter of the Association for Computational Lin- Linguistics.
+guistics,pages2291–2302,Dubrovnik,Croatia.As-
+Colin Raffel, Noam Shazeer, Adam Roberts, Kather-
+sociationforComputationalLinguistics.
+ine Lee, Sharan Narang, Michael Matena, Yanqi
+Zhou,WeiLi,andPeterJ.Liu.2020. Exploringthe
+BharathChintagunta,NamitKatariya,XavierAmatri-
+limitsoftransferlearningwithaunifiedtext-to-text
+ain, and Anitha Kannan. 2021. Medically aware
+transformer. JournalofMachineLearningResearch,
+gpt-3asadatageneratorformedicaldialoguesum-
+21(140):1–67.
+marization. In Machine Learning for Healthcare
+Conference,pages354–372.PMLR. Thomas Wolf, Lysandre Debut, Victor Sanh, Julien
+Chaumond,ClementDelangue,AnthonyMoi,Pier-
+Hyung Won Chung, Le Hou, Shayne Longpre, Bar- ricCistac,TimRault,RémiLouf,MorganFuntowicz,
+ret Zoph, Yi Tay, William Fedus, Eric Li, Xuezhi et al. 2019. Huggingface’s transformers: State-of-
+Wang,MostafaDehghani,SiddharthaBrahma,etal. the-artnaturallanguageprocessing. arXivpreprint
+2022. Scalinginstruction-finetunedlanguagemodels. arXiv:1910.03771.
+arXivpreprintarXiv:2210.11416.
+HongyiYuan,ZhengYuan,RuyiGan,JiaxingZhang,
+YutaoXie,andShengYu.2022. BioBART:Pretrain-
+SeppoEnarvi,MarilisaAmoia,MiguelDel-AguaTeba,
+ing and evaluation of a biomedical generative lan-
+BrianDelaney,FrankDiehl,StefanHahn,Kristina
+guagemodel. InProceedingsofthe21stWorkshop
+Harris, Liam McGrath, Yue Pan, Joel Pinto, et al.
+onBiomedicalLanguageProcessing,pages97–109,
+2020. Generating medical reports from patient-
+Dublin,Ireland.AssociationforComputationalLin-
+doctor conversations using sequence-to-sequence
+models. InProceedingsofthefirstworkshoponnat- guistics.
+urallanguageprocessingformedicalconversations,
+Tianyi Zhang, Varsha Kishore, Felix Wu, Kilian Q.
+pages22–30.
+Weinberger,andYoavArtzi.2020. Bertscore: Evalu-
+atingtextgenerationwithbert.
+AnirudhJoshi,NamitKatariya,XavierAmatriain,and
+AnithaKannan.2020. Dr.summarize: Globalsum- Yuhao Zhang, Daisy Yi Ding, Tianpei Qian, Christo-
+marizationofmedicaldialoguebyexploitinglocal pherDManning,andCurtisPLanglotz.2018. Learn-
+structures. arXivpreprintarXiv:2009.08666. ingtosummarizeradiologyfindings. arXivpreprint
+arXiv:1809.04698.
+TomKnoll,FrancescoMoramarco,AlexPapadopoulos
+MatthiasZuchowskiandAydanGöller.2022. Speech
+Korfiatis,RachelYoung,ClaudiaRuffini,MarkPer-
+recognitionformedicaldocumentation: ananalysis
+era, Christian Perstl, Ehud Reiter, Anya Belz, and
+oftime,costefficiencyandacceptanceinaclinical
+AleksandarSavkov.2022. User-drivenresearchof
+setting. BritishJournalofHealthcareManagement,
+medical note generation software. arXiv preprint
+28(1):30–36.
+arXiv:2205.02549.
+528

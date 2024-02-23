@@ -1,0 +1,499 @@
+Unsupervised Enrichment of Persona-grounded Dialog
+with Background Stories
+BodhisattwaPrasadMajumder♣ TaylorBerg-Kirkpatrick♣
+JulianMcAuley♣ HarshJhamtani♦
+♣DepartmentofComputerScienceandEngineering,UCSanDiego
+{bmajumde, tberg, jmcauley}@eng.ucsd.edu
+♦SchoolofComputerScience,CarnegieMellonUniversity
+jharsh@cs.cmu.edu
+Abstract
+Humansoftenrefertopersonalnarratives,life
+experiences, and events to make a conversa-
+tion more engaging and rich. While persona-
+grounded dialog models are able to generate
+responsesthatfollowagivenpersona,theyof-
+tenmissoutonstatingdetailedexperiencesor
+eventsrelatedtoapersona, oftenleavingcon-
+versations shallow and dull. In this work, we
+equipdialogmodelswith‘backgroundstories’
+relatedtoapersonabyleveragingfictionalnar-
+rativesfromexistingstorydatasets(e.g.ROC-
+Stories). Since current dialog datasets do not
+contain such narratives as responses, we per- Figure1:Weenrichagentpersonaswith‘backgroundstories’
+formanunsupervisedadaptationofaretrieved fromanexistingcorpus. Weproposeagradient-basedtech-
+niquewhichencouragesthegeneratedresponsetobefluent
+storyforgeneratingadialogresponseusinga
+withthedialoghistory,minimallydifferentfromtheretrieved
+gradient-based rewriting technique. Our pro-
+story,andconsistentwiththepersona.Theproposedapproach
+posed method encourages the generated re- leadstomorespecificandinterestingresponses.
+sponse to be fluent (i.e., highly likely) with
+the dialog history, minimally different from
+ingfictionalnarrativesfromexistingstorydatasets
+the retrieved story to preserve event ordering
+such as ROCStories (Mostafazadeh et al., 2016).
+and consistent with the original persona. We
+For example, for a persona attribute ‘I have two
+demonstrate that our method can generate re-
+sponses that are more diverse, and are rated childrenandadog,’weareabletoidentifyarele-
+moreengagingandhuman-likebyhumaneval- vantnarrativefromastorycorpus(Figure1). How-
+uators,comparedtooutputsfromexistingdia- ever, such stories may not directly fit fluently in
+logmodels. thedialogcontext. Thus,retrievedstoriesshould
+be adapted to construct a response that is fluent
+1 Introduction
+andrelevanttothecontext. Sinceexistingdatasets
+Humansoftenrelyonspecificincidentsandexperi- (suchasPersonaChat(Zhangetal.,2018))donot
+enceswhileconversinginsocialcontexts(Dunbar contain responses with such background stories,
+etal.,1997). Responsesfromexistingchitchatdia- suchadaptationhastobedoneinanunsupervised
+logagentsoftenlacksuchspecificdetails. Tomiti- fashionwithdecoderstrainedtogenerateresponses
+gatethis,somepriorworkhaslookedintoassign- conditionedonlyonadialoghistoryandpersona.
+ingpersonastodialogagents(Zhangetal.,2018; To adapt a retrieved narrative incident as a rel-
+Majumderetal.,2020). However,personadescrip- evantbackgroundstory,weuseadecodingproce-
+tions are often shallow and limited in scope, and durewhichencouragesthegeneratedresponseto
+while they lead to improvements response speci- (1)befluentwiththedialoghistory,(2)beconsis-
+ficity,theystilllackthelevelofdetailwithwhich tentwiththeoriginalpersona,and(3)beminimally
+humansshareexperiences. different from the retrieved story. While fluency
+Inthiswork,weproposemethodstoenrichdia- with dialog context is encouraged directly by the
+logpersonaswithrelevantbackgroundeventsus- likelihood as per the underlying language model
+585
+Proceedingsofthe59thAnnualMeetingoftheAssociationforComputationalLinguistics
+andthe11thInternationalJointConferenceonNaturalLanguageProcessing(ShortPapers),pages585–592
+August1–6,2021.©2021AssociationforComputationalLinguistics
+theremainingtwoconstraintsareincorporatedvia respondingtothepersonaattributec(Section2.1).
+iterativeupdatestothedecoderoutputdistributions However,theunderlyingdialogmodelistrainedto
+at inference time. Our inference-time decoding generateresponsesconditionedonlyonthedialog
+methodisdifferentfromtheonlyrecenteffortby historyandpersona. Toincorporatetheretrieved
+Suetal.(2020)thatleveragesnon-dialogdata(fo- storyintheresponse,weperformgradient-based
+rumcomments,booksnippets)asdistantlabelsto inference(Section2.2),thatonlyassumesaleft-to-
+traindialogsystemswithsupervision. Ourcontri- rightlanguagemodeltrainedondialogcontextand
+butionscanbesummarizedasfollows: responses,andthestoryishandledatdecodingtime
+in an unsupervised fashion. We refer to the pro-
+• We propose a novel approach to enrich dialog
+posed method as PABST (Unsupervised PersonA
+agentpersonaswithrelevantbackstories,relying
+enrichmentwithBackgroundSTories).
+onlyonexistingstorydatasets.
+2.1 RetrievingRelevantStories
+• We propose to use an unsupervised back-
+propagationbaseddecodingprocedure1 toadapt Forapersonaattributec,weaimtoidentifyrelevant
+the relevant stories such that the resulting re- storiesfromastorycorpus. Towardthisgoal,we
+sponse is fluent with the dialog history and rankthestoriesusingtheF1componentofBERT-
+consistent with the dialog agent persona. Our score(Zhangetal.,2020)basedretrievalusingthe
+methodworkswithamodeltrainedjustwithdi- persona attribute c as the query and the highest
+alog data i.e. without access to story corpus at scoring story is chosen. Note that many of the
+trainingtime. stories are written in the third person. For use as
+backgroundstories,wemustfirsttransformthemto
+• Ourexperimentsdemonstratethattheproposed
+first–person. Followingpriorwork(Brahmanand
+approachresultsinmuchmoreengagingandspe-
+Chaturvedi,2020),weidentifytheprotagonistof
+cificdialogoutputsinapersona-groundeddialog
+suchstoriesasthemostfrequentlyoccurringchar-
+setup. Thisfillsagapinexistingdialogmodels
+acter. Thereafter, we use co-reference resolution
+which often lack the capability to generate re-
+(Leeetal.,2017)toidentifyallwordsorphrases
+sponses about specific events and experiences
+thatrefertotheprotagonist. Finally,allwordsor
+relevanttopersonaattributes.
+phrasessoidentifiedarereplacedwithsuitablefirst
+2 UnsupervisedPersonaEnrichment personpronouns(e.g.‘hisbooks’to‘mybooks’).
+withBackgroundStories
+2.2 Gradient-basedInference
+Given dialog history h and persona C consisting Ourunderlyingdialogmodelisnottrainedtocon-
+ofseveral(typically3-5,exampleshowninFigure ditiononaretrievedstory,andcannotbedirectly
+1) attributes, our goal is to construct a dialog re- usedtoconstructadesirableresponseusings. To
+sponse x. Our underlying model is based on the tacklethis,weconsideradecodingstrategywhich,
+discretepersonaattributechoicemodelfromMa- in addition to fluency with history h, encourages
+jumderetal.(2020). Togenerateadialogutterance response x to follow two soft constraints: (1) be
+x, we first sample a persona attribute c ∼ p(c|h) minimallydifferentfromstorys,and(2)beconsis-
+conditionedonthedialoghistoryh. xisthengen- tentwithpersonac.
+erated conditioned on the dialog history and the First,wegenerateaninitialresponsebasedonly
+chosen persona attribute. The underlying dialog onthedialoghistory. Thenweperformaniterative
+model’s decoder is initialized with a pretrained procedurewhichalternatesbetweenperforminga
+GPT-2model,andisfine-tunedonthePersonaChat forwardpassonthelanguagemodeltoencourage
+dataset(Zhangetal.,2018). However,inourcur- fluency, and a backward pass which updates the
+rentsetup,wealsohavetoidentifyrelevantback- responseviaback-propagationtorespectthetwo
+ground stories and use them to construct fluent soft constraints. However, x is discrete, and can-
+responsesatdecodingtime. Therefore,wepropose notbedirectlyupdatedusinggradientsfromback-
+adifferentdecodingprocedure. propagation. Instead, we maintain and update a
+Togeneratearesponse,wefirstsampleapersona softrepresentationoofx,whereo correspondsto
+i
+attributec ∼ p(c|h). Nextweretrievestoriescor- thelasthiddenstaterepresentationfortheithtoken
+position,i.e.,p(x ) ∼ softmax(Wo /τ),whereτ
+1Codecanbefoundat i i
+https://github.com/majumderb/pabst isthetemperatureparameter,W istheembedding
+586
+matrix,andWo i ∈ RV (V isthevocabularysize). Method Training Decoding D-1 D-2 ENTR
+Ourapproachisinspiredbyrecentworksthatuse W/oStoryData
+gradient-based decoding for text generation with TRANSFERO PERSONA Nucleus 0.05 0.11 1.21
+DISCCHOICE PERSONA Nucleus 0.15 0.25 1.25
+softconstraints(Dathathrietal.,2020;Qinetal.,
+DISCCHOICE CS-KB Nucleus 0.87 1.07 2.04
+2020). Nextwedescribethebackwardandforward
+WithStoryData
+passesoftheiterativeprocedure. DISCCHOICE PSEUDO Nucleus 0.91 2.45 2.89
+DISCCHOICE MULTITASK Nucleus 0.99 2.54 2.71
+Backward Pass with Soft Constraints We de- DISCCHOICE PERSONA RETRIEVAL 2.56 9.67 3.86
+finethefollowingsoftconstraintsonresponsex: PABST(Ours) PERSONA Grad.Inf. 1.56 3.57 3.21
+(1)Divergencefromstory: Wewanttoencourage
+Table1: DiversitymetricsonthePersonaChattestset.D-1/2
+x to be minimally different from the story s. Fol-
+is the % of distinct uni- and bi-grams. ENTR is the geo-
+lowingpriorwork(Qinetal.,2020),wecompute metric mean of n-gram entropy. Grad. Inf. is the unsuper-
+visedgradient-baseddecodingasopposedtoNucleussam-
+acrossentropyloss(denotedbycross-entrhence-
+pling(Holtzmanetal.,2020).
+forth)withstorys = {s ,...,s }tokensaslabels
+1 T
+andWo ,...,Wo asthelogits.
+1 T 3 Experiments
+(2)Consistencytopersona: Wewantxtobecon-
+sistent with persona attribute c. Consider a clas- We evaluate methods in terms of their capability
+sifier q (o,c) which predicts the probability of x togeneratediverse,fluentandengagingresponses.
+φ
+(orratherthesoftrepresentationoofx)entailing HyperparametersarenotedinAppendix§A.
+c. Theclassifierq (o,c)isabag-of-wordsclassifi-
+φ
+Datasets We experiment with the PersonaChat
+cationheadondecoderhiddenstateso,fine-tuned
+dialog dataset (Zhang et al., 2018) consisting of
+ontheDialogue-NLIdataset(Wellecketal.,2019)
+131,438 utterances for training, 15,602 for vali-
+topredictwhetherpairsofpersonaattributesand
+dation, and 15,024 for testing. For stories, we
+responsesareentailedornot. Theobjectivetomax-
+use the training split of the ROCStories dataset
+imizecanbewrittenas:
+(Mostafazadehetal.,2016),thatconsistsof78,529
+stories,eachtypicallyof4to5sentences.
+L(c,s;o)=λ logq (o,c)−λ cross-entr(s,Wo)
+c φ d
+Baselines Weconsidertwobroadgroupsofmod-
+where λ and λ are hyper-parameters. We up-
+c d
+els as baselines: (1) Without access to story cor-
+dateothroughback-propagationbycomputingthe
+pus: We use finetuned GPT2 (TRANSFERO) on
+gradient∇ L(c,s;o),whilekeepingthemodelpa-
+o
+PersonaChat, and the discrete persona attribute
+rameters constant. Let the resulting o after the
+gradient-basedupdatesbedenotedbyob.
+choice model (DISCCHOICE) from Majumder
+etal.(2020). Wealsoconsideraversionof DISC-
+Forward Pass to Encourage Fluency Next we CHOICE whichenrichespersonaswithinferences
+perform a forward pass of the underlying dialog from a commonsense knowledge base (CS-KB).
+model, with the goal of regularizing the hidden (2) Baselines using story corpus: To allow DIS-
+statestowardstheunmodifiedlanguagemodelval- CCHOICEmodelstogeneratestory-likeresponses,
+ues. On computing the forward pass at the jth weadaptanalternativetrainingregime(PSEUDO)
+token,wemixthefinalhiddenstatesof
+fromthe from(Suetal.,2020),wherewerandomlyreplace
+j
+forward pass with ob computed in the backward someofthetargetdialogresponseswithretrieved
+j
+pass, via weighted addition to get the resulting stories—treatingthemaspseudolabels. Finally,we
+o = γ × of + (1 − γ) × ob, where γ ∈ (0,1) alsoconsidera MULTITASK trainingsetupfrom
+j j j
+is a hyperparameter. The resulting o is used for (Suetal.,2020),whereinthedecoderistrainedon
+j
+computingthelogitsatthenexttimestepj +1. PersonaChataswellaswithalanguagemodeling
+Weinitializetheoutputresponsebyperforming objectiveonROCStories. Weadditionallyconsider
+greedydecodingfromtheunderlyingdialogmodel, aRETRIEVALbaselinethatusestheretrievedstory
+conditioned on the dialog history and persona at- verbatimasthedialogresponse.
+tribute. Thenweiterativelyupdateobyalternate
+3.1 AutomaticEvaluation
+backwardandforwardpasses. Wesamplethefinal
+response x ∼ softmax(Wo/τ). In practice, we We hypothesize that that the proposed approach
+found that 5 iterations are sufficient to generate to leverage external non-dialog data can increase
+goodqualityoutputs. thediversityofthegeneratedresponses. Following
+587
+PABSTvs. TRANSFERO DISCCHOICE RETRIEVAL PSEUDO MULTITASK w/oDNLI Gold
+Aspect win loss win loss win loss win loss win loss win loss win loss
+Sensible 83.8 5.6 71.4 10.1 72.7 15.7 94.3 3.1 92.8 1.5 81.7 6.8 29.1 33.6
+Engaging 96.7 1.8 82.6 6.7 87.2 5.3 94.7 2.1 94.1 2.6 70.9 14.8 70.2 15.6
+Table2: Pairwisecomparison(%win/losscases,tiesnotreported)betweenresponsesfromPABSTandfromotherbaselinesas
+wellasgold.Alldifferencesaresignificantwithp<0.05.Cohen’sKappa(Cohen,1960)forsensibilityandengagementwere
+0.79and0.82respectively.CompletedetailsofthehumanevaluationsareinAppendix§B.
+DialogHistory DialogHistory
+Agent:Howwasyourlasttrip? Agent:Iworkasstuntdouble.Whataboutyou?
+User:Itwasgreat.IwenttoUtahandsawtheCanyonlands. User:I’manengineer.Ijustgotbackfromwork.How’syours?
+RetrievedStory: RetrievedStory:
+Iwentonatrip.IwenttoFlorida.Whenwegotthere,there Iwasaworkingactor.FormynewroleIwasastuntdouble.I
+wasnoairconditioning.Iwasirritated.Itwastoohot. startedworkingonnewstunts.WhenIjumpedoffabuilding
+yesterdayIgothurt.Ihadtoberushedtothehospital.
+DISCCHOICE:That’sgreat.Youmustbeadventurous.
+DISCCHOICE:That’sgreat.Iamlookingforajob.
+RETRIEVAL:Iwentonatrip.IwenttoFlorida.Whenwe
+RETRIEVAL:Iwasaworkingactor.FormynewroleIwasa
+gotthere,therewasnoairconditioning.Iwasirritated.
+stuntdouble.Istartedworkingonnewstunts.WhenIjumped
+Itwastoohot.
+offabuildingyesterdayIgothurt.Ihadtoberushedtothehospital.
+PSEUDO:IhaveahouseinFlorida.
+PSEUDO:Igotanewjob.Iamanactor.
+MULTITASK:IlikeFlorida.Iwenttothebeaches. MULTITASK:Istartedanewrole.Igothurt.
+PABST(λ d=5):Iwentonatrip.IwenttoFlorida.Ihave PABST(λ d=5):Iwasworkingasastuntdouble.Ijumped
+ahousethere.Wedonothaveaircondition.Itwashot. offabuilding.Igothurt.Ihadtoberushedtothehospital.
+PABST(λ d=1):That’sgreat.IfrequentlygotoFlorida. PABST(λ d=1):YesterdaywhileIwasworking,Ijumpedoff
+Ihaveahousetherebutitgetshotinsummer. abuildingandIgothurt.Ihadtobetakentothehospital.
+Table3: Generationsfromdifferentmodels.MoreexamplesareinAppendix§C.
+priorwork(Lietal.,2016),wereportthepercent- A snapshot of the human evaluation interface is
+ageofdistinctuni-gramsandbi-grams(D-1andD- provided in Appendix §C. All differences in val-
+2respectively). Notethatthesevaluesdonotcap- ues from human evaluations are significant with
+ture the actual frequency distribution of different p < 0.05frombootstraptestson1000subsetsof
+wordtypes. Therefore,wealsoreportthegeomet- size 50. Cohen’s Kappa (Cohen, 1960) to mea-
+ricmeanofentropyvaluesofempiricalfrequency sureinter-annotatoragreementforsensibilityand
+distributions of n-grams of words (n ∈ {1,2,3}) engagementwere0.79and0.82respectively.
+(Jhamtanietal.,2018),denotedbyENTR. From the results (shown in Table 3), we note
+We observe that methods that use story data that in comparison to responses from baselines,
+showmuchhigherdiversitycomparedtomethods responses from PABST are more engaging and
+thatdonot(Table1). Amongmethodsusingstory more sensible with respect to the dialog his-
+data, gradient-based decoding (PABST) performs tory. We further make following observations.
+betterthanDISCCHOICEtrainedwithPSEUDOor Firstly, using the gradient-based decoding ap-
+MULTITASK. NotethatjustusingRETRIEVALout- proachwithretrievedstories(PABST)workssignif-
+putsas-isleadstoevenmorediverseoutputsthan icantly better than using distant supervision with
+PABST. However,theyaremuchlesssensiblewith stories data (PSEUDO and MULTITASK). Sec-
+thecontext,asshowninhumanevaluations. ondly,backgroundstoriesprovidesufficientdetail
+for an engaging conversation compared to DIS-
+3.2 HumanEvaluation
+CCHOICE which expands persona attributes us-
+Since we do not have ground truth story-like re- ing commonsense knowledge (Majumder et al.,
+sponsesinthedialogdataset, weperformhuman 2020). Finally, we also observe that PABST per-
+evaluation with 150 test examples to investigate formsworsewhenwedonotusetheconsistency
+if PABST generatesresponsesthatare1)sensible constraint(w/oDNLI).
+withthedialoghistoryand2)engaging. Wehired
+two Anglophone (Lifetime HIT acceptance % > Choice of λ We also experiment with differ-
+d
+85)annotatorsforeverytestsample. Theorderof ent values of the weight for the divergence term
+thesystemspresentintheinterfaceisrandomized. (λ ) in L: High (λ = 5), Moderate (λ = 1),
+d d d
+588
+and Low (λ = 0.05). We consider 100 samples WeadaptedaBERT-basedretrievalmethod(Zhang
+d
+for this experiment. We attribute a high λ to re- et al., 2020) in our case to retrieve relevant story
+d
+sponses strictly copying the story. We find that givendialogcontextanduseretrievedstoryinthe
+PABST(moderateλ d)winswins81.2%and69.1% decodingphase.
+cases against PABST (high λ d) on ‘sensible’ and Gradient-basedfortextgenerationwithsoftcon-
+‘engaging’responsecriteriarespectively. Similarly, straintshasbeenexploredinpriorwork(Dathathri
+PABST(moderateλ d)wins93.2%and84.7%cases etal.,2020;Qinetal.,2020). Songetal.(2020)fo-
+againstPABST(lowλ d)intermsofsensibilityand cusedongeneratingresponsewhichareconsistent
+engagementrespectively. to given persona. Differently, we use a gradient-
+baseddecodingtogenerateadialogresponsewhile
+Qualitative Analysis Table 3 shows responses
+honoringconstraintssuchasconsistencytopersona
+generatedbydifferentbaselines. Weobservethat
+andsimilaritytoretrievedstory.
+PABST isabletofollowtheretrievedstory(same
+asoutputfrom RETRIEVAL)whilemodifyingthe
+5 Conclusion
+responsetobeconversation-likeandsensiblewith
+dialog history. Responses from other baselines Weproposeamethodtoenrichpersona-grounded
+remainverboseorincoherent. Mirroringthehuman dialogwithbackgroundstoriesattheinferencetime
+evaluation, weobservethatchoosingahigherλ d onlyusinganexistingcorpusofnon-conversational
+makes the model to almost repeat the retrieved narratives—openingupnewwaystogenerateen-
+storybutalowervaluesmoothstheoutputtomake richedandengagingresponses. Oneofthelimita-
+itmoresensiblewiththeongoingdialog. tionsofPABSTistheassumptionofthebackground
+storyateveryturn. Asfuturework,wecaninclude
+4 RelatedWork
+adecisionsteptodecideifweneedtoincorporate
+A desired impact of the proposed approach is in- abackgroundstoryornot,giventhedialoghistory.
+creaseindiversityofthegeneratedresponses. To Wecanfurtherexplorewaystouseretrievedstories
+tackle the issue of diversity in dialog model out- overmultipleturnsinsteadofasingleturn.
+puts,priorworkhasfocusedondecodingstrategies
+Acknowledgements
+suchasdiversity-promotingsampling(Holtzman
+etal.,2020);trainingstrategiessuchasdiscourag-
+Wethankanonymousreviewersforprovidingvalu-
+ing undesirable responses via unlikelihood train-
+able feedback. BPM is partly supported by a
+ing(Lietal.,2020);modelchangessuchasusing
+QualcommInnovationFellowshipandNSFAward
+stochasticvariables(Serbanetal.,2017);andusing
+#1750063. Findingsandobservationsareoftheau-
+externaldatasuchasforumdata(Suetal.,2020)or
+thorsonlyanddonotnecessarilyreflecttheviews
+externalknowledgebases(Majumderetal.,2020).
+ofthefundingagencies.
+Incontrasttothese,ourproposedmethodgenerates
+responseswithbackgroundstoriesusingagradient-
+ImpactStatement
+baseddecodingapproach.
+Oneofthestepsinourproposedapproachisto Inthiswork,wediscusswaystomakeadialogsys-
+retrieve relevant stories from an external corpus. tem to generate more engaging responses. Since
+Priorworkhasexploredusingretrievalofsimilar weuseafinetunedversionofapretrainedgenera-
+dialoginstancesasaninitialstepinimprovingre- tivemodel,weinheritthegeneralriskofgenerating
+sponsediversityandotherhuman-likedesiderata biasedortoxiclanguage,whichshouldbecarefully
+indialog(Rolleretal.,2020;Westonetal.,2018). filtered. Furthermore, the generations may incor-
+Distant supervision by using retrieved text snip- poratebiasesthatarealreadypresentinthedialog
+petsaspseudoresponseshasbeenexploredinprior datasetandstorydatasetduetocrowd-sourceddata
+work(Suetal.,2020;Rolleretal.,2020). Weuse collection. Hence,wecautiouslyadviseanydevel-
+anexternaldatasourcetoimprovedialogresponses, operwhowishestouseadifferentstorydatasetfor
+athemesharedwithsomeeffortsinothertaskssuch the background stories to be aware of the biases
+as machine translation (Khandelwal et al.). The presentinthedataset. Finally,wealsonotethatex-
+use of narrative text in dialog has been explored perimentsinthispaperarelimitedonlytoEnglish
+inpriorwork,mostlyasa‘script’ortemplatefor language.
+conversation (Xu et al., 2020; Zhu et al., 2020).
+589
+References Stephen Roller, Emily Dinan, Naman Goyal, Da Ju,
+Mary Williamson, Yinhan Liu, Jing Xu, Myle Ott,
+Faeze Brahman and Snigdha Chaturvedi. 2020. Mod-
+Kurt Shuster, Eric M Smith, et al. 2020. Recipes
+elingprotagonistemotionsforemotion-awarestory-
+forbuildinganopen-domainchatbot. arXivpreprint
+telling. InEMNLP,pages5277–5294.
+arXiv:2004.13637.
+Jacob Cohen. 1960. A coefficient of agreement for
+Iulian Vlad Serban, Alessandro Sordoni, Ryan Lowe,
+nominalscales. Educationalandpsychologicalmea-
+LaurentCharlin, JoellePineau, AaronC.Courville,
+surement,20(1):37–46.
+and Yoshua Bengio. 2017. A hierarchical latent
+SumanthDathathri,AndreaMadotto,JaniceLan,Jane variable encoder-decoder model for generating dia-
+Hung,EricFrank,PieroMolino,JasonYosinski,and logues. InAAAI.
+RosanneLiu.2020. Plugandplaylanguagemodels:
+Haoyu Song, Wei-Nan Zhang, Jingwen Hu, and Ting
+Asimpleapproachtocontrolledtextgeneration. In
+Liu.2020. Generatingpersonaconsistentdialogues
+ICLR.
+byexploitingnaturallanguageinference. InAAAI.
+Robin IM Dunbar, Anna Marriott, and Neil DC Dun-
+can.1997. Humanconversationalbehavior. Human Hui Su, Xiaoyu Shen, Sanqiang Zhao, Xiao Zhou,
+nature,8(3):231–246. Pengwei Hu, Randy Zhong, Cheng Niu, and Jie
+Zhou. 2020. Diversifying dialogue generation with
+AriHoltzman, JanBuys, LiDu, MaxwellForbes, and non-conversationaltext. InACL.
+Yejin Choi. 2020. The curious case of neural text
+degeneration. InICLR. Sean Welleck, Jason Weston, Arthur Szlam, and
+Kyunghyun Cho. 2019. Dialogue natural language
+Harsh Jhamtani, Varun Gangal, Eduard Hovy, Gra- inference. InACL.
+ham Neubig, and Taylor Berg-Kirkpatrick. 2018.
+Learning to generate move-by-move commentary Jason Weston, Emily Dinan, and Alexander H. Miller.
+for chess games from large-scale social forum data. 2018. Retrieveandrefine: Improvedsequencegen-
+InACL2018. erationmodelsfordialogue. InSCAI@EMNLP.
+UrvashiKhandelwal, AngelaFan, DanJurafsky, Luke Thomas Wolf, Victor Sanh, Julien Chaumond, and
+Zettlemoyer,andMikeLewis. Nearestneighborma- Clement Delangue. 2019. Transfertransfo: A trans-
+chinetranslation. CoRR. ferlearningapproachforneuralnetworkbasedcon-
+versationalagents. CoRR,abs/1901.08149.
+KentonLee,LuhengHe,MikeLewis,andLukeZettle-
+moyer.2017. End-to-endneuralcoreferenceresolu-
+Jun Xu, Zeyang Lei, Haifeng Wang, Zheng-Yu Niu,
+tion. InEMNLP.
+Hua Wu, and Wanxiang Che. 2020. Enhancing di-
+alog coherence with event graph grounded content
+JiweiLi,MichelGalley,ChrisBrockett,JianfengGao,
+planning. InIJCAI.
+and Bill Dolan. 2016. A diversity-promoting ob-
+jective function for neural conversation models. In
+Saizheng Zhang, Emily Dinan, Jack Urbanek, Arthur
+NAACLHLT.
+Szlam,DouweKiela,andJasonWeston.2018. Per-
+Margaret Li, Stephen Roller, Ilia Kulikov, Sean sonalizing dialogue agents: I have a dog, do you
+Welleck, Y-Lan Boureau, Kyunghyun Cho, and Ja- havepetstoo? InACL.
+sonWeston.2020. Don’tsaythat! makinginconsis-
+Tianyi Zhang, Varsha Kishore, Felix Wu, Kilian Q.
+tentdialogueunlikelywithunlikelihoodtraining. In
+Weinberger,andYoavArtzi.2020. Bertscore: Eval-
+ACL.
+uatingtextgenerationwithBERT. InICLR.
+Bodhisattwa Prasad Majumder, Harsh Jhamtani, Tay-
+YutaoZhu,RuihuaSong,ZhichengDou,Jian-YunNie,
+lor Berg-Kirkpatrick, and Julian J. McAuley. 2020.
+andJinZhou.2020. Scriptwriter: Narrative-guided
+Like hiking? you probably enjoy nature: Persona-
+scriptgeneration. InACL.
+groundeddialogwithcommonsenseexpansions. In
+EMNLP.
+NasrinMostafazadeh,NathanaelChambers,Xiaodong
+He, Devi Parikh, Dhruv Batra, Lucy Vander-
+wende, Pushmeet Kohli, and James F. Allen. 2016.
+A corpus and evaluation framework for deeper
+understanding of commonsense stories. CoRR,
+abs/1604.01696.
+LianhuiQin,VeredShwartz,PeterWest,ChandraBha-
+gavatula, Jena D. Hwang, Ronan Le Bras, Antoine
+Bosselut,andYejinChoi.2020. Backtothefuture:
+Unsupervisedbackprop-baseddecodingforcounter-
+factual and abductive commonsense reasoning. In
+EMNLP.
+590
+A ImplementationDetails
+We obtain the PersonaChat dataset from ParlAI
+repository2. ROCStoriesdatasetisobtainedfrom
+the repository of original release3. We adapted DialogHistory
+codesfromoriginalPPLM(Dathathrietal.,2020) Agent:Ivolunteerinshelters.
+User:Itisanobleact.
+repository4 andmodifiedthemforourownobjec-
+tivefunction. DISCCHOICE:Thankyou.Ilikehelpingpeople.
+RETRIEVAL:Iwasatmyhousebored.Icouldn’tfigureout
+Network architecture For the generator net-
+whattodo.IlookedonTVforanswers.Isawacommercial
+work, weuseGPT2(Transformerwith12layers, abouthomelesspeople.SoIdecidedtovolunteerata
+768hiddensize,12heads—gpt2-small5)fol- homelessshelter.
+lowingthestate-of-the-artmodel(Wolfetal.,2019) PSEUDO:Lastweek,Iwenttothelocalanimalshelteron
+thepetadaptationday.
+fromConv-AI2competition. Thedecoderhastotal
+of124Millionparameters. Weusedthepre-trained MULTITASK:Thankyou!Whataboutyou?
+decoder model obtained from (Majumder et al., PABST(λ d =5.0):Iwasbored.Iwantedtohelppeople.I
+lookedonTVabouthomelesspeople.SoIdecidedto
+2020).
+volunteeratahomelessshelter.
+Hyperparameters PABST does not require any PABST(λ
+d
+=1.0):Thankyou.IwasinspiredbyaTV
+commercialandIvolunteeredatthehomelessshelter.
+training since we perform gradient-based decod-
+ingattheinferencetime. Forourbestmethod,in
+Table4: Generationsfromdifferentmodels
+objective function L, we use λ as 1 and λ as 1.
+d c
+Wekeepgenerationlengthtobe100toencourage
+longergenerations. Wetraintheconsistencyclassi-
+fierusingcodefromPPLMrepository6. Theweight
+γ formixingforwardandbackwardpasseswasset
+to0.45. ForPSEUDO,wesubstitutearandom30%
+oftheoriginaltargetresponseswithretrievedsto-
+ries.
+DialogHistory
+B HumanEvaluationsSetup
+Agent:IenjoyAmericansports.Whatsportsdoyoulike?
+User:Iloveplayingvolleyball.Iwasintheuniversityteam.
+Figure2showsasamplequestionforthepairwise
+comparisonbetweenresponsegeneratedbyPABST DISCCHOICE:That’sgreat.Ilikeadventuresports.
+andabaselineforsensibilityandengagingness. A RETRIEVAL:Ialwaysthoughtgolfwasforoldpeople.
+Oneday,mydadinvitedmetoplaygolfwithhim.
+similar setup was used to measure performance
+Ireluctantlyacceptedhisinvitation.Onthegolfrange,I
+between PABST variants with different λ
+d
+values
+sawlotsofpeopleofmyage.Irealizedgolfwasasportfor
+(0.5,1,5). everyonetoenjoyregardlessofage.
+PSEUDO:Lastweek,Iwenttoplaygolf.Mydadinvited
+C QualitativeExamples me.Iwasreluctant.
+MULTITASK:That’sgreat!Iplayvolleyballduring
+Tables4and5showgenerationsfromPABSTand
+weekend.
+baselinesforsampledtextexamples.
+PABST(λ
+d
+=5.0):Ilikeplayinggolf.Ialwaysthoughtit
+isforoldpeople.RecentlyIwenttoagolfrange.ButIsaw
+lotsofpeopleofmyage.Irealizedgolfisa
+sportsforeveryone.
+PABST(λ
+d
+=1.0):That’sgreat.Ilikeplayinggolf.I
+2http://parl.ai/downloads/personachat/ alwaysthoughtitisforoldpeople.RecentlyIwent
+personachat.tgz toagolfrange.ButIsawlotsofpeopleofmyage.I
+3https://www.cs.rochester.edu/nlp/ realizedgolfisasportsforeveryone.
+rocstories/
+4https://github.com/uber-research/PPLM Table5: Generationsfromdifferentmodels
+5https://github.com/huggingface/
+transfer-learning-conv-ai
+6https://github.com/uber-research/
+PPLM/blob/master/run_pplm_discrim_train.
+py
+591
+Figure2: HumanevaluationsetupforpairwisecomparisonbetweenPABSTandanotherbaseline
+592

@@ -1,0 +1,1407 @@
+PAL: Program-aided Language Models
+LuyuGao*1 AmanMadaan*1 ShuyanZhou*1 UriAlon1 PengfeiLiu12 YimingYang1 JamieCallan1
+GrahamNeubig12
+{luyug,amadaan,shuyanzh,ualon,pliu3,yiming,callan,gneubig}@cs.cmu.edu
+Abstract 1.Introduction
+Untilasrecentlyastwoyearsago,reasoningwasconsidered
+Large language models (LLMs) have recently tobeoneofthemostsignificantchallengesthatlargelan-
+demonstrated an impressive ability to perform guagemodels(LLMs)hadnotyetovercome(Marcus,2018;
+arithmetic and symbolic reasoning tasks, when 2020;Garcez&Lamb,2020). Recently,LLMshaveshown
+providedwithafewexamplesattesttime(“few- impressivesuccessonawiderangeoftasks,includingcom-
+shot prompting”). Much of this success can be monsense (Wei et al., 2021; Sanh et al., 2021; Madaan
+attributedtopromptingmethodssuchas“chain- etal.,2022), mathematical(Lewkowyczetal.,2022;Wu
+of-thought”,whichemployLLMsforbothunder- et al., 2022; Mishra et al., 2022), and symbolic reason-
+standingtheproblemdescriptionbydecomposing ing (Yao et al., 2022; Ahn et al., 2022), using few-shot
+it intosteps, as well as solving each stepof the prompting(Brownetal.,2020).
+problem. WhileLLMsseemtobeadeptatthis
+Thisprocesshasbeenacceleratedbymethodsthatrequire
+sortofstep-by-stepdecomposition,LLMsoften
+LLMs to generate their explicit reasoning steps, such as
+makelogicalandarithmeticmistakesinthesolu-
+“chain-of-thought”(Weietal.,2022),“scratchpads”(Nye
+tionpart,evenwhentheproblemisdecomposed
+etal.,2021),and“least-to-most”(Zhouetal.,2022)prompt-
+correctly. In this paper, we present Program-
+AidedLanguagemodels(PAL):anovelapproach
+ing. Inparticular,thewidelyusedchain-of-thought(COT)
+methodpresentsthemodelwiththeexplicitintermediate
+thatusestheLLMtoreadnaturallanguageprob-
+stepsthatarerequiredtoreachthefinalanswer. Then,the
+lemsandgenerateprogramsastheintermediate
+modelisexpectedtoapplyasimilardecompositiontotheac-
+reasoningsteps,butoffloadsthesolutionsteptoa
+tualtestexample,andconsecutivelyreachanaccuratefinal
+runtimesuchasaPythoninterpreter. WithPAL,
+answer(Lingetal.,2017;Aminietal.,2019). Nevertheless,
+decomposingthenaturallanguageprobleminto
+whileLLMscandecomposenaturallanguageproblemsinto
+runnablestepsremainstheonlylearningtaskfor
+stepsandperformsimplearithmeticoperations,theirperfor-
+theLLM,whilesolvingisdelegatedtotheinter-
+mancefallsdramaticallywhendealingwithcomplexarith-
+preter. We demonstrate this synergy between a
+metic(Hendrycksetal.,2021;Madaan&Yazdanbakhsh,
+neuralLLMandasymbolicinterpreteracross13
+2022)orlargenumbers(Nogueiraetal.,2021;Qianetal.,
+mathematical,symbolic,andalgorithmicreason-
+2022). Infact,evenwhenfine-tuningaPaLM-basedmodel
+ingtasksfromBIG-BenchHardandotherbench-
+on 164B tokens of explicit mathematical content, its two
+marks. In all these natural language reasoning
+mostcommonfailuresarereportedly“incorrectreasoning”
+tasks, generating code using an LLM and rea-
+and“incorrectcalculation”(Lewkowyczetal.,2022).
+soningusingaPythoninterpreterleadstomore
+accurateresultsthanmuchlargermodels. Forex- In this paper, we propose Program-Aided Language
+ample,PALusingCODEXachievesstate-of-the- model (PAL): a novel method that uses an LLM to read
+artfew-shotaccuracyontheGSM8Kbenchmark naturallanguageproblemsandgenerateprogramsasrea-
+ofmathwordproblems,surpassingPaLM-540B soningsteps,butoffloadsthesolutionsteptoaPythoninter-
+whichuseschain-of-thoughtbyabsolute15%top- preter,asillustratedinFigure1.Thisoffloadingleveragesan
+1. Our code and data are publicly available at LLMthatcandecomposeanaturallanguageprobleminto
+http://reasonwithpal.com. programmatic steps, which is fortunately available using
+contemporarystate-of-the-artLLMsthatarepre-trainedon
+bothnaturallanguageandprogramminglanguages (Brown
+*Thefirstthreeauthorscontributedequally. 1LanguageTech- et al., 2020; Chen et al., 2021a; Chowdhery et al., 2022).
+nologies Institute, Carnegie Mellon University, USA 2Inspired Whilenaturallanguageunderstandinganddecomposition
+Cognition,USA.
+3202
+naJ
+72
+]LC.sc[
+2v53401.1122:viXra
+PAL:Program-aidedLanguageModels 2
+Chain-of-Thought (Wei et al., 2022) Program-aided Language models (this work)
+Input Input
+Q: Roger has 5 tennis balls. He buys 2 more cans of
+tennis balls. Each can has 3 tennis balls. How many
+Q: Roger has 5 tennis balls. He buys 2 more cans of tennis balls does he have now?
+tennis balls. Each can has 3 tennis balls. How many
+tennis balls does he have now? A: Roger started with 5 tennis balls.
+tennis_balls = 5
+A: Roger started with 5 tennis balls. 2 cans of 3 tennis 2 cans of 3 tennis balls each is
+balls each is 6 tennis balls. 5 + 6 = 11. The answer is 11. bought_balls = 2 * 3
+tennis balls. The answer is
+Q: The bakers at the Beverly Hills Bakery baked 200 answer = tennis_balls + bought_balls
+loaves of bread on Monday morning. They sold 93 loaves
+in the morning and 39 loaves in the afternoon. A grocery Q: The bakers at the Beverly Hills Bakery baked 200
+store returned 6 unsold loaves. How many loaves of loaves of bread on Monday morning. They sold 93 loaves
+bread did they have left? in the morning and 39 loaves in the afternoon. A grocery
+store returned 6 unsold loaves. How many loaves of bread
+did they have left?
+Model Output Model Output
+A: The bakers started with 200 loaves. They sold 93 in A: The bakers started with 200 loaves
+the morning and 39 in the afternoon. So they sold 93 + loaves_baked = 200
+39 = 132 loaves. The grocery store returned 6 loaves. So They sold 93 in the morning and 39 in the afternoon
+they had 200 - 132 - 6 = 62 loaves left. loaves_sold_morning = 93
+The answer is 62.
+❌ loaves_sold_afternoon = 39
+The grocery store returned 6 loaves.
+loaves_returned = 6
+The answer is
+answer = loaves_baked - loaves_sold_morning
+- loaves_sold_afternoon + loaves_returned
+>>> print(answer)
+74
+Figure1: AdiagramillustratingPAL:Givenamathematicalreasoningquestion,Chain-of-thought(left)generatesinterme-
+diatereasoningstepsoffree-formtext. Incontrast,Program-aidedLanguagemodels(PAL,right)generateintermediate
+stepsandPythoncode. ThisshiftstheroleofrunningthereasoningstepsfromthelanguagemodeltothePythoninterpreter.
+Thefinalanswerisobtainedbyrunningthegeneratedreasoningchain. Chain-of-thoughtreasoningis highlightedinblue;
+PALstepsare highlighted in gray and pink;thePythoninterpreterrunis highlightedinblackandgreen.
+requireLLMs,solvingandreasoningcanbedonewiththe 2.Background: Few-shotPrompting
+externalsolver. Thisbridgesanimportantgapinchain-of-
+Few-shotpromptingleveragesthestrengthoflarge-language
+thought-likemethods,wherereasoningchainscanbecorrect
+modelstosolveataskwithasetofkexamplesthatarepro-
+butproduceanincorrectanswer.
+vided as part of the test-time input (Brown et al., 2020;
+We demonstrate the effectiveness of PAL across 13 arith- Liuetal.,2021;Chowdheryetal.,2022),wherek isusu-
+metic and symbolic reasoning tasks. In all these tasks, allyanumberinthelowsingledigits. Theseinput-output
+PAL usingCodex(Chenetal.,2021a)outperformsmuch examples {(x ,y )}k are concatenated in a prompt p
+i i i=1
+largermodelssuchasPaLM-540Busingchain-of-thought ≡(cid:104)x ·y (cid:105)(cid:107)(cid:104)x ·y (cid:105)(cid:107)...(cid:107)(cid:104)x ·y (cid:105). where“·”denotes
+1 1 2 2 k k
+prompting. For example, on the popular GSM8K bench- theconcatenationofaninputandoutput,and“(cid:107)”indicate
+mark, PAL achieves state-of-the-art accuracy, surpassing theconcatenationofdifferentexamples. Duringinference,
+PaLM-540B withchain-of-thoughtbyabsolute15%top- atestinstancex isappendedtotheprompt,andp(cid:107)x
+test test
+1accuracy. Whenthequestionscontainlargenumbers,a ispassedtothemodelwhichattemptstocompletep(cid:107)x ,
+test
+datasetwecallGSM-HARD,PALoutperformsCOTbyanab- andtherebygenerateananswery . Notethatsuchfew-
+test
+solute40%. Webelievethatthisseamlesssynergybetween shotpromptingdoesnotmodifytheunderlyingLLM.
+aneuralLLMandasymbolicinterpreterisanessentialstep
+towardsgeneralandrobustAIreasoners.
+PAL:Program-aidedLanguageModels 3
+Weietal.(2022)additionallyaugmenteachin-contextexam- 2cansof3tennisballseachis6, in PAL we also aug-
+plewithchainofthought(COT)intermediatesteps. Specifi- ment each such NL step with its corresponding pro-
+cally,eachin-contextexampleintheCOTsetupisatriplet grammaticstatementsuchas tennis balls = 5 and
+(cid:104)x ,t ,y (cid:105),wherex andy areinput-outputpairasbefore, bought balls = 2 * 3. Thisway,themodellearns
+i i i i i
+andt isanaturallanguagedescriptionofthestepsthatare togenerateaprogramthatwillprovidetheanswerforthe
+i
+neededtoarriveattheoutputy fromtheinputx . SeeFig- test question, instead of relying on LLM to perform the
+i i
+ure1foranexample. Withtheadditional“thoughts”t ,the calculationcorrectly.
+i
+promptissettop≡(cid:104)x ·t ·y (cid:105)(cid:107)(cid:104)x ·t ·y (cid:105)(cid:107)...(cid:107)(cid:104)x ·t ·y (cid:105).
+1 1 1 2 2 2 k k k WepromptthelanguagemodeltogenerateNLintermediate
+During inference, the new question x is appended to steps using comment syntax (e.g. “# ...” in Python)
+test
+thepromptasbeforeandsuppliedtotheLLM.Crucially, suchtheywillbeignoredbytheinterpreter. Wepassthe
+themodelistaskedwithgeneratingboththethoughtt generatedprogramt toitscorrespondingsolver,werun
+test test
+andthefinalanswery . Thisapproachofpromptingthe it,andobtainthefinalrunresulty . Inthisworkweuse
+test test
+modeltofirstgenerateareasoningprocesst improves a standard Python interpreter, but this can be any solver,
+test
+the accuracy of the answer y across a wide range of interpreteroracompiler.
+test
+tasks (Wang et al., 2022a; Wei et al., 2022; Zhou et al.,
+2022;Wangetal.,2022b).
+CraftingpromptsforPAL Inourexperiments,welever-
+agedthepromptsofexistingworkwheneveravailable,and
+3.Program-aidedLanguageModels
+otherwiserandomlyselectedthesamenumber(3-6)ofex-
+In a Program-aided Language model, we propose to gen- amples as previous work for creating a fixed prompt for
+erate the thoughts t for a given natural language prob- everybenchmark. Inallcases,weaugmentedthefree-form
+lemxasinterleavednaturallanguage(NL)andprogram- textpromptsintoPAL-styledprompts,leveragingprogram-
+ming language (PL) statements. Since we delegate the mingconstructssuchasforloopsanddictionarieswhen
+solution step to an interpreter, we do not provide the fi- needed. Generally,writingPALpromptsiseasyandquick.
+nal answers to the examples in our prompt. That is, ev-
+We also ensure that variable names in the prompt mean-
+ery in-context example in PAL is a pair (cid:104)x i, t i(cid:105), where
+ingfully reflect their roles. For example, a variable that
+t =[s ,s ,...,s ]witheachs ∈NL∪PL,asequence
+j 1 2 N i describesthenumberofapplesinthebasketshouldhavea
+oftokensineitherNLorPL.Thecompletepromptisthusp
+namesuchasnum apples in basket. Thiskeepsthe
+≡(cid:104)x ·t (cid:105)(cid:107)(cid:104)x ·t (cid:105)(cid:107)...(cid:107)(cid:104)x ·t (cid:105).
+1 1 2 2 k k generated code linked to the entities in the question. In
+Given a test instance x , we append it to the prompt, Section6weshowthatsuchmeaningfulvariablenamesare
+test
+and p(cid:107)x is fed to the LM. We let the LM generate a critical. Notably, it is also possible to incrementally run
+test
+predictiont ,whichcontainsboththeintermediatesteps thePLsegmentsandfeedtheexecutionresultsbacktothe
+test
+andtheircorrespondingprogrammaticstatements. LLMtogeneratethefollowingblocks. Forsimplicity, in
+ourexperiments,weusedasingle,post-hoc,execution.
+This work focuses on COT-style reasoning chain, but in
+A: Roger started with 5 tennis balls.
+Appendix I we show that PAL also improves Least-to-
+tennis_balls = 5
+Most (Zhou et al., 2022) prompts, which introduce rea-
+2 cans of 3 tennis balls each is
+soningchainsthatdecomposeaquestionintosub-questions.
+bought_balls = 2 * 3
+tennis balls. The answer is
+4.ExperimentalSetup
+answer = tennis_balls + bought_balls
+Dataandin-contextexamples Weexperimentwiththree
+broad classes of reasoning tasks: (1) mathematical prob-
+Figure 2: A close-up of a single example from lems (§4.1) from a wide range of datasets including
+a PAL prompt. Chain-of-thought reasoning is GSM8K (Cobbe et al., 2021), SVAMP (Patel et al., 2021),
+highlightedinblue, and PAL programmatic steps ASDIV(Miaoetal.,2020),andMAWPS(Koncel-Kedziorski
+are highlighted in gray and pink. etal.,2016);(2)symbolicreasoning(§4.2)fromBIG-Bench
+Hard(Suzgunetal.,2022);(3)andalgorithmicproblems
+(§4.3)fromBIG-BenchHardaswell. Detailsofalldatasets
+Example A close-up of the example from Figure 1 is areshowninAppendixH. Foralloftheexperimentsfor
+shown in Figure 2. While chain-of-thought only de- which COT prompts were available, we use the same in-
+composes the solution in the prompt into natural lan- contextexamplesasusedbypreviouswork. Otherwise,we
+guage steps such as Rogerstartedwith5tennisballs and randomlysampledafixedsetofin-contextexamples,and
+PAL:Program-aidedLanguageModels 4
+Q:Oliviahas$23. Sheboughtfivebagelsfor$3each. Howmuchmoneydoesshehaveleft?
+money_initial = 23
+bagels = 5
+bagel_cost = 3
+money_spent = bagels * bagel_cost
+money_left = money_initial - money_spent
+answer = money_left
+Figure3: Examplepromptforthemathematicalreasoningtasks,fromtheGSM8Kbenchmark.
+Q:Onthetable,youseeabunchofobjectsarrangedinarow: apurplepaperclip,apinkstressball,
+abrownkeychain,agreenscrunchiephonecharger,amauvefidgetspinner,andaburgundypen.
+Whatisthecoloroftheobjectdirectlytotherightofthestressball?
+...
+stress_ball_idx = None
+for i, object in enumerate(objects):
+if object[0] == 'stress ball':
+stress_ball_idx = i
+break
+# Find the directly right object
+direct_right = objects[stress_ball_idx+1]
+# Check the directly right object's color
+answer = direct_right[1]
+Figure4: AnexampleforaPALpromptintheCOLOREDOBJECTStask. Forspaceconsiderations,weomitthecodethat
+createsthelistobjects.
+usedthesamesetforPALandCOT. and8. ThisraisesthequestionofwhetherLLMscangener-
+alizetolargerandnon-integernumbers? Weconstructeda
+Baselines We consider three prompting strategies: DI- harderversionofGSM8K,whichwecallGSM-HARD,byre-
+RECT prompting – the standard prompting approach us- placingthenumbersinthequestionsofGSM8Kwithlarger
+ingpairsofquestionsandimmediateanswers(e.g., 11)as numbers. Specifically, one of the numbers in a question
+in Brown et al. (2020); chain-of-thought (COT) prompt- wasreplacedwitharandomintegerofupto7digits. More
+ing (Wei et al., 2022); and our PAL prompting. We per- detailsregardingthethisnewdatasetareprovidedinH.1.
+formed greedy decoding from the language model using
+a temperature of 0. Unless stated otherwise, we used 4.2.SymbolicReasoning
+CODEX(code-davinci-002)asourbackendLLMfor
+bothPAL,DIRECT,andCOT.Indatasetswhereresultsfor
+We applied PAL to three symbolic reasoning tasks from
+BIG-BenchHard(Suzgunetal.,2022),whichinvolverea-
+additionalbaseLMs,suchasPaLM-540B,wereavailable
+frompreviouswork,weincludedthemasCOT PaLM-540B. s reo qn uin irg esab ao nu swto eb rij ne gcts qua en sd tic oo nn sc ae bp ots u: t( c1 o) loC rO edLO obR jE eD ctsO oB nJE aC sT urS
+-
+face. Thistaskrequireskeepingtrackofrelativepositions,
+4.1.MathematicalReasoning
+absolutepositions,andthecolorofeachobject. Figure4
+We evaluate PAL on eight mathematical word problem showsanexampleforaquestionandexamplePALprompt.
+datasets. Eachquestioninthesetasksisanalgebraword (2)PENGUINSdescribesatableofpenguinsandsomead-
+problematgrade-schoollevel. Anexampleforaquestion ditionalinformationinnaturallanguage,andthetaskisto
+andPALexamplepromptisshowninFigure3. Wefound answeraquestionabouttheattributesofthepenguins,for
+thatusingexplicitNLintermediatestepsdoesnotfurther example,“howmanypenguinsarelessthan8yearsold?”.
+benefitthesemathreasoningtasks,hencewekeptonlythe While both PENGUINS and COLORED OBJECT tasks re-
+meaningfulvariablenamesintheprompt. quire tracking objects, PENGUINS describes dynamics as
+well, since the penguins in the problem can be added or
+GSM-HARD LLMscanperformsimplecalculationswith removed. Figure17inAppendixJ.2showsanexamplefor
+smallnumbers. However,Madaan&Yazdanbakhsh(2022) a question, a chain-of-thought prompt, and PAL prompt.
+found that 50% of the numbers in the popular GSM8K (3)DATEisadateunderstandingtaskthatinvolvesinferring
+datasetofmathreasoningproblemsareintegersbetween0 datesfromnaturallanguagedescriptions,performingaddi-
+PAL:Program-aidedLanguageModels 5
+Q:Ihaveachair,twopotatoes,acauliflower,alettucehead,twotables,acabbage,twoonions,and
+threefridges. HowmanyvegetablesdoIhave?
+# note: I'm not counting the chair, tables,
+or fridges
+vegetables_to_count = {
+'potato': 2,
+'cauliflower': 1,
+'lettuce head': 1,
+'cabbage': 1,
+'onion': 2
+}
+answer = sum(vegetables_to_count.values())
+Figure5: AnexampleforaPALpromptintheOBJECTCOUNTINGtask. ThebaseLMisexpectedtoconverttheinputinto
+adictionarywherekeysareentitiesandvaluesaretheirquantities,whilefilteringoutnon-vegetableentities. Finally,the
+answeristhesumofthedictionaryvalues.
+GSM8K GSM-HARD SVAMP ASDIV SINGLEEQ SINGLEOP ADDSUB MULTIARITH
+DIRECTCodex 19.7 5.0 69.9 74.0 86.8 93.1 90.9 44.0
+COT
+UL2-20B
+4.1 - 12.6 16.9 - - 18.2 10.7
+COT
+LaMDA-137B
+17.1 - 39.9 49.0 - - 52.9 51.8
+COT
+Codex
+65.6 23.1 74.8 76.9 89.1 91.9 86.0 95.9
+COT
+PaLM-540B
+56.9 - 79.0 73.9 92.3 94.1 91.9 94.7
+COT
+Minerva540B
+58.8 - - - - - - -
+PAL 72.0 61.2 79.4 79.6 96.1 94.6 92.5 99.2
+Table1: Problemsolverate(%)onmathematicalreasoningdatasets. Thehighestnumberoneachtaskisinbold. The
+resultsfor DIRECT and PaLM-540B arefromWeietal.(2022), theresultsforLaMDAandUL2arefromWangetal.
+(2022b),andtheresultsforMinervaarefromLewkowyczetal.(2022). WeranPALoneachbenchmark3timesandreport
+theaverage;thestandarddeviationisprovidedinTable7.
+tionandsubtractionofrelativeperiodsoftime,andhaving 5.Results
+someglobalknowledgesuchas“howmanydaysarethere
+5.1.MathResults
+inFebruary”,andperformingthecomputationaccordingly.
+AppendixJ.3showsexampleprompts. Table 1 shows the following results: across all tasks,
+PALusingCodexsetsanewfew-shotstate-of-the-arttop-
+4.3.AlgorithmicTasks 1 decoding across all datasets, outperforming COT Codex,
+Finally,wecomparePALandCOTonalgorithmicreason-
+COT PaLM-540B, and COT
+Minerva540B
+which was fine-tuned
+onexplicitmathematicalcontent.
+ing. Thesearetaskswhereahumanprogrammercanwrite
+adeterministicprogramwithpriorknowledgeoftheques- Interestingly, COT alsobenefitsfromCodexover PaLM-
+tion. Weexperimentwithtwoalgorithmictasks: OBJECT 540BinsomeofthedatasetssuchasASDIV,butperforms
+COUNTING and REPEAT COPY. OBJECT COUNTING in- worse than PaLM-540B in others such as SVAMP. Yet,
+volvesansweringquestionsaboutthenumberofobjectsbe- usingPALfurtherimprovesthesolverateacrossalldatasets.
+longingtoacertaintype.Forexample,asshowninFigure5:
+“Ihaveachair,twopotatoes,acauliflower,alettucehead,
+twotables,... HowmanyvegetablesdoIhave?”). REPEAT GSM-HARD On GSM-HARD (Table1), theaccuracyof
+COPYrequiresgeneratingasequenceofwordsaccording DIRECTdropsdramaticallyfrom19.7%to5.0%(arelative
+to instructions. For example, as shown in Appendix J.6: dropof74%),theaccuracyof COT dropsfrom65.6%to
+“Repeatthewordduckfourtimes,buthalfwaythroughalso 20.1%(arelativedropofalmost70%),whilePALremains
+sayquack”). stable at 61.5%, dropping by only 14.3%. The results of
+COTonGSM-HARDdidnotimproveevenwhenwereplaced
+itspromptswithpromptsthatincludelargenumbers(Ap-
+pendixB).Thisshowshow PAL providesnotonlybetter
+PAL:Program-aidedLanguageModels 6
+COLOREDOBJECT PENGUINS DATE REPEATCOPY OBJECTCOUNTING
+DIRECTCodex 75.7 71.1 49.9 81.3 37.6
+COT
+LaMDA-137B
+- - 26.8 - -
+COT
+PaLM-540B
+- 65.1 65.3 - -
+COT
+Codex
+86.3 79.2 64.8 68.8 73.0
+PAL
+Codex
+95.1 93.3 76.2 90.6 96.7
+Table2: Solverateonthreesymbolicreasoningdatasetsandtwoalgorithmicdatasets,Inalldatasets,PALachievesamuch
+higheraccuracythanchain-of-thought. ResultswithclosedmodelsLaMDA-137BandPaLM-540Bareincludedifavailable
+topublic(Weietal.,2022;Suzgunetal.,2022).
+resultsonthestandardbenchmarks,butisalsomuchmore 5.2.SymbolicReasoning&AlgorithmicTasksResults
+robust. Infact,sincePALoffloadsthecomputationtothe
+Results for symbolic reasoning and algorithmic tasks are
+Python interpreter, any complex computation can be per-
+showninTable2. InCOLOREDOBJECTS,PALimproves
+formedaccuratelygiventhecorrectlygeneratedprogram.
+overthestrongCOTby8.8%,andby19.4%overthestan-
+darddirectprompting. InPENGUINS,PALprovidesagain
+Large Numbers or Incorrect Reasoning? Are the fail- ofabsolute14.1%overCOT.InDATE,PALfurtherprovides
+uresonGSM-HARDprimarilyduetotheinabilityofLLMs 11.4%gainoverbothCOT Codex, PaLM-540B,and LaMDA-137B.
+to do arithmetic, or do the large numbers in the question
+The two rightmost columns of Table 2 show that PAL is
+“confuse”theLMwhichgeneratesirrationalintermediate
+closetosolvingOBJECTCOUNTING,reaching96.7%and
+steps? To investigate this, we evaluated the outputs gen-
+improving over COT by absolute 23.7%. Similarly, PAL
+eratedby COT forthetwoversionsofthesamequestion
+vastly outperforms COT by absolute 21.8% on REPEAT
+(withandwithoutlargenumbers). Wefindthatin16out
+COPY. Surprisingly, DIRECT prompting performs better
+of 25 cases we analyzed, COT generates nearly identical
+than COT on REPEAT COPY. Yet, PAL improves over
+naturallanguage“thoughts”,indicatingthattheprimaryfail-
+DIRECTby9.3%inREPEATCOPY.
+uremodeistheinabilitytoperformarithmeticaccurately.
+SampleoutputsareprovidedintheAppendix,Table11.
+1
+GSM8K 0.8
+COT
+UL2-20B
+7.3
+COT
+LaMDA-137B
+27.7
+0.6 PaL
+COT
+Codex
+78.0
+CoT
+COT
+PaLM-540B
+74.4
+COT
+Minerva540B
+78.5 [0,2] [3,5] [6,8][9,11][12,14][15,17][18,20][21,23][24,26]
+PAL
+Codex
+80.4 NumberofObjects
+Table 3: Problem solve rate (%) on GSM8K using Figure6: Thesolverateon COLORED OBJECTS withre-
+majority@40(Wangetal.,2022b) specttothenumberofobjectsincludedinthetestquestion.
+Multi-sample Generation As found by Wang et al.
+(2022b),chain-of-thought-stylemethodscanbefurtherim- IsPALsensitivetothecomplexityofthequestion? We
+provedbysamplingk >1outputs,andselectingthefinal examinedhowtheperformanceofPALandCOTchangeas
+answerusingmajorityvoting. Wethusrepeatedthegreedy- thecomplexityoftheinputquestiongrows,measuredasthe
+decodingexperimentsusingnucleussampling(Holtzman numberofobjectsinthequestionofCOLOREDOBJECTS.
+etal.,2019)withp = 0.95andk = 40asinLewkowycz AsshowninFigure6,PALissuperiorCOTacrossallinput
+etal.(2022)andtemperatureof0.7. AsshowninTable3, lengths. Asthenumberofobjectsinthequestionincreases,
+thisfurtherincreasestheaccuracyof PAL from72.0%to COT’saccuracyisunstableanddrops,whilePALremains
+80.4% on GSM8K, obtaining 1.9% higher accuracy than consistentlycloseto100%.Moreanalysisonthetoken-level
+Minerva-540Busingthesamenumberofsamples. predictionscanbefoundinAppendixG.
+ycaruccA
+PAL:Program-aidedLanguageModels 7
+80 80
+PAL 72.0 COT PAL 65.8 65.3 69.8
+60
+COT
+60
+RelativeImprovement 60.1 46.9
+40 40
+31.8
+26.5
+21.7 26.0
+20 20
+19.1 22.3% 19.8% 8.6
+13.6%
+0 0
+code-cushman-001 code-davinci-001 code-davinci-002 text-davinci-001 text-davinci-002 text-davinci-003
+Figure7: PALwithdifferentmodelsonGSM8K:though Figure 8: PAL with NL LMs on GSM8K: though
+the absolute accuracies with code-cushman-001 COToutperformsPALwithtext-davinci-001,once
+and code-davinci-001 are lower than the base LM is sufficiently strong, PAL is beneficial
+code-davinci-002, the relative improvement of with text-davinci-002 and text-davinci-003
+PALoverCOTisconsistentacrossmodels. aswell. Thatis,PALisnotlimitedtocode-LMsonly.
+6.Analysis not only from having a better prompt. Additional details
+areprovidedinAppendixB.Foradditionaldiscussionon
+Does PAL work with weaker LMs? In all our experi-
+theadvantagesofcode-promptsovertextual-prompts,see
+mentsinSection5,PALusedthecode-davinci-002
+AppendixG.
+model;butcanPALworkwithweakermodelsofcode? We
+comparedPALwithCOTwhenbothpromptingapproaches
+Dovariablenamesmatter? Inallourexperiments,we
+use the same weaker base LMs code-cushman-001
+usedmeaningfulvariablenamesinthePALprompts,toease
+andcode-davinci-001. AsshowninFigure7, even
+themodel’sgroundingofvariablestotheentitiestheyrep-
+thoughtheabsoluteaccuraciesofcode-cushman-001
+resent. ForthePythoninterpreter,however,variablenames
+andcode-davinci-001arelower,therelativeimprove-
+aremeaningless. Tomeasuretheimportanceofmeaningful
+mentofPALoverCOTremainsconsistentacrossmodels.
+variablenames,weexperimentedwithtwopromptsvariants:
+ThisshowsthatPALcanworkwithweakermodels,while
+itsbenefitscaleselegantlytostrongermodelsaswell.
+1. PAL
+−comment
+–thePALpromptwithoutintermediate
+NLcomments.
+Does PAL work with LMs of natural language? We
+also experimented with PAL using the text-davinci 2. PAL−var –thePALpromptwithoutintermediate
+−comment
+series. Figure 8 shows the following interesting re- NL comments and with variable names substituted
+sults: when the base LM’s “code modeling ability” is withrandomcharacters.
+weak(usingtext-davinci-001),COTperformsbetter
+than PAL. However, once the LM’s code modeling abil- TheresultsareshowninFigure9. InCOLOREDOBJECTED
+ityissufficientlyhigh(usingtext-davinci-002and andDATE,removingintermediateNLcommentsbutkeep-
+text-davinci-003),PALoutperformsCOT,andPAL ingmeaningfulvariablenames(PAL −comment)–slightlyre-
+text-davinci-003performsalmostasPAL code-davinci-002. ducestheresultscomparedtothefullPALprompt,butitstill
+ThisshowsthatPAL isnotlimitedtoLMsofcode,butit achieveshigheraccuracythanthebaselinesCOT.Remov-
+can work with LMs that were mainly trained for natural ingvariablenamesaswell(PAL−var )furtherdecreases
+−comment
+language,iftheyhaveasufficientlyhighcodingability. accuracy, and performs worse than COT. Since variable
+nameshaveanimportantpartincodequality(Gellenbeck
+IsPALbetterbecauseofthePythonpromptorbecause & Cook, 1991; Takang et al., 1996), meaningful variable
+of the interpreter? We experimented with generating namesareonlyexpectedtoeasereasoningforCodex,which
+Pythoncode,whilerequiringtheneuralLMto“execute”it wastrainedonmostlymeaningfulnames,aswasalsofound
+aswell, withoutusinganinterpreter, followingNyeetal. byMadaanetal.(2022).
+(2021);Madaanetal.(2022). Wecreatedpromptsthatare
+similartoPAL’s,exceptthattheydoincludethefinalanswer.
+7.RelatedWork
+Thisresultedina23.2solverateon GSM8K,muchlower
+thanPAL(72.0),andonly4.5pointshigherthanDIRECT. Prompting Few-shotprompting(Brownetal.,2020)has
+Theseresultsreinforceourhypothesisthatthemainbenefit been shown to be an effective approach for a variety of
+of PAL comes from the synergy with the interpreter, and tasks(Liuetal.,2021)rangingfromtext-(Gehrmannetal.,
+etarevloS
+PAL:Program-aidedLanguageModels 8
+100 95.2 COT PAL PAL −comment PAL− −v coar mment 93.3
+91.1 91.3 91.9
+90
+84.4
+79.9 79.2
+80 76.2
+69.1
+70
+64.8
+63.4
+60
+ColoredObjects Date Penguins
+Figure9: AblationstudyofPALpromptformats. WeconsidertheoriginalPALprompt,itwithnaturallanguagecomments
+removed(PAL −comment),andfurthervariablenamesreplacedwithrandomcharacter(PAL− −v coar mment). Asareference,wealso
+showtheCOTperformance(blue).
+2021;Reifetal.,2021;Weietal.,2021;Sanhetal.,2021) model,whilePALachieves79.4%onthesamebenchmark
+tocode-generation(Chenetal.,2021b). Methodssuchas withoutanyspecializedpretraining.
+chain-of-thoughtprompting(COT)havefurtherunlockeda
+ShortlyafterapreprintofourworkwassubmittedtoarXiv,
+varietyofreasoningtasks,boostingtheperformanceofmod-
+another related work on “program of thought prompting”
+elsonavarietyofbenchmarks. Nevertheless,allprevious
+(Chen et al., 2022) was also submitted to arXiv. Their
+approachessufferfrominaccuracyinarithmeticcalculation
+method is conceptually similar to ours, but PoT (1) only
+andincorrectreasoning(Lewkowyczetal.,2022;Hendrycks
+demonstratesefficacyonmathematicalproblems,whereas
+etal.,2021;Madaan&Yazdanbakhsh,2022). PALavoids
+wedemonstrategainsonsymbolicandalgorithmicbench-
+theseproblemsbyoffloadingthecalculationandsomeof
+marks as well, and (2) chose benchmark-specific prompt
+thereasoningtoaPythoninterpreter, whichiscorrectby
+examples,whileweusedthesamepromptexamplesaspre-
+construction, given the right program. Further, not only
+viouswork,todisentangledthebenefitofourapproachfrom
+thatPALcanimprovethestandardchain-of-thought,itcan
+thebenefitofthechoiceofexamples.
+improveleast-to-mostprompting(Zhouetal.,2022)aswell,
+asweshowinAppendixI.
+LMs with external tools Several prior works have
+equippedneuralmodelswithspecializedmodules. Forex-
+ample, Cobbe et al. (2021) employ a calculator for arith- Semantic parsing Our work can also be seen as a very
+metic operations as a post hoc processing, and Demeter generalformofsemanticparsing,whereinsteadofparsing
+&Downey(2020)addspecializedmodulesforgenerating intostrictdomain-specificlanguages,themodelgenerates
+citiesanddates. Unliketheseworks, PALgeneratescode free-formPythoncode. Someworksconstrainthedecoder
+foraPythoninterpreter,whichisgeneralenoughtohandle usingaContext-FreeGrammar(CFG)togenerateadomain-
+botharithmeticcalculationsanddates,withoutspecialized specificmeaningrepresentation(Shin&VanDurme,2021)
+modulesandad-hocfixes. Chowdheryetal.(2022)andWei oracanonicalutterance,whichcanbeconvertedtoaLisp-
+etal.(2022)havealsoexperimentedwithexternalcalcula- likemeaningrepresentation(Shinetal.,2021). Incontrast,
+tors;however,thecalculatorhadimprovedCodexbyonly PALdoesnotrequireanyconstrainingordomain-specific
+2.3%(absolute)onGSM8KandimprovedPaLM-540Bby representationsotherthanPythoncode. Further,LMsthat
+1.7%, while PAL improves Codex by 6.4% on the same werepretrainedonPythonareabundantcomparedtoother
+benchmark (Section 5.1). Similarly to our work, Chowd- domain-specific languages, making Python code a much
+heryetal.(2022)havealsoexperimentedwithgenerating morepreferablerepresentation.Andoretal.(2019)generate
+PythoncodeforsolvingtheGSM8Kbenchmark,buttheir task-specificarithmeticoperationsforreadingcomprehen-
+experimentsresultedinlower accuracythanthestandard siontasks;Guptaetal.(2019)designneuralmodulessuch
+PaLM-540B that uses chain-of-thought. Pi et al. (2022) ascounttodealwitharithmeticoperations. PAL gener-
+pretrainthemodelonexecutionresultsofrandomexpres- alizestheseworksbygeneratinggeneralPythonprograms,
+sionsonacalculator,insteadofusingthesolverattesttime withouttheneedfordefiningspecializedmodules. Theclos-
+aswell. Whiletheirmodelcanhypotheticallyperformarith- estworktoourstechnicallymaybeBinder(Chengetal.,
+meticbetterthanotherpretrainedLMs,theirresultsonthe 2022),butitaddressedmostlyansweringquestionsabout
+SVAMPbenchmarkaremuchlower:57.4%usingaT5-11B tablesusingSQLandSQL-likePython.
+PAL:Program-aidedLanguageModels 9
+8.Conclusion C., Tillet, P., Such, F. P., Cummings, D., Plappert, M.,
+Chantzis,F.,Barnes,E.,Herbert-Voss,A.,Guss,W.H.,
+WeintroducePAL,anewmethodfornaturallanguagerea-
+Nichol,A.,Paino,A.,Tezak,N.,Tang,J.,Babuschkin,
+soning, using programs as intermediate reasoning steps.
+I., Balaji, S., Jain, S., Saunders, W., Hesse, C., Carr,
+DifferentlyfromexistingLM-basedreasoningapproaches,
+A. N., Leike, J., Achiam, J., Misra, V., Morikawa, E.,
+the main idea is to offload solving and calculating to an
+Radford, A., Knight, M., Brundage, M., Murati, M.,
+externalPythoninterpreter,insteadofusingtheLLMfor
+Mayer,K.,Welinder,P.,McGrew,B.,Amodei,D.,Mc-
+bothunderstandingtheproblemandsolving. Thisresults
+Candlish,S.,Sutskever,I.,andZaremba,W. Evaluating
+inafinalanswerthatisguaranteedtobeaccurate,giventhe
+LargeLanguageModelsTrainedonCode. arXivpreprint
+correctly predicted programmatic steps. We demonstrate
+arXiv:2107.03374,2021a.
+this seamless synergy between an LLM and a Python in-
+terpreteracross13tasksfromBIG-BenchHardandother Chen,M.,Tworek,J.,Jun,H.,Yuan,Q.,Pinto,H.P.d.O.,
+benchmarks. In all these benchmarks, PAL outperforms Kaplan,J.,Edwards,H.,Burda,Y.,Joseph,N.,Brockman,
+largerLLMssuchas PaLM-540B whichusethepopular G., etal. Evaluatinglargelanguagemodelstrainedon
+“chain-of-thought”methodandsetsnewstate-of-the-artac- code. arXivpreprintarXiv:2107.03374,2021b.
+curacyonallofthem. Webelievethattheseresultsunlock
+Chen,W.,Ma,X.,Wang,X.,andCohen,W.W. Program
+excitingdirectionsforfutureneuro-symbolicAIreasoners.
+ofthoughtsprompting: Disentanglingcomputationfrom
+reasoningfornumericalreasoningtasks. arXivpreprint
+References
+arXiv:2211.12588,2022.
+Ahn,M.,Brohan,A.,Brown,N.,Chebotar,Y.,Cortes,O.,
+Cheng, Z., Xie, T., Shi, P., Li, C., Nadkarni, R., Hu, Y.,
+David,B.,Finn,C.,Fu,C.,Gopalakrishnan,K.,Hausman,
+Xiong, C., Radev, D., Ostendorf, M., Zettlemoyer, L.,
+K., Herzog, A., Ho, D., Hsu, J., Ibarz, J., Ichter, B.,
+Smith, N. A., and Yu, T. Binding language models in
+Irpan,A.,Jang,E.,Ruano,R.J.,Jeffrey,K.,Jesmonth,
+symboliclanguages. arXivpreprintarXiv:2210.02875,
+S., Joshi, N.J., Julian, R., Kalashnikov, D., Kuang, Y.,
+2022.
+Lee,K.-H.,Levine,S.,Lu,Y.,Luu,L.,Parada,C.,Pastor,
+P., Quiambao, J., Rao, K., Rettinghouse, J., Reyes, D., Chowdhery,A.,Narang,S.,Devlin,J.,Bosma,M.,Mishra,
+Sermanet,P.,Sievers,N.,Tan,C.,Toshev,A.,Vanhoucke, G., Roberts, A., Barham, P., Chung, H. W., Sutton,
+V.,Xia,F.,Xiao,T.,Xu,P.,Xu,S.,Yan,M.,andZeng, C., Gehrmann, S., Schuh, P., Shi, K., Tsvyashchenko,
+A. DoasICan, notasISay: GroundingLanguagein S., Maynez, J., Rao, A., Barnes, P., Tay, Y., Shazeer,
+RoboticAffordances. arXivpreprintarXiv:2204.01691, N., Prabhakaran, V., Reif, E., Du, N., Hutchinson, B.,
+2022. Pope, R., Bradbury, J., Austin, J., Isard, M., Gur-Ari,
+G.,Yin,P.,Duke,T.,Levskaya,A.,Ghemawat,S.,Dev,
+Amini,A.,Gabriel,S.,Lin,S.,Koncel-Kedziorski,R.,Choi,
+S., Michalewski, H., Garcia, X., Misra, V., Robinson,
+Y., and Hajishirzi, H. MathQA: Towards Interpretable
+K., Fedus, L., Zhou, D., Ippolito, D., Luan, D., Lim,
+MathWordProblemSolvingwithOperation-BasedFor-
+H., Zoph, B., Spiridonov, A., Sepassi, R., Dohan, D.,
+malisms. InACL,2019.
+Agrawal, S., Omernick, M., Dai, A. M., Pillai, T. S.,
+Pellat,M.,Lewkowycz,A.,Moreira,E.,Child,R.,Polo-
+Andor,D.,He,L.,Lee,K.,andPitler,E. Givingbertacal-
+zov, O., Lee, K., Zhou, Z., Wang, X., Saeta, B., Diaz,
+culator: Findingoperationsandargumentswithreading
+M.,Firat,O.,Catasta,M.,Wei,J.,Meier-Hellstern,K.,
+comprehension. arXivpreprintarXiv:1909.00109,2019.
+Eck,D.,Dean,J.,Petrov,S.,andFiedel,N. PaLM:Scal-
+Brown,T.B.,Mann,B.,Ryder,N.,Subbiah,M.,Kaplan, ingLanguageModelingwithPathways. arXivpreprint
+J.,Dhariwal,P.,Neelakantan,A.,Shyam,P.,Sastry,G., arXiv:2204.02311,2022.
+Askell,A.,Agarwal,S.,Herbert-Voss,A.,Krueger,G.,
+Cobbe,K.,Kosaraju,V.,Bavarian,M.,Hilton,J.,Nakano,
+Henighan,T.,Child,R.,Ramesh,A.,Ziegler,D.M.,Wu,
+R., Hesse, C., and Schulman, J. Training Veri-
+J.,Winter,C.,Hesse,C.,Chen,M.,Sigler,E.,Litwin,M.,
+fiers to Solve Math Word Problems. arXiv preprint
+Gray, S., Chess, B., Clark, J., Berner, C., McCandlish,
+arXiv:2110.14168,2021.
+S.,Radford,A.,Sutskever,I.,andAmodei,D. Language
+ModelsareFew-ShotLearners. InNeurIPS,2020. Demeter,D.andDowney,D. Justaddfunctions: Aneural-
+symboliclanguagemodel. InProceedingsoftheAAAI
+Chen,M.,Tworek,J.,Jun,H.,Yuan,Q.,Pinto,H.P.d.O.,
+Conference on Artificial Intelligence, volume 34, pp.
+Kaplan,J.,Edwards,H.,Burda,Y.,Joseph,N.,Brockman,
+7634–7642,2020.
+G., Ray, A., Puri, R., Krueger, G., Petrov, M., Khlaaf,
+H.,Sastry,G.,Mishkin,P.,Chan,B.,Gray,S.,Ryder,N., Garcez,A.d.andLamb,L.C. Neurosymbolicai: the3rd
+Pavlov,M.,Power,A.,Kaiser,L.,Bavarian,M.,Winter, wave. arXivpreprintarXiv:2012.05876,2020.
+PAL:Program-aidedLanguageModels 10
+Gehrmann, S., Adewumi, T., Aggarwal, K., Ammana- Liu,P.,Yuan,W.,Fu,J.,Jiang,Z.,Hayashi,H.,andNeubig,
+manchi, P. S., Anuoluwapo, A., Bosselut, A., Chandu, G. Pre-train,Prompt,andPredict: ASystematicSurvey
+K.R.,Clinciu,M.,Das,D.,Dhole,K.D.,Du,W.,Dur- ofPromptingMethodsinNaturalLanguageProcessing.
+mus,E.,Dusˇek,O.,Emezue,C.,Gangal,V.,Garbacea, arXivpreprintarXiv:2107.13586,2021.
+C.,Hashimoto,T.,Hou,Y.,Jernite,Y.,Jhamtani,H.,Ji,
+Madaan,A.andYazdanbakhsh,A. Textandpatterns: For
+Y.,Jolly,S.,Kale,M.,Kumar,D.,Ladhak,F.,Madaan,A.,
+effectivechainofthought,ittakestwototango. arXiv
+Maddela, M., Mahajan, K., Mahamood, S., Majumder,
+preprintarXiv:2209.07686,2022.
+B. P., Martins, P. H., McMillan-Major, A., Mille, S.,
+van Miltenburg, E., Nadeem, M., Narayan, S., Niko-
+Madaan,A.,Zhou,S.,Alon,U.,Yang,Y.,andNeubig,G.
+laev, V., Niyongabo, R.A., Osei, S., Parikh, A., Perez-
+Language models of code are few-shot commonsense
+Beltrachini,L.,Rao,N.R.,Raunak,V.,Rodriguez,J.D.,
+learners. arXivpreprintarXiv:2210.07128,2022.
+Santhanam,S.,Sedoc,J.,Sellam,T.,Shaikh,S.,Shimo-
+rina,A.,Cabezudo,M.A.S.,Strobelt,H.,Subramani,N., Marcus, G. Deep learning: A critical appraisal. arXiv
+Xu,W.,Yang,D.,Yerukola,A.,andZhou,J. TheGEM preprintarXiv:1801.00631,2018.
+Benchmark:NaturalLanguageGeneration,itsEvaluation
+Marcus,G. Thenextdecadeinai: fourstepstowardsrobust
+andMetrics. arXivpreprintarXiv:2102.01672,2021.
+artificialintelligence. arXivpreprintarXiv:2002.06177,
+Gellenbeck, E. M. and Cook, C. R. An investigation of 2020.
+procedureandvariablenamesasbeaconsduringprogram
+Miao, S.-y., Liang, C.-C., and Su, K.-Y. A diverse cor-
+comprehension. In Empirical studies of programmers:
+pus for evaluating and developing English math word
+Fourthworkshop,pp.65–81.AblexPublishing,Norwood,
+problemsolvers. InProceedingsofthe58thAnnualMeet-
+NJ,1991.
+ingoftheAssociationforComputationalLinguistics,pp.
+975–984, Online, July 2020. Association for Compu-
+Gupta, N., Lin, K., Roth, D., Singh, S., and Gardner, M.
+tational Linguistics. doi: 10.18653/v1/2020.acl-main.
+Neuralmodulenetworksforreasoningovertext. arXiv
+92. URL https://aclanthology.org/2020.
+preprintarXiv:1912.04971,2019.
+acl-main.92.
+Hendrycks,D.,Burns,C.,Kadavath,S.,Arora,A.,Basart,
+Mishra, S., Finlayson, M., Lu, P., Tang, L., Welleck, S.,
+S., Tang, E., Song, D., and Steinhardt, J. Measuring
+Baral, C., Rajpurohit, T., Tafjord, O., Sabharwal, A.,
+mathematicalproblemsolvingwiththeMATHdataset,
+Clark, P., and Kalyan, A. Lila: A unified benchmark
+2021. URLhttps://openreview.net/forum?
+formathematicalreasoning. InProceedingsofthe2022
+id=7Bywt2mQsCe.
+ConferenceonEmpiricalMethodsinNaturalLanguage
+Processing(EMNLP),2022.
+Holtzman, A., Buys, J., Du, L., Forbes, M., and Choi, Y.
+TheCuriousCaseofNeuralTextDegeneration. InICLR, Nogueira,R.,Jiang,Z.,andLin,J. Investigatingthelimita-
+2019. tionsoftransformerswithsimplearithmetictasks. arXiv
+preprintarXiv:2102.13019,2021.
+Koncel-Kedziorski,R.,Roy,S.,Amini,A.,Kushman,N.,
+andHajishirzi,H. Mawps: Amathwordproblemreposi- Nye,M.,Andreassen,A.J.,Gur-Ari,G.,Michalewski,H.,
+tory. InProceedingsofthe2016ConferenceoftheNorth Austin,J.,Bieber,D.,Dohan,D.,Lewkowycz,A.,Bosma,
+AmericanChapteroftheAssociationforComputational M., Luan, D., Sutton, C., and Odena, A. Show your
+Linguistics: HumanLanguageTechnologies,pp.1152– Work: ScratchpadsforIntermediateComputationwith
+1157,2016. Language Models. arXiv preprint arXiv:2112.00114,
+2021.
+Lewkowycz, A., Andreassen, A., Dohan, D., Dyer, E.,
+Patel,A.,Bhattamishra,S.,andGoyal,N. AreNLPModels
+Michalewski, H., Ramasesh, V., Slone, A., Anil, C.,
+ReallyAbletoSolveSimpleMathWordProblems? arXiv
+Schlag, I., Gutman-Solo, T., Wu, Y., Neyshabur, B.,
+preprintarXiv:2103.07191,2021.
+Gur-Ari, G., and Misra, V. Solving quantitative rea-
+soningproblemswithlanguagemodels. arXivpreprint Pi,X.,Liu,Q.,Chen,B.,Ziyadi,M.,Lin,Z.,Gao,Y.,Fu,
+arXiv:2206.14858,2022.
+Q., Lou, J.-G., and Chen, W. Reasoning like program
+executors. arXivpreprintarXiv:2201.11473,2022.
+Ling,W.,Yogatama,D.,Dyer,C.,andBlunsom,P. Program
+Induction by Rationale Generation: Learning to Solve Qian,J.,Wang,H.,Li,Z.,Li,S.,andYan,X. Limitations
+andExplainAlgebraicWordProblems. arXivpreprint oflanguagemodelsinarithmeticandsymbolicinduction.
+arXiv:1705.04146,2017. arXivpreprintarXiv:2208.05051,2022.
+PAL:Program-aidedLanguageModels 11
+Reif, E., Ippolito, D., Yuan, A., Coenen, A., Callison- Yao,S.,Zhao,J.,Yu,D.,Du,N.,Shafran,I.,Narasimhan,
+Burch,C.,andWei,J. ARecipeforArbitraryTextStyle K.,andCao,Y. React: Synergizingreasoningandacting
+TransferwithLargeLanguageModels. arXivpreprint inlanguagemodels. arXivpreprintarXiv:2210.03629,
+arXiv:2109.03910,2021. 2022.
+Sanh,V.,Webson,A.,Raffel,C.,Bach,S.H.,Sutawika,L., Zhou,D.,Scha¨rli,N.,Hou,L.,Wei,J.,Scales,N.,Wang,X.,
+Alyafeai,Z.,Chaffin,A.,Stiegler,A.,Scao,T.L.,Raja, Schuurmans,D.,Bousquet,O.,Le,Q.,andChi,E. Least-
+A.,Dey,M.,Bari,M.S.,Xu,C.,Thakker,U.,Sharma, to-MostPromptingEnablesComplexReasoninginLarge
+S.S.,Szczechla,E.,Kim,T.,Chhablani,G.,Nayak,N., Language Models. arXiv preprint arXiv:2205.10625,
+Datta,D.,Chang,J.,Jiang,M.T.-J.,Wang,H.,Manica, 2022.
+M.,Shen,S.,Yong,Z.X.,Pandey,H.,Bawden,R.,Wang,
+T.,Neeraj,T.,Rozen,J.,Sharma,A.,Santilli,A.,Fevry,
+T.,Fries,J.A.,Teehan,R.,Biderman,S.,Gao,L.,Bers,T.,
+Wolf,T.,andRush,A.M. MultitaskPromptedTraining
+EnablesZero-ShotTaskGeneralization,2021.
+Shin, R. and Van Durme, B. Few-shot semantic parsing
+with language models trained on code. arXiv preprint
+arXiv:2112.08696,2021.
+Shin,R.,Lin,C.H.,Thomson,S.,Chen,C.,Roy,S.,Platan-
+ios,E.A.,Pauls,A.,Klein,D.,Eisner,J.,andVanDurme,
+B. Constrainedlanguagemodelsyieldfew-shotsemantic
+parsers. arXivpreprintarXiv:2104.08768,2021.
+Suzgun,M.,Scales,N.,Scharli,N.,Gehrmann,S.,Tay,Y.,
+Chung,H.W.,Chowdhery,A.,Le,Q.V.,Chi,E.,Zhou,
+D.,andWei,J. Challengingbig-benchtasksandwhether
+chain-of-thoughtcansolvethem. ArXiv,abs/2210.09261,
+2022.
+Takang, A. A., Grubb, P. A., and Macredie, R. D. The
+effects of comments and identifier names on program
+comprehensibility:anexperimentalinvestigation.J.Prog.
+Lang.,4(3):143–167,1996.
+Wang, X., Wei, J., Schuurmans, D., Le, Q., Chi, E., and
+Zhou,D. Rationale-AugmentedEnsemblesinLanguage
+Models. arXivpreprintsarXiv:2207.00747,2022a.
+Wang, X., Wei, J., Schuurmans, D., Le, Q., Chi, E.,
+and Zhou, D. Self-Consistency Improves Chain of
+ThoughtReasoninginLanguageModels. arXivpreprint
+arXiv:2203.11171,2022b.
+Wei,J.,Bosma,M.,Zhao,V.Y.,Guu,K.,Yu,A.W.,Lester,
+B., Du, N., Dai, A. M., and Le, Q. V. Finetuned Lan-
+guage Models are Zero-shot Learners. arXiv preprint
+arXiv:2109.01652,2021.
+Wei,J.,Wang,X.,Schuurmans,D.,Bosma,M.,Chi,E.,Le,
+Q., and Zhou, D. Chain of Thought Prompting Elicits
+Reasoning in Large Language Models. arXiv preprint
+arXiv:2201.11903,2022.
+Wu,Y.,Jiang,A.Q.,Li,W.,Rabe,M.N.,Staats,C.,Jamnik,
+M.,andSzegedy,C. AutoformalizationwithLargeLan-
+guageModels. arXivpreprintarXiv:2205.12615,2022.
+PAL:Program-aidedLanguageModels 12
+Part I
+Appendix
+Table of Contents
+A AlternativePromptswithoutMeaningfulVariableNames 13
+B AdditionalanalysisonArithmeticReasoning 13
+C EffectofUsingLanguageModelsofCode 14
+D AnalyzingtheEffectofIncreasingNumberofSamplesonPAL 14
+E StandardDeviationsAcrossMultipleOrderofPrompts 17
+F PALBeyondBenchmarks 17
+G CloserLookintoToken-levelBehaviorsofDifferentMechanisms 20
+H Datasets 20
+H.1 CreatingGSM-HARD . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 23
+H.2 GSM-HARDAnalysis . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 23
+I GeneralizationofPALtoLeast-to-MostPrompting 24
+J Prompts 26
+J.1 ReasoningaboutColoredObjects . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 26
+J.2 PenguinsinaTable . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 27
+J.3 DateUnderstanding . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 28
+J.4 Math . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 29
+J.5 ObjectCounting . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 31
+J.6 RepeatCopy . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 32
+K SuccessandFailureModesinSymbolicTasks 33
+K.1 ColoredObjects . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 33
+K.2 PenguinsinaTable . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 33
+K.3 DateUnderstanding . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 34
+PAL:Program-aidedLanguageModels 13
+A.AlternativePromptswithoutMeaningfulVariableNames
+a = 23
+b = 5
+c = 3
+d = b * c
+e = a - d
+print(e)
+(a)Structuredexplanationwithuninformativevariablenames(PAL-var)
+# Olivia has $23
+a = 23
+# number of bagels bought
+b = 5
+# price of each bagel
+c = 3
+# total price of bagels
+d = b * c
+# money left
+e = a - d
+print(e)
+(b)Structuredexplanationwithuninformativevariablenames,butusefulcomments(PAL-var+comms)
+money initial = 23
+bagels = 5
+bagel cost = 3
+money spent = bagels * bagel cost
+money left = money initial - money spent
+result = money left
+print(result)
+(c)PALprompts
+Figure10: RoleoftextinPAL:threedifferentreasoningstepsforthequestionOliviahas$23. Sheboughtfivebagelsfor
+$3each. Howmuchmoneydoesshehaveleft? Uninformativevariablenames(left),Uninformativevariablenameswith
+usefulcomments(left),andPAL.Includingtextdescription
+Setting COT PAL-var PAL-var+comms PAL
+SolveRate 63.1 59.0 69.0 71.8
+Table4: Roleoftext: includingtexteitherasinformativevariablenames(PAL)orcommentsisimportant(PAL-var+
+comms). UninformativevariablenamesPAL-varcauseadrasticdropinperformance,indicatingthatjuststructureisnot
+sufficient. ThecorrespondingpromptsareshowninFigure10.
+Formathematicalproblems,sinceourstandardpromptsdonotusemuchcomment,westartbycreatingalternativeprompts
+wheretheinformativevariablenamesarereplacedwithsingle-letters(Figure10).TheresultsinTable4showsaconsiderable
+performance drop: from an average of 71.8% to 59%. Note that the ablation where structured outputs are completely
+removedinfavorofpurelytextexplanationsispreciselytheCOTsetting,whichachievesasolverateof63%. Theseresults
+underscoretheimportanceoftextbutmoreimportantlyshowthatcombiningbothtextandproceduralstatementsleadsto
+higherperformancegains—eitherissub-optimal.
+B.AdditionalanalysisonArithmeticReasoning
+GSM-hardwithhardprompts TheGSM-HARDexperimentsusedpromptsthatweresampledfromtheGSM8Ktraining
+set. WillCOTbehelpedbyusinglargernumbersinthepromptsaswell? Toinvestigatethis,wecreatepromptswherethe
+numbersarechangedtolargernumbers,matchingthedistributionofnumbersinGSM-HARD. TheresultsinTable5shows
+PAL:Program-aidedLanguageModels 14
+thatevenwithapromptthatmatchesthenumbers,thereareonlymodestgainsinperformance. Theseresultsshowthatthe
+gainsachievedbyusingcode-basedreasoningchainsmaynotbeachievedsimplybyusingbetterfew-shotexamplesfor
+COT.
+RegularPrompt PromptwithLargerNumbers
+COT 23.3 23.8
+Table5: GSM-hardresults,whenthepromptsalsohadexamplesoflargernumbers.
+SuccinctCode Theprogramsusedinfew-shotexamplesbyPALaremulti-step,andshowastep-by-stepbreakdownof
+thereasoningprocess. Isthisbreakdownnecessary? Alternatively,canwereturnasinglelineexpression(seeFigure11b)to
+calculatetheresult? ResultsinTable6(4throw)showsthatisnotthecase. Withsingle-lineexpressions,theperformanceof
+PALfallstothelevelofdirectprompting.
+Generatingtheanswerdirectly PALfirstgeneratesareasoningchainintheformofaPythonprogram,andpassesthe
+generatedprogramtoaruntimetoobtainananswer. IsPALbetteronlybecauseoftheprogram-styleintermediatereasoning
+chains,oraretheimprovementsderivedfromoffloadingexecutiontothePythonruntime? Toinvestigatethis,weexperiment
+withavariantthatforcestheLLMtogeneratetheansweraftergeneratingthereasoningchain(Figure11e). Thissetting
+compelstheLLMtoconditiononthegeneratedcode-basedreasoningtogenerateananswer,simulatingtheruntime. The
+resultsinTable6(5throw)showthatthesolveratedropstonearDIRECTlevels. Thisreinforcesourhypothesisthatwhile
+currentLLMscanbeexcellentatspecifyingahigh-levelplantosolveatask—theyarestillincapableofexecutingthem.
+Ablation SolveRate
+DIRECT(nointermediatereasoning) 19.7
+COT 65.6
+PAL 72.0
+SuccinctCode 47.8
+LLMSimulatingRuntime 23.2
+Table6: SolveRatesforAblations
+C.EffectofUsingLanguageModelsofCode
+Inourexperiments, wefocusedonevaluatingtheperformanceofalanguagemodelforcode. Weaimedtoinvestigate
+whethertheadditionalperformanceboostobservedinourresultswasduetotheuseofmodelslikeCodex,orwhetherour
+formulationwasusefulevenfortext-basedmodels. Tothisend,weconductedadditionalexperimentsusingtext-based
+languagemodels. OurfindingsindicatethatthePALapproachisnotrestrictedtoworkingsolelywithCodex,butcanalso
+beappliedtonaturallanguage(NL)models,aslongasthemodelissufficientlystrong. Specifically,ourresultsshowedthat
+inthetext-davinci-001model,theuseoftheCoTapproachresultedinbetterperformance.
+Model CoT PaL
+text-davinci-001 26.5 8.6
+text-davinci-002 46.9 65.8
+text-davinci-003 65.3 69.8
+D.AnalyzingtheEffectofIncreasingNumberofSampleson PAL
+InSection5.1,weshowthatPALoutperformsstrongbaselinesbothforasinglesampleandbydrawing40samplesand
+usingmajorityvoting. Figure12illustratesthetrendsforcaseswhenthenumberofsamplesdrawnarebetween1and40,
+andtheinterpolationestimatesdemonstratethatPALremainscompetitivethroughoutthenumberofsamples.
+PAL:Program-aidedLanguageModels 15
+def solution():
+"""Shawn has five toys. For Christmas, he got two toys each from his
+; mom and dad. How many toys does he have now?"""
+toys_initial = 5
+mom_toys = 2
+dad_toys = 2
+total_received = mom_toys + dad_toys
+total_toys = toys_initial + total_received
+result = total_toys
+return result
+(a)OriginalExample
+def solution():
+return 5 + 2 + 2
+(b)SuccinctCode
+def solution():
+"""Shawn has 10312864 toys. For Christmas, he got 13267894 toys each
+from his mom and dad. How many toys does he have now?"""
+toys_initial = 10312864
+mom_toys = 13267894
+dad_toys = 13267894
+total_received = mom_toys + dad_toys
+total_toys = toys_initial + total_received
+result = total_toys
+return result
+(c)HardExamplesinPrompt(PAL)
+Example(
+question="Shawn has 10312864 toys. For Christmas, he got 13267894 toys
+each from his mom and dad. How many toys does he have now?",
+thought="Shawn started with 10312864 toys. If he got 13267894 toys each
+from his mom and dad, then that is 26535788 more toys. 10312864 +
+26535788 = 36848652.",
+answer="36848652",
+),
+(d)HardExamplesinPrompt(CoT)
+def solution():
+"""Shawn has five toys. For Christmas, he got two toys each from his
+; mom and dad. How many toys does he have now?"""
+toys_initial = 5
+mom_toys = 2
+dad_toys = 2
+total_received = mom_toys + dad_toys
+total_toys = toys_initial + total_received
+result = total_toys
+return result
+ans = 9
+(e)GeneratingAnswersDirectly
+Figure11: Ablationsoftheoriginalexamplesolutionforthefew-shotpromptingexperiment.
+PAL:Program-aidedLanguageModels 16
+85
+80
+70
+60
+PAL
+COT
+Minerva
+PaLM
+50
+1 8 15 40
+Numberofsampledgenerationsforeachquestion
+Figure12: ComparisonofsolveratesbetweenPALandbaselinesasthenumberofsamplesincreasesfrom1to40. Notethat
+thesolveratesforthebaselines(PaLM,COT,Minerva)areobtainedthroughlogisticinterpolationofsolveratesat1and40
+)%(etaRevloS
+PAL:Program-aidedLanguageModels 17
+E.StandardDeviationsAcrossMultipleOrderofPrompts
+Foreachmathreasoningtask,weruninferenceusingthreerandomorderingsoftheprompts. AsshowninTable7,the
+standarddeviationbetweentheresultsobtainedfromthethreedifferentseedsisminimal.
+COT PAL
+Average StandardDeviation Average StandardDeviation
+GSM8K 65.6 1.10 72.0 0.16
+SVAMP 74.8 0.19 79.4 0.20
+ASDIV 76.9 0.65 79.6 0.14
+GSM-HARD 23.3 0.49 61.2 0.91
+MAWPS-SingleEq 89.1 0.54 96.1 0.30
+MAWPS-SingleOp 91.9 0.55 94.6 0.36
+MAWPS-AddSub 86.0 0.62 92.5 0.34
+MAWPS-MultiArith 95.9 0.51 99.2 0.48
+Table7: Standarddeviationsforthreerunsforthemathreasoningdatasets.
+F. PAL BeyondBenchmarks
+Wearguethatsymbolicreasoningisacrucialcomponentinsolvingawiderangeoftasks. Inthissection,wedemonstrate
+examples of tasks that may not initially appear to require using programs as intermediate reasoning steps, but can be
+improvedthroughtheuseofPAL-stylereasoning. WedemonstratetheseexamplesusingtheChatGPTtool.1 Incontrastto
+thein-context-learningmethodsweusedinthemainpaper,hereweinstructChatGPTtoperformprogram-aidedreasoning
+throughoneoftheuserutterances.
+InFigure13,inCOT-stylereasoning,whilethereasoningchainiscorrect,thefinalansweriswrong. Incontrast,PAL-style
+reasoningcouldnotonlyaccuratelyextractthecolorofobjectsfromthequestionbutalsoproducethecorrectlinesofcode
+tobranchtodifferentsituationsthatyieldtheircorrespondingcorrectanswers.
+AmoreintriguingexampleislettinganLLMcountthenumberoflettersintheword“intriguing”. InFigure14a,whilethe
+step-by-stepexplanationappearsreasonablebysplittingthelettersbyspaces,ChatGPTdoesnotchangetheanswerafter
+thisexplicitreasoningandinsistsonthewronganswer. Explicitlyinstructingthemodeltoperformstep-by-stepreasoning
+beforeansweringthequestionstillyieldsthewronganswer. Incontrast,PAL-stylereasoningonlytakesafewlinesofcode,
+andtheexecutiondoesproducethecorrectanswer,inthiscase. Theseexamplesindicatethat PAL canbenefitevenan
+ostensiblypowerfulmodellikeChatGPT.
+1chat.openai.com
+PAL:Program-aidedLanguageModels 18
+(a)InCOTstylereasoning,thecorrectintermediatereasoningchainleadstowronganswers.
+(b)InPAL,theexecutionofthecodewillproducethecorrectanswer.
+Figure13: ChatGPTwithPALandCOTtoanswerauser-postedquestion
+PAL:Program-aidedLanguageModels 19
+(a)Step-by-stepreasoningstruggleoncountingthenumberoflettersintheword“intrigu-
+ing”whichhastenletters.
+(b)ExplicitlyinstructingChatGPTtoreasonstep-by-stepbeforegeneratinganswerstill
+leadstothewronganswer.
+(c)PALtakesafewlinesofcodeandtheexecutioncouldresultinthecorrectanswer.
+Figure14: ChatGPTwithPALandCOTtoanswerauser-postedquestion
+PAL:Program-aidedLanguageModels 20
+G.CloserLookintoToken-levelBehaviorsofDifferentMechanisms
+Beyondempiricalresults,wemakeinitialattemptstogainadeeperunderstandingofthebehaviorofLLMswithdifferent
+reasoning mechanisms by looking into the token-level log-likelihood of reasoning chains produced by COT and PAL.
+Werandomlyselected20questionsfromtheCOLORED OBJECTSdataset,alongwiththeircorrespondingCOTandPAL
+solutions. Wethenmanuallycomparedthetwomechanismsbyfocusingontokenswithalowlog-likelihood.
+OuranalysisrevealsthatCOToftenhaslowerconfidenceintokensrelatedtonumbersandquantitativeinformation,the
+groundedpositionofspatialadjectives(e.g.,right-most),propertiessuchasthecolorofobjects,andnounsthatrefertothe
+objects. Specifically,wefoundthatthisoccurredinseven,six,two,andsixexamplesoutofthe20weexamined. Incontrast,
+PALuseslistmanipulations,suchaslen(objects),andaccessesobjectsandtheirassociatedpropertiesthroughlist
+indexing(e.g.,object[3][0]). WefoundthattheLLMistypicallyconfidentinproducingtheseprograms. Furthermore,
+weobservedthatwhileCOTrequiresdifferentexpressionsforthesameconceptindifferentcontexts,PALalmostalways
+usesthesameexpression,whichispresumablymorerobust. Forexample,whentherearefiveobjects,COTpredicts“the
+right-mostthingisthefifthitemonthelist”,and“theright-mostthingisthethirditemonthelist”whenthenumberof
+objectsisthree. Occasionally,COTalsopredicts“theright-mostthingislastitemonthelist”whichdoesnotprovidemore
+concreteinformation. Onthecontrary,PALconfidentlypredictsobjects[-1]consistently. Themoreconsistentand
+uniformuseofexpressionsinPALcanbeattributedtotheexplicitanddefinednatureofprogramminglanguages,which
+allowsforclearandaccurateexpressions.
+H.Datasets
+Inthefollowingtables(Table8,Table9,Table10),wepresentsstatisticsandexamplesforthedatasetsweconsidered.
+Dataset N Example
+ReasoningaboutColoredObjects 2000 On the table, you see a bunch of objects arranged in a row: a purple
+paperclip,apinkstressball,abrownkeychain,agreenscrunchiephone
+charger,amauvefidgetspinner,andaburgundypen. Whatisthecolor
+oftheobjectdirectlytotherightofthestressball?
+PenguinsinaTable 149 Hereisatablewherethefirstlineisaheaderandeachsubsequentlineis
+apenguin: name,age,height(cm),weight(kg)Louis,7,50,11Bernard,
+5,80,13Vincent,9,60,11Gwen,8,70,15Forexample: theageof
+Louis is 7, the weight of Gwen is 15 kg, the height of Bernard is 80
+cm. Wenowaddapenguintothetable: James,12,90,12Howmany
+penguinsarelessthan8yearsold?
+DateUnderstanding 369 2015iscomingin36hours. Whatisthedateoneweekfromtodayin
+MM/DD/YYYY?
+Table8: Reasoningdatasetsabouteverydayobjectsandconcepts.
+Dataset N Example
+ObjectCounting 1000 Ihaveachair,twopotatoes,acauliflower,alettucehead,twotables,a
+cabbage,twoonions,andthreefridges. HowmanyvegetablesdoIhave?
+RepeatCopy 32 Repeatthewordduckfourtimes,buthalfwaythroughalsosayquack.
+Table9: Reasoningdatasetsaboutalgorithmicproblems.
+PAL:Program-aidedLanguageModels 21
+Dataset N Example
+GSM8K(Cobbeetal.,2021) 1319 Oliviahas$23. Sheboughtfivebagelsfor$3each. How
+muchmoneydoesshehaveleft?
+SVAMP(Pateletal.,2021) 1000 Eachpackofdvdscosts76dollars. Ifthereisadiscount
+of25dollarsoneachpack. Howmuchdoyouhavetopay
+tobuyeachpack?
+ASDIV(Miaoetal.,2020) 2096 EllenhassixmoreballsthanMarin. Marinhasnineballs.
+HowmanyballsdoesEllenhave?
+SINGLEOP(Koncel-Kedziorskietal.,2016) 562 Ifthereare7bottlecapsinaboxandLindaputs7more
+bottlecapsinside,howmanybottlecapsareinthebox?
+SINGLEEQ(Koncel-Kedziorskietal.,2016) 508 Bennyboughtasoftdrinkfor2dollarsand5candybars.
+Hespentatotalof27dollars. Howmuchdideachcandy
+barcost?
+ADDSUB(Koncel-Kedziorskietal.,2016) 395 Therewere6rosesinthevase. Marycutsomerosesfrom
+her flower garden. There are now 16 roses in the vase.
+Howmanyrosesdidshecut?
+MULTIARITH(Koncel-Kedziorskietal.,2016) 600 The school cafeteria ordered 42 red apples and 7 green
+applesforstudentslunches. But,ifonly9studentswanted
+fruit,howmanyextradidthecafeteriaendupwith?
+Table10: Examplesfrommathreasoningdatasetsusedinthiswork. TablefromWeietal.(2022). Datasetsvaryinnumber
+ofwordsperquestion,with47wordsperquestioninGSM8K,21wordsinSINGLEOP,and∼30wordsintheotherdatasets.
+PAL:Program-aidedLanguageModels 22
+Question COT:GSM COT:GSMHard Identical?
+90singleusecontactscomein1box 90 contacts come in 1 box. Each 90singleusecontactscomein1box. Yes
+andwilllastPete45days.Eachbox boxis$100.00.So90contactscost So1boxwilllastPete45days.Each
+is $100.00 and currently 10% off. $100.00. Ifhebuys2boxes, then boxis$5451440andcurrently10%
+Ifhebuys2boxesofcontact,how hewillhave2x90=180contacts. off.Soeachboxis$5451440*0.9=
+muchwilleachpairofcontactscost? 180 contacts cost 2 x $100.00 = $4906296.Ifhebuys2boxesofcon-
+$200.00. So each pair of contacts tact,hewillhave2*90=180con-
+costs $200.00 / 180 = $1.11. The tacts. Soeachpairofcontactswill
+answeris$1.11. cost $4906296 / 180 = $2725849.
+Theansweris$2725849
+A chef bought 4 bags of onions. The chef bought 4 bags of onions. The chef bought 4 bags of onions. Yes
+Each bag weighs 50 pounds. A Eachbagweighs50pounds.Sothe Eachbagweighs50pounds.Sothe
+pound of onions cost $1.50. How totalweightis4*50=200pounds. totalweightis4*50=200pounds.
+muchdidthechefspend? Apoundofonionscost$1.50. So A pound of onions cost $409201.
+200 pounds of onions cost 200 * So200poundsofonionscost200*
+1.50=300dollars. Theansweris 409201=$81840200. Theanswer
+300. is$81840200.
+A bag has a 5% discount. If it is Thediscountis5%.Soyouwillpay The discount is 5%. So you will Yes
+marked $140, how much will you 95%oftheprice.95%of140is133. pay 95% of the price. 95% of
+payafterthediscount? Theansweris133. $3921772.0722 is $3730654.0682.
+Theansweris$3730654.0682
+A basket of green food costs $25 3basketsofgreenfoodwillcost3 A basket of green food costs No
+andabasketofredfoodcosts$18. *25=75dollars. 3basketsofred 9412763 dollars. A basket of red
+Ifyoubuy3basketsofgreenfood foodwillcost3*18=54dollars. foodcosts18dollars. Ifyoubuy3
+and red food, how much will you Butyouget$2offforeachbasket basketsofgreenfoodandredfood,
+havetopayintotalifyouget$2off ofredfood. Soyouget3*2=6 youwillhavetopay9412763*3+
+foreachbasketofredfood? dollarsoff. Soyoupay75+54-6 18*3=28238280dollars.Ifyouget
+=123dollars.Theansweris123. 2dollarsoffforeachbasketofred
+food,youwillhavetopay28238280
+-18*2=28238244dollars.Thean-
+sweris28238244
+Abumpercarrinkhas12redcars. Thereare12redcars. Thereare2 Therinkhas9318738redcars.They Yes
+Theyhave2fewergreencarsthan fewergreencarsthanredcars. So have2fewergreencarsthanredcars.
+they have red cars. They have 3 there are 12 - 2 = 10 green cars. Sotheyhave9318738-2=9318736
+timesthenumberofbluecarsasthey Thereare3timesasmanybluecars green cars. They have 3 times
+havegreencars. Therinkalsohas asgreencars. Sothereare3*10 the number of blue cars as green
+yellowcars.Iftherinkhas75carsin =30bluecars.Thereare12+10+ cars. So they have 3 * 9318736
+totalhowmanyyellowcarsdothey 30=52carsthatarenotyellow.So = 27956208 blue cars. The total
+have? thereare75-52=23yellowcars. numberofcarsis75. Sothenum-
+Theansweris23. berofyellowcarsis75-9318738-
+9318736-27956208=-55,828,829.
+Theansweris-55,828,829
+Table11: AnalysisofgenerationsfromCODEX. Manualanalysisof25randomlygeneratedthoughtsrevealsthat16outof
+25thoughtswereidentical,whereasotherswerecloseparaphrases.
+PAL:Program-aidedLanguageModels 23
+H.1.CreatingGSM-HARD
+Whilereplacingnumbersinthequestioniseasyusingpatternmatching,amorechallengingaspectisrecalculatingthecorrect
+answer. GSM8Kevaluationsetcontains1319samples,whichisprohibitivelyexpensivetoperformmanualre-calculation.
+Instead, we leverage PAL to assist obtaining the correct answers. For 71% of the examples where PAL is correct on
+GSM8K,weutilizethegeneratedprogramandreplacetheinitialvaluewiththelargervalues. Forexample,ifwecreate
+a harder version of the problem in Figure 3 by replacing $23 dollars with $15687 dollars, we correspondingly replace
+money initial=23 to money initial=15678. Running the program could automatically produce the correct
+answeroftheharderquestion. Notably,thisannotationprocessassumesthataprogramthatproducesacorrectanswerto
+aGSM8Kquestionindicatesthecorrectnessoftheprogramitself. Whilethisisnotguaranteedduetopossiblespurious
+correlations,wemanuallychecked25programsandfoundallofthemarecorrect. Fortheincorrect29%ofthecases,we
+runPALagainandperformnucleussampling(Holtzmanetal.,2019)withtemperature0.7,andrepeattheaboveprocessif
+anycorrectsolutionisfound. Finally,theauthorsmanuallyannotatethecorrectanswerfor50remainingcasesthatPALwas
+notabletosolveafter100iterations.
+H.2.GSM-HARDAnalysis
+Table11showsthoughtsgeneratedwithCOTonGSM8KandGSM-HARD. Amanualanalysisrevealsthatamajorityofthe
+generatedthoughts(16/25)wereidenticalforGSM8KandGSM-HARD,indicatingthatlargernumbersprimarilydiminish
+performanceduetofailureofLLMtodoarithmetic..
+PAL:Program-aidedLanguageModels 24
+I.GeneralizationofPALtoLeast-to-MostPrompting
+Q: Four years ago, Kody was only half as old as Mohamed. If Mohamed is currently
+(cid:44)→ twice 30 years old, how old is Kody?
+A: To answer the question "How old is Kody?", we need to know: "How old is Mohamed?",
+(cid:44)→ "How old was Mohamed four years ago?", "How old was Kody four years ago?".
+(a)Least-to-MostMathReducingPrompt
+Four years ago, Kody was only half as old as Mohamed. If Mohamed is currently twice
+(cid:44)→ 30 years old, how old is Kody?
+Q: How old was Mohamed four years ago?
+A: We were told that Mohamed is currently twice 30 years old, so he is currently 30 *
+(cid:44)→ 2 = 60 years old. That means that four years ago he must have been 60 - 4 = 56
+(cid:44)→ years old. The answer is 56.
+Q: How old is Kody?
+A: Four years ago, Kody was half as old as Mohamed, so Kody must have been 56 / 2 =
+(cid:44)→ 28 years old then. Since Kody was 28 years old four years ago, she must now be 28
+(cid:44)→ + 4 = 32 years old. The answer is 32.
+(b)Least-to-MostMathSolvingPrompt
+# Four years ago, Kody was only half as old as Mohamed. If Mohamed is currently twice
+30 years old, how old is Kody?
+# How old was Mohamed four years ago?
+mohamed_age_current = 30 * 2
+mohamed_age_4_years_ago = mohamed_age_current - 4
+# Final Question: How old is Kody?
+kody_age_4_years_ago = mohamed_age_4_years_ago / 2
+kody_age_current = kody_age_4_years_ago + 4
+answer = kody_age_current
+(c)PALMathSolvingPrompt
+Figure15: PromptsforMathdatasets.
+PreviousexperimentsfocusontheCOTtechnique. ThissectionexaminesifPALgeneralizestootherprompttypes. We
+considerastrongalternativepromptingstrategyLEAST-TO-MOST(Zhouetal.,2022). LEAST-TO-MOSTsolvesproblems
+intwostages,problem-reducingandproblem-solving. Problemreducingstageturnstheproblemintosub-problems,and
+thesolvingstagesolvesthemsequentially. Itkeepstwoprompts,eachforanindividualstage. TopatchLEAST-TO-MOST
+promptswith PAL,weadoptasimpleandstraightforwardapproach: wenotethatproblemreductionrequireslogically
+thinkinginNLwhilesolvingrequirestheprecisionthatPLoffers. Wethereforekeeptheoriginalreducingpromptswhile
+onlyturningsolutionsegmentsinthesolvingscriptsinPL.Weshowanexamplereducingprompt,originalsolvingprompt,
+andPALsolvingpromptinFigure15. NotethatoneuniquepropertyofPALsolvingcannaturallyusepreviousquestions’
+answersasthesymbolvaluesareshared. Incomparison,theoriginalsolvingscriptneedstoexplicitlyre-citeanswersfrom
+previousanswers.
+Dataset(500examples) LEAST-TO-MOST LEAST-TO-MOST+PAL
+GSM8K 67.2 72.8
+SVAMP 75.2 78.2
+Table12: ResultsonGSM8KandSVAMPwithLEAST-TO-MOSTandLEAST-TO-MOSTwithPALsolvingprompt.
+Forouranalysis,weconsidertheMathdatasetsGSM8K,andSVAMPasZhouetal.(2022)foundLeast-to-Mosthelpssolve
+complexmathproblems. WepatchtheGSM8KpromptfromtheZhouetal.(2022)intoPAL.Notethattheothertasksin
+PAL:Program-aidedLanguageModels 25
+Zhouetal.(2022),like“concatenatinglastletters”fromseveralwords,requiresimpleroutinesandaretriviallysolvableby
+PAL.Weexperimentwithsubsetsof500examplesandrecordresultsinTable12. HereweseePALcantakeadvantageof
+theproblemdecompositionofferedbytheLEAST-TO-MOSTreducingandfurtherleveragethearithmeticcapabilityinthe
+Pythonruntimetoachieveadditionalperformancegains.
+PAL:Program-aidedLanguageModels 26
+J.Prompts
+WeshowhereexamplePALpromptsweusedforeachdataset. Weshowoneexampleforeachofthefew-shotprompts.
+Thefullspromptcanbefoundinourreleasedcode.
+J.1.ReasoningaboutColoredObjects
+# Q: On the table, you see a bunch of objects arranged in a row: a purple paperclip,
+a pink stress ball, a brown keychain, a green scrunchiephone charger, a mauve
+fidget spinner, and a burgundy pen. What is the color of the object directly to
+the right of the stress ball?
+# Put objects into a list to record ordering
+objects = []
+objects += [('paperclip', 'purple')] * 1
+objects += [('stress ball', 'pink')] * 1
+objects += [('keychain', 'brown')] * 1
+objects += [('scrunchiephone charger', 'green')] * 1
+objects += [('fidget spinner', 'mauve')] * 1
+objects += [('pen', 'burgundy')] * 1
+# Find the index of the stress ball
+stress_ball_idx = None
+for i, object in enumerate(objects):
+if object[0] == 'stress ball':
+stress_ball_idx = i
+break
+# Find the directly right object
+direct_right = objects[stress_ball_idx+1]
+# Check the directly right object's color
+direct_right_color = direct_right[1]
+answer = direct_right_color
+PAL:Program-aidedLanguageModels 27
+J.2.PenguinsinaTable
+"""Q: Here is a table where the first line is a header and each subsequent line is a
+penguin: name, age, height (cm), weight (kg) Louis, 7, 50, 11 Bernard, 5, 80, 13
+Vincent, 9, 60, 11 Gwen, 8, 70, 15 For example: the age of Louis is 7, the weight
+of Gwen is 15 kg, the height of Bernard is 80 cm. We now add a penguin to the
+table: James, 12, 90, 12
+How many penguins are less than 8 years old?
+"""
+# Put the penguins into a list.
+penguins = []
+penguins.append(('Louis', 7, 50, 11))
+penguins.append(('Bernard', 5, 80, 13))
+penguins.append(('Vincent', 9, 60, 11))
+penguins.append(('Gwen', 8, 70, 15))
+# Add penguin James.
+penguins.append(('James', 12, 90, 12))
+# Find penguins under 8 years old.
+penguins_under_8_years_old = [penguin for penguin in penguins if penguin[1] < 8]
+# Count number of perguins under 8.
+num_penguin_under_8 = len(penguins_under_8_years_old)
+answer = num_penguin_under_8
+Figure17
+PAL:Program-aidedLanguageModels 28
+J.3.DateUnderstanding
+# Q: 2015 is coming in 36 hours. What is the date one week from today in MM/DD/YYYY?
+# If 2015 is coming in 36 hours, then today is 36 hours before.
+today = datetime(2015, 1, 1) - relativedelta(hours=36)
+# One week from today,
+one_week_from_today = today + relativedelta(weeks=1)
+# The answer formatted with %m/%d/%Y is
+one_week_from_today.strftime('%m/%d/%Y')
+PAL:Program-aidedLanguageModels 29
+J.4.Math
+#Q: Olivia has \$23. She bought five bagels for \$3 each. How much money does she have
+left?
+money_initial = 23
+bagels = 5
+bagel_cost = 3
+money_spent = bagels * bagel_cost
+money_left = money_initial - money_spent
+print(money_left)
+#Q: Michael had 58 golf balls. On tuesday, he lost 23 golf balls. On wednesday, he lost
+2 more. How many golf balls did he have at the end of wednesday?
+golf_balls_initial = 58
+golf_balls_lost_tuesday = 23
+golf_balls_lost_wednesday = 2
+golf_balls_left = golf_balls_initial - golf_balls_lost_tuesday -
+golf_balls_lost_wednesday
+print(golf_balls_left)
+#Q: There were nine computers in the server room. Five more computers were installed
+each day, from monday to thursday. How many computers are now in the server room?
+computers_initial = 9
+computers_per_day = 5
+num_days = 4 # 4 days between monday and thursday
+computers_added = computers_per_day * num_days
+computers_total = computers_initial + computers_added
+print(computers_total)
+#Q: If there are 3 cars in the parking lot and 2 more cars arrive, how many cars are in
+the parking lot?
+cars_initial = 3
+cars_arrived = 2
+total_cars = cars_initial + cars_arrived
+print(total_cars)
+#Q: Leah had 32 chocolates and her sister had 42. If they ate 35, how many pieces do
+they have left in total?
+leah_chocolates = 32
+sister_chocolates = 42
+total_chocolates = leah_chocolates + sister_chocolates
+chocolates_eaten = 35
+chocolates_left = total_chocolates - chocolates_eaten
+print(chocolates_left)
+Figure19: Promptusedformathematicalreasoning(1/2)
+PAL:Program-aidedLanguageModels 30
+#Q: Jason had 20 lollipops. He gave Denny some lollipops. Now Jason has 12 lollipops.
+How many lollipops did Jason give to Denny?
+jason_lollipops_initial = 20
+jason_lollipops_after = 12
+denny_lollipops = jason_lollipops_initial - jason_lollipops_after
+print(denny_lollipops)
+#Q: There are 15 trees in the grove. Grove workers will plant trees in the grove today.
+After they are done, there will be 21 trees. How many trees did the grove workers
+plant today?
+trees_initial = 15
+trees_after = 21
+trees_added = trees_after - trees_initial
+print(trees_added)
+#Q: Shawn has five toys. For Christmas, he got two toys each from his mom and dad. How
+many toys does he have now?
+toys_initial = 5
+mom_toys = 2
+dad_toys = 2
+total_received = mom_toys + dad_toys
+total_toys = toys_initial + total_received
+print(total_toys)
+Figure20: Promptusedformathematicalreasoning(2/2)
+PAL:Program-aidedLanguageModels 31
+J.5.ObjectCounting
+# Q: I have a chair, two potatoes, a cauliflower, a lettuce head, two tables, a
+cabbage, two onions, and three fridges. How many vegetables do I have?
+# note: I'm not counting the chair, tables, or fridges
+vegetables_to_count = {
+'potato': 2,
+'cauliflower': 1,
+'lettuce head': 1,
+'cabbage': 1,
+'onion': 2
+}
+print(sum(vegetables_to_count.values()))
+# Q: I have a drum, a flute, a clarinet, a violin, four accordions, a piano, a
+trombone, and a trumpet. How many musical instruments do I have?
+musical_instruments_to_count = {
+'drum': 1,
+'flute': 1,
+'clarinet': 1,
+'violin': 1,
+'accordion': 4,
+'piano': 1,
+'trombone': 1,
+'trumpet': 1
+}
+print(sum(musical_instruments_to_count.values()))
+# Q: I have a chair, two ovens, and three tables. How many objects do I have?
+objects_to_count = {
+'chair': 1,
+'oven': 2,
+'table': 3
+}
+print(sum(objects_to_count.values()))
+Figure21: PromptusedforOBJECTCOUNTING.
+PAL:Program-aidedLanguageModels 32
+J.6.RepeatCopy
+# Q: Repeat the word duck four times, but halfway through also say quack
+result = []
+for i in range(1, 5):
+result.append("duck")
+if i == 2:
+result.append("quack")
+print(" ".join(result))
+# Q: Print boolean eleven times, but after the 3rd and 8th also say correct
+result = []
+for i in range(1, 12):
+result.append("boolean")
+if i == 3 or i == 8:
+result.append("correct")
+print(" ".join(result))
+# Q: say java twice and data once, and then repeat all of this three times.
+result = []
+tmp = ["java", "java", "data"]
+for i in range(3):
+result.extend(tmp)
+print(" ".join(result))
+# Q: ask a group of insects in what family? four times. after the fourth time say The
+happy family
+result = []
+tmp = []
+for i in range(1, 5):
+tmp.append("a group of insects in what family?")
+tmp.append("The happy family")
+result.extend(tmp)
+print(" ".join(result))
+Figure22: PromptusedforREPEATCOPY.
+PAL:Program-aidedLanguageModels 33
+K.SuccessandFailureModesinSymbolicTasks
+K.1.ColoredObjects
+# Find non-gold items to the right of the pencil
+non_gold = [object for object in objects[i+1:] if object[1] != 'gold']
+(a)SnippetofPALdoingafilteroperation.
+# Remove all pink objects
+non_pink = [object for object in objects if object[1] != 'pink']
+# Count number of crayons
+crayons = [object for object in non_pink if object[0] == 'crayon']
+answer = len(crayons)
+(b)SnippetofPALcomposingmultipleoperations.
+Figure23: ExamplemodelgenerationsnippetsonReasoningaboutColorObject.
+Bymanuallyexaminingthethemodeloutputs,weobservethatPALoftenperformsbetteronquestionsthatinvolvecounting
+objectsthatsatisfyoneorseveralconditions. Forexample,COTfailsinthefollowingexample: “Onthedesk,youseea
+bunchofitemsarrangedinarow: agoldtextbook,apurplepuzzle,atealnecklace,andasilverpencil. Howmanynon-gold
+itemsdoyouseetotherightofthepencil?”. WithpureNLreasoning,aLLMcaneasilylosetrackoftheobjectsandoutput
+thewronganswerof“Thenumberofnon-golditemstotherightofthepencilistwo. Sotheansweristwo.”
+Incomparison,PALisabletoaccuratelyconstructtheobjectlistswithcorrectorderandattributes. Further,itcanprecisely
+leverage the simple yet complete PL syntax: it composes routines with functional operators from elementary builtin
+operation/operators. Figure4liststhelastafewlinesofthesolutiontothequestiondescribedabovegeneratedbyPAL,
+whichperformfilteringoverobjects. PALcanfurthercomposesuchoperationsacrossmultiplereasoningstepsasshownin
+Figure23b,whereitfirstfiltersoutallpinkobjectsandthenscanstheremainingtocountcrayons. Otherreasoningsuchas
+“howmanyobjectsareleftafterfiltering”canbeeasilytackledpreciselywithanruntime.
+K.2.PenguinsinaTable
+...This question focuses on age. We know the following: Louis is 7 years old, Bernard
+(cid:44)→ is 5 years old, Vincent is 9 years old, and Gwen is 8 years old.Now, we add James
+(cid:44)→ to this table: James is 12 years old. We then delete the penguin named Bernard
+(cid:44)→ from the table.The penguins that are less than 8 years old are Louis and Bernard.
+(cid:44)→ There are 2 penguins less than 8 years old. So the answer is 2.
+...
+# Delete penguin Bernard.
+penguins = [penguin for penguin in penguins if penguin[0] != 'Bernard']
+# Find penguins under 8 years old.
+penguins_under_8_years_old = [penguin for penguin in penguins if penguin[1] < 8]
+# Count number of perguins under 8.
+num_penguin_under_8 = len(penguins_under_8_years_old)
+answer = num_penguin_under_8
+Figure24: GeneratedSnippetsforonequestion(...WethendeletethepenguinnamedBernardfromthetable. Howmany
+penguinsarelessthan8yearsold?) inPenguinsinaTable
+.
+Inthistask,wefoundatypicalfailuremodeofthelanguageisitsinabilitytostablytracksstatesinitspastgeneration.
+Figure24liststhegenerationsofCOTandPALtothequestionthatcontainstheremovalofapenguin(“...Wethendelete
+thepenguinnamedBernardfromthetable. Howmanypenguinsarelessthan8yearsold?”). AlthoughCOTpicksupthe
+criticalinformationthat“penguinsthatarelessthen8yearsoldareLouisandBernard”,andthat“Bernardisdeleted”. It
+stillfailstoaggregatetheinformationproperlyandinferthatthereisonepenguinlessthen8leftintheend. Incomparison,
+PALexpressesthisdynamicthroughmanipulatingapenguinslistbyfilteringoutthepenguinwhosenameis“Bernard”,
+PAL:Program-aidedLanguageModels 34
+andmaintainingapenguins under 8 years oldlist. Itoffloadstrackingexactthevalues(inthiscase,thelengthof
+thelist)tothedeterministicPythonruntime.
+K.3.DateUnderstanding
+Q: Jane was born on the last day of Feburary in 2001. Today is her 16-year-old
+(cid:44)→ birthday. What is the date 24 hours later in MM/DD/YYYY?
+A: The last day of February is the 28th, so Jane was born on 02/28/2001. Today is her
+(cid:44)→ 16-year old birthday, so today is 02/28/2017. So 24 hours later is 02/29/2017. So
+(cid:44)→ the answer is 02/29/2017.
+# Q: Jane was born on the last day of Feburary in 2001. Today is her 16-year-old
+birthday. What is the date 24 hours later in MM/DD/YYYY?
+# If Jane was born on the last day of Feburary in 2001 and today is her 16-year-old
+birthday, then today is 16 years later.
+today = datetime(2001, 2, 28) + relativedelta(years=16)
+# 24 hours later,
+later = today + relativedelta(hours=24)
+# The answer formatted with %m/%d/%Y is
+later.strftime('%m/%d/%Y')
+Figure25: ExamplemodelgenerationonDateUnderstanding.
+Wefoundthisespeciallycommonwhenthetimedeltasareacrossthemonthboundary. WeshowanexampleinFigure25.
+HerewithCOTprompting,theLLMexpressestheknowledgeofthe28-day-longFebruary,yetitstilloutputs02/29/2017as
+thefinalanswer. WithPAL,theactualcalendarisaccurateasaprogramhandlestheoperation.

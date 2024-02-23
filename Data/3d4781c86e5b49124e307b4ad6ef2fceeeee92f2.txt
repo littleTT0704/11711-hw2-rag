@@ -1,0 +1,964 @@
+Truth-Conditional Captioning of Time Series Data
+HarshJhamtani TaylorBerg-Kirkpatrick
+SchoolofComputerScience ComputerScienceandEngineering
+CarnegieMellonUniversity UniversityofCaliforniaSanDiego
+jharsh@cs.cmu.edu tberg@ucsd.eng.edu
+Abstract
+Inthispaper,weexplorethetaskofautomati-
+callygeneratingnaturallanguagedescriptions
+of salient patterns in a time series, such as
+stock prices of a company over a week. A
+Figure1: Weproposeaneuraltruthconditionalmodelfor
+model for this task should be able to extract highprecisionanddiversetimeseriescaptiongeneration.
+high-levelpatternssuchaspresenceofapeak
+or a dip. While typical contemporary neural
+models with attention mechanisms can gener-
+areabletoselectentriesfromtabularorequivalent
+atefluentoutputdescriptionsforthistask,they
+data during generation by using neural attention
+oftengeneratefactuallyincorrectdescriptions.
+mechanisms. Inmanynaturallyoccurringdescrip-
+We propose a computational model with a
+tionsoftabulardata,humansoftenrefertohigher-
+truth-conditional architecture which first runs
+small learned programs on the input time level patterns, for example in the description of
+series, then identifies the programs/patterns stock index pricing over the week in Fig. 1, the
+which hold true for the given input, and fi- speakerreferstohowthestockpricepeakstowards
+nally conditions on only the chosen valid pro-
+theending. Somerecentworkhaslookedintose-
+gram(ratherthantheinputtimeseries)togen-
+tupswhichrequirenon-trivialinference(Wiseman
+eratetheoutputtextdescription. Aprogramin
+et al., 2017; Chen et al., 2020). However, they
+ourmodelisconstructedfrommodules,which
+typicallydon’tinvolveinferenceaboutnumerical
+aresmallneuralnetworksthataredesignedto
+capturenumericalpatternsandtemporalinfor- patternsintimeseriesdata. Moreover,muchrecent
+mation. The modules are shared across mul- priorworkonidentifyingmorecomplexpatterns
+tiple programs, enabling compositionality as in data for captioning has relied on deep neural
+well as efficient learning of module parame- networks,oftenemployingneuralencodersandat-
+ters. Themodules,aswellasthecomposition
+tention mechanisms. However, such approaches
+ofthemodules,areunobservedindata,andwe
+often fail to generate faithful responses and lack
+learn them in an end-to-end fashion with the
+interpretability (Tian et al., 2019; Dhingra et al.,
+onlytrainingsignalcomingfromtheaccompa-
+2019;Parikhetal.,2020).
+nying natural language text descriptions. We
+find that the proposed model is able to gen- We present a novel neural truth-conditional
+erate high-precision captions even though we modelfortimeseriescaptioning,whichlearnsto
+consider a small and simple space of module
+identifypatternswhichholdtruefortheinputtime
+types.
+series (Figure 2). We first sample a latent pro-
+gram from the space of learned neural operators.
+1 Introduction
+Each program produces a soft truth-value. Then,
+There has been large interest in generating auto- with probability proportional to each program’s
+matic text description (McKeown, 1992) of tabu- truth-value,alanguagedecodergeneratesacaption.
+lar data – for example, prior work has sought to Thus,programsthatyieldlowtruthvalues,donot
+generate biographies from tables of biographical producecaptions. Critically,thedecodertakesan
+information (Lebret et al., 2016), and generating encodingoftheprogramitself,ratherthanthetime
+descriptions from structured meaning representa- series, in order to determine output text. Overall,
+tions (Clairet, 2017). However, in many of these thisapproachallowsforboth: (a)precisioningen-
+tasksthemainfocusisondesigningsystemsthat erated output through explicit truth conditioning,
+719
+Proceedingsofthe2021ConferenceonEmpiricalMethodsinNaturalLanguageProcessing,pages719–733
+November7–11,2021.(cid:13)c2021AssociationforComputationalLinguistics
+Figure 3: A program z = (z ,z ) operates on an input
+P L
+timeseriesxtogivenfinaloutputscores (x). Themodule
+z
+instancesarelearnedfromscratchduringtraining.
+otherdatatopredictananswer. Inourcase,thecon-
+structedcomputationgraphoperatesandidentifies
+salientpatternsinthesourcedatadirectly,without
+beingguidedbyaninputquestion.
+Ourmaincontributionsareasfollows: Wepro-
+pose a novel method for time series captioning
+whichfirstinducesusefulpatternsviacomposing
+simpler modules, identifies the programs which
+holdtrue,andfinallygeneratestextdescribingthe
+selectedprogram. Towardsthisend,wecollectand
+Figure2: MethodOverview:Wepresentatruthconditional releasetwodatasetsconsistingoftimeseriesdata
+modelfortimeseriescaptioning,whichfirstidentifiespatterns withaccompanyingEnglishlanguagedescription
+(composedofsimplermodules)whichholdtrueforagiven
+ofsalientpatterns. Weobservethattheproposed
+datapoint.Decoderconditionsonlyonasampledprogramz
+(andnotoninputx),generatinghighprecisionoutputs. method is able to learn useful patterns, exhibits
+compositionality and interpretability, and gener-
+atesoutputsthataremuchmorefaithfultotheinput
+andexplicitprogramstructureasarepresentation
+comparedtostrongtraditionalneuralbaselines. 1
+of time series trends, and (b) diversity in caption
+generationthroughthesamplingprocess. 2 Truth-ConditionalNaturalLanguage
+Whilesomeofthepatternsindataarecomplex, Description
+theycanbeconsideredtohavebeenconstructedby
+composingsimplerconceptssuchasslope(rateof Ourgoalistolearnmodelsfordescribingsalient
+changeofvalue)orcomparisons(betweenvaluesat patterns in time series data. The main research
+givepoints). Assuch,ourprogramsareconstructed challengeinvolvedistolearnthetypesofpatterns
+bycomposingsimpleroperations/modules. Sucha thathumansfindsalientintimeseriesdata,using
+modulardesignenablessharingofmodulesacross natural language descriptions as the only source
+multipleprograms,leadingtomoredataefficient ofsupervisionduringtraining. Basedonthenovel
+learning of module parameters, and also provid- datasetwecollect(describedinSection4,wefind
+ing better generalization to unseen compositions thatthepatternshumansidentifytendtodescribe
+ofmodules. Weconsiderarelativelysimplespace increasingordecreasingtrends,volatility,compar-
+of three module types, using which our model is isonsofstartandendvalues,presenceofpeaksand
+abletocaptureasignificantfractionofthepatterns dips. Theyalsomentiontemporallocationofpat-
+present in data. The module types could be ex- terns,suchas‘atthebeginning’ofthetimeseries.
+pandedinfuturetocapturemorecomplexpatterns. Thus, our model should be able to learn patterns
+Ourmodeltreatsthechoiceofcomposedcomputa- suchas‘increase’or‘endswithhighervaluecom-
+tiongraphofprogramsasalatentvariable,learned paredtostart’,andtemporalaspectssuchas‘begin’
+usingnaturallanguagedescriptionsastheonlysu- or‘end’.
+pervision. Inthisrespect,ourapproachisrelated Onewaytooperationalizethisprocessisthrough
+to neural module networks used in Andreas et al. thelensofformallogic: e.g. anincreasingtrendat
+(2016a,b),whichconditiononaquestiontogener-
+1Data and code can be found at https://github.
+ateaprogram,whichthenoperatesonanimageor com/harsh19/TRUCE.
+720
+thebeginningofatimeseriesxcanberepresented prove quite effective in experiments, but are ac-
+(cid:2)
+trough the logic z: ∃
+i
+s.t. INCREASE(x i) AND tually relatively simple, being composed of only
+(cid:3)
+BEGIN(i) Thereafter,iftheprogramreturnstrue threemoduletypes. Ourframeworkisextensible,
+ontheinput,onecanconditionononlythelogical however, and future work might consider larger
+programztogenerateoutputtextthatdescribesthis programspaces. Werefertoourproposedmethod
+pattern via a decoder, p(y|z). However, this still as TRUCE (TRUthConditionalgEneration).
+requireslearningordefiningmodulesforpatterns
+andtemporallocation. Inspiredbyneuralmodule 2.2 ProgramsandModules
+networks(Andreasetal.,2016a,b),weproposeto
+As previously mentioned, each program z in our
+use functions parameterized by neural networks
+model is composed of several learnable opera-
+(Figure2)asmodules,incorporatinginductivebias
+tions/modules. Following prior work on neural
+througharchitecturedesign. However,unlikepast
+modularnetworks(Andreasetal.,2016b),wecon-
+work,weconditiononlyonanencodingofsampled
+sider multiple module types, and incorporate in-
+programsthatreturntruetogenerateoutputtext.
+ductivebiasesintheirarchitecturetolearnuseful
+numericalpatterns. Inthecurrentstudy,however,
+2.1 Model
+welimittothreesimpletypesofpatterns: pattern,
+Ourgoalistogenerateatextcaptiony describing locate,andcombine,leavingextensionstothemod-
+a salient pattern in an input time series x. Our ulespaceasafuturedirection. Thesemodulesare
+model’sgenerativeprocessisdepictedinFigure2 composedtogetherintoprogramsthatoperateon
+andoperatesasfollows: Conditionedonaninput theinputtimeseries(Figure2)
+time series x, we first sample a program z from The module types pattern and locate, output a
+a learned prior, p(z|x). The latent program z is vectorofthesamelengthastheinputvector. Both
+composedofseveraloperations/modulescomposed ofthemoutputatemporallylocalizedvector,with
+together,andoutputsatruthvaluescore. Theprior eachvaluebetween0and1(achievedbyapplying
+is governed by the truth-values of corresponding asigmoidactivationfunction),representingthede-
+programs,sothatwearelikelytosampleprograms greeofconfidencethatthepatternitrepresentsis
+with high truth values. Next, we sample caption present at the corresponding position on the tem-
+y conditioning only on the encoding of sampled poralaxis. Forexample,asshowninFigure3,the
+program z to generate the final text – i.e. y is outputofalearnedlocatemoduleisavectorwith
+independentofxgivenz. Intuitively,ifthelatent highvaluesinthemiddlepart,andtheoutputofthe
+programencodessufficientinformationtodescribe pattern module is high on those positions where
+thepatternitdetects,captioningneedonlydepend there is a decrease in the value in the input time
+ontheprogramitself. series.
+The set of latent ‘programs’ in our model are For the current study, we restrict the space of
+learned from data. On executing a program z on programs to consist of one pattern (z P) module
+theinputtimeseriesdatax,weobtainoutputscore instance,andonelocate(z L)moduleinstance. Out-
+s (x) (between 0 and 1, both inclusive). Score putsfromthetwomodulesarecombinedtogether
+z
+s (x) represents the model’s confidence about usingacombinemodule,whichcarriesoutposition-
+z
+whetherthepatterncorrespondingtotheprogram wise multiplication of outputs from z P and z L,
+holdstrueforthegiveninputtimeseries. Notethat followed by a feed-forward layer and a sigmoid
+s (x) does not represent the prior probability of non-linearity.
+z
+program z – since multiple programs can be true Patternmodulesareaimedatlearningpatterns
+(cid:80)
+for a given time series, and s (x) (cid:54)= 1. We such as peaks, dips, increasing trend, and so on.
+z z
+provide our model witha set of building blocks/ Werealizepatternmodulesthroughmultilayer1-
+modules, which combine to form programs. The D convolutions. We argue that 1D convolutions
+compositionofmodulesintoprogramsaswellas provideappropriatearchitecturetoinduceaspects
+themoduleparametersareunobservedindata,and suchasslopes,andcomposethemtoidentifypat-
+are learned during model training. The compo- ternssuchaspeaks. Thelocatemoduletypesare
+sitionality inthe programspace enables modules realizedthoughamixturemodelofKfixedGaus-
+beingsharedacrossprograms,leadingtomoreef- siansplacedatequalintervalsonthetemporalaxis
+ficient learning. The programs we consider will ofgivenlengthT. Theweightsofthecomponents
+721
+represent learnable parameters for such types of 3 LearningandInference
+modules. Thecombinemoduletypelearnstotrans-
+Thelogprobabilityofobservinganaturallanguage
+formtheposition-wisemultipliedoutputstoareal
+descriptiony ofthetimeseriesxunderthemodel
+valued score, which is then passed through a sig-
+canbewrittenasfollows:
+moidfunction.
+(cid:88)
+logp(y|x) = log p (z|x)p (y|z)
+φ θ
+z∈Z
+2.3 Prior
+whereZ isthesetofallpossibleprograms,andθ
+Asdiscussedabove,theoutputofeachprogramz andφarelearnablemodelparameters. Themodel
+isarealvaluedscorebetween0and1. Wedefine is trained to maximize the log likelihood of the
+prioroverthesetofprogramsZ asp(z) ∝ eλs(z), theobserveddescriptionsconditionedonthecor-
+where λ is a hyperparameter. This formulation responding time series data. Since the programs
+makesanimplicitassumptionthataprogramz be- z areunobservedattraining,wemustmarginalize
+ing true for an input time series will make other overallpossiblevaluesofz.
+programs less probable through conservation of
+Inference Network: The space of programs we
+probabilitymass. Suchanassumptionisnecessary,
+currentlyemployisrelativelysmall(about20-60
+as otherwise directly trying to optimize the like-
+number of programs), which makes it feasible to
+lihoodwithoutnormalizingacrossprogramswill
+marginalizeovertheprogramspace. However,any
+leadtotrivialsolutions,whereineachprogramwill
+futureworkexpandingthespaceofprogramsmight
+output high score for every input. Note that an
+runintofeasibilityissueswhencomputingtheex-
+alternativeformulationcoulddirectlyusesoftmax
+actlikelihood. Insuchcases,wecanperhapsresort
+onanunrestrictedreal-valueoutputfrommodules
+tovariationallearningtooptimizealowerbound
+–suchaformulationlosesoutonthesemanticsof
+tothelikelihoodbydrawingsamplesfromaninfer-
+softtruthoutputfromtheprograms,andalsofared
+encenetwork.
+worseinourpreliminaryexperimentalevaluations
+Additionally,useofinferencenetworkscanpro-
+incomparisonwiththeproposedformulation.
+videausefulinductivebiasbyusingtheobserved
+textdescriptionstoguidethemodellearning. For
+example,words‘increase’and‘begin’inacaption
+2.4 Decoder
+could inform the inference network about a high
+chanceofthepresenceofanincreasepatterninthe
+Asmentionedpreviously,ourdecoderconditions
+initialdurationofthetimeseries. Weobservethat
+only on the program z sampled from the prior
+trainingwithinferencenetworksresultsinmodels
+p(z|x) to generate final text. To achieve this, we
+whichcanbettercapturethepatternsindata. Note
+need to pass a program representation to the de-
+thattheinferencenetworkisusedonlyformodel
+coder. We consider an auto-regressive neural de-
+training. Attesttime,wesamplefromthelearned
+codersuchasLSTMorTransformer. Ateverystep,
+prioranddecoderwithoutregardtotheinference
+thedecoderconsidersembeddingofprevioustoken
+network.
+aswellastheinputprogramrepresentation.
+We use amortized variational learning by in-
+A straightforward approach to obtain program
+troducing an inference network q , and train the
+γ
+representationistoassociateeachuniqueprogram
+modeltomaximizethefollowingevidencelower-
+withalowdimensionembeddingvector. However,
+bound(ELBO):
+suchanapproachwillnotfullyexploittheprogram
+structuresandsharedmodules. Instead,wefirstas- E [logp (y|z)]−KL(q (z|y)||p (z|x))
+z∼qγ(z|y) θ γ φ
+sociateeachmodulewithanembedding. Next,the
+representation of a program is constructed by ap- WeuseaBiLSTMencodertoencodethecaption
+pendingtheembeddingsofthecorrespondingmod- y,followedbyaclassificationlayertopredictthe
+ules(usingafixedpre-determinedorderofmodule approximateposteriorq (z|y)overtheprograms.
+γ
+types). Sucharepresentationachievessharingof We also considered fine-tuning of a pre-trained
+moduleembeddingsacrossprograms. Moreover,it BERTmodelinsteadofBiLSTM,butdidnotob-
+enablesobtainingrepresentationofanew(unseen) serveanyimprovementinthemodelperformance
+programcomposedusingthesamesetofmodules. duringtheinitialexperiments.
+722
+Optimization: θ,φandγ arelearnedthroughdi- However,normalizingthiswaydirectlywouldcre-
+rectlyoptimizingtheELBOterm. Wecomputethe ateundesirablebiasesinthedatasetsinceeachtime
+exactreconstructionandtheKL-terms–thenum- serieswouldnecessarilycoverentirerange0-100.
+berofprogramsinourcaseissmallenoughtoen- Instead,tocomputemaxandmin,weadditionally
+ablethisexactcomputation(typicallyweconsider consider 10 values (chosen based on manual in-
+6-10instanceseachofpatternandlocatemodule). spection) just before and just after the currently
+selectedrange.
+4 Datasets
+Annotation collection: We collect 3 natural lan-
+Weareinterestedinmodelingnumericalpatterns
+guageannotationsforeachofthe1900datapoints,
+andtrendsintimeseriesdata. However,thereisa
+leading to a total of 5700 paired time-series with
+lackofexistingdatasourceswithtimeseriesdata
+natural language descriptions. We split the 1900
+paired with natural language descriptions. Some
+unique time series and associated captions into
+prior work on weather forecasting data (such as
+train,dev,andtestsplitswithratio8:1:1.
+Sumtime-Mausam(Sripadaetal.,2003))aretyp-
+Annotatordescription: WeuseAmazonMechan-
+ically small (only 1045 data instances), and are
+icalTurkasacrowd-sourcingplatform. Welimit
+limited in the scope of patterns they encompass.
+to annotators from Anglophone countries, with
+ToTTodataset(Parikhetal.,2020)containsasmall
+HIT(HumanIntelligenceTask)acceptanceratesof
+fractionofdescriptionsbasedonnumericalreason-
+morethan90%,andminimumnumberofaccepted
+ingandpatterns-however,themainchallengeisto
+HITs as 100. Annotators were paid 25 cents for
+findthecorrectvalue(s)byidentifyingtherelevant
+each annotation (which comes to average hourly
+row and column in a table. LOGIC-NLG (Chen
+rateofoverUSD23).
+etal.,2020)consistsof37Ktablesandcorrespond-
+ingnaturallanguagedescriptions,someofwhich
+QualityControl: Basedoninitialpilotstudies,we
+requirecomparisonsofcellsinatable. Incontrast,
+founditusefultoshowannotatorsplotsinsteadof
+wefocusontrendsandpatternsintimeseriesdata.
+tablesofvalues,asweareinterestedinhighlevel
+Thus, we construct a new dataset where natural
+patternsratherthanspecificvalues. Wedonotlabel
+language descriptions are collected for naturally
+the plot lines with actual stock names to remove
+occurringstockpricetimeseriesdata(Section4.1).
+any potential biases one may have about specific
+Additionally,wecollectnaturallanguagedescrip-
+company stocks. Finally, we restrict annotations
+tions for a synthetically constructed set of time
+toamaximumof9words,sothatoneannotation
+seriestoevaluateandanalyseourmodelsinamore
+reflectsonlyonepattern. EachHITislabelledby
+controlledsetup(Section4.2).
+3 different annotators. We manually inspected at
+least one annotation from each unique annotator,
+4.1 STOCKDataset
+andruledout(butstillpaid)annotationsforabout
+Wecollectnaturallyoccurringtimeseriesdatain 7%annotatorsforbeingpoorquality.
+theformofstockprices. WeutilizetheGoogleFi-
+EncouragingLexicalDiversity: Weencouraged
+nanceAPItocollectstockpricesof7randomlycho-
+annotators(throughinstructions)tonotlimitthem-
+sentechnologycompaniesoveraperiodof20years.
+selvestowordsshowninexamples. Additionally,
+Wecollectweekly(beginningofweek)aswellas
+welimiteachannotatortoamaximumof10HITs
+and daily stock price values. We sub-select a to-
+toincreasediversityinannotations.
+talof1900instances,eachofconsistsofsequence
+ofT(=12)values. Eachinstanceissampledfrom DatasetStatistics: Thereareatotalof861unique
+the stock data as follows: (1) we pick one of the wordsacrossthe5700captions. Mostannotation
+companiesuniformlyatrandom(2)werandomly sentencesfollowasimplesyntacticstructure. Ad-
+pickweeklyordailyserieswithequalprobability, ditionally,wepickedarandomsubsetof100data
+(3)wepickasequenceofvaluesofgivenlengthT, points,andmanuallyclassifiedmostoftheminto
+ensuringnooverlapwithanypreviouslyselected followingmajorbuckets: trend(increase/decrease
+timeseries. (4)Additionally,sincedifferentcom- trends: 48%) superlative(max/min values; peaks
+panystockscanbeinverydifferentrangeofvalues, and troughs: 20%); comparisons(comparison of
+wenormalizesuchthatallthevaluesarebetween startandendvalues: 10%);volatility(flat/smooth;
+0and100: v(cid:48) = 100∗(v−min)/(max−min). irregular: 12%).
+723
+Method COR PPL Bleu-3/4 Cider Rouge BERT Method COR Table2: Models
+trained on SYNTH
+TRUCE 92% 13.9 0.61/0.46 1.40 0.74 0.77 TRUCE 97% data (where each
+FCENC 39% 16.7 0.45/0.28 0.81 0.61 0.65 FCENC 38% time series has
+LSTMENC 45% 11.2 0.43/0.28 0.87 0.62 0.63 LSTMENC 50% T=12 values) are
+CONVENC 53% 11.0 0.47/0.32 1.00 0.66 0.67 CONVENC 59% tested on another
+FFTENC 39% 22.7 0.38/0.22 0.67 0.58 0.54 FFTENC 39% synthetic data with
+NEARNBR 71% NA 0.28/0.14 0.60 0.40 0.48 NEARNBR 72% T=24 without any
+fine-tuning.
+Table 1: Results on test split of SYNTH dataset: Human
+evaluationforcorrectness(COR)andvariousautomatedmet-
+rics. TRUCE performs much better than baselines as per neural network. (4) CONVENC: Encodes time
+correctnessevaluation.
+seriesusingamultilayerconvolutionalneuralnet-
+work. (5) FFTENC: Encodes time series using
+4.2 SyntheticTimeSeries(SYNTH) Fouriertransformfeaturesoftheinput.
+To develop and test models in a more controlled
+5.2 Results
+setup,wesyntheticallyconstructtimeseriesdata.
+For TRUCE,wepickthehighestscoringprogram,
+Oursynthetictimeseriesdataisconstructedsuch
+accordingtotheprior, fordescriptiongeneration.
+thateachtimeserieshasexactlyoneofthefollow-
+Wegeneratecaptions(usinggreedydecoding)from
+ing6patterns: increases-in-beginning,increases-in-
+eachofthemethodsforthetestsplit.
+middle,increases-in-end,decreases-in-beginning,
+Automated metrics measure overlap between
+decreases-in-middle,decreases-in-end. Theresult-
+modelgeneratedcaptionandthereferenceground
+ing dataset consists of a total of paired 720 time
+truthcaptions. WereportPerplexity(PPL),BLEU-
+series-naturallanguageannotations.
+3/4(2002),METEOR(BanerjeeandLavie,2005),
+Each synthetic time series is generated as fol-
+ROUGE-L (Rouge) (Lin, 2004), and BertScore-
+lows: First, the trend is chosen: increase or de-
+Precision (BERT) (Zhang et al., 2020). The pro-
+crease. Atrendisrealizedthroughastraightlineof
+posed TRUCE method gets favorable scores as
+lengthL <= T/3,withrandomlychosenintercept
+pervariousautomatedmetricsonthetestsplitof
+andslopewithinarangebasedonthetrendselected.
+SYNTH(Table1).
+Next,werandomlyselectoneofthe3temporallo-
+Human Evaluations for Correctness: Auto-
+cations : begin, middle, end – and based on the
+matedmetricsmaynotcorrelatewellwithactual
+choice,thepatternisplacedinfirst40percentile,
+qualityofthegeneratedoutputintextgeneration
+30-70percentile,or60-100percentilerespectively,
+tasks (Celikyilmaz et al., 2020). As such, we re-
+oftheentirelengthT.Theregionoutsidethetrend
+porthumanevaluationresultsaswell. Werecruit
+isflat. Finally,smallnoiseisaddedtoeachpoint.
+humanannotatorswhoarerequestedtoprovidea
+The setup is such that the resulting values are al-
+binary label on factual correctness (COR) of the
+waysin(0,100)range. Examplesandmorespecific
+captionsforthetestsplit. Eachcaptionisannotated
+detailscanbefoundinAppendix.
+bythreeannotators,andthemajoritylabelisused.
+5 ExperimentswithSyntheticData Theproposedmethodisabletoachieveahighcor-
+rectnessscoreof92%,whichismuchbetterthan
+5.1 Methods thebaselines. Thisdemonstratestheusefulnessof
+the proposed truth-conditional model in generat-
+For SYNTH data, we consider several baselines
+ing highly faithful captions. Output samples are
+listed below (More detailed descriptions are pro-
+providedintheAppendix.
+videdintheAppendix). Notethatallnon-retrieval
+baselinesusethesameLSTMdecoderarchitecture
+5.3 Analysis
+as our model. (1) NEARNBR: The ground-truth
+caption of the closest matching training data in- Generalizationtodifferenttimeseriesduration:
+stanceisusedastheprediction. Theclosestmatch- SYNTHdataconsistsoftimeseriesinstanceswith
+inginstanceisidentifiedviaL2distancebetween T=12 sequence of values. We experiment the ex-
+input time series. (2) FCENC: Encodes the in- tenttowhichmodelstrainedonSYNTHcanaccu-
+puttimeseriessequenceusingamulti-layerfeed- ratelydetectpatternsintimeseriesdataofdifferent
+forwardencoder. (3) LSTMENC: Encodesthein- lengthswithoutanyfine-tuning. Forthis,weevalu-
+puttimeseriessequenceusingaLSTMrecurrent ateresultsonaseparatesyntheticdataconsistingof
+724
+Module Mostfreq.wordsassociated Model’s prediction is considered to be correct if,
+id withlearnedmodules forexample,foraninputwith‘decrease-beginning’
+pattern-1 increases,rises pattern, model assigns highest score to the pro-
+pattern-2 decreases,decline,dips
+gram composed using modules corresponding to
+locate-1 end,late
+locate-2 beginning,start,initial ‘decrease’ and ‘beginning’. We observe that the
+locate-3 middle,halfway highest scoring program is the correct/expected
+programfor92%ofthecasesinthetestsplit.
+Table3: Someofthemostfrequentwordsassociatedwith
+someofthelearnedmoduleinstancesforSYNTHdata.
+6 ExperimentswithSTOCKDataset
+100timeserieswithT’=24valuespertimeseries
+6.1 PosteriorRegularization:
+(datasetcreatedinthesamemannerasSYNTHand
+consistsofthesamesetof6classesasinSYNTH).
+In the initial experiments with STOCK dataset,
+We observe that TRUCE retains high correct-
+we observe that our model suffers from model
+ness of the output captions (Table 5.2), whereas
+collapse, and degenerates into learning a single
+someofthehighperformingbaselineshowsignif-
+program only. This is perhaps because randomly
+icantreductionincorrectness. Notethatsomeof
+initialized modules don’t have much guidance to
+theemployedmethodslikeNEARNBRandFCENC
+begin with. To mitigate such mode collapse is-
+cannotworkdirectlyoninputsoflengthdifferent
+sues, prior work has used mutual posterior di-
+thanpresentinthetrainingdata. Forsuchmodels,
+vergence (MPD) regularization (Ma et al., 2019)
+we first adjust length of series. For example, for
+−E KL(q(z|y )||q(z|y )), where y and y
+length24input,weconsideralternatevaluesonly,
+yi,yj i j i j
+captionsfortworandomlychosendatapoints.
+therebyreducingtheseriestolength12(sameas
+However,wenotethatMPDtermenforcesthedi-
+inthetrainingdata).
+vergenceinanindiscriminatemanner–divergence
+Analyzing Learned Modules: We analyze the
+isencouragedevenifcaptionsareparaphrasesof
+characteristics of the learned modules by identi-
+each other. An alternate way to encourage diver-
+fying the top words (excluding stop words) asso-
+genceintheinferencenetworkpredictionistoen-
+ciated with each learned module. To do so, for a couragedivergenceonlywhentwocaptionsy and
+i
+givenseries, we findprogram with highestscore, y representdifferentprogramsorpatterns. How-
+j
+andassociatetheannotationsforthatseriestocor-
+ever,suchinformationisnotavailableinthetrain-
+respondingmodulesinthatprogram. Finally,we
+ingdata. Instead,weuseanapproximationasfol-
+collectthemostfrequentwordsinannotationsas- lows: WeidentifytheM mostfrequentlyoccurring
+sociatedwitheachmodule. Weshowasummary
+wordsexcludingstop-words(listavailableinAp-
+intheTable3. Thetwotrendmodulesseemtobe
+pendix)inthecaptionsandaremanuallylabelled
+gettingactivatedforincreaseanddecreasepatterns
+totorepresentpatternorlocateorneither. Eachof
+respectively.
+the words labelled to be of type pattern or locate
+is assigned a unique pattern or locate module id
+Compositionality of Learned Modules We ana-
+respectively. Thecorrespondingcaptionsthusget
+lyzeiftheproposedmodelusesitscompositional
+taggedwithsomeheuristic(butpotentiallynoisy)
+parameterizationeffectively. Todoso,weconduct
+labels for module ids. Only those captions are
+asimpleanalysisasfollows: Wetrain TRUCE on
+taggedwhichhaveexactlyone‘locate’wordand
+asubsetofsyntheticdataconsistingofonlythefol-
+one‘pattern’word. Thisleadstoabout31%ofthe
+lowing4patterns: increase-beginning,decreases-
+captionsbeingassignedsuchheuristiclabels,while
+end,increase-middle,decreases-middle. Weexam-
+theremainingdatastaysunlabelled.
+inethistrainedmodel’sbehaviorontestdatapoints
+consistingofthetwounseenpatterns: increase-end The above procedure does involve a small
+anddecrease-beginning. Morespecifically,wean- human-in-the-loopcomponent. However,wenote
+alyze the argmax program prediction as per the thatitisaprettylight-weightinvolvement. Forex-
+conditionalprior. Basedonmanualinspectionof ample,thesystempresentsM(=10)mostfrequent
+modules (similar to what we discussed for anal- pairsofwords(excludingstopwords)incaptions,
+ysis in Table 3), we know before hand the pro- andapersonspendsacoupleofminuteslabeling
+gramwhichshouldbeselectedforthesepatterns. theirtype(locateorpattern).
+725
+Method COR Bleu-3/4 Cider Rouge BERT
+TRUCE(Ours) 88.4% 0.35/0.19 0.36 0.50 0.57
+FCENC 64.2% 0.32/0.19 0.43 0.47 0.56
+LSTMENC 65.5% 0.35/0.21 0.41 0.50 0.61
+CONVENC 65.9% 0.33/0.18 0.41 0.49 0.59
+FFTENC 61.8% 0.34/0.19 0.39 0.49 0.58
+NEARNBR 47.2% 0.12/0.06 0.14 0.28 0.35
+Table 4: Results with STOCK data: Proposed method
+TRUCEscoresthebestoncorrectnessevaluation.Thebest
+Figure 4: Coverage and Correctness of model outputs at
+performingbaselinescores20%lessoncorrectnessevaluation.
+differentsamplingsettings. Ingeneral,settingswithhigher
+Greedydecodingwasusedforallthemethods.
+coverageofhumanwrittencaptionshavelowerprecisionof
+generatedcaptions. TRUCEachievesmuchhighercorrect-
+nessscorescomparedtobaselinesforsimilarcoveragevalues.
+6.2 Results
+We now report results with STOCK dataset. As Figure4,wedemonstratecoverageandcorrectness
+mentionedabove,weutilizeheuristiclabelsasan valuesofTRUCEandtwoofthebaselinemodels
+auxiliarylosswhentrainingtheproposedmethod. under different sampling conditions. In general,
+Thus, for a fair comparison, the baselines LST- restricting samples to a low value of top-p leads
+MENC,CONVENCandFCENCalsousethesame tolowercoveragebuthighercorrectness. Overall,
+set of heuristic labels via a classification loss on TRUCE behavesinamorefavorablemanner. For
+theencodedrepresentationinamulti-tasklearning example,comparing TRUCE against CONVENC,
+setup. forroughlysamelevelofcoverage(e.g. 50%),cor-
+The proposed method TRUCE produces high rectnessismuchhigherfor TRUCE (83%against
+precisioncaptionsasjudgedbyhumanannotators 45%for CONVENC). However,therestillseemsto
+(Table 4). We additionally report automated text bea gapin thecoverageof patterns, andcan per-
+overlapscoresagainstreferencecaptions,though hapsbeaddressedbyincorporatingmoremodule
+theautomatedmetricsseemonlymildlycorrelated types.
+withhumanjudgementratings. Interestingly,some
+of the baselines show large differences in perfor- 6.3 Analysis
+mance in STOCK vs SYNTH datasets. For ex-
+Direct conditioning on the input: Our decoder
+ample, NEARNBR performswellonSYNTHbut
+conditionsonlyanencodingofasampledprogram.
+ratherpoorlyonSTOCKdataset,perhapsbecause
+We hypothesize that such an approach creates a
+ofvarietyintimeseriesinstancesinSYNTHbeing
+bottleneckdiscouragingthedecoderfromlearning
+small,whilethesamebeinglargeinSTOCK.
+spuriouscorrelationsbetweentheinputtimeseries
+Diversity and Coverage: Ideally, we want mod- andtheoutputtext. Toinspecttheusefulnessofthe
+els which can identify all the interesting patterns proposed abstraction, we consider an alternative
+presentinaninputtimeseries. Correctnessresults modelwhereinthedecoderconditionsontheinput
+discussedearlierareindicativeoffaithfulgenera- time series as well – by providing output of a
+tionbutdonotnecessarilycapturecoverageofpat- convolutional encoder (same as in CONVENC)
+terns. Wecomputecoverageofvariousmodelsvia to the decoder. More specifically, the program
+thefollowingprocedure. First,wecollectL(=12) representation and the encoder representation
+samplesperdatapointfromthemodel. Next,we are concatenated before being fed to the decoder.
+recruithumanannotatorstoratewhetherahuman Lets refer to such a model with decoder having
+writtenreferenceannotationsforthatdatapointis direct access to the input as TRUCE-D. For
+coveredbythesetofLgeneratedcaptionsornot. STOCKdata, TRUCE-D getscorrectnessof69%
+ForTRUCE,weperformsamplingattheprogram comparedto88%for TRUCE.
+selection stage, while baselines admit sampling
+onlyatthetokengenerationstage. Analysis of Inference Network: We analyze the
+Notethatthismakesthecoveragescoredepend predictionsoftheinferencenetworkattheendof
+on the settings used in the sampling process (e.g. model training. Particularly, we associate the set
+top-pvalueinnucleussampling),whichwillalso of ground truth annotations in validation split to
+affectthecorrectnessofthegeneratedcaptions. In module-idspresentintheargmaxprogrampredic-
+726
+Moduleid Mostfreqassociatedwords only on a program encoding to generate the out-
+put description. In this respect, our work is also
+pattern-1 increases,rises,gains
+pattern-3 stays,remains,flat relatedtopriorworkonneuraldiscreterepresenta-
+pattern-4 bottoms,out,decline,dips
+tionlearning(vandenOordetal.,2017;Zhaoetal.,
+loc-1 start,beginning,initially
+2018),thoughnoneofthesepastworksexploreuti-
+Table5: InferenceNetworkAnalysis:Analyzingwordsfre- lizing such techniques for data to text problems.
+quentlypresentincaptionswhentheargmaxprogrampredic- Our proposed model abstracts the numerical pat-
+tionfrominferencenetworkcomprisesofagivemodule-id.
+terndetectionfromtextgeneration. Relatedideas
+have been explored in the past in other domains
+tion from the inference network. Next, we iden- and tasks (Gehrmann et al., 2018; Jhamtani and
+tify the most frequently occurring tokens present Berg-Kirkpatrick,2018;Amizadehetal.,2020).
+foreachmodule-id/module-instance. Weobserve Data to Text: Tabular or structured data to text
+that the inference network seems to be associat- generation has been explored in prior work (Le-
+ingsemanticallysimilarwordstothesamemodule bretetal.,2016;Novikovaetal.,2017;Wiseman
+instance(Table5). etal.,2017;Jhamtanietal.,2018;Gehrmannetal.,
+2021). TheRotowiredataset(Wisemanetal.,2017)
+7 RelatedWork iscomprisedofsportssummariesfortabulargame
+datawhichmayrequiremodelingofnumericalop-
+Time-Series Numerical Data and Natural Lan-
+erations and trends. However, much of the past
+guage Andreas and Klein (2014) worked on
+work has relied on neural models with attention
+groundingnewsheadlinestostocktimeseriesdata
+mechanisms,withoutexplicitandinterpretableno-
+by aligning sub-trees in sentence parses to seg-
+tionsofnumericaloperations. Fidelitytotheinput
+mentsoftimeseries. Murakamietal.(2017)gener-
+inthecontextofneuraltextgenerationhasreceived
+atestockdatacommentaryusingencoderssuchas
+a lot of attention lately (Cao et al., 2018). Prior
+convolutionalandrecurrentneuralnetworks,simi-
+workhasapproachedtheaspectoffidelitytoinput
+lartothebaselinesusedinourexperiments. Sowd-
+throughchangesinmodeltrainingand/ordecoding
+aboinaetal.(2014)focusonthetaskofdescribing
+methods(Tianetal.,2019;KangandHashimoto,
+windspeedanddirection. Timeseriesdatainthe
+2020; Majumder et al., 2021; Goyal and Durrett,
+formofchartshasbeenutilizedinsomepriorwork
+2021;Liuetal.,2021). Weexploreadifferentap-
+infigurequestionanswering(Kahouetal.,2018;
+proachthatincreasesfidelitythroughconditional
+Chenetal.,2019).
+independence structure and model parameteriza-
+Pastworkhasexploredwaystohandlenumerical tion.
+datainavarietyofinputdatadomainsusingneural
+networks. Trasketal.(2018)proposeneurallogic 8 Conclusion
+unit for tasks such as counting objects in images.
+We present a truth-conditional neural model for
+Priorworkhasinvestigatedhandlingofnumeracy
+time series captioning. Our model composes
+in question answering datasets (Dua et al., 2019;
+learned operations/modules to identify patterns
+Andor et al., 2019; Gupta et al., 2020), typically
+whichholdtrueforagiveninput. Outputsfromthe
+usingapredefinedsetofexecutableoperationsor
+proposedmodeldemonstratehigherprecisionand
+usingspecificdistributionsfornumberprediction
+diversity compared to various baselines. Further,
+(SpokoynyandBerg-Kirkpatrick,2020;Thawani
+the proposed model (and some of the baselines)
+etal.,2021).
+successfully generalize, to some extent, to multi-
+Neuro-SymbolicMethods: Andreasetal.(2016b)
+ple input sizes. We release two new datasets (in
+proposedtouseneuralmodularnetworksforvisual
+English)forthetaskoftimeseriescaptioning. Fu-
+questionanswering. Sincethen,similarapproaches
+tureworkmightexpandtoabroadersetofmodule
+havebeenusedforseveralothertaskssuchasrefer-
+typestocovermorenumericalpatterns.
+ringexpressioncomprehension(Ciriketal.,2018),
+imagecaptioning(Yangetal.,2019),andtextques-
+Acknowledgements
+tionanswering(Andreasetal.,2016a;Khotetal.,
+2021). Comparedtosuchpastefforts, weinduce We thank anonymous EMNLP reviewers for in-
+thelatentnumericalandtemporaldetectionopera- sightfulcommentsandfeedback. WethankNikita
+tions,pickahighscoringprogram,andcondition Dusejaforusefuldiscussions.
+727
+EthicsStatement Second AAAI Conference on Artificial Intelligence,
+(AAAI-18).
+We collect natural language annotations from a
+crowd-sourcing platform. We do not collect or Asli Celikyilmaz, Elizabeth Clark, and Jianfeng Gao.
+storeanypersonidentifiableinformation. Wedid 2020. Evaluation of text generation: A survey.
+arXivpreprintarXiv:2006.14799.
+not observe any toxic or hateful language in our
+dataset–thoughresearchersworkingonthedataset
+Charles Chen, Ruiyi Zhang, Eunyee Koh, Sungchul
+infutureareadvisedduecautionsincetheannota- Kim, Scott Cohen, Tong Yu, Ryan A. Rossi, and
+tionsarecrowd-sourced,andmightreflectcertain Razvan C. Bunescu. 2019. Figure captioning
+with reasoning and sequence-level training. CoRR,
+biases. Ourworkprimarilyperformsexperiments
+abs/1906.02850.
+ontextgenerationinEnglishlanguage. Ourmethod
+generateshighprecisiontextoutput–muchhigher
+Wenhu Chen, Jianshu Chen, Yu Su, Zhiyu Chen, and
+than all the baselines considered. However, it is William Yang Wang. 2020. Logical natural lan-
+stillnotperfect,andmustbeusedcautiouslyinany guagegenerationfromopen-domaintables. InPro-
+ceedingsofthe58thAnnualMeetingoftheAssocia-
+realworlddeployment.
+tionforComputationalLinguistics,ACL2020.
+Volkan Cirik, Taylor Berg-Kirkpatrick, and Louis-
+References
+Philippe Morency. 2018. Using syntax to ground
+referringexpressionsinnaturalimages. InProceed-
+Saeed Amizadeh, Hamid Palangi, Alex Polozov,
+ingsoftheThirty-SecondAAAIConferenceonArti-
+Yichen Huang, and Kazuhito Koishida. 2020.
+ficialIntelligence,(AAAI-18).AAAIPress.
+Neuro-symbolic visual reasoning: Disentangling
+"visual" from "reasoning". In Proceedings of the
+Nadia Clairet. 2017. Dish classification using knowl-
+37thInternationalConferenceonMachineLearning,
+edge based dietary conflict detection. In Proceed-
+ICML 2020, Proceedings of Machine Learning Re-
+ings of the Student Research Workshop Associated
+searchPMLR.
+withRANLP2017,pages1–9,Varna.INCOMALtd.
+Daniel Andor, Luheng He, Kenton Lee, and Emily
+Pitler.2019. GivingBERTacalculator: Findingop- Bhuwan Dhingra, Manaal Faruqui, Ankur P. Parikh,
+erationsandargumentswithreadingcomprehension. Ming-Wei Chang, Dipanjan Das, and William W.
+InProceedingsofthe2019ConferenceonEmpirical Cohen. 2019. Handling divergent reference texts
+MethodsinNaturalLanguageProcessing, EMNLP- when evaluating table-to-text generation. In Pro-
+IJCNLP2019. ceedings of the 57th Conference of the Association
+forComputationalLinguistics,ACL2019.
+Jacob Andreas and Dan Klein. 2014. Grounding lan-
+guage with points and paths in continuous spaces. Dheeru Dua, Yizhong Wang, Pradeep Dasigi, Gabriel
+In Proceedings of the Eighteenth Conference on Stanovsky, Sameer Singh, and Matt Gardner. 2019.
+ComputationalNaturalLanguageLearning,CoNLL DROP:Areadingcomprehensionbenchmarkrequir-
+2014. ingdiscretereasoningoverparagraphs. InProceed-
+ingsofthe2019ConferenceoftheNorthAmerican
+JacobAndreas,MarcusRohrbach,TrevorDarrell,and
+Chapter of the Association for Computational Lin-
+DanKlein.2016a. Learningtocomposeneuralnet-
+guistics: Human Language Technologies, NAACL-
+worksforquestionanswering. InThe2016Confer-
+HLT2019.
+ence of the North American Chapter of the Associ-
+ation for Computational Linguistics: Human Lan-
+SebastianGehrmann,YuntianDeng,andAlexanderM.
+guageTechnologies,NAACL-HLT2016.
+Rush. 2018. Bottom-up abstractive summarization.
+InProceedingsofthe2018ConferenceonEmpirical
+JacobAndreas,MarcusRohrbach,TrevorDarrell,and
+MethodsinNaturalLanguageProcessing,Brussels,
+DanKlein.2016b. Neuralmodulenetworks. InPro-
+Belgium, October 31 - November 4, 2018, pages
+ceedings of the IEEE Conference on Computer Vi-
+4098–4109.AssociationforComputationalLinguis-
+sionandPatternRecognition,pages39–48.
+tics.
+SatanjeevBanerjeeandAlonLavie.2005. Meteor: An
+automatic metric for mt evaluation with improved SebastianGehrmannetal.2021. TheGEMbenchmark:
+correlation with human judgments. In Proceedings Naturallanguagegeneration,itsevaluationandmet-
+oftheACLworkshoponintrinsicandextrinsicevalu- rics. CoRR,abs/2102.01672.
+ationmeasuresformachinetranslationand/orsum-
+marization. TanyaGoyalandGregDurrett.2021. Annotatingand
+modeling fine-grained factuality in summarization.
+ZiqiangCao,FuruWei,WenjieLi,andSujianLi.2018. InProceedingsofthe2021ConferenceoftheNorth
+Faithful to the original: Fact aware neural abstrac- American Chapter of the Association for Computa-
+tive summarization. In Proceedings of the Thirty- tionalLinguistics,NAACL-HLT2021.
+728
+NitishGupta,KevinLin,DanRoth,SameerSingh,and In Proceedings of the 59th Annual Meeting of the
+Matt Gardner. 2020. Neural module networks for Association for Computational Linguistics, ACL
+reasoningovertext. In8thInternationalConference 2021.
+onLearningRepresentations,ICLR2020.
+Kathleen McKeown. 1992. Text generation. Cam-
+Harsh Jhamtani and Taylor Berg-Kirkpatrick. 2018. bridgeUniversityPress.
+Learning to describe differences between pairs of
+similar images. In Proceedings of the 2018 Con- Soichiro Murakami, Akihiko Watanabe, Akira
+ferenceonEmpiricalMethodsinNaturalLanguage Miyazawa,KeiichiGoshima,ToshihikoYanase,Hi-
+ProcessingEMNLP2018. royaTakamura,andYusukeMiyao.2017. Learning
+to generate market comments from stock prices.
+Harsh Jhamtani, Varun Gangal, Eduard H. Hovy, Gra- In Proceedings of the 55th Annual Meeting of the
+ham Neubig, and Taylor Berg-Kirkpatrick. 2018. Association for Computational Linguistics, ACL
+Learning to generate move-by-move commentary 2017.
+for chess games from large-scale social forum data.
+InProceedingsofthe56thAnnualMeetingoftheAs- JekaterinaNovikova,OndrejDusek,andVerenaRieser.
+sociationforComputationalLinguistics,ACL2018. 2017. TheE2Edataset: Newchallengesforend-to-
+end generation. In Proceedings of the 18th Annual
+Samira Ebrahimi Kahou, Vincent Michalski, Adam SIGdialMeetingonDiscourseandDialogue2017.
+Atkinson,ÁkosKádár,AdamTrischler,andYoshua
+Bengio. 2018. Figureqa: An annotated fig- Aäron van den Oord, Oriol Vinyals, and Koray
+ure dataset for visual reasoning. In 6th Inter- Kavukcuoglu. 2017. Neural discrete representation
+national Conference on Learning Representations, learning. In Advances in Neural Information Pro-
+ICLR 2018, Workshop Track Proceedings. OpenRe- cessing Systems 30: Annual Conference on Neural
+view.net. InformationProcessingSystemsNeurips2017.
+Daniel Kang and Tatsunori Hashimoto. 2020. Im- KishorePapineni,SalimRoukos,ToddWard,andWei-
+proved natural language generation via loss trunca- JingZhu.2002. Bleu: amethodforautomaticeval-
+tion. InProceedingsofthe58thAnnualMeetingof uationofmachinetranslation. InProceedingsofthe
+theAssociationforComputationalLinguistics,ACL 40th annual meeting of the Association for Compu-
+2020. tationalLinguisticsACL2002.
+Tushar Khot, Daniel Khashabi, Kyle Richardson, Pe- Ankur Parikh, Xuezhi Wang, Sebastian Gehrmann,
+ter Clark, and Ashish Sabharwal. 2021. Text mod- Manaal Faruqui, Bhuwan Dhingra, Diyi Yang, and
+ular networks: Learning to decompose tasks in the Dipanjan Das. 2020. Totto: A controlled table-to-
+languageofexistingmodels. InProceedingsofthe textgenerationdataset. InProceedingsofthe2020
+2021ConferenceoftheNorthAmericanChapterof Conference on Empirical Methods in Natural Lan-
+the Association for Computational Linguistics: Hu- guageProcessing(EMNLP).
+manLanguageTechnologies,NAACL-HLT2021.
+Pranay Kumar Venkata Sowdaboina, Sutanu
+RémiLebret,DavidGrangier,andMichaelAuli.2016. Chakraborti, and Somayajulu Sripada. 2014.
+Neuraltextgenerationfromstructureddatawithap- Learning to summarize time series data. In Inter-
+plication to the biography domain. In Proceedings national Conference on Intelligent Text Processing
+of the 2016 Conference on Empirical Methods in andComputationalLinguistics,CICLING2014.
+NaturalLanguageProcessing,EMNLP2016.
+Daniel Spokoyny and Taylor Berg-Kirkpatrick. 2020.
+Chin-YewLin.2004. Rouge: Apackageforautomatic Anempiricalinvestigationofcontextualizednumber
+evaluation of summaries. In Text summarization prediction. In Proceedings of the 2020 Conference
+branchesout,pages74–81. onEmpiricalMethodsinNaturalLanguageProcess-
+ing,EMNLP2020.
+Tianyu Liu, Xin Zheng, Baobao Chang, and Zhifang
+Sui. 2021. Towards faithfulness in open domain SomayajuluSripada,EhudReiter,andIanDavy.2003.
+table-to-textgenerationfroman entity-centricview. Sumtime-mousam: Configurable marine weather
+InThirty-FifthAAAIConferenceonArtificialIntelli- forecastgenerator. ExpertUpdate,6(3).
+gence,AAAI2021.
+AvijitThawani,JayPujara,FilipIlievski,andPedroA.
+Xuezhe Ma, Chunting Zhou, and Eduard H. Hovy. Szekely.2021. RepresentingnumbersinNLP:asur-
+2019. MAE: mutual posterior-divergence regular- vey and a vision. In Proceedings of the 2021 Con-
+ization for variational autoencoders. In 7th Inter- ferenceoftheNorthAmericanChapteroftheAsso-
+national Conference on Learning Representations, ciationforComputationalLinguistics: HumanLan-
+ICLR2019. guageTechnologies,NAACL-HLT2021.
+Bodhisattwa Prasad Majumder, Taylor Berg- Ran Tian, Shashi Narayan, Thibault Sellam, and
+Kirkpatrick, Julian J. McAuley, and Harsh Ankur P. Parikh. 2019. Sticking to the facts: Con-
+Jhamtani. 2021. Unsupervised enrichment of fident decoding for faithful data-to-text generation.
+persona-grounded dialog with background stories. CoRR,abs/1910.08684.
+729
+Andrew Trask, Felix Hill, Scott E. Reed, Jack W.
+Rae, Chris Dyer, and Phil Blunsom. 2018. Neu-
+ral arithmetic logic units. In Advances in Neural
+Information Processing Systems 31: Annual Con-
+ference on Neural Information Processing Systems
+2018,NeurIPS2018.
+Sam Wiseman, Stuart M. Shieber, and Alexander M.
+Rush. 2017. Challenges in data-to-document gen-
+eration. In Proceedings of the 2017 Conference on
+EmpiricalMethodsinNaturalLanguageProcessing,
+EMNLP2017.
+Xu Yang, Hanwang Zhang, and Jianfei Cai. 2019.
+Learningtocollocateneuralmodulesforimagecap-
+tioning. In 2019 IEEE/CVF International Confer-
+enceonComputerVision,ICCV2019.
+Tianyi Zhang, Varsha Kishore, Felix Wu, Kilian Q.
+Weinberger,andYoavArtzi.2020. Bertscore: Eval-
+uating text generation with BERT. In 8th Inter-
+national Conference on Learning Representations,
+ICLR2020.OpenReview.net.
+Tiancheng Zhao, Kyusong Lee, and Maxine Eskénazi.
+2018. Unsupervised discrete sentence representa-
+tion learning for interpretable neural dialog genera-
+tion. InProceedingsofthe56thAnnualMeetingof
+theAssociationforComputationalLinguistics,ACL
+2018.
+730
+A AdditionalDetailsonDataSets Method PPL Bleu-3/4 Cider Rouge BERT
+TRUCE 9.02 0.61/0.50 1.92 0.74 0.76
+A downloadable json file for each of the two
+FCENC 9.66 0.41/0.34 1.17 0.63 0.57
+datasetsisprovidedinthegithubrepository2.
+LSTMENC 7.5 0.43/0.35 1.39 0.63 0.63
+CONVENC 7.6 0.63/0.53 1.99 0.73 0.71
+A.1 SyntheticData FFTENC 15.7 0.39/0.29 1.26 0.61 0.62
+NEARNBR NA 0.32/0.19 0.68 0.50 0.48
+Oursynthetictimeseriesdataisconstructedsuch
+thateachtimeserieshasexactlyoneofthefollow-
+Table6: ResultsonvalidationsplitforSYNTHdataset.
+ing6patterns: increases-in-beginning,increases-in-
+middle,increases-in-end,decreases-in-beginning,
+Method Bleu-3/4 Cider Rouge BERT
+decreases-in-middle, decreases-in-end. The posi-
+TRUCE(Ours) 0.36/0.22 0.40 0.50 0.58
+tioninwhichthepatternisplacedisbasedonthe FCENC 0.32/0.20 0.38 0.47 0.56
+temporal choice (begin/middle/end). i.e. L must LSTMENC 0.34/0.18 0.33 0.51 0.61
+CONVENC 0.34/0.17 0.35 0.50 0.60
+liewithingfirstone-thirdofthetime-series(0,T/3)
+FFTENC 0.32/0.18 0.36 0.48 0.56
+in case of ‘begin’ pattern, should lie in middle NEARNBR 0.11/0.05 0.11 0.27 0.37
+one-thirdfor‘middle’,andlastonethirdfor‘end’
+respectively. Weconsiderequationa*x+bofaline, Table7: ResultsonvalidationsplitofSTOCKdata.
+where ‘a’ represents the slope and ‘b’ represents
+they-axisintercept. Wepickarandomslopevalue
+B.4 AnalyzingLearnedModules
+between 0 and 2, and a random intercept value
+Figure 7 shows visualization of a learned locate
+between 1 and 20. Finally, we pick |L| random
+modulewhenmodelistrainedonSYNTHdata.
+integral values for x such that ax+b point lies be-
+tween0and1. Thepointsinthetimeseriesoutside
+B.5 AdditionalAblationStudies
+thepatternarefixedtobesameasthenearestpoint
+Weconsiderfollowingablationsforthe TRUCE:
+inthepatter. Finally,smallnoiseisaddedtoeach
+pointusingU(-2,2).
+(1) TRUCE-NOINF: Train TRUCE without the
+Some random data samples are shown in Fig.
+use of inference network (2) TRUCE-NOHEUR:
+Train TRUCE withouttheuseofheuristiclabels
+5. The text corresponding to ‘HUMAN’ marker
+representsoneofthecollectedannotationsforthe
+C AdditionalTrainingDetails
+correspondingtimeseriesdata.
+WecodeourmodelsinPytorchlibrary.
+A.2 STOCKdata
+Figures6showdatasamplesforSTOCKdataset. C.1 HeuristicLabels
+Thetextcorrespondingto‘HUMAN’markerrep-
+Listofthekeywordsselectedforuseinconstruct-
+resents one of the collected annotations for the
+ingheuristiclabels:
+correspondingtimeseriesdata. Thetotalnumber
+—‘locate’:[‘beginning’,‘middle’,‘end’,‘throughout’],
+ofuniquewords(consideringtrainandvalidation
+—‘pattern’:[‘increase’,‘decrease’,‘peak’,‘flat’,‘dip’]
+splits)are861,outofwhichonly560wordsoccur
+morethanonceinthedataset. C.2 Optimizer
+B AdditionalResults WeuseAdamoptimizerwithinitiallearningrate
+of1e−4.
+B.1 SYNTH:GeneratedSamples
+C.3 Infrastructure
+AdditionalexamplesareprovidedinFigure5.
+WeuseGeForceRTX2080GPUsfortrainingmod-
+B.2 STOCK:GeneratedSamples
+els.
+Figure6showssomegeneratedsamplesonSTOCK
+dataset. C.4 Additionalmethoddetails
+Whiletheautomatedmetricsareonlymoderately
+B.3 ValidationSplitResults
+correlatedwithquality,wefounditreasonableto
+Tables6and7showautomatedmetricsonthevali-
+selectbestmodelconfigurationsbasedontheBleu-
+dationsplit.
+4scoresonvalidationsplit. Themodelconfigura-
+2https://github.com/harsh19/TRUCE tions,whenusingSTOCKdataset,areasfollows:
+731
+Figure5: SYNTH:DataandGeneratedSamples. Thecaptionsmarkedinredwerejudgedasincorrectbyhuman
+annotators. TRUCEachievesveryhighprecisionof95%onoutputsforthetestsplitofSYNTHdataset.
+• LSTM Decoder: Token embedding size as imaginary components from the transfor-
+and hidden size are varied from the set mation.
+{32,64,128,256}.
+• CONVENC: Numberoftrainableparameters:
+• Weightfortheclassificationlossterm(incase 463K
+of multitask objective in baselines): Follow-
+• LSTMENC: -Representation: AsingleLSTM
+ing three weights of classification loss (i.e.
+step involves feeding an embedding of the
+theweightoftheclassificationtermwhichis
+input and using the previous step’s hidden
+presentinadditiontotheconditionallanguage
+state. Toconstructaninputembeddingofsize
+modelingobjective)aretried: 0.3,1.0,3.0.
+hforagivennumberx ,wesimplyrepeatthe
+t
+• TRUCE:Programembeddingencodingsize. numberx t forhtimes.
+Numberofmoduleinstantiationsarevariedin -Numberoftrainableparameters: 464K
+followingranges:
+• NEARNBR: WeexperimentwithL2distance
+– LOCATE: 4-7 instantiations of each of andL1distance,andobservedformertoper-
+locate formbetterintermsofautomatedaswellas
+– PATTERN: 6-10 instantiations of each humanevaluations.
+oftrend
+– COMBINE:1instantiation
+- Module embedding is varied in the set
+{9,18,36,72}. Finalmoduleembeddingsizeis
+18.
+-Numberoftrainableparameters: 466K(ex-
+cluding inference network parameters since
+inferencenetworkisusedonlyattrainingand
+notatpredictiontime)
+• FFTENC: - Number of trainable parame-
+ters: 462K - Construct features based on
+numpy:fft:rfft functions, using real as well
+732
+Figure6: STOCK:DataandGeneratedSamples. Thecaptionsmarkedinredwerejudgedasincorrectbyhuman
+annotators. (Bestviewedincolor)
+Figure 7: Visualizing a learned ’locate’ module. Our locate modules are weighted mixtures of equally spaced
+Gaussians. Themodule’sweightoneachofthesecomponentsisshown,alongwiththeresultingdistribution–the
+modulebeingvisualizedseemstohavelearnedtofocusonmiddlepartofthetimeseries.
+733

@@ -1,0 +1,532 @@
+Edinburgh Research Explorer
+Character-based Surprisal as a Model of Reading Difficulty in the
+Presence of Errors
+Citation for published version:
+Hahn, M, Keller, F, Bisk, Y & Belinkov, Y 2019, Character-based Surprisal as a Model of Reading Difficulty
+in the Presence of Errors. in A Goel, C Seifert & C Freksa (eds), Proceedings of the 41st Annual
+Conference of the Cognitive Science Society: Montreal 2019. Cognitive Science Society, pp. 401-407, 41st
+Annual Meeting of the Cognitive Science Society, Montréal , Canada, 24/07/19.
+<https://cogsci.mindmodeling.org/2019/papers/0089/index.html>
+Link:
+Link to publication record in Edinburgh Research Explorer
+Document Version:
+Peer reviewed version
+Published In:
+Proceedings of the 41st Annual Conference of the Cognitive Science Society
+General rights
+Copyright for the publications made accessible via the Edinburgh Research Explorer is retained by the author(s)
+and / or other copyright owners and it is a condition of accessing these publications that users recognise and
+abide by the legal requirements associated with these rights.
+Take down policy
+The University of Edinburgh has made every reasonable effort to ensure that Edinburgh Research Explorer
+content complies with UK legislation. If you believe that the public display of this file breaches copyright please
+contact openaccess@ed.ac.uk providing details, and we will remove access to the work immediately and
+investigate your claim.
+Download date: 22. Feb. 2024
+Character-based Surprisal as a Model of
+Reading Difficulty in the Presence of Errors
+MichaelHahn(mhahn2@stanford.edu) FrankKeller(keller@inf.ed.ac.uk)
+DepartmentofLinguistics,StanfordUniversity SchoolofInformatics,UniversityofEdinburgh
+MargaretJacksHall,Stanford,CA94305,USA 10CrichtonStreet,EdinburghEH89AB,UK
+YonatanBisk(ybisk@cs.washington.edu) YonatanBelinkov(belinkov@seas.harvard.edu)
+PaulG.AllenSchoolofComputerScience&Eng. JohnA.PaulsonSchoolofEng. &AppliedSciences,
+UniversityofWashington HarvardUniversity,andComputerScienceandArtificial
+185EStevensWayNE,Seattle,WA98195,USA IntelligenceLaboratory,MIT,Cambridge,MA,USA
+Abstract word’scharactersequence. Thisincludeslettertransposition
+(e.g.,innocetninsteadofinnocent)andmisspellings(e.g.,in-
+Intuitively, humanreaderscopeeasilywitherrorsintext; ty-
+pos,misspelling,wordsubstitutions,etc.donotundulydisrupt ocent). Importantly, we will not consider whole-word sub-
+naturalreading. Previousworkindicatesthatlettertransposi- stitutions,norwillwedealwithmorphological,syntactic,or
+tionsresultinincreasedreadingtimes,butitisunclearifthis
+semanticerrors.
+effectgeneralizestomorenaturalerrors. Inthispaper,were-
+portaneye-trackingstudythatcomparestwoerrortypes(let- Weknowfromtheexperimentalliteraturethatlettertrans-
+tertranspositionsandnaturallyoccurringmisspelling)andtwo positions cause difficulty in reading (Rayner et al., 2006;
+errorrates(10%or50%ofallwordscontainerrors). Wefind
+Johnson, Perea, & Rayner, 2007; White, Johnson, Liv-
+that human readers show unimpaired comprehension in spite
+oftheseerrors,buterrorwordscausemorereadingdifficulty ersedge, & Rayner, 2008). However, transpositions are ar-
+thancorrectwords.Also,transpositionsaremoredifficultthan tificial errors (basically they are an artifact of typing), and
+misspellings, and a high error rate increases difficulty for all are comparatively rare.1 It is not surprising that such errors
+words, including correct ones. We then present a computa-
+tionalmodelthatusescharacter-based(ratherthantraditional slowdownreading. Thiscontrastswithmisspellings,i.e.,er-
+word-based)surprisaltoaccountfortheseresults. Themodel rors that writers make because they are unsure about the or-
+explains that transpositions are harder than misspellings be-
+thographyofaword. Thesearenaturalerrorsthatshouldbe
+causetheycontainunexpectedlettercombinations. Italsoex-
+plainstheerrorrateeffect:expectationsaboutupcomingwords easier to read, because they occur more frequently and are
+arehardertocomputewhenthecontextisdegraded,leadingto linguistically similar to real words (inocent conforms to the
+increasedsurprisal.
+phonotacticsofEnglish,whileinnocetndoesnot).Thisisour
+Keywords: human reading, eye-tracking, errors, computa-
+first prediction, which we will test in an eye-tracking exper-
+tionalmodeling,surprisal,neuralnetworks.
+iment that compares the reading of texts with transpositions
+Introduction andmisspellings.
+Readers’priorexposuretomisspellingsmightexplainwhy
+Humanreadingisbotheffortlessandfast,withtypicalstudies
+reading is mostly effortless, even in the presence of errors.
+reportingreadingratesaround250wordsperminute(Rayner,
+The fact remains, however, that all types of errors are rela-
+White,Johnson,&Liversedge,2006). Humanreadingisalso
+tivelyrareineverydaytexts.Allpreviousresearchhasstudied
+adaptive: readers vary their strategy depending on the task
+isolatedsentencesthatcontainasingleerroneousword. This
+they want to achieve, with experiments showing clear dif-
+is a situation with which the human language processor can
+ferences between reading for comprehension, proofreading,
+presumably cope easily. However, what happens when hu-
+or skimming (Kaakinen & Hyo¨na¨, 2010; Schotter, Bicknell,
+mansreadawholetextwhichcontainsalargeproportionof
+Howard,Levy,&Rayner,2014;Hahn&Keller,2018).
+errors? Itcouldbethatnormalreadingbecomesverydifficult
+Anotherremarkableaspectofhumanreadingisitsrobust-
+if,say,halfofallwordsareerroneous.Infact,thisiswhatwe
+ness. Alotofthetextswereadarecarefullyeditedandcon-
+wouldexpectinexpectation-basedtheoriesoflanguagepro-
+tain few errors, e.g., articles in newspapers and magazines,
+cessing, such as surprisal (Levy, 2008): the processor con-
+or books. However, readers also frequently encounter texts
+stantly uses the current context to compute expectations for
+that contain errors, e.g., in hand-written notes, emails, text
+thenextword,anddifficultyensuesiftheseexpectationsturn
+messages,andsocialmediaposts. Intuitively,sucherrorsare
+outtobeincorrect. However,ifthecontextisdegradedbya
+easytocopewithandimpedeunderstandingonlyinaminor
+largenumberoferrors,thenitishardertocomputeexpecta-
+way.Infact,errorsoftengounnoticedduringnormalreading,
+tions(andtheybecomelessreliable),andreadingshouldslow
+whichispresumablywhyproofreadingisdifficult.
+down. Crucially,weexpecttoseethiseffectonallwords,not
+Theaimofthispaperistoexperimentallyinvestigateread-
+inginthefaceoferrors, andtoproposeasimplemodelthat
+1For example, in the error corpus we use (Geertzen, Alex-
+canaccountforourexperimentalresults. Specifically,wefo-
+opoulou,&Korhonen,2014)only11%oftheerrorsareletterswaps
+cusonerrorsthatchangetheformofaword,i.e.,thataltera orrepetitions,seeTable1.
+Proceedingsofthe41stAnnualConferenceoftheCognitiveScienceSociety.Montreal,2019.
+just on those words that contain errors. This is the second phonetics deletion swap/repeat keyboard insertion other
+predictionthatwewilltestinoureye-trackingexperimentby
+36.2 16.7 11.0 10.5 8.3 17.3
+comparingtextswithhighandlowerrorrates.
+In the second part of this paper, we present a surprisal Table1: Percentagesofdifferenttypesofmisspellingsinthe
+modelthatcanaccountforthepatternsofdifficultyobserved naturalerrorcondition.
+in our experiment on reading texts with errors. We start by
+showing that standard word-based surprisal does not make
+therightpredictions,asitessentiallytreatswordswitherrors textisobtained. Threeincorrectanswers(distractors)arein-
+asoutofvocabularyitems. Wethereforeproposetoestimate cludedforeachquestion; thesearealsonamedentities,cho-
+surprisal with a character-based language model. We show sensothattheycloselymatchthecorrectanswer(e.g.,ifthe
+thatthismodelsuccessfullypredictshumanreadingtimesfor correctanswerisMinnesota,thenthedistractorsarealsoUS
+textswitherrorsandaccountsforboththeeffectoferrortype states).2
+and the effect of error rate that we observed in our reading WeintroducederrorsintothematerialsofHahnandKeller
+experiment. (2018)followingthemethodsuggestedbyBelinkovandBisk
+(2018). Theseerrorsareautomaticallygeneratedandareei-
+Eye-trackingExperiment
+thertranspositions(i.e.,twoadjacentlettersareswapped)or
+The aim of this experiment was to determine how human naturalerrorsthatreplicateactualmisspellings.Forthelatter,
+readingisaffectedbyerrorsintheinput. Asexplainedinthe weusedacorpusofhumanedits(Geertzenetal.,2014),and
+introduction,weexpecteddifferenterrortypestoaffectread- introducederrorsinourexperimentalmaterialsbyreplacing
+ing differentially, as error types can differ in familiarity. In correctwordswithknownmisspellingsfromoureditcorpus.
+addition, we predicted the overall number of errors in a text The percentages of different types of misspellings are listed
+to have an effect on reading behavior, because a high error inTable1. Bygeneratingtextswitherrorsautomaticallywe
+rate degrades word context, which is crucial for computing wereabletoensurethatbotherrorconditions(transpositions
+expectationsaboutupcomingmaterial. or misspellings) contain the same percentage of erroneous
+Theexperimentusedatwo-by-twofactorialdesign,cross- wordsforthetwoerrorrates(10%or50%erroneouswords).
+ingerrortype(transpositionsvs. misspellings)witherrorrate
+Procedure Participants received written instructions,
+(10%ofallwordscontainerrorsvs.50%).Bothofthesevari-
+which mentioned that they would be reading texts with
+ableswereadministeredasbetween-textfactors,i.e.,wecre-
+errors. Theyfirstwentthroughtwopracticetrialswhosedata
+atedfourversionsforeachtext,onewith10%transpositions,
+was discarded. Then, each participant read and responded
+onewith10%misspellings,onewith50%transpositions,and
+to all 20 items (texts with questions and answer choices);
+onewith50%misspellings.
+the items were presented in a new random order for each
+The two experimental factors were administered within
+participant. The order of the answer choices was also
+participants, i.e., all participants read all our texts, each of
+randomized.
+them presented in one of the four versions. Versions were
+Ineachtrial,thetextwasdisplayedoveroneormorepages
+distributedacrossparticipantsusingaLatinsquaredesign,so
+(max 5, mean 2.1 pages), where each page contained up to
+astoensurethateveryversionwasseenbythesamenumber
+eleven lines with about 80 characters per line. To get to the
+ofparticipants.
+next page, and at the end of the text, participants again had
+Methods to press a button. After the last page, the question was dis-
+Participants Sixteen participants took part in the experi- played, togetherwiththefouranswerchoices, onaseparate
+mentaftergivinginformedconsent. Theywerepaid£10for page. Participants had to press one of four buttons to select
+theirparticipation,hadnormalorcorrected-to-normalvision, ananswer.
+andwereself-reportednativespeakersofEnglish. Eye-movements were recorded using an Eyelink 2000
+tracker (SR Research, Ottawa). The tracker recorded the
+Materials We used the materials of Hahn and Keller dominant eye of the participant (as established by an eye-
+(2018), but introduced errors into the texts. These materi- dominancetest)withasamplingrateof2000Hz. Beforethe
+alscontaintwentynewspapertextsfromtheDeepMindques- experiment started, the tracker was calibrated using a nine-
+tionansweringcorpus(Hermannetal.,2015). Tentextswere point calibration procedure; at the start of each trial, a cen-
+taken from the CNN section of the corpus and the other ten tralfixationpointwaspresented. Throughouttheexperiment,
+textsfromtheDailyMailsection. Textswerecomparablein theexperimentermonitoredtheaccuracyoftherecordingand
+length(between149and805words,mean323)andrepresent carriedoutadditionalcalibrationsasnecessary.
+abalancedselectionoftopics.Twoadditionaltextswereused
+aspracticeitems. 2WeusedthenoquestionspreviewconditionofHahnandKeller
+Eachtextcomeswithaquestionandacorrectanswer. The (2018), i.e., the questions were shown only after participants had
+readthewholetext. Theoriginalpaperalsohadaquestionpreview
+questionsareformulatedassentenceswithablanktobecom-
+condition, in which participants were shown the questions before
+pletedwithanamedentitysothatastatementimpliedbythe theyreadthetext.
+2
+Thisexperiment words without errors, but this this is a comparatively small
+Hahn&Keller
+Noerror Error effect. Overall,readingtimes,fixationrates,andquestionac-
+curacy are very similar to those found in texts without any
+Firstfixation 221.3 211.8 225.1
+errors(suchastheonesusedbyHahn&Keller,2018).3
+Firstpass 260.7 242.5 265.2
+Inthefollowing,weanalyzetworeadingmeasuresinmore
+Totaltime 338.0 306.9 342.1
+detail: first pass time and fixation rate. We analyzed per-
+Fixationrate 0.50 0.45 0.48
+word reading measures using mixed-effects models, consid-
+Accuracy 70% 72% eringthefollowingpredictors:
+Table 2: Left: per-word reading times, fixation rates, and 1. ERRORTYPE: Doesthetextcontainmispellings(−0.5)or
+question accuracies in the experiment of Hahn and Keller transpositions(+0.5)?
+(2018),right:samemeasuresforourexperiments(sametexts,
+2. ERRORRATE: Does the text contain 10% (−0.5) or 50%
+butsomeofthewordscontainerrors).
+(+0.5)erroneouswordsoverall?
+DataAnalysis Fordataanalysis,eachwordinthetextwas
+3. ERROR: Isthewordcorrect(−0.5)orerroneous(+0.5)?
+defined as a region of interest. Punctuation was included in
+4. WORDLENGTH: Lengthofthewordincharacters.
+theregionoftheworditfollowedorprecededwithoutinter-
+veningwhitespace. Ifawordwasprecededbyawhitespace,
+5. LASTFIX: Was the preceding word fixated (+0.5) or not
+thenthatspacewasincludedintheregionforthatword. We
+(−0.5)?
+report data for the following eye-movement measures in the
+criticalregions: Firstfixationdurationisthedurationofthe All predictors were centered. Word length was scaled to
+first fixation in a region, provided that there was no earlier unitvariance. Weselectedbinaryinteractionsusingforward
+fixationonmaterialbeyondtheregion. Firstpasstime(often model selection with a χ2 test, running the R package lme4
+called gaze duration for single-word regions) consists of the (Bates, Ma¨chler, Bolker,&Walker, 2015)withamaximally
+sumoffixationdurationsbeginningwiththisfirstfixationin convergent random effects structure. We then re-fitted the
+theregionuntilthefirstsaccadeoutoftheregion,eithertothe bestmodelwithafullrandomeffectsstructureasaBayesian
+leftortotheright. Totaltimeconsistsofthesumofthedura- generalized multivariate multilevel model using the R pack-
+tionsofallfixationintheregion,regardlessofwhenthesefix- age brms; this method is slower but allows fitting large ran-
+ations occur. Fixation rate measures the proportion of trials domeffectsstructuresevenwhentraditionalmethodsdonot
+inwhichtheregionwasfixated(ratherthanskipped)onfirst- converge. Resulting Bayesian models are shown in Table 3.
+pass reading. For first fixation duration and first pass time, We used the brms default priors (Bu¨rkner, 2017), with four
+no trials in which the region isskipped on first-pass reading chainswith1000sampleseach(and1000warmupiterations).
+(i.e.,whenfirstfixationdurationiszero)wereincludedinthe The Rˆ values (≤ 1.01) indicated that the models had con-
+analysis. Fortotaltime,onlytrialswithanon-zerototaltime verged.4
+wereincludedintheanalysis. The main effects of WORDLENGTH replicate the well-
+Duetospacelimitations,wewillonlypresentanalysesof knownpositivecorrelationbetweenwordlengthandreading
+the first pass time and fixation rate data in the remainder of time (see Demberg & Keller, 2008, and many others). We
+thispaper. also find main effects of ERROR, indicating that erroneous
+wordsarereadmoreslowlyandaremorelikelytobefixated.
+Results
+ThemaineffectsofERRORRATEshowthathighertexterror
+In Table 2, we present some basic reading measures for our rates lead to longer reading times and higher fixation rates
+experiments, and compare these to the reading experiments forallwords(whethertheyarecorrectorerroneous). Addi-
+of Hahn and Keller (2018), which used the same texts, but tionally, we find a main effect of ERRTYPE in fixation rate,
+did not include any errors (the data is taken from their no showingthattranspositionerrorsleadtohigherfixationrates.
+questionpreviewcondition,whichcorrespondstoourexper- This is consistent with our hypothesis that misspellings are
+imental setup, see Footnote 2). Even for words with errors, easier to process than transpositions, as they are real errors
+the reading measures in our experiments are similar to the that participants have been exposed in their reading experi-
+onesreportedbyHahnandKeller(2018). Forwordswithout ence.
+errors, we find slightly faster reading times and lower fixa- Figure1graphsmeanfirstpasstimesandfixationratesby
+tion rates than Hahn and Keller (2018). Also the accuracy error type and error rate. The most important effect is that
+(whichcanonlybemeasuredonthetextlevel, hencewedo
+not distinguish words with and without errors) is essentially 3Notethatparticipantsarenotperformingatceilinginquestion
+answering; our pattern of results therefore cannot be explained by
+unchanged. This provides good evidence for the claim that
+assertingthatthequestionsweretooeasy.
+humanreaderscopewellwitherrorsintext: theytakelonger 4Ananalogousanalysisforlog-transformedfirst-passtimesled
+toreadwordswitherrorsandfixatethemmorecomparedto tothesamepatternofsignificanteffectsandtheirdirections.
+3
+FirstPass FixationRate No Error Error
+(Intercept) 248.41 (6.34)∗∗∗ −0.16 (0.12) 270 l
+ERRTYPE 1.41 (1.32) 0.08 (0.02)∗∗∗
+ERRRATE 7.20 (1.60)∗∗∗ 0.16 (0.02)∗∗∗
+ERROR 23.77 (4.12)∗∗∗ 0.21 (0.07)∗∗∗ 260 l l
+WLENGTH 22.18 (2.02)∗∗∗ 0.83 (0.04)∗∗∗ l
+LASTFIX 3.10 (4.18) 0.22 (0.18) l
+250
+ERRRATE×LASTFIX 6.71 (2.77)∗ 0.16 (0.04)∗∗∗
+l
+ERROR×LASTFIX — 0.26 (0.10)∗∗
+WLENGTH×LASTFIX — 0.74 (0.10)∗∗∗ 240
+ll
+Pr(β<0): ∗∗∗<0.001,∗∗<0.01,∗<0.05
+10 50 10 50
+Table3:Bayesiangeneralizedmultivariatemultilevelmodels Error Rate
+forreadingmeasureswithmaximalrandom-effectsstructure.
+Error Type l Misspelling l Transposition
+Eachcellgivesthecoefficient,itsstandarddeviation,andthe
+No Error Error
+estimatedposteriorprobabilitythatthecoefficienthastheop-
+positesign. l
+errorwordstakelongertoreadandarefixatedmorethannon- 0.50 l
+errorwords.Theeffectoferrorrateisalsoclearlyvisible:the l
+50% error condition causes longer reading times and more
+fixations than the 10% one, even for non-error words. We l
+0.45 l
+alsoobserveasmalleffectoferrortype.
+l
+Turning now to the interactions, we found that ERROR- l
+l
+RATEandLASTFIXinteractinbothreadingmeasures,which
+indicatesthatreadingtimesandfixationratesincreaseinthe
+0.40
+high-errorconditionifthepreviouswordhasbeenfixated. 10 50 10 50
+Error Rate
+Onlyinfixationrate, therewasalsoaninteractionof ER-
+ROR and LASTFIX, indicating that fixation rate goes up for Error Type l Misspelling l Transposition
+errorwordsiftheprecedingwordwasfixated,presumablybe-
+causeofpreviewoftheerroneouswords,whichisthenmore Figure1:Firstpasstime(top)andfixationrate(bottom)when
+likelytobefixatedinordertoidentifytheerror. readingtextswithtranspositionerrorsormisspelling.
+Forfixationrate,WORDLENGTHinteractswithLASTFIX:
+longer words are more likely to be fixated if the preceding
+word was fixated; again, this is likely an effect of preview. a mixed-effects analysis with word forms as random ef-
+WhileFigure1seemstosuggestaninteractionofERRORand fectsshowednosignificantdifferenceinthelengthsoferror
+ERRORTYPE,thiswasnotsignificantinthemixedmodel.
+wordsandtheircorrectversions(meandifference−0.011,SE
+0.029, t =−0.393). Comparing the erroneous words of the
+Discussion twoerrortypes,wefoundthattheydifferinmeanlength(mis-
+spellings 5.44, transpositions 6.06 characters); however this
+We have found four main results: (1) Erroneous words
+differencewasnotsignificantinamixed-effectsanalysispre-
+showlongerreadingtimesandaremorelikelytobefixated.
+dictingwordlengthoferroneouswordsfromerrortypes,with
+(2) Higher error rates lead to increased reading times and
+items as a random effect (mean difference 0.015, SE 0.010,
+more fixations, even on words that are correct. (3) Trans-
+t=1.449).
+positionsleadtoanincreasedfixationratecomparedtomis-
+spellings. (4) Whether the previous word is fixated or not
+SurprisalModel
+modulatestheeffectoferroranderrorrate.
+However, itisconceivablethattheeffectsoferrorander- Most models of human reading do not explicitly deal with
+ror rate are actually artifacts of word length. All else being reading in the face of errors. In fact, reading models that
+equal, longer words take longer to read and are more likely use a lexicon to look up word forms (e.g., to retrieve word
+to be fixated. So if error words and non-error words in our frequencies) cannot deal with erroneous words without fur-
+textsdifferinmeanlength,thenthatwouldbeanalternative therassumptions. Wecanusethesurprisalmodelofprocess-
+explanationfortheeffectsthatwefound. ing difficulty (Levy, 2008) to illustrate this: in its original,
+Fortranspositionerrors,errorwordsbydefinitionhavethe word-based formulation, surprisal is forced to treat all error
+same length as their non-error versions. For misspellings, words as out of vocabulary items; it therefore cannot distin-
+4
+emiT
+ssaP
+tsriF
+etaR
+noitarxiF
+guish between different types of errors or between different Inthiscomputation,wetakewhitespacecharacterstobelong
+errorrates. totheprecedingword.
+Intuitively, a more fine-grained version of surprisal is re- Tocontrolfortheimpactoftherandominitializationofthe
+quiredthatcomputesexpectationsintermsofcharacters,not neuralnetworkatthebeginningoftraining,wetrainedseven
+words.Insuchasetting,thewordinocentwouldbemoresur- modelswithidenticalsettingsbutdifferentrandominitializa-
+prisingthaninnocentinthesamecontext,butnotassurpris- tions.
+ing as a completely unfamiliar letter string. In other words, Thequalityofcharacter-basedlanguagemodelsisconven-
+thesurprisalofthesamewordwithandwithoutmisspellings tionally measured in Bits Per Character (BPC), which is the
+orlettertranspositionswouldbesimilarbutnotthesame. To average surprisal, to the base 2, of each character. On held-
+achieve this, we can use character-based language models, outdata,ourmodelachievesameanBPCvalueof1.28(SD
+which are standard tools in natural language processing for 0.025), competitive with BPC values achieved by state-of-
+dealingwitherrorsintheinput(e.g.,theworkbyBelinkov& the-art systems of similar datasets (e.g., Merity, Keskar, &
+Bisk,2018,onerrorsinmachinetranslation). Socher,2018,reportaBPCvalueof1.23onWikipediatext).
+Crucially,oncewehaveacharacter-basedsurprisalmodel, Intheintroductionwepredictedthatword-basedsurprisal
+wecanderivepredictionsregardinghowerrorsshouldaffect is not able to model the reading time pattern we found in
+reading. We predict that transpositions should be more sur- oureye-trackingexperiment. Inordertotestthisprediction,
+prisingthanmisspellings,astheyinvolvecharactersequences we compare our character-level surprisal model to surprisal
+that are unfamiliar to the model (e.g., innocetn contains the computed using a conventional word-based neural language
+rarecharactersequencetn). Also,wepredictthatwordsthat model. Word-basedmodelshaveafixedvocabulary,consist-
+occurintextswithahigherrorratearemoredifficulttoread ingofthemostcommonwordsinthetrainingdata;atypical
+than words in texts with a low error rate: if the context of a vocabulary size is 10,000. Words that were not seen in the
+wordcontainsfewerrors,thenweareablecomputeexpecta- training data, and rare words, are represented by a special
+tionsforthatwordconfidently(resultinginlowsurprisal). If out-of-vocabulary (OOV) token. From a cognitive perspec-
+thecontextcontainslotsoferrorsthenexpecationsarediffi- tive, this corresponds to assuming that all unknown words
+culttocomputeandtheybecomeunreliable(resultinginhigh (whether they contain errors or not) are treated in the same
+surprisal). We will now test these predictions regarding er- way: theyarerecognizedasunknown,butnotprocessedany
+rortypeanderrorrateusingacharacter-basedversionofsur- further. Weusedavocabularysizeof10,000. Thehyperpa-
+prisal. rametersoftheword-basedmodelwereselectedonthesame
+EnglishWikipediacorpusasthecharacter-basedmodel.6
+Methods
+We trained a character-based neural language model using ResultsandDiscussion
+LSTMcells(Hochreiter&Schmidhuber, 1997). Suchmod-
+In this section, we show that surprisal computed by a
+elscanassignprobabilitiestoanysequenceofcharacters,and
+character-levelneurallanguagemodel(CHARSURPRISAL)is
+thusarecapableofcomputingsurprisalevenforwordsnever
+abletoaccountfortheeffectsoferrorsonreadingobservedin
+seeninthetrainingdata,suchaserroneouswords. Fortrain-
+our eye-tracking experiments. We compute character-based
+ing,weusedtheDailyMailportionoftheDeepMindcorpus.
+surprisalforthetextsusedinourexperiments,andexpectto
+Weusedavocabularyconsistingofthe70mostfrequentchar-
+obtainmeansurprisalscoresforeachexperimentalcondition
+acters,mappingotherstoanout-of-vocabularytoken.
+that resemble mean reading times. We will also verify our
+Thehyperparametersofthelanguagemodelwereselected
+prediction that word-based surprisal (WORDSURPRISAL) is
+onanEnglishcorpusbasedonWikipediatext.5 Wethenused
+notabletoaccountfortheeffectsobservedinourexperimen-
+theresultingmodeltocomputesurprisalonthetextsusedin
+taldata,duetothewayittreatsunknownwords.
+theeye-trackingexperimentforeachexperimentalcondition.
+Figure 2 shows the mean surprisal values across the dif-
+The model estimates, for each element of a character se-
+ferent error conditions. We note that the pattern of reading
+quence,theprobabilityofseeingthischaractergiventhepre-
+timepredictedbyCHARSURPRISAL(solidlines)matchesthe
+ceding context. We compute the surprisal of a word as the
+first-pass times observed experimentally very well (see Fig-
+sum of the surprisals of the individual characters, as pre-
+ure1),whileWORDSURPRISAL(dottedline)showsaclearly
+scribed by the product rule of probability. For a word con-
+divergent pattern, with error words showing lower surprisal
+sisting of characters x ...x following a context x ...x ,
+t t+T 1 t−1 thannon-errorwords. Thiscanbeexplainedbythefactthata
+itssurprisalis:
+word-basedmodeldoesnotprocesserrorwordsbeyondrec-
+ognizingthemasunknown;thepresenceofanunknownword
+t+T
+−logP(x ...x |x ...x )= ∑−logP(x|x ...x ) (1) itselfisnotahigh-surprisalevent(evenwithouterrors,17%
+t t+T 1 t−1 i 1 i−1
+i=t
+61024 units, batch size 128, embedding size 200, learning rate
+51024units,3layers,batchsize128,embeddingsize200,learn- 0.2 with plain SGD, multiplied by 0.95 at the end of each epoch;
+ingrate3.6withplainSGD,multipliedby0.95attheendofeach BPTT length 50; DropConnect with rate 0.2 for hidden units;
+epoch; BPTT length 80; DropConnect with rate 0.01 for hidden Dropout 0.1 for input layer; replacing words by random samples
+units;replacingentirecharacterembeddingsbyzerowithrate0.001. fromthevocabularywithrate0.01duringtraining.
+5
+No Error Error CHARSURPR WORDSURPR
+(Intercept) 10.47 (0.09)∗∗∗ 5.06 (0.07)∗∗∗
+20
+ERRTYPE 1.27 (0.02)∗∗∗ −0.40 (0.02)∗∗∗
+ERRRATE 1.57 (0.02)∗∗∗ 0.01 (0.00)∗∗∗
+15 ERROR 13.88 (0.03)∗∗∗ −2.96 (0.02)∗∗∗
+WLENGTH 3.02 (0.05)∗∗∗ 0.25 0.01 ∗∗∗
+Pr(β<0): ∗∗∗<0.001,∗∗<0.01,∗<0.05
+10
+Table 4: Models of character-level and word-level surprisal
+5 withrandomeffectsformodelrunsanditems.Eachcellgives
+the coefficient, its standard deviation and the estimated pos-
+teriorprobabilitythatthecoefficienthastheoppositesign.
+10 50 10 50
+Error Rate
+Error Type Misspelling Transposition FirstPass FixationRate
+(Intercept) 248.73 (5.55)∗∗∗−0.15 (0.09)
+Figure 2: CHARSURPRISAL (full lines) and WORDSUR- WLENGTH 22.22 (0.79)∗∗∗ 0.75 (0.01)∗∗∗
+PRISAL (dotted lines) as a function of error type and er- LASTFIX 2.65 (1.34) 0.22 (0.02)∗∗∗
+ror rate, for correct (left) and erroneous (right) words. For WLENGTH×LASTFIX — 0.60 (0.19)∗∗∗
+CHARSURPRISAL, we show the means of all seven random RESIDCHARSURP- 9.89 (0.78)∗∗∗ 0.09 (0.01)∗∗∗
+initializationsofourneuralsurprisalmodel.
+ORACLE
+RESIDCHARSURP 13.82 (0.66)∗∗∗ 0.14 (0.01)∗∗∗
+ofthewordsinourtextsareunknowntothemodel,givenits ∆AIC −273.88 −205.83
+10,000-wordvocabulary). ∆BIC −273.88 −205.83
+To confirm this observation statistically, we fitted linear
+Pr(β<0): ∗∗∗<0.001,∗∗<0.01,∗<0.05
+mixed-effects models with CHARSURPRISAL and WORD-
+SURPRISAL asdependentvariables. Weenterthesevenran- Table5: Modelsforreadingmeasureswithsurprisalpredic-
+dominitializationsofeachmodelasarandomfactor, analo- tors. Wecomparemodelfitbetweenamodelwithcharacter-
+gouslytotheparticipantsintheeye-trackingexperiment. We basedsurprisal(RESIDCHARSURP)andcharacter-basedora-
+usethesamepredictorsthatweusedforthereadingmeasures, clesurprisal(RESIDCHARSURPORACLE),bothresidualized
+exceptforLASTFIX. Thispredictorisnotavailable: suprisal againstwordlength.
+modelscomputeadifficultymeasureforeachword(viz.,its
+surprisal),buttheyarenotabletopredictwhetherawordwill
+beskippedornot. we did not enter the error factors (ERRORTYPE, ERROR-
+The results of the mixed model with CHARSURPRISAL RATE,ERROR)intothisanalysis,aswepredictthatsurprisal
+as the dependent variable (see Table 4) replicated the ef- willsimulatetheeffectoferrorsinreading.
+fects of ERRORRATE, ERROR, and WORDLENGTH found Itisknownthatsurprisalpredictsreadingtimesinordinary
+in first pass and fixation rate, as well as the effect of ER- text not containing errors (Demberg & Keller, 2008; Frank,
+RORTYPEfoundonlyinfixationrate(seeTable3). Thesame 2009);thus,itisimportanttodisentanglethespecificcontri-
+mixedmodelwithWORDSURPRISALasthedependentvari- bution of modeling errors correctly from the general contri-
+able(seeagainTable4), however, doesnotyieldthecorrect butionofsurprisalinourmodel. Wedothisbyconstructinga
+pattern of results: Crucially, the coefficients of ERROR and baselineversionofcharacter-basedsurprisalthatiscomputed
+ERRORTYPEhavetheoppositesigncomparedtobothCHAR- using an oracle (RESIDCHARSURPORACLE). For this, we
+SURPRISAL and the experimental data (though both effects replace erroneous words with their correct counterparts be-
+aresmall,seedottedlinesinFigure2). forecomputingsurprisal,andagainresidualizeagainstword
+Wehaveshownthatcharacter-basedsurprisalcomputedon length.8 If RESIDCHARSURP correctly accounts for the ef-
+thetextsusedinourexperimentisqualitativelysimilartothe fectsoferrorsonreading,thenweexpectthatRESIDCHAR-
+experimental results. As a next step we will test its quanti- SURP–whichhasaccesstotheerroneouswordforms–will
+tativepredictions,i.e.,wewillcorrelatesurprisalscoreswith improve the fit with our reading data compared to RESID-
+reading times. For this, we performed mixed-effects analy- CHARSURPORACLE.
+sesinwhichfirst-passtimeandfixationratearepredictedby For RESIDCHARSURPORACLE, we use the same seven
+WLENGTH, LASTFIX, andcharacter-basedsurprisalresidu- modelsasfor RESIDCHARSURP, onlyexchangingthechar-
+alized against word length (RESIDCHARSURP).7 Note that
+8Thecorrelationbetweenwordlengthandunresidualizedoracle
+7Thecorrelationbetweenwordlengthandrawsurprisalis0.26. surprisalis0.47.
+6
+lasirpruS
+actersequencesonwhichsurprisaliscomputed.Thisensures Demberg,V.,&Keller,F.(2008).Datafromeye-trackingcor-
+that any difference in model fit between the two predictors poraasevidencefortheoriesofsyntacticprocessingcom-
+canbeattributedentirelytothewayRESIDCHARSURPisaf- plexity. Cognition,109(2),193–210.
+fectedbythepresenceoferrorsinthetexts. Frank, S.L. (2009). Surprisal-basedcomparisonbetweena
+The resulting models are shown in Table 5. For symbolic and a connectionist model of sentence process-
+WLENGTH and LASTFIX, we see the same pattern of re- ing. In N. Taatgen & H. van Rijn (Eds.), Proceedings of
+sults as in the experimental data (see Table 3). Further- the31stannualconferenceofthecognitivesciencesociety
+more, regular surprisal (RESIDCHARSURP) and oracle sur- (pp.1139–1144). Amsterdam.
+prisal(RESIDCHARSURPORACLE)significantlypredictboth Geertzen,J.,Alexopoulou,T.,&Korhonen,A.(2014).Auto-
+firstpasstimeandfixationrate. Thisisinlinewiththestan- maticLinguisticAnnotationofLargeScaleL2Databases:
+dardfindingthatsurprisalpredictsreadingtime(Demberg& The EF-Cambridge Open Language Database (EFCam-
+Keller, 2008; Frank, 2009), but has so far not been demon- Dat). In R. T. Miller (Ed.), Selected Proceedings of the
+stratedfortextscontainingerrors. Wecomparemodelfitus- 2012SecondLanguageResearchForum(pp.240–254).
+ingAICandBIC.BothmeasuresindicatethatRESIDCHAR- Hahn, M.,&Keller, F. (2018). Modelingtaskeffectsinhu-
+SURP fits the experimental data better than RESIDCHAR- manreadingwithneuralattention. (arXiv:1808.00054)
+SURPORACLE. Thus, character-level surprisal provides an Hermann, K.M., Kocisky, T., Grefenstette, E., Espeholt, L.,
+account of our data going beyond the known contribution Kay, W., Suleyman, M., & Blunsom, P. (2015). Teach-
+ofordinarysurprisaltoreadingtimes, andcorrectlypredicts ing machines to read and comprehend. In C. Cortes,
+readinginthepresenceoferrors. N. D. Lawrence, D. D. Lee, M. Sugiyama, & R. Garnett
+(Eds.), Advances in Neural Information Processing Sys-
+Conclusion tems28(pp.1693–1701).
+Hochreiter, S., & Schmidhuber, J. (1997). Long short-term
+Weinvestigatedreadingwitherrorsintextsthatcontaineither
+memory. NeuralComputation,9(8),1735–1780.
+lettertranspositionsorrealmisspellings.Wefoundthattrans-
+Johnson,R.L.,Perea,M.,&Rayner,K. (2007). Transposed-
+positionscausemorereadingdifficultythanmisspellingsand
+lettereffectsinreading:Evidencefromeyemovementsand
+explainedthisusingacharacter-basedsurprisalmodel,which
+parafoveal preview. Journal of Experimental Psychology:
+assigns higher surprisal to rare letter sequences as they oc-
+HumanPerceptionandPerformance,33(1),209–229.
+curintranspositions. Wealsofoundthatintextswithahigh
+Kaakinen, J. K., & Hyo¨na¨, J. (2010). Task effects on eye
+errorrate,allwordsaremoredifficulttoread,eventheones
+movementsduringreading. JournalofExperimentalPsy-
+withouterrors.Again,character-basedsurprisalexplainsthis:
+chology: Learning, Memory, andCognition, 36(6), 1561–
+computingwordexpectationsisharderwhenthecontextofa
+1566.
+wordisdegradedbyerrors,resultinginincreasedsurprisal.
+Levy, R. (2008). Expectation-based syntactic comprehen-
+In future work, we plan to integrate character-based sur- sion. Cognition,106(3),1126–1177.
+prisal with existing neural models of human reading (Hahn Merity, S., Keskar, N. S., & Socher, R. (2018). An
+&Keller,2018). Modelsatthecharacterlevelarenecessary analysis of neural language modeling at multiple scales.
+notonlytoaccountforerrors, butalsotomodellandingpo- (arXiv:1803.08240)
+sitioneffects,parafovealpreview,andwordlengtheffects,all Rayner,K.,White,S.J.,Johnson,R.L.,&Liversedge,S.P.
+ofwhichword-basedmodelsareunabletocapture. (2006). Raeding wrods with jubmled lettres: There is a
+cost. PsychologicalScience,17(3),192–193.
+Acknowledgements
+Schotter,E.R.,Bicknell,K.,Howard,I.,Levy,R.,&Rayner,
+K. (2014). Task effects reveal cognitive flexibility re-
+Y.B.wassupportedbytheHarvardMind,Brain,andBehav-
+sponding to frequency and predictability: Evidence from
+ior Initiative. F.K. was supported by the Leverhulme Trust
+eye movements in reading and proofreading. Cognition,
+throughInternationalAcademicFellowshipIAF-2017-019.
+131(1),1–27.
+References White,S.J.,Johnson,R.L.,Liversedge,S.P.,&Rayner,K.
+(2008).Eyemovementswhenreadingtransposedtext:The
+Bates, D., Ma¨chler, M., Bolker, B., & Walker, S. (2015). importance of word-beginning letters. Journal of Experi-
+FittingLinearMixed-EffectsModelsUsinglme4. Journal mental Psychology: Human Perception and Performance,
+ofStatisticalSoftware,67(1),1–48. 34(5),1261–1276.
+Belinkov,Y.,&Bisk,Y. (2018). Syntheticandnaturalnoise
+both break neural machine translation. In Proceedings of
+the6thInternationalConferenceonLearningRepresenta-
+tions. Vancouver,Canada.
+Bu¨rkner,P.-C. (2017). brms:Anrpackageforbayesianmul-
+tilevel models using stan. Journal of Statistical Software,
+80(1),1–28.
+7

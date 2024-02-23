@@ -1,0 +1,1038 @@
+Open Domain Question Answering with A Unified Knowledge Interface
+KaixinMa♣†∗,HaoCheng♠∗,XiaodongLiu♠,EricNyberg♣,JianfengGao♠
+♣ CarnegieMellonUniversity♠ MicrosoftResearch
+{kaixinm,ehn}@cs.cmu.edu{chehao,xiaodl,jfgao}@microsoft.com
+Abstract To overcome this, recent work on open domain
+questionanswering(ODQA)focusesonthesemi-
+The retriever-reader framework is popular
+parametric method (Karpukhin et al., 2020; Guu
+foropen-domainquestionanswering(ODQA)
+etal.,2020)wherethepretrainedlanguagemodels
+duetoitsabilitytouseexplicitknowledge. Al-
+though prior work has sought to increase the can leverage external explicit knowledge sources
+knowledge coverage by incorporating struc- forreasoning. Forexample,intheretriever-reader
+tured knowledge beyond text, accessing het- framework(Minetal.,2021,interalia),thereader
+erogeneous knowledge sources through a uni- produces answers by grounding on the relevant
+fiedinterfaceremainsanopenquestion.While
+evidencefromtheretriever,theinterfacetotheex-
+data-to-text generation has the potential to
+plicitknowledgesource(Wikipediatextpassages).
+serveasauniversalinterfacefordataandtext,
+Inthiswork,wefocusonthesemi-parametricap-
+its feasibility for downstream tasks remains
+proachforODQAgoingbeyondtextualknowledge.
+largelyunknown. Inthiswork,webridgethis
+gapandusethedata-to-textmethodasameans Specifically,weareinterestedinthequestion: Can
+forencodingstructuredknowledgeforODQA. we develop a viable unified interface over a real-
+Specifically,weproposeaverbalizer-retriever- isticheterogeneousknowledgesourcecontaining
+reader framework for ODQA over data and
+bothdataandtext?
+text where verbalized tables from Wikipedia
+Recent retriever-reader models (Oguz et al.,
+and graphs from Wikidata are used as aug-
+mented knowledge sources. We show that 2020;Agarwaletal.,2021)havedemonstratedthat
+ourUnifiedDataandTextQA,UDT-QA,can expandingthetextualknowledgesourcewithmore
+effectively benefit from the expanded knowl- structureddataisbeneficial. However,onlyknowl-
+edge index, leading to large gains over text- edge base (KB) is considered in (Agarwal et al.,
+onlybaselines. Notably,ourapproachsetsthe
+2021), limiting the applicability of their method
+single-modelstate-of-the-artonNaturalQues-
+to other structured data. In (Oguz et al., 2020),
+tions. Furthermore, ouranalysesindicatethat
+both tables and KB triples are simply linearized
+verbalized knowledge is preferred for answer
+asinputstothereader,butdifferentretrieversare
+reasoning for both adapted and hot-swap set-
+tings. requiredforindividualcases. Here,weproposea
+verbalizer-retriever-reader semi-parametricframe-
+1 Introduction
+work, UDT-QA, which provides a unification of
+bothrepresentationandmodelforODQAoverdata
+Pretrained language models (Devlin et al., 2019;
+andtext. Thekeyideaistoaugmenttheretriever
+Brownetal.,2020)havebeenshowntostorecer-
+withadata-to-textverbalizerforaccessinghetero-
+tainknowledge(linguisticorfactual)implicitlyin
+geneousknowledgesources,i.e.KBgraphsfrom
+parameters (Manning et al., 2020; Petroni et al.,
+WikiData,tablesandpassagesfromWikipedia.
+2019;Robertsetal.,2020),partiallyexplainingthe
+superiorgeneralizationabilitiesoverdownstream Given its potential in providing a universal in-
+tasks. However,besidesthewell-knownhallucina- terfacefordataandtext,data-to-textgenerationis
+tionissue,theimplicitknowledgelearnedthrough increasinglypopular(Gardentetal.,2017;Parikh
+languagemodelingobjectiveovertextstrugglesat etal.,2020;Nanetal.,2021)withvariousmethods
+reflectingup-to-dateknowledgefromtextandstruc- developedrecentlyforconvertingstructuredknowl-
+tured data for answering open-domain questions. edge into natural language (Wang et al., 2020;
+Ribeiroetal.,2020;Chenetal.,2020b). Neverthe-
+†WorkdoneduringaninternshipatMicrosoftResearch
+∗Equalcontribution less, most existing work has focused on intrinsic
+1605
+Proceedingsofthe60thAnnualMeetingoftheAssociationforComputationalLinguistics
+Volume1:LongPapers,pages1605-1620
+May22-27,2022(cid:13)c2022AssociationforComputationalLinguistics
+evaluations exclusively, i.e. the quality of gener- systems(Minetal.,2021,interalia)istheuseof
+atedtextmeasuredbymetricslikeBLEU(Papineni adata-to-textverbalizer(§3)forconvertingstruc-
+etal.,2002),leavingitsusefulnessondownstream tureddataintonaturallanguagetext,i.e.virtualdoc-
+tasks largely unknown. Moreover, it remains un- uments,astheuniversalknowledgesource. Here,
+clearwhetherasingledata-to-textmodelisableto we consider two types of structured knowledge
+verbalizeheterogeneousstructureddataeffectively. (§4.2)—tablesandKBsub-graphs. Afterverbaliz-
+Tobridgethegap,wedevelopanoveldata-to-text ingthestructuredknowledge,asubsequentpipeline
+generationparadigmforourframework. Weintro- consisting of a DPR retriever and a UnitedQA-E
+ducedatafilteringandbeamselectiontomaximize readerisusedforanswerinference. Sincethere-
+thefaithfulcoverageoftheinputinformation. To triever and reader are not the main focus of this
+remedythelackofin-domaindata,wefurtherpro- work,weonlybrieflydescribethembelow.
+poseaniterativetrainingapproachtoaugmentthe TheDPRretriever(Karpukhinetal.,2020)isa
+existingdata-to-texttrainingsetwithhighquality bi-encodermodelconsistingofaquestionencoder
+outputsselectedfromthetargetdomain. Withthis andacontextencoder,whichisusedfordataand
+verbalizer, we convert all tables from Wikipedia textretrieval. Followingpreviouswork(Karpukhin
+(10xmorethan(Oguzetal.,2020))andsub-graphs et al., 2020; Oguz et al., 2020), we use the un-
+from Wikidata together with Wikipedia text pas- cased BERT-base (Devlin et al., 2019) model as
+sagesastheknowledgesourceforODQA. theencoder,wherethe[CLS]tokenrepresentation
+We first validate our data-to-text method us- is used as the document/question vector. During
+ing intrinsic metrics on DART (Nan et al., 2021) training, positive and negative pairs of (question,
+andadditionalfaithfulnessevaluationonthetarget context) are used to update the model. For infer-
+ODQA data. We show that our data-to-text ap- ence, the entire document index is encoded with
+proachcaneffectivelyimprovethetarget-domain context encoder and the encoded question vector
+faithfulmetricwithoutcompromisingtoomuchon isusedtoretrievethetopdocumentswithhighest
+the intrinsic metrics. To further evaluate the end- dot-productscores.
+to-endeffectiveness,weexperimentwithUDT-QA TheUnitedQA-E(Chengetal.,2021b)isanex-
+on the ODQA task using a recent state-of-the-art tractive reader based on ELECTRA (Clark et al.,
+(SOTA) retriever-reader pipeline, including DPR 2020) trained with enhanced objectives (Cheng
+(Karpukhin et al., 2020) and UnitedQA (Cheng et al., 2021a, 2020) for answer inference. Here,
+etal.,2021b). Consistentwithpreviouswork,our apairofaquestionandasupportpassageisjointly
+results also suggest that extra knowledge source encodedintoneuraltextrepresentations. Theserep-
+isbeneficialforODQA.Notably,wefindthatthe resentationsareusedtocomputescoresofpossible
+verbalizedknowledgeisfavoredbythereadercom- answer begin and end positions, which are then
+paredtotherawformat(linearization),especially usedtocomputeprobabilitiesoverpossibleanswer
+whenthestructureddatasizeiscomparabletotext, spans. Finally,theanswerstringprobabilitiesare
+leadingtomorepronouncedimprovements. Over- computed based on the aggregation over all pos-
+all,UDT-QAshowslargeimprovementsovertext- sible answer spans from the entire set of support
+only baselines and performs competitively with passages.
+morecomplicatedmethodsonbothNaturalQues-
+tions (NQ) (Kwiatkowski et al., 2019) and We- 3 Verbalizer: Data-to-textGeneration
+bQuestions (WebQ) (Berant et al., 2013). In par-
+Here,weformallydescribethedata-to-textmodel
+ticular,UDT-QAachievesnewSOTAonNQunder
+developedinthispaper,includingtheinputformat
+thesingle-modelopen-booksetting.1
+(§3.1)andtheadaptationforODQA(§3.2).
+2 OverviewofUDT-QA
+3.1 InputFormat
+In this section, we present the overall pipeline of
+Given a structured data input D, the data-to-text
+ourUDT-QAframeworkforODQAoverdataand
+generator G aims to generate a natural language
+text(Figure1). Themajordifferencebetweenour
+passageP thatfaithfullydescribestheinformation
+approachandthepopularretriever-readerODQA
+presented in D. In the literature, the structured
+data input can be in the form of a set of triples
+1Dataandcodeavailableathttps://github.com/
+Mayer123/UDT-QA (Nan et al., 2021), a few highlighted cells from
+1606
+Figure1: AnoverviewofUDT-QAbasedontheverbalizer-retriever-readerpipeline.
+a table (Parikh et al., 2020) or a full table (Chen ForKB,wefollowpreviouswork(Agarwaletal.,
+etal.,2020a). Correspondingly,P couldasimple 2021) and break the KB into small sub-graphs
+surface-formverbalizationofD (e.g.whenD isa basedonsubjectentity. Here,eachsub-graphcon-
+tripleset)orahigh-levelsummarizationincaseof tainsonecentralentityanditsneighbors. Although
+afulltableoralargeKBgraph. Sinceweconsider this conversion would inevitably create undesir-
+(noisy) tables/KB sub-graphs of arbitrary size in ableartifacts(e.g.hurdlesformulti-hopreasoning
+thispaper,directlyfeedingtheentireinputintothe across sub-graphs), this preprocessing allows us
+generator is not feasible, likely incurring signifi- to unify the input representations for both table
+cantcomputationchallenges. Moreover,itisalso andKBgraphs,makingitpossibleforasinglever-
+desirable to maximize the information coverage balizer to convert structured knowledge into text
+of P so that most relevant information in D can format. Specifically,weconvertallKBsub-graphs
+beleveragedbythedownstreamQAretrieverand intothesameformatastablecellsetsabove,where
+reader. Basedonthis,weverbalizebothtablesand thesubjectentityistreatedasthetitleandallthe
+KBgraphsatafine-grainedlevel. edges are represented using pairs in the form of
+(relation, object). Then we verbalize each
+In this work, we verbalize tables row by row, sub-graphwiththegeneratorG. Examplesofinput
+i.e. inputeachtablerowtoGindividually,where andoutputfortablerowsandKBsub-graphsare
+eachrowisasetofcellsr = {c }k ,andk isthe showninFigure1.
+i i=1
+number of cells in the corresponding row. Most
+3.2 ImprovedData-to-TextModelTraining
+relevant to our setting, recent work (Nan et al.,
+2021)representseachcellinatriple. Toformsuch Aknownproblemindata-to-textgenerationisthat
+triples,theymanuallyannotatethetreeontologyof themodeltendstohallucinateorneglectinforma-
+columnheadersandthencreatetriplesusingtable tionintheinput(Wangetal.,2020;Agarwaletal.,
+title, headers, cellvalueandheaderrelations, e.g. 2021). Faithfulness and information coverage is
+([TABLECONTEXT], [title], LeBron especiallyimportantwhenweapplytheverbalized
+James), (LeBron James, League, NBA) output to knowledge-intensive downstream tasks
+where LeBron James is the parent cell. Al- likeODQA.Toaddressthis,wesubsampletraining
+thoughsuchtripleswithfine-grainedorderingmay dataTsuchthattheinstancesarefilteredoutifthey
+help guide the generator, directly applying such arelikelytosteermodeltowardsmissinginforma-
+a generator to a target domain with no ontology tion. In particular, we compute ROUGE-1 (Lin,
+annotation(ourcase)likelyresultsindegradation. 2004)scoresbetweentheinputandtargetoftrain-
+Toovercomethis,weproposetoconvertthetriple inginstancesandfilteroutthosewhosescoresare
+settopairs,e.g.([title], LeBron James), below a certain threshold. We denote the filtered
+(League, NBA). We find such conversion has versionasT-F.Examplesofthefilteredinstances
+littleimpactontheintrinsicevaluation(§5). After can be found in Table 11, as we discuss more in
+all rows are verbalized, we assemble the text Appendix F, these instances may bias the model
+outputsbacktoformtheverbalizedtable. towardsunwantedbehaviors.
+1607
+Anotherchallengewefaceisthatmostdata-to- SuggestAPIandtheanswersareannotatedasenti-
+texttrainingexampleshavesuccinctstructuredin- tiesinFreebase.
+puts. In other words, the cells in the structured We collect knowledge-answerable questions
+inputareusuallysinglewordsorshortphraseswith fromNQandWebQinordertoevaluateourverbal-
+corresponding short target sentences as well. In izerandconstructtheretrievaltrainingdata. Specif-
+our case, a number of tables contain large cells ically, wefindquestionsintheoriginalNQtrain-
+withdozensofwords. Modelstrainedwithexisting ingsetthatcanbeansweredbyatable. Foreach
+datalikelyhaveahardtimeverbalizingsuchinputs question, we search through tables in its associ-
+faithfully. Toalleviatethisdomain-mismatchissue, atedHTMLpagetolocateexactanswermatches.
+weproposeaniterativetrainingset-up. Inthefirst In total, we collected 14,164 triples of (question,
+iteration, we train a generator on T-F. Then we answer, gold table) from NQ train and dev sets
+applythegeneratortoourdata. Wethenfindhigh as NQ-table-Q. On WebQ, we find questions
+qualityverbalizedoutputsbasedontheROUGE-1 that can be answered by KB via expanding from
+score between the model inputs and model out- questionentitiesandsearchfortheir1-hopneigh-
+puts,andsampleinstanceswithscorehigherthan bors. Ifananswerentityismatched,wekeepthis
+athresholdforthenext-roundtraining. Wesample sub-graph. In total, we collected 2,397 triples of
+instancesuptothesamesizeofT-F,anddenote (question,answer,sub-graph)fromWebQtrainand
+this set as ID-T (examples shown in Table 11). devsetasWebQ-KB-Q.
+Finally, we mix the ID-T with T-F and train a
+secondgeneratorforverbalization. 4.2 StructuredKnowledgeSources
+Followingrecentwork(Nanetal.,2021),weuse
+InadditiontoregularWikipediatextpassages,we
+thepretrainedT5-Large(Raffeletal.,2020)model
+considertwotypesofstructuredknowledge—ta-
+asourgenerator. Givenpairedtrainingexamples
+blesfromWikipediaandKBgraphsfromWikidata.
+consisting of a structured data input and a target
+For tables from Wikipedia, we follow OTT-
+sentence, we finetune the T5 model to maximize
+QA (Chen et al., 2021b) with slight modifica-
+thelog-likelihoodofgeneratingthecorresponding
+tions. Chen et al. (2021b) only consider tables
+targetsentences. Here,wefollowthesameexperi-
+in good format, i.e. tables with no empty cell,
+mentalsetupas(Ribeiroetal.,2020).
+multi-columnormulti-row,andrestrictthetables
+to have at most 20 rows or columns. Instead, we
+4 ExperimentSetup
+removesuchconstraintsandkeepeverythingwith
+Inthissection,wedescribethedatausedforexper- the<table>tag,resultinginalargerandnoisier
+imentsandsourcesofstructuredknowledge. tableset. Wedenotethismorerealisticsetoftables
+asOTT-tables.
+4.1 Datasets
+Note Oguz et al. (2020) only consider tables
+In this paper, we use DART (Nan et al., 2021) to from the original NQ HTMLs. In addition to
+trainourverbalizer(data-to-text)andtwoODQA the size difference, OTT-tables are crawled
+datasets,NQandWebQ,totrainandevaluateour from a more recent Wikipedia dump than the
+pipeline,withthesamesplitasin(Leeetal.,2019) NQ version. To study the impact of knowl-
+provided by (Karpukhin et al., 2020). Below we edgesourcesize,wealsoprocesstablesfromthe
+provideabriefdescriptionofeachdatasetandrefer NQ HTML pages with the heuristic suggested
+readerstotheirpapersfordetails. by (Herzig et al., 2021) to de-duplicate tables
+DART is a data-to-text dataset containing pairs and filter lengthy cells (>80 words). We de-
+of(triple-set,sentences)collectedfromWebNLG note this set of tables as NQ-tables. To avoid
+(Gardentetal.,2017),E2E(Novikovaetal.,2017) overlap, we remove tables from OTT-tables
+andcrowdsourcingbasedontablesfoundinWik- whose page title are in NQ-tables set. In to-
+iSQL(Zhongetal.,2017)andWikiTableQuestions tal, we have a All-tables set with 2.2M ta-
+(PasupatandLiang,2015). bles from OTT-tables and 210K tables from
+NaturalQuestionscontainsquestionsminedfrom NQ-tables,respectively.
+Google search queries and the answers are anno- For KB graphs, we consider using the English
+tatedinWikipediaarticlesbycrowdworkers. Wikidata (Vrandecˇic´ and Krötzsch, 2014) as our
+WebQuestionsconsistsofquestionsfromGoogle KBduetoitsbroadcoverageandhighquality,not-
+1608
+IntrinsicEval ExtrinsicEval
+TrainingSet #Examples BLEU METEOR TER MoverScore BERTScore BLEURT AnsCov
+DART(Nanetal.,2021) 62,659 50.66 0.40 0.43 0.54 0.95 0.44 -
+DARTours(T) 62,628 51.05 0.40 0.43 0.54 0.95 0.43 95.4
+DART(T-F) 55,115 51.04 0.41 0.43 0.54 0.95 0.43 96.0
+DART(T-F + ID-T) 110,230 50.59 0.41 0.44 0.54 0.95 0.43 98.4
+Table 1: Intrinsic and extrinsic evaluationsof verbalization approaches on DARTtest and NQ-table-Q (§4.1),
+respectively. “AnsCov”referstoAnswercoverage. AllmetricsarehigherthebetterexceptforTER.
+ing its predecessor Freebase is no longer main- we compute the answer coverage as the percent-
+tained despite its popularity in research. In order ageofexamplesthattheanswerpresentintheraw
+tobecomparablewithrecentwork(Agarwaletal., structuredknowledgeisstillpreservedinthecorre-
+2021),wedirectlyusetheirpartitionedKBgraphs spondingverbalizedoutput.
+from WikiData in our experiments, which is de- First, we compute the answer coverage of dif-
+notedasWD-graphs. ferentgeneratorsdiscussedintheprevioussection
+onNQ-table-Qwheretablesareknowntocon-
+5 Experiments: Data-to-Text
+tain question-triggering content. The scores are
+reportedinthelastcolumnofTable1. Duetomore
+Inthissection,weevaluateourdata-to-textmodel
+lengthytablesinNQ-table-Q,datafilteringim-
+with both intrinsic and extrinsic metrics. Since
+provestheanswercoverageasexpected. Moreover,
+intrinsicmetricsareprobablylesscorrelatedwith
+model trained with our iterative training demon-
+thedownstreamperformance,weusethemonlyas
+stratessubstantialimprovementsinanswercover-
+asanitycheckforgenerationqualityandfocuson
+age,indicatingthatourapproachishighlyeffective
+usinganextrinsicmetricforselectingmodels.
+forconvertingtablesintotext. Examplesforcom-
+Intrinsic Evaluation: Since our model is devel-
+paring different verbalizer outputs are shown in
+opedmainlyonDART,wefirstconducttheintrin-
+Table12inAppendixF. Later,weusethisbestgen-
+sic evaluation on the DART test set to measure
+erator to verbalize All-tables. We use beam
+theimpactofourimproveddata-to-textmethods,
+searchofsize10andsaveallbeams. Toretainas
+i.e.datafilteringanditerativetraining. Following
+much input information as possible, a re-ranking
+(Nan et al., 2021), we use the official evaluation
+stageiscarriedoutoverthesepredictionsbasedon
+metricsincludingBLEU,METEOR(Banerjeeand
+theROUGE-1scorebetweenthemodelinputsand
+Lavie,2005),TER,MoverScore(Zhaoetal.,2019),
+model outputs. The highest ranked prediction is
+BERTScore(Zhangetal.,2020)andBLEURT(Sel-
+thenusedasthefinaloutput.
+lam et al., 2020). Table 1 summarizes different
+Lastly, we directly apply our best generator
+data-to-textmodelsonDARTtest. Aswecansee,
+(DARTT-F+ID-T)forverbalizingKBgraphs. To
+the resulting model trained with our data conver-
+evaluatetheperformance,wecompareourmodel
+sion(row2)performsonparwiththemodelusing
+with the recent method KELM-verbalizer (Agar-
+theoriginalformat(row1). Moreinterestingly,fil-
+wal et al., 2021) using answer coverage on the
+teringshortsampleshasalmostnoimpactonthe
+setWebQ-KB-QwhereKBsub-graphsareknown
+verbalizer performance (row 3). Lastly, iterative
+to contain answer entities. Although never tuned
+training with additional target domain data (row
+for KB graph inputs, our model achieves 99.6
+4)slightlyhurtsonBLEUandTERandachieves
+on answer coverage, outperforming the KELM-
+similarperformancesonothermetrics. Overall,our
+verbalizer (97.8 on answer coverage) by a large
+verbalizerwiththeproposeddataconversionand
+margin. This suggests that our data-to-text ap-
+improvedtrainingremainsveryeffectiveonDART.
+proachishighlyeffectiveforbothtablesandKB
+ExtrinsicEvaluation: Sinceweareinterestedin
+sub-graphs.
+applyingverbalizedknowledgeforODQA,theQA
+modelismorelikelytopredictthecorrectanswer
+6 Experiments: QAoverDataandText
+only if the answer still exists after the verbaliza-
+tion. Therefore, we also evaluate each generator HerewepresentourmainexperimentsonODQA
+usingametricmorerelatedwiththedownstream overdataandtext. ForregularWikipediatext,we
+taskperformance: answercoverage. Specifically, use the same index containing 21M passages as
+1609
+Model NQ WebQ Source Format R20 R100 EM
+text - 80.8 86.1 49.6
+WithoutStructuredKnowledge
++NQ-tables raw 85.2 90.1 51.1
+DPR(Karpukhinetal.,2020) 41.5 35.2 +NQ-tables V 85.5 90.2 51.2
+UnitedQA(Chengetal.,2021b) 51.8 48.0
++All-tables raw 85.8 90.7 52.1
+WithStructuredKnowledge +All-tables V 86.0 90.7 52.5
+KEALM(Agarwaletal.,2021) 41.5 43.9 text - 78.9 82.3 52.6
+UnitK-QA(Oguzetal.,2020) 54.1 57.8 +WD-graphs-WebQ raw 83.4 86.1 57.1
+UDT-QAw/ RawSingleData 54.7 51.4
++WD-graphs-WebQ V 83.4 85.0 55.7
+UDT-QAw/ VerbalizedSingleData 55.2 52.0
++WD-graphs raw 82.8 86.1 54.3
+UDT-QAw/ VerbalizedHybridData 55.1 52.5
++WD-graphs V 82.8 86.7 55.4
+Table 2: End-to-end open-domain QA evaluation of
+Table3:Impactofdocumentindexsizeoverseparately
+UDT-QAincomparisontorecentstate-of-the-artmod-
+trained retriever-reader models (Top for NQ and bot-
+els on the test sets of NQ and WebQ. Exact match
+tom for WebQ). All metrics are computed on the cor-
+scoresarereported(highestscoresshowninbold).
+responding dev set. V stands for Verbalized here and
+on-wards.
+in(Karpukhinetal.,2020). Toaugmenttext,two
+settingsareconsidered,i.e.thesingledatasetting As we can see, models with additional struc-
+andthehybriddatasetting. turedknowledgeachievebetterperformancethan
+InthesingledatasettingforNQ,weaugmentthe text-only models. This indicates that both KB
+textindexwithtablesfromtheAll-tablesset graphs and tables contain complementary knowl-
+(§4.2). Forcomparison,wealsoexperimentwith edgewhichiseitherabsentintextorhardertobe
+therawrepresentationsusingasimplelinearization reasoned over. For NQ, although we consider a
+of tables similar to (Oguz et al., 2020). In single significantly larger structured knowledge source
+datasettingforWebQ,weconsidercombiningtext which is likely to be more challenging, all our
+with KB graphs from WD-graphs in the single models substantially outperform UnitK-QA. As
+data setting. Different from (Oguz et al., 2020) for WebQ, our model achieves competitive per-
+where a separate entity-linking based retriever is formance, although worse than UnitK-QA. We
+usedforKB,weuseasinglemodel overthetext attribute this gap to two possible reasons. First,
+index with either linearization of raw KB graphs UnitK-QAusesaseparateentity-linkingbasedre-
+orourverbalizedKBgraphs. Hence, inourcase, trieverforKBswhichmightleadtohigherretrieval
+bothtextanddata(tablesandKBgraphs)canbe recall. Second,sinceWebQisfullybasedonFree-
+handled by a unified retriever-reader pipeline. In Base,usingWikiDataonlyinourmodelslikelysuf-
+the hybrid data setting for both NQ and WebQ, fersfrommismatch(PellissierTanonetal.,2016).
+we use text, All-tables and WD-graphs for Nevertheless,ourverbalizer-basedmodelsachieve
+retrieval. Thestatisticsofourdocumentindexare better performances than the corresponding raw
+showninTable7inAppendixA. formatmodelsonbothdatasets,indicatingthatthe
+Wecreateadditionalretrievertrainingdatafrom proposed verbalizer is highly effective for tables
+NQ-Table-QandWebQ-KB-Qinasimilarfash- andKBgraphs.
+ionasinthetext-onlysetting,sothatDPRcanbet-
+7 Analysis
+terhandleadditionalknowledge. Following(Oguz
+etal.,2020),wealsousetheiterativetrainingset- In this section, we present analyses over the im-
+upforretrievertraining. Moretrainingdetailscan pactofdocumentindexsize,theuseofadditional
+befoundinAppendixB. structuredknowledgeinahot-swapsetting,com-
+To evaluate the effectiveness of our UDT-QA parisontoarecentKB-onlydata-to-textapproach
+forODQA,wefirstincluderecentstate-of-the-art inanend-to-endfashion,andmanualexamofthe
+ODQA models using text as the only knowledge verbalized/rawtablesfortheirimpactonODQA.
+source,DPRandUnitedQA.Wealsocompareour How does the size of document index affect re-
+UDT-QAwithrecentmodelsusingadditionalstruc- triever and reader performance? More knowl-
+turedknowledge,KEALMandUnitK-QA.Follow- edge is likely to have better coverage of relevant
+ingtheliterature,wereporttheexactmatch(EM) information. On the other hand, larger and nois-
+scoreforevaluation. TheresultsareinTable2. ierindexalsoincreasesthereasoningcomplexity.
+1610
+Source Format R20 R100 EM Source R20 R100 EM
+Text-only 81.3 87.3 51.8 KELM 78.2 85.3 51.5
+WD-graphs(Ours) 78.5 85.5 52.0
++NQ-tables raw 83.9 90.3 51.7
++NQ-tables V 84.3 90.4 52.5
+Table 5: Comparison of verbalized knowledge from
++All-tables raw 84.0 90.6 51.7 our verbalizer and KELM for retriever and reader on
++All-tables V 84.5 90.6 52.7 WebQtest. DevresultscanbefoundinTable9inAp-
+pendixD.
+Table4:Hot-swapevaluationofrawvsverbalizedtable
+usingatext-onlyretriever-readermodelonNQtest.
+ilar style as text. This can be particularly useful
+for a hot-swap setting where both retriever and
+To understand the impact of the increased doc- reader have only seen textual knowledge during
+ument index size, we conduct experiments with training. To verify that verbalized knowledge is
+a restricted setting where only relevant subset of more amenable, we carry out a hot-swap experi-
+knowledgetothecorrespondingdataset(aprior)is ment here. Specifically, we directly use a DPR
+used for retrieval. Similar to (Oguz et al., 2020), modeltrainedonNQtext-onlydataforadditionally
+weexperimentwiththecombineddocumentindex indexing both NQ-tables and All-tables.
+of text and NQ-tables for NQ. As for WebQ, Then, the inference retrieval is performed on the
+we keep documents from WD-graphs that con- augmenteddocumentindexforaninputquestion,
+tain any of the question entity in WebQ to build andatext-onlyUnited-QA-EreadertrainedonNQ
+WD-graphs-WebQ, and experiment with using is applied for answer inference afterwards. The
+text+WD-graphs-WebQ.InadditiontoEM,we resultsaresummarizedinTable4. Similartothe
+report R20 and R100, evaluating the retrieval ac- previousfullyfine-tunedsettings,weseethataddi-
+curacyofgoldpassagesinthetop-20andtop-100 tionalknowledgestillprovidesubstantialimprove-
+documents,respectively. Theresultsarereported ments for text-only retriever using either raw or
+inTable3. verbalizedknowledge. However,theimprovement
+For NQ, in spite of being more challenging, inrecallisnotreflectedinthelaterreaderperfor-
+we see that using All-tables yield substan- mance for the raw format, whereas the hot-swap
+tial improvement in both recall and answer ex- answerinferenceperformanceisnotablyimproved
+act match compare to using NQ-tables. This withverbalizedknowledge. Thisobservationfur-
+indicates that, with proper training, ODQA mod- thervalidatesourhypothesisthatverbalizedknowl-
+elsarelikelytobenefitfromenrichedknowledge. edgeismorebeneficial,especiallyforreader.
+Although the larger raw form index brings in de- How does the proposed verbalizer compare to
+cent improvement (+1 EM) in terms of reader recentdata-to-textmodels? Lastly,wecompare
+performance (+All-tables vs+NQ-tables), our verbalizer with the recently proposed data-
+our verbalized knowledge is more friendly for to-text generator for converting KB graphs only,
+answer reasoning leading to a more notable QA KELM(Agarwaletal.,2021). SincebothKELM
+improvement (+1.3 EM). Different from NQ, we generatorandourverbalizerarebasedonthesame
+observe that on WebQ the restricted setting with partitionedWikidata, thisevaluationcanfullyre-
+WD-graphs-WebQ achieves better results. We flect their corresponding generation impacts on
+hypothesize that this is likely due to the scale of ODQA in an end-to-end fashion. Here, we eval-
+WebQ dataset. The small amount of WebQ train- uate using our verbalized WD-graphs and the
+ingmakestheretrieverinsufficienttohandlelarge- KELMcorpusasadditionalknowledgeonWebQ.
+scaledocumentindex. Weleavetheverificationof Inparticular,wefollowthesameproceduretotrain
+thishypothesisforfuturework. and evaluate our retriever and reader except that
+Does a text-only retriever-reader model bene- weswaptheWD-graphswithKELMcorpusin
+fitmorefromverbalizedknowledgecompareto dataconstructionandretrieval. Bothretrieverand
+rawformat(hot-swap)? Sincebothretrieverand readerperformancesarereportedinTable5. Note
+reader are based on pretrained language models, that the KELM data-to-text model is customized
+we hypothesize that they would probably benefit solelyforconvertingKBgraphsandtrainedwitha
+morefromtheverbalizedknowledgeduetoitssim- muchlargerdataset(about8Mtraininginstances),
+1611
+Q&A Vtable Rawtable
+TITLE:ListofStarWars:TheCloneWarsepisodes
+Q:starwars ....thetheatricalfilm:"thenewpadawan""castleof |no.inseries,season,no.inseason,title|
+theclonewars deception""castleofdoom""castleofsalvation"isno. ....|3-6,empty,empty,theatricalfilm:"the
+season3 3-6intheseriesofstarwars:theclonewarsepisodes. newpadawan""castleofdeception""castle
+episode1 "clonecadets"inseason3ofstarwars:theclone ofdoom""castleofsalvation"| 7,3,1,
+A:CloneCadets warsisnumber1inseasonandnumber7inseries. "clonecadets"|8,3,empty,"supplylines"|
+"supplylines"isepisode8inseriesand3inseasonof ....
+starwars:theclonewarsgame....
+TITLE:MountRuapehu
+Q:whenwas ....mountruapehuisastratovolcanomountainwith |empty,empty,empty,elevation,prominence,
+thelasttime anageof200,000years.thelasteruptionwas25 listing,coordinates,empty,translation,empty,
+mountruapehu september2007andthevolcanicarc/beltistaupo empty,empty,ageofrock,mountaintype,
+erupted volcaniczone.mountruapehuwasfirstascentin volcanicarc/belt,lasteruption,empty,first
+A:25September 1879byg.beethamandj.p.maxwell.theeasiest ascent,easiestroute|.... 200,000years,strato-
+2007 routetoclimbmountruapehuishike. volcano,taupovolcaniczone,25september
+2007,climbing,1879....|
+TITLE:ListofNationalFootballLeaguecareer rushingyardsleaders
+Q:whohas emmittsmithofthedallascowboys(1990-2002) |rank,player,team(s)byseason,carries,
+themost andarizonacardinals(2003-2004)wasthefirst yards,average|1,emmittsmith,dallas
+yardspercarry playeronthenationalfootballleaguecareer cowboys(1990-2002)arizonacardinals
+innflhistory rushingyardsleaderslist.walterpaytonofthe (2003-2004),4,409,18,355,4.2|2,walter
+A:EmmittSmith chicagobears(1975-1987)rankedsecond.... payton,chicagobears....
+TITLE:ListofEuropeancountriesbypopulation
+Q:whichcountry ....vaticancityranks50onthelistofeuropean |rank,country,currentpopulation,%of
+hasthesmallest countriesbypopulationwith1,000current population,averagerelativeannualgrowth(%),
+populationin populationand0.0%ofpopulation.thelistof averageabsoluteannualgrowth,estimated
+europe europeancountriesbypopulationhas0.0average doublingtime(years),officialfigure,dateof
+A:Vatican relativeannualgrowth(%)and0averageabsolute lastfigure,regionalgrouping,source|1....
+City annualgrowth.thesourceisofficialestimateand 49....|50,vaticancity,1,000,0.0,0.0,0,-,0,
+thedateoflastfigureis2012.Thetotalpopulation.... 2012,empty,officialestimate|empty,total,....
+Table6: Examplesoftables/chunksretrievedbyourmodelgiventhequestion, wheretheevidenceisbolded. In
+rawtable,|istherowseparatorandemptyisthefillertokenusedbyourtableparsingheuristic(tomakethetable
+ingoodshape)
+whereasourverbalizerisapplicabletobothtables verbalizedrowclearlystatestheanswerevidence
+andKBgraphswithasmallertrainingdata(only byconnectingtheinformationintheheaderswith
+110Kinstances). Nevertheless,consistentwithits cell values, making it straightforward to find the
+better extrinsic performance (§5), our verbalizer answer.
+againoutperformstheKELMgeneratorinbothre- Atthesametime,wealsonoticethelimitation
+trievalandreading,whichprovidesfurthersupport ofverbalizedtables: tablestructureloss. Wefound
+for the effectiveness of our approach as a unified thatrawtablesarebetteratansweringrankingques-
+interfaceforODQAoverdataandtext. tions,astheexamplesshowninrow3&4ofTable6.
+What is the impact of verbalized/raw table on When asked about the top or bottom ranked sub-
+ODQA?Wemanuallyanalyzeexamplesofverbal- ject,themodelcandirectlylookforevidencefrom
+ized and raw tables and the details of annotation the starting or the end of the table. On the other
+can be found in Appendix E. We showcase the hand,whenthetableisverbalized,themodelcan
+examplesofverbalizedtablesandtheirrawcoun- not rely on such shortcuts because the boundary
+terpart in Table 6 and discussion their effect on of rows is not clear and the original structure of
+ourUDT-QAsystem. Weidentify2commonpat- the tables are lost. This also suggests a possible
+terns where raw tables are inferior to verbalized directionforfuturework: tobetterincorporatethe
+tables, asshowninthefirst2rowsofTable6. In tablestructureinformationinverbalization.
+thefirstexample,theconcatenatednumbersinthe
+8 RelatedWork
+raw table can be hard to interpret, and we have
+to carefully align the row with the header, which
+Data-to-TextGeneratingtextfromstructureddata
+is very far away. In the second example, the raw
+has been a popular task in NLP. Many dataset
+infobox can be in ill-format and very long, mak-
+havebeenproposedforthistasksuchasWikibio
+ing it hard to understand. On the other hand, the
+(Lebret et al., 2016), Rotowire (Wiseman et al.,
+1612
+2017), WebNLG (Gardent et al., 2017) and E2E graphalongwithWikipediatextforODQA.How-
+(Novikova et al., 2017), where each dataset fo- ever,theysimplylinearizedstructureddatawithout
+cusesonaparticulardomain. Morerecently,large- using any verbalizer, thus may suffer from sub-
+scaledatasetsthatcontainsopen-domainexamples optimalinputrepresentation. Also,theirtablesare
+have been proposed including DART (Nan et al., onlyminedfromoriginalNQHTMLs,i.e.acon-
+2021), TOTTO (Parikh et al., 2020), WikiTableT strained setting. In contrast, we consider tables
+(Chenetal.,2021a)andGenWiki(Jinetal.,2020). from full Wikipedia which is a much larger set.
+On the modeling side, finetuning the pretrained Additionally,separateretrievalmodelsareusedfor
+modelstypicallyachievespromisingperformance tables and KB in (Oguz et al., 2020) whereas we
+(Ribeiroetal.,2020). Wangetal.(2020)propose developaunifiedmodelovertextanddata.
+customized loss functions to reduce model hallu-
+9 Conclusion
+cination during generation. Muti-task learning is
+usedtoimprovemodel’srobustnesstowardsinput
+In this paper, we demonstrated that a unified
+variations(Hoyleetal.,2021). Chenetal.(2020b)
+verbalizer-retriever-reader framework, UDT-QA,
+introduce a generalized format and a pretrained
+for open-domain QA over data and text. We pro-
+modelthatcangeneratetextfrombothtablerows
+posedanoveldata-to-textparadigmthatcanlargely
+and knowledge graphs. Most previous work on
+improvetheverbalizationeffectivenessfordown-
+data-to-textgenerationhaveonlyconductedinter-
+streamknowledge-intensiveapplications,i.e.open-
+nal evaluation, using typical generation metrics
+domain QA, when attaining good intrinsic per-
+suchasBLEUandROUGE,hencethedata-to-text
+formances. With the verbalized knowledge, we
+isconsideredthetargettask. Inthispaper,weargue
+achievedanewstate-of-the-artresultforNQ.Re-
+thatdifferenttrainingstrategiesandevaluationmet-
+markably,weshowedthatsimplyaugmentingthe
+ricsshouldbeadaptedwhenapplyingdata-to-text
+textindexwiththeverbalizedknowledgeimprove
+modelstodownstreamtasks,i.e. ODQA.Related
+theperformancewithoutretrainingthemodel.
+toourwork,Agarwaletal.(2021)converttheen-
+In addition to our method, there are many re-
+tireWikidatatonaturallanguageusingafinetuned
+centlyproposedapproachesforopen-domainQA
+T5 model (Raffel et al., 2020). In this work, we
+thatareorthogonal. Forexample,languagemodels
+generalizethedata-to-textapproachforverbalizing
+specificallyoptimizedfordenseretrieval(Gaoand
+bothtablesandKBgraphsinaunifiedfashionand
+Callan,2021),pretrainingonlarge-scaleQAdata
+studytheverbalizedknowledgeonODQA.
+(Og˘uzetal.,2021)andhybridsystemthatconsists
+ofretriever,reranker,extractivereaderandgenera-
+QA with Data and Text As the knowledge re-
+tivereader(Fajciketal.,2021). Incorporatingthose
+quiredtoanswerthequestionsmaynotbeavailable
+methodsmayfurtherimprovetheperformancefor
+intextualcorpus,previousstudieshavesoughttoin-
+open-domain QA, and we leave that exploration
+corporateknowledgefromdifferencesourcessuch
+for future work. Lastly, instead of only consider-
+as tablesand knowledge bases. Min et al.(2019)
+ing a sanitized collection of knowledge sources,
+use Wikidata to expand seed passages found by
+itisaninterestingfuturedirectiontoscaleupthe
+the retriever and enhance encoded passage repre-
+knowledgetoweb-scale(Nakanoetal.,2021;Pik-
+sentationsinthereader. Lietal.(2021)proposea
+tusetal.,2021).
+hybridframeworkthattakesbothtextandtablesas
+inputs to produce answers and SQL queries. Re- Acknowledgements
+cently, Chen et al. (2021b) develop the OTT-QA
+WewouldliketothankRuohongZhangforhelp-
+datasetcontainingquestionsthatrequirejointrea-
+fuldiscussionsandanonymousreviewersfortheir
+soningoverbothtablesandtext,wherethetables
+valuablesuggestionsonthispaper.
+andtextcomefromentireWikipedia. Thereisalso
+alineofworkthatstudiesmodelarchitecturesfor
+tablesspecificallyorjointencodingoftablesand
+References
+text (Yin et al., 2020; Herzig et al., 2020; Zayats
+et al., 2021; Glass et al., 2021). However, their Oshin Agarwal, Heming Ge, Siamak Shakeri, and
+Rami Al-Rfou. 2021. Knowledge graph based syn-
+focusisnotonopen-domainQAtasks. Mostsimi-
+thetic corpus generation for knowledge-enhanced
+lartoourworkis(Oguzetal.,2020),wherethey
+languagemodelpre-training. InProceedingsofthe
+usebothtablesandWikidata/Freebaseknowledge 2021ConferenceoftheNorthAmericanChapterof
+1613
+the Association for Computational Linguistics: Hu- Hao Cheng, Ming-Wei Chang, Kenton Lee, and
+manLanguageTechnologies,pages3554–3565,On- Kristina Toutanova. 2020. Probabilistic assump-
+line.AssociationforComputationalLinguistics. tions matter: Improved models for distantly-
+supervised document-level question answering. In
+Satanjeev Banerjee and Alon Lavie. 2005. METEOR: Proceedingsofthe58thAnnualMeetingoftheAsso-
+An automatic metric for MT evaluation with im- ciation for Computational Linguistics, pages 5657–
+proved correlation with human judgments. In Pro- 5667, Online. Association for Computational Lin-
+ceedings of the ACL Workshop on Intrinsic and Ex- guistics.
+trinsic Evaluation Measures for Machine Transla-
+tion and/or Summarization, pages 65–72, Ann Ar- Hao Cheng, Xiaodong Liu, Lis Pereira, Yaoliang Yu,
+bor, Michigan. Association for Computational Lin- andJianfengGao.2021a. Posteriordifferentialregu-
+guistics. larizationwithf-divergenceforimprovingmodelro-
+bustness. InProceedingsofthe2021Conferenceof
+the North American Chapter of the Association for
+JonathanBerant,AndrewChou,RoyFrostig,andPercy
+ComputationalLinguistics: HumanLanguageTech-
+Liang. 2013. Semantic parsing on Freebase from
+nologies,pages1078–1089,Online.Associationfor
+question-answer pairs. In Proceedings of the 2013
+ComputationalLinguistics.
+Conference on Empirical Methods in Natural Lan-
+guageProcessing,pages1533–1544,Seattle,Wash-
+Hao Cheng, Yelong Shen, Xiaodong Liu, Pengcheng
+ington, USA. Association for Computational Lin-
+He, Weizhu Chen, and Jianfeng Gao. 2021b. Unit-
+guistics.
+edQA:Ahybridapproachforopendomainquestion
+answering. InProceedingsofthe59thAnnualMeet-
+Tom Brown, Benjamin Mann, Nick Ryder, Melanie
+ingoftheAssociationforComputationalLinguistics
+Subbiah, Jared D Kaplan, Prafulla Dhariwal,
+andthe11thInternationalJointConferenceonNat-
+Arvind Neelakantan, Pranav Shyam, Girish Sastry,
+uralLanguageProcessing(Volume1:LongPapers),
+Amanda Askell, Sandhini Agarwal, Ariel Herbert-
+pages3080–3090,Online.AssociationforComputa-
+Voss, Gretchen Krueger, Tom Henighan, Rewon
+tionalLinguistics.
+Child, Aditya Ramesh, Daniel Ziegler, Jeffrey Wu,
+Clemens Winter, Chris Hesse, Mark Chen, Eric Kevin Clark, Minh-Thang Luong, Quoc V. Le, and
+Sigler,MateuszLitwin,ScottGray,BenjaminChess, Christopher D. Manning. 2020. ELECTRA: Pre-
+Jack Clark, Christopher Berner, Sam McCandlish, training text encoders as discriminators rather than
+Alec Radford, Ilya Sutskever, and Dario Amodei. generators. In International Conference on Learn-
+2020. Language models are few-shot learners. In ingRepresentations(ICLR).
+AdvancesinNeuralInformationProcessingSystems,
+volume 33, pages 1877–1901. Curran Associates, Jacob Devlin, Ming-Wei Chang, Kenton Lee, and
+Inc. Kristina Toutanova. 2019. BERT: Pre-training of
+deep bidirectional transformers for language under-
+Mingda Chen, Sam Wiseman, and Kevin Gimpel. standing. In Proceedings of the 2019 Conference
+2021a. WikiTableT: A large-scale data-to-text of the North American Chapter of the Association
+datasetforgeneratingWikipediaarticlesections. In for Computational Linguistics: Human Language
+Findings of the Association for Computational Lin- Technologies, Volume 1 (Long and Short Papers),
+guistics: ACL-IJCNLP 2021, pages 193–209, On- pages4171–4186,Minneapolis,Minnesota.Associ-
+line.AssociationforComputationalLinguistics. ationforComputationalLinguistics.
+Martin Fajcik, Martin Docekal, Karel Ondrej, and
+Wenhu Chen, Jianshu Chen, Yu Su, Zhiyu Chen, and
+Pavel Smrz. 2021. R2-d2: A modular baseline for
+William Yang Wang. 2020a. Logical natural lan-
+open-domainquestionanswering.
+guagegenerationfromopen-domaintables. InPro-
+ceedings of the 58th Annual Meeting of the Asso-
+LuyuGaoandJamieCallan.2021. Unsupervisedcor-
+ciation for Computational Linguistics, pages 7929–
+pus aware language model pre-training for dense
+7942, Online. Association for Computational Lin-
+passageretrieval.
+guistics.
+ClaireGardent, AnastasiaShimorina, ShashiNarayan,
+Wenhu Chen, Yu Su, Xifeng Yan, and William Yang and Laura Perez-Beltrachini. 2017. The WebNLG
+Wang. 2020b. KGPT: Knowledge-grounded pre- challenge: Generating text from RDF data. In Pro-
+training for data-to-text generation. In Proceed- ceedings of the 10th International Conference on
+ings of the 2020 Conference on Empirical Methods NaturalLanguageGeneration,pages124–133,San-
+in Natural Language Processing (EMNLP), pages tiagodeCompostela,Spain.AssociationforCompu-
+8635–8648, Online. Association for Computational tationalLinguistics.
+Linguistics.
+Michael Glass, Mustafa Canim, Alfio Gliozzo, Sa-
+WenhuChen,MingweiChang,EvaSchlinger,William neem Chemmengath, Vishwajeet Kumar, Rishav
+Wang, and William Cohen. 2021b. Open question Chakravarti, Avi Sil, Feifei Pan, Samarth Bharad-
+answeringovertablesandtext. ProceedingsofICLR waj, and Nicolas Rodolfo Fauceglia. 2021. Captur-
+2021. ingrowandcolumnsemanticsintransformerbased
+1614
+question answering over tables. In Proceedings of RémiLebret,DavidGrangier,andMichaelAuli.2016.
+the 2021 Conference of the North American Chap- Neural text generation from structured data with
+teroftheAssociationforComputationalLinguistics: application to the biography domain. In Proceed-
+Human Language Technologies, pages 1212–1224, ings of the 2016 Conference on Empirical Methods
+Online.AssociationforComputationalLinguistics. inNaturalLanguageProcessing,pages1203–1213,
+Austin, Texas. Association for Computational Lin-
+Kelvin Guu, Kenton Lee, Zora Tung, Panupong Pa- guistics.
+supat, and Mingwei Chang. 2020. Retrieval aug-
+mented language model pre-training. In Proceed- KentonLee,Ming-WeiChang,andKristinaToutanova.
+ings of the 37th International Conference on Ma- 2019. Latent retrieval for weakly supervised open
+chine Learning, volume 119 of Proceedings of Ma- domain question answering. In Proceedings of the
+chineLearningResearch,pages3929–3938.PMLR. 57thAnnualMeetingoftheAssociationforCompu-
+tational Linguistics, pages 6086–6096. Association
+Jonathan Herzig, Thomas Müller, Syrine Krichene, forComputationalLinguistics.
+and Julian Eisenschlos. 2021. Open domain ques-
+tion answering over tables via dense retrieval. In Alexander Hanbo Li, Patrick Ng, Peng Xu, Henghui
+Proceedings of the 2021 Conference of the North Zhu, Zhiguo Wang, and Bing Xiang. 2021. Dual
+American Chapter of the Association for Computa- reader-parseronhybridtextualandtabularevidence
+tional Linguistics: Human Language Technologies, for open domain question answering. In Proceed-
+pages 512–519, Online. Association for Computa- ings of the 59th Annual Meeting of the Association
+tionalLinguistics. forComputationalLinguisticsandthe11thInterna-
+tional Joint Conference on Natural Language Pro-
+Jonathan Herzig, Pawel Krzysztof Nowak, Thomas cessing(Volume1: LongPapers),pages4078–4088,
+Müller,FrancescoPiccinno,andJulianEisenschlos. Online.AssociationforComputationalLinguistics.
+2020. TaPas: Weakly supervised table parsing via
+pre-training. In Proceedings of the 58th Annual Chin-Yew Lin. 2004. ROUGE: A package for auto-
+Meeting of the Association for Computational Lin- maticevaluationofsummaries. InTextSummariza-
+guistics, pages 4320–4333, Online. Association for tion Branches Out, pages 74–81, Barcelona, Spain.
+ComputationalLinguistics. AssociationforComputationalLinguistics.
+Alexander Miserlis Hoyle, Ana Marasovic´, and Christopher D. Manning, Kevin Clark, et al. 2020.
+Noah A. Smith. 2021. Promoting graph awareness Emergent Linguistic Structure in Artificial Neural
+in linearized graph-to-text generation. In Findings NetworksTrainedbySelf-Supervision. PNAS.
+of the Association for Computational Linguistics:
+ACL-IJCNLP 2021, pages 944–956, Online. Asso- Sewon Min, Jordan Boyd-Graber, Chris Alberti,
+ciationforComputationalLinguistics. Danqi Chen, Eunsol Choi, Michael Collins, Kelvin
+Guu, Hannaneh Hajishirzi, Kenton Lee, Jenni-
+Zhijing Jin, Qipeng Guo, Xipeng Qiu, and Zheng maria Palomaki, Colin Raffel, Adam Roberts, Tom
+Zhang. 2020. GenWiki: A dataset of 1.3 million Kwiatkowski, Patrick Lewis, Yuxiang Wu, Hein-
+content-sharing text and graphs for unsupervised rich Küttler, Linqing Liu, Pasquale Minervini, Pon-
+graph-to-textgeneration. InProceedingsofthe28th tus Stenetorp, Sebastian Riedel, Sohee Yang, Min-
+InternationalConferenceonComputationalLinguis- joon Seo, Gautier Izacard, Fabio Petroni, Lu-
+tics, pages 2398–2409, Barcelona, Spain (Online). cas Hosseini, Nicola De Cao, Edouard Grave,
+InternationalCommitteeonComputationalLinguis- IkuyaYamada,SonseShimaoka,MasatoshiSuzuki,
+tics. ShumpeiMiyawaki,ShunSato,RyoTakahashi,Jun
+Suzuki, Martin Fajcik, Martin Docekal, Karel On-
+VladimirKarpukhin,BarlasOguz,SewonMin,Patrick drej, Pavel Smrz, Hao Cheng, Yelong Shen, Xi-
+Lewis,LedellWu,SergeyEdunov,DanqiChen,and aodong Liu, Pengcheng He, Weizhu Chen, Jian-
+Wen-tau Yih. 2020. Dense passage retrieval for feng Gao, Barlas Oguz, Xilun Chen, Vladimir
+open-domainquestionanswering. InProceedingsof Karpukhin, Stan Peshterliev, Dmytro Okhonko,
+the 2020 Conference on Empirical Methods in Nat- MichaelSchlichtkrull,SonalGupta,YasharMehdad,
+ural Language Processing (EMNLP), pages 6769– andWentauYih.2021. NeurIPS2020EfficientQA
+6781, Online. Association for Computational Lin- competition: Systems,analysesandlessonslearned.
+guistics.
+SewonMin, DanqiChen, LukeZettlemoyer, andHan-
+Tom Kwiatkowski, Jennimaria Palomaki, Olivia Red- naneh Hajishirzi. 2019. Knowledge guided text re-
+field, Michael Collins, Ankur Parikh, Chris Al- trievalandreadingforopendomainquestionanswer-
+berti, Danielle Epstein, Illia Polosukhin, Jacob De- ing.
+vlin, Kenton Lee, Kristina Toutanova, Llion Jones,
+MatthewKelcey,Ming-WeiChang,AndrewM.Dai, ReiichiroNakano,JacobHilton,SuchirBalaji,JeffWu,
+Jakob Uszkoreit, Quoc Le, and Slav Petrov. 2019. Long Ouyang, Christina Kim, Christopher Hesse,
+Natural questions: A benchmark for question an- Shantanu Jain, Vineet Kosaraju, William Saunders,
+swering research. Transactions of the Association Xu Jiang, Karl Cobbe, Tyna Eloundou, Gretchen
+forComputationalLinguistics,7:452–466. Krueger, KevinButton, MatthewKnight, Benjamin
+1615
+Chess,andJohnSchulman.2021. Webgpt:Browser- 2016. From freebase to wikidata: The great mi-
+assisted question-answering with human feedback. gration. In Proceedings of the 25th International
+CoRR,abs/2112.09332. Conference on World Wide Web, WWW ’16, page
+1419–1428, Republic and Canton of Geneva, CHE.
+Linyong Nan, Dragomir Radev, Rui Zhang, Amrit InternationalWorldWideWebConferencesSteering
+Rau, Abhinand Sivaprasad, Chiachun Hsieh, Xian- Committee.
+gru Tang, Aadit Vyas, Neha Verma, Pranav Kr-
+ishna, Yangxiaokang Liu, Nadia Irwanto, Jessica
+FabioPetroni,TimRocktäschel,etal.2019. Language
+Pan, Faiaz Rahman, Ahmad Zaidi, Mutethia Mu-
+ModelsasKnowledgeBases? InEMNLP.
+tuma,YasinTarabar,AnkitGupta,TaoYu,YiChern
+Tan, Xi Victoria Lin, Caiming Xiong, Richard
+AleksandraPiktus,FabioPetroni,VladimirKarpukhin,
+Socher, and Nazneen Fatema Rajani. 2021. DART:
+Dmytro Okhonko, Samuel Broscheit, Gautier Izac-
+Open-domain structured data record to text genera-
+ard, Patrick Lewis, Barlas Oguz, Edouard Grave,
+tion. In Proceedings of the 2021 Conference of the
+Wen-tauYih,andSebastianRiedel.2021. Theweb
+NorthAmericanChapteroftheAssociationforCom-
+is your oyster - knowledge-intensive NLP against a
+putationalLinguistics: HumanLanguageTechnolo-
+verylargewebcorpus. CoRR,abs/2112.09924.
+gies, pages 432–447, Online. Association for Com-
+putationalLinguistics.
+Colin Raffel, Noam Shazeer, Adam Roberts, Kather-
+JekaterinaNovikova,OndˇrejDušek,andVerenaRieser. ine Lee, Sharan Narang, Michael Matena, Yanqi
+2017. The E2E dataset: New challenges for end- Zhou, Wei Li, and Peter J. Liu. 2020. Exploring
+to-end generation. In Proceedings of the 18th An- thelimitsoftransferlearningwithaunifiedtext-to-
+nual SIGdial Meeting on Discourse and Dialogue, text transformer. Journal of Machine Learning Re-
+pages201–206,Saarbrücken,Germany.Association search,21(140):1–67.
+forComputationalLinguistics.
+Leonardo F. R. Ribeiro, Martin Schmitt, Hinrich
+Barlas Oguz, Xilun Chen, Vladimir Karpukhin, Schütze, and Iryna Gurevych. 2020. Investigating
+Stan Peshterliev, Dmytro Okhonko, Michael pretrained language models for graph-to-text gener-
+Schlichtkrull, Sonal Gupta, Yashar Mehdad, and ation.
+Scott Yih. 2020. Unik-qa: Unified representations
+of structured and unstructured knowledge for AdamRoberts,ColinRaffel,andNoamShazeer.2020.
+open-domainquestionanswering. How Much Knowledge Can You Pack Into the Pa-
+rametersofaLanguageModel? InProf.ofEMNLP.
+Barlas Og˘uz, Kushal Lakhotia, Anchit Gupta, Patrick
+Lewis, Vladimir Karpukhin, Aleksandra Piktus,
+Thibault Sellam, Dipanjan Das, and Ankur P Parikh.
+Xilun Chen, Sebastian Riedel, Wen tau Yih, Sonal
+2020. Bleurt: Learning robust metrics for text gen-
+Gupta,andYasharMehdad.2021. Domain-matched
+eration. InProceedingsofACL.
+pre-trainingtasksfordenseretrieval.
+KishorePapineni,SalimRoukos,ToddWard,andWei- Denny Vrandecˇic´ and Markus Krötzsch. 2014. Wiki-
+JingZhu.2002. Bleu: amethodforautomaticeval- data:Afreecollaborativeknowledgebase. Commun.
+uation of machine translation. In Proceedings of ACM,57(10):78–85.
+the40thAnnualMeetingoftheAssociationforCom-
+putationalLinguistics,pages311–318,Philadelphia, Zhenyi Wang, Xiaoyang Wang, Bang An, Dong Yu,
+Pennsylvania,USA.AssociationforComputational andChangyouChen.2020. Towardsfaithfulneural
+Linguistics. table-to-text generation with content-matching con-
+straints. In Proceedings of the 58th Annual Meet-
+Ankur Parikh, Xuezhi Wang, Sebastian Gehrmann, ingoftheAssociationforComputationalLinguistics,
+Manaal Faruqui, Bhuwan Dhingra, Diyi Yang, and
+pages1072–1086,Online.AssociationforComputa-
+DipanjanDas. 2020. ToTTo: Acontrolled table-to-
+tionalLinguistics.
+textgenerationdataset. InProceedingsofthe2020
+Conference on Empirical Methods in Natural Lan-
+Sam Wiseman, Stuart Shieber, and Alexander Rush.
+guageProcessing(EMNLP),pages1173–1186,On-
+2017. Challenges in data-to-document generation.
+line.AssociationforComputationalLinguistics.
+In Proceedings of the 2017 Conference on Empiri-
+calMethodsinNaturalLanguageProcessing,pages
+Panupong Pasupat and Percy Liang. 2015. Compo-
+2253–2263,Copenhagen,Denmark.Associationfor
+sitional semantic parsing on semi-structured tables.
+ComputationalLinguistics.
+In Proceedings of the 53rd Annual Meeting of the
+Association for Computational Linguistics and the
+7th International Joint Conference on Natural Lan- PengchengYin,GrahamNeubig,Wen-tauYih,andSe-
+guage Processing (Volume 1: Long Papers), pages bastianRiedel.2020. TaBERT:Pretrainingforjoint
+1470–1480,Beijing,China.AssociationforCompu- understanding of textual and tabular data. In Pro-
+ceedings of the 58th Annual Meeting of the Asso-
+tationalLinguistics.
+ciation for Computational Linguistics, pages 8413–
+Thomas Pellissier Tanon, Denny Vrandecˇic´, Sebas- 8426, Online. Association for Computational Lin-
+tianSchaffert,ThomasSteiner,andLydiaPintscher. guistics.
+1616
+VickyZayats,KristinaToutanova,andMariOstendorf.
+2021. Representationsforquestionansweringfrom
+documents with tables and text. In Proceedings of
+the16thConferenceoftheEuropeanChapterofthe
+Association for Computational Linguistics: Main
+Volume, pages 2895–2906, Online. Association for
+ComputationalLinguistics.
+Tianyi Zhang, Varsha Kishore, Felix Wu, Kilian Q.
+Weinberger,andYoavArtzi.2020. Bertscore: Eval-
+uating text generation with bert. In International
+ConferenceonLearningRepresentations.
+WeiZhao,MaximePeyrard,FeiLiu,YangGao,Chris-
+tianM.Meyer,andSteffenEger.2019. MoverScore:
+Text generation evaluating with contextualized em-
+beddingsandearthmoverdistance. InProceedings
+of the 2019 Conference on Empirical Methods in
+Natural Language Processing and the 9th Interna-
+tional Joint Conference on Natural Language Pro-
+cessing (EMNLP-IJCNLP), pages 563–578, Hong
+Kong, China. Association for Computational Lin-
+guistics.
+Victor Zhong, Caiming Xiong, and Richard Socher.
+2017. Seq2sql: Generating structured queries from
+naturallanguageusingreinforcementlearning.
+1617
+Source Raw Verbalized Source Format R20 R100 EM
+text - 81.3 87.3 51.8
+Text 21M -
++NQ-tables raw 86.0 91.2 54.8
+OTT-tables 4.0M 6.3M
++NQ-tables V 86.2 91.0 54.2
+NQ-tables 446K 572K
++All-tables raw 86.9 91.9 54.7
+WD-graphs 5.7M 5.8M +All-tables V 87.0 91.7 55.2
+text - 73.2 81.4 48.0
+Table7: StatisticsofDocumentIndex +WD-graphs-WebQ raw 80.2 85.8 51.5
++WD-graphs-WebQ V 79.7 85.3 52.6
++WD-graphs raw 78.8 85.1 51.4
+A DocumentIndexStatistics +WD-graphs V 78.5 85.5 52.0
+To be consistent with text passages, we also cut
+Table8:Impactofdocumentindexsizeoverseparately
+tablesandKBsub-graphs(raworverbalized)into trained retriever-reader models (Top for NQ and bot-
+chunks that has about 100 words. Hence the ver- tomforWebQ).Allmetricsarecomputedonthecorre-
+balizedknowledgewillhavelargerindexsizethan spondingtestset.
+rawformat(seeTable7).
+B TrainingDetails ter the first DPR is trained, we used it to retrieve
+passagesfromajointindexoftext+structured
+To train the retriever to better handle knowledge knowledge. Then the negative passages are
+from tables and KB, we create additional train- paired with the positive passages from the first
+ing data from NQ-Table-Q and WebQ-KB-Q. round to build new sets of training data. Then
+Given a (question, answer, gold table) from we train a second DPR using the iteration1 data
+NQ-Table-Q, we create a positive passage by combinedwiththenewtrainingsets.
+concatenating rows containing the answer. Then Forretrivertraining,wefollowtheexperiment
+werandomlysampleandconcatenateotherrowsin set-up as specified by (Karpukhin et al., 2020).
+thetableifthepassagehaslessthan100words. To Specifically,weusetheAdamoptimizerandaper-
+findnegativepassagesfortraining,webuildaindex gpu batch size of 32 for NQ and 24 for WebQ,
+consistsofallthetablesanduseBM25toretrieve respectively. All trainings are done with a fixed
+relevanttables. Onesthatdonotcontaintheanswer learningrateof2e−5and40epochsusing8V100
+areconsideredasnegativetables. Thenwesample GPUs. We select the best model based on the re-
+rowsfromthetabletobuildnegativepassages. For trievalaccuracyonthecorrespondingdevset.
+therawtables,theprocessisthesameexceptthat
+For reader training, we follow the experiment
+we also concatenate headers in the beginning to
+set-upasdescribedin(Chengetal.,2021b). Specif-
+buildpositiveandnegativepassages. Wecombine
+ically,weusetheAdamoptimizerandabatchsize
+NQtrainingdatawiththissettotrainDPR.
+of16forNQand8forWebQ,respectively. Weuse
+For WebQ-KB-Q, we use the verbalized gold 16 and 8 V100 GPUs for NQ and WebQ respec-
+sub-graphs as positive passages. For the raw for- tively. Weselectthelearningratein{3e−5,5e−5}
+mat, this is replaced by flattening the gold sub- andnumberoftrainingepochsin{6,8}. Thebest
+graph. Thenwebuildanindexwithalldocuments modelisselectedbasedonEMonthecorrespond-
+inWD-graphsandthetoprankeddocumentsby
+ingdevset. Allofourreportedresultsareobtained
+BM25 that do not contain the answer are treated fromasinglerun.
+as negatives. Here the documents refer to con-
+Regarding the number of parameters in the
+catenatedtriplessetforrawsettingandsentences
+model,ourverbalizerisbasedonT5-large,which
+produced by the generator in verbalized setting.
+has770Mparameters. Ourretrieverisabi-encoder
+Additionally, we search through answer entities
+modelbasedonbert-base,whichhas220Mparam-
+andtheirneighborsinthegraphtofinddocuments
+eters. Our reader model is based on ELECTRA-
+thathaswordoverlapwiththequestion. Thenwe
+large,whichhas330Mparameters.
+buildtraininginstancesinasimilarfashion.
+Aspointedbypreviouswork(Oguzetal.,2020), C ImpactofDocumentIndexSize
+mining harder negative passages using DPR and
+iterativetrainingleadstobetterperformance. We Wereportthetestsetresultsofmodelstrainedwith
+alsoadoptedthisapproachinourexperiments. Af- differentdocumentindexinTable8(corresponding
+1618
+Source R20 R100 EM contain the answer. The remaining cases are all
+KELM 83.1 86.7 55.1 due to retriever failed to find the true positive ta-
+WD-graphs(Ours) 82.8 86.7 55.4 blechunks. Inthese30cases,themostnoticeable
+patternisthatthemodelisabletoleveragestruc-
+Table 9: Dev set results of models trained on WebQ tural shortcut to arrive at the answer, suggesting
+withverbalizedWD-graphandKELM thelimitationofverbalizedtables.
+F Data-to-textExamples
+V-correct V-error
+Raw-correct 1750 223 InthetophalfofTable11weshowexamplesfrom
+Raw-error 242 1395 DARTthatarefilteredoutbyourmethod,i.e. low
+ROUGE scores between input and target. In the
+Table 10: Error matrix of UDT-QA trained with
+first example, information from 2 cells are com-
+text+All-tablesinrawandverbalizedformat
+pletely omitted from the target. The model may
+learntoomitinformationfromthiskindofexam-
+toTable3). Overall,weobservesimilartrends. For ples,whichisproblematicwhenweconsiderQA
+NQ, the model benefits more from a larger docu- as our downstream task. Our filtering method is
+mentindexwhileforWebQtherestrictedsetting alsoabletoprunenoisyexamples,asshowninrow
+yieldbetterperformance. 2&3,wherethereislittlecorrespondencebetween
+input and target. In row 4, we show an example
+D ComparisonbetweehOurVerbalizer
+wherethetargetcontainstheinformationnotexist
+andKELM-verbalizer
+intheinput. Thiskindofexamplesmayteachthe
+model to hallucinate which is also an unwanted
+We report the dev set results of WebQ models
+behavior,hencetheyarealsofilteredout.
+trainedwithourverbalizedWD-graphsincom-
+In the bottom half of Table 11 we show exam-
+parisonwithKELMinTable9(correspondingto
+plesfromID-Tset,i.e. goodqualityinput-output
+Table5).
+pairs produced by the verbalizer trained on T-F
+E CaseStudyonRawvsVerbalized set,whenappliedtoourtablesets. Theseexamples
+Tables often have longer inputs and/or larger table cells
+andtheinformationcoveragerateintargetisvery
+Formanualanalysisofverbalizedandrawtables,
+high. BycombiningID-TsetwithT-Fsettotrain
+westartbycomputingtheerrormatrixoftheNQ
+a new verbalizer, the model can more effectively
+models trained with text+All-tables in both
+learntogeneratefaithfuldescriptionoftheinput.
+format, as shown in Table 10. We then manually
+Finally, in Table 12 we show examples of
+annotated 100 examples where only 1 format of
+question-answerpairsalongwiththeirassociated
+knowledgesuccessfullyansweredthequestion(50
+gold tables(rows). For each raw input, we show
+for each format), and we select examples where
+its corresponding output generated by the verbal-
+atleast1tablechunkismarkedaspositivebythe
+izer trained on T and the verbalizer trained on
+retriever. Out of 50 examples where verbalized
+T-F+ID-T. We can see that the direction evi-
+tablescontaintheanswerspan,40ofthemaretrue
+dence to the answer is present in one of the raw
+positivesthatprovidedirectevidencetotheques-
+tablecells,howeverinall3casestheverbalizer(T)
+tions. In 35 out of 40 questions, the retriever for
+failedtogeneratethatpieceofinformation. Onthe
+therawmodelactuallyfindthesametable/chunks
+other hand, the verbalizer(T-F+ID-T) faithfully
+thatprovidetheanswer. However,themodelfailed
+described all information presented in the input,
+toextractanswerforthosecasesandwethinkit’s
+showingtheeffectivenessofourproposedmethod.
+mainlybecausetherawformatofthenoisytables
+can be hard for the model to reason over, as dis- G License
+cussedinsection7.
+WelisttheLicenseofthesoftwareanddataused
+We then looked at the other group of 50 ques-
+inthispaperbelow:
+tions (raw format). 37 of them are true positives
+thatcontaindirectevidence. Thenin30outof37
+• DPR:CC-BY-NC4.0License
+questions, the verbalized retriever is able to find
+thecorrespondingverbalizedtable/chunksthatalso • DART:MITLicense
+1619
+Input <H>[title]<T>CondeMcCullough<H>bridgename<T>oregoncitybridge<H>carries<T>oregonroute43
+<H>yearcompleted<T>1922<H>totallength<T>745feet227m<H>location<T>oregoncityoregon
+Target condemcculloughhelpedbuildtheoregoncitybridge,whichispartoforegonrt.43.
+Input <H>[title]<T>YuryAleksandrovichGolovkin<H>russianstate<T>russianempire
+<H>datefrom<T>9november1818<H>dateuntil<T>16september1822
+Target thefirstambassadorofrussiatoaustriawasprincedmitrymikhailovichgolitsyn.
+Input <H>[title]<T>43<H>competition<T>afcchampionsleague
+Target theclubwasofficiallyfoundedaslucky-goldstarfootballclubin1983,bythelucky-goldstargroup.
+fcseoulhavewonsixleaguetitles,twofacups,twoleaguecupsandonesupercup.
+Input <H>[title]<T>AnaMariaBeldanaFerriera<H>hometown<T>santiagodeloscaballeros
+Target anamaríabeldañaferriera,fromsantiagodeloscaballeros,wasacontestantinthemissdominicanrepublic2002contest.
+Input <H>[title]<T>MeettheFockers<H>editedby<T>jonpollleehaxallalanbaumgarten<H>productioncompany
+<T>tribecaproductionseverymanpictures<H>distributedby<T>universalpictures(northamerica)
+dreamworkspictures(international)
+Target meetthefockerswaseditedbyjonpoll,leehaxall,alanbaumgartenanddistributedbyuniversalpictures(northamerica)
+dreamworkspictures(international).theproductioncompanywastribecaproductions.
+Input <H>[title]<T>LamarHuntU.S.OpenCup<H>season<T>2010<H>player<T>paulojr.natejaqua
+<H>team<T>miamifcseattlesoundersfc<H>goals<T>5
+Target paulojr.natejaquascored5goalsformiamifcseattlesoundersfcinthe2010lamarhuntu.s.opencup.
+Table11: Top: examplesfromDARTthatarefilteredoutbyourmethod, theboldcellsareomittedinformation
+fromtarget,anditalictextfromtargetarelikelytobiasthemodeltowardshallucination. Bottom: examplesfrom
+(ID-T),whichisgeneratedbyour1stiterationverbalizer
+Question howmanyepisodesinseason7walkingdead
+Answer 16
+Input <H>[title]<T>TheWalkingDead(season7)<H>countryoforigin<T>unitedstates<H>no.ofepisodes
+<T>16<H>thewalkingdead(season7)<T>release<H>originalnetwork<T>amc
+Verbalizer(T) theoriginalnetworkforthewalkingdead(season7)isamc.thecountryoforiginforthewalkingdead
+(season7)isunitedstates.
+Verbalizer(T-F+ID-T) theoriginalnetworkofthewalkingdead(season7)isamcandthecountryoforiginisunitedstates.
+thewalkingdead(season7)has16episodes.
+Question whendidnigeriaadoptthepresidentialsystemofgovernment
+Answer 1963
+Input <H>[title]<T>FederalgovernmentofNigeria<H>federalgovernmentofnigeria<T>coatofarmsofnigeria
+<H>formation<T>1963;55yearsago<H>foundingdocument<T>constitutionofnigeria
+Verbalizer(T) theconstitutionofnigeriaisthefoundingdocumentofthefederalgovernmentofnigeriawhichwasformed55
+yearsago.thefederalgovernmentofnigeriahasthecoatofarmsofnigeria.
+Verbalizer(T-F+ID-T) theconstitutionofnigeriaisthefoundingdocumentofthefederalgovernmentofnigeriawhichwas
+formedin1963;55yearsago.thefederalgovernmentofnigeriahasthecoatofarmsofnigeria.
+Question whatyeardidtheystopmakingthesaturnvue
+Answer 2009
+Input <H>[title]<T>SaturnVue<H>saturnvue<T>overview<H>manufacturer<T>saturncorporation
+(2002-2007)opel(generalmotors)(2008-2010)<H>production<T>2001–2009<H>modelyears
+<T>2002–2010<H>saturnvue<T>bodyandchassis
+Verbalizer(T) saturnvue’sbodyandchassisweremanufacturedbysaturncorporation(2002-2007)andopel(general
+motors)(2008-2010)duringthemodelyears2002–2010.
+Verbalizer(T-F+ID-T) saturncorporation(2002-2007)opel(generalmotors)(2008-2010)manufacturedthesaturnvuefrom
+2001–2009andmodelyears2002–2010.thesaturnvuehasabodyandchassis.
+Table12: Examplesofverbalizedtable(rows)generatedbydifferentverbalizer,wherethedirectevidencestothe
+answeraremarkedinbold
+• KELM:CCBY-SA2.0license
+• OTT-QA:MITLicense
+1620

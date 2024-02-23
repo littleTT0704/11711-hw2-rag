@@ -1,0 +1,1123 @@
+Quality-Aware Decoding for Neural Machine Translation
+PatrickFernandes∗,1,2,3 AntónioFarinhas∗,2,3 RicardoRei2,4,5 JoséG.C.deSouza5
+PerezOgayo1 GrahamNeubig1 AndréF.T.Martins2,3,5
+1CarnegieMellonUniversity 2InstitutoSuperiorTécnico(LisbonELLISUnit)
+3InstitutodeTelecomunicações 4INESC-ID 5Unbabel
+pfernand@cs.cmu.edu antonio.farinhas@tecnico.ulisboa.pt
+Abstract
+Despite the progress in machine translation
+quality estimation and evaluation in the last
+years, decoding in neural machine translation
+(NMT) is mostly oblivious to this and cen-
+ters around finding the most probable trans-
+lation according to the model (MAP decod-
+Figure 1: Quality-aware decoding framework. First,
+ing), approximated with beam search. In this
+translation candidates are generated according to the
+paper, we bring together these two lines of
+model. Then, using reference-free and/or reference-
+research and propose quality-aware decoding
+basedMTmetrics,thesecandidatesareranked,andthe
+for NMT, by leveraging recent breakthroughs
+highestrankedoneispickedasthefinaltranslation.
+inreference-freeandreference-basedMTeval-
+uationthroughvariousinferencemethodslike
+N-bestrerankingandminimumBayesriskde- comeatacostofmoreexpensiveandunstabletrain-
+coding. Weperformanextensivecomparison ing,oftenwithmodestqualityimprovements.
+of various possible candidate generation and Anappealingalternativeistomodifythedecod-
+rankingmethodsacrossfourdatasetsandtwo
+ing procedure only, separating it into two stages:
+model classes and find that quality-aware de-
+candidategeneration(§2.1;wherecandidatesare
+coding consistently outperforms MAP-based
+generated with beam search or sampled from the
+decodingaccordingbothtostate-of-the-artau-
+tomatic metrics (COMET and BLEURT) and wholedistribution)andranking(§2.2;wherethey
+to human assessments. Our code is available arescoredusingaqualitymetricofinterest,andthe
+at https://github.com/deep-spin/ translationwiththehighestscoreispicked). This
+qaware-decode. strategy has been explored in approaches using
+N-bestreranking(Ngetal.,2019;Bhattacharyya
+1 Introduction
+etal.,2021)andminimumBayesrisk(MBR)de-
+The most common procedure in neural machine coding (Shu and Nakayama, 2017; Eikema and
+translation (NMT) is to train models using maxi- Aziz, 2021; Müller and Sennrich, 2021). While
+mumlikelihoodestimation(MLE)attrainingtime, thispreviousworkhasexhibitedpromisingresults,
+andtodecodewithbeamsearchattesttime,asa ithasmostlyfocusedonoptimizinglexicalmetrics
+waytoapproximatemaximum-a-posteriori(MAP) suchasBLEUorMETEOR(Papinenietal.,2002;
+decoding. However,severalworkshavequestioned LavieandDenkowski,2009),whichhavelimited
+theutilityofmodellikelihoodasagoodproxyfor correlationwithhumanjudgments(Mathuretal.,
+translationquality(KoehnandKnowles,2017;Ott 2020a;Freitagetal.,2021a). Moreover,arigorous
+et al., 2018; Stahlberg and Byrne, 2019; Eikema apples-to-apples comparison among this suite of
+and Aziz, 2020). In parallel, significant progress techniquesandtheirvariantsisstillmissing,even
+has been made in methods for quality estimation thoughtheysharesimilarbuildingblocks.
+and evaluation of generated translations (Specia Ourworkfillsthesegapsbyaskingthequestion:
+etal.,2020;Mathuretal.,2020b),butthisprogress
+“CanweleveragerecentadvancesinMTqual-
+is,byandlarge,notyetreflectedineithertraining
+ityevaluationtogeneratebettertranslations?
+ordecodingmethods. Exceptionssuchasminimum
+Ifso,howcanwemosteffectivelydoso?”
+risktraining(Shenetal.,2016;Edunovetal.,2018)
+*Equalcontribution. Toanswerthisquestion,wesystematicallyexplore
+2202
+yaM
+2
+]LC.sc[
+1v87900.5022:viXra
+NMT decoding using a suite of ranking proce- MAPdecoding,formalizedas
+dures. We take advantage of recent state-of-the-
+art learnable metrics, both reference-based, such yˆ MAP = argmax logp θ(y|x). (1)
+y∈Y
+as COMET and BLEURT (Rei et al., 2020a; Sel-
+lam et al., 2020), and reference-free (also known In words, MAP decoding searches for the most
+as quality estimation; QE), such as TransQuest probabletranslationunderp (y|x),i.e.,themode
+θ
+and OpenKiwi (Ranasinghe et al., 2020; Kepler ofthemodeldistribution. Findingtheexactyˆ
+MAP
+etal.,2019). Wecomparedifferentrankingstrate- is intractable since the search space Y is combi-
+gies under a unified framework, which we name natorially large, thus, approximations like beam
+quality-aware decoding (§3). First, we analyze search(Graves,2012;Sutskeveretal.,2014)are
+theperformanceofdecodingusingN-bestrerank- used. However,ithasbeenshownthatthetransla-
+ing, both fixed according to a single metric and tionqualitydegradesforlargevaluesofthebeam
+learned using multiple metrics, where the coeffi- size(KoehnandKnowles,2017;Yangetal.,2018;
+cientsforeachmetricareoptimizedaccordingtoa Murray and Chiang, 2018; Meister et al., 2020),
+reference-basedmetric. Second,weexplorerank- with the empty string often being the true MAP
+ingusingreference-basedmetricsdirectlythrough hypothesis(StahlbergandByrne,2019).
+MBRdecoding. Finally,tocircumventtheexpen- Astochasticalternativetobeamsearchistodraw
+sivecomputationalcostofthelatterwhenthenum- samplesdirectlyfromp (y|x)withancestralsam-
+θ
+berofcandidatesislarge,wedevelopatwo-stage pling,optionallywithvariantsthattruncatethisdis-
+ranking procedure, where we use N-best rerank- tribution,suchastop-k sampling(Fanetal.,2018)
+ingtopickasubsetofthecandidatestoberanked or p-nucleus sampling (Holtzman et al., 2020) –
+through MBR decoding. We explore the interac- the latter samples from the smallest set of words
+tionofthesedifferentrankingmethodswithvarious whosecumulativeprobabilityislargerthanapre-
+candidate generation procedures including beam definedvaluep. Deterministicmethodscombining
+search,vanillasampling,andnucleussampling. beamandnucleussearchhavealsobeenproposed
+Experiments with two model sizes and four (ShahamandLevy,2021).
+datasets (§4) reveal that while MAP-based de- Unlike beam search, sampling is not a search
+codingappearscompetitivewhenevaluatingwith algorithm nor a decision rule – it is not expected
+lexical-basedmetrics(BLEUandChrF),thestory forasinglesampletooutperformMAPdecoding
+is very different with state-of-the-art evaluation (EikemaandAziz,2020). However,samplesfrom
+metrics,wherequality-awaredecodingshowssig- themodelcanstillbeusefulforalternativedecod-
+nificant gains, both with N-best reranking and ingmethods,asweshallsee. Whilebeamsearch
+MBR decoding. We perform a human-study to focusonhighprobabilitycandidates,typicallysim-
+morefaithfullyevaluateoursystemsandfindthat, ilartoeachother,samplingallowsformoreexplo-
+while performance on learnable metrics is not al- ration,leadingtohighercandidatediversity.
+wayspredictiveofthebestsystem,quality-aware
+2.2 Ranking
+decodingusuallyresultsintranslationswithhigher
+qualitythanMAP-baseddecoding. We assume access to a set Y¯ ⊆ Y containing N
+candidate translations for a source sentence, ob-
+tained with one of the generation procedures de-
+2 CandidateGenerationandRanking
+scribedin§2.1. AslongasN isrelativelysmall,it
+ispossibleto(re-)rankthesecandidatesinapost-
+Westartbyreviewingsomeofthemostcommonly
+hoc manner, such that the best translation maxi-
+used methods for both candidate generation and
+mizesagivenmetricofinterest. Wehighlighttwo
+rankingunderacommonlens.
+different lines of work for ranking in MT decod-
+ing: first,N-bestreranking,usingreference-free
+2.1 CandidateGeneration metricsasfeatures;second,MBRdecoding,using
+reference-basedmetrics.
+AnNMTmodeldefinesaprobabilitydistribution
+p (y|x) over a set of hypotheses Y, conditioned 2.2.1 N-bestReranking
+θ
+on a source sentence x, where θ are learned pa- Initssimplestform(whichwecallfixedreranking),
+rameters. Atranslationistypicallypredictedusing asinglefeaturef isused(e.g.,anestimatedquality
+score),andthecandidatethatmaximizesthisscore Althoughthesemetricsarewellestablishedand
+ispickedasthefinaltranslation, inexpensive to compute, they correlate poorly
+withhumanjudgmentsatsegmentlevel(Mathur
+yˆ F-RR = argmax f(y). (2) etal.,2020b;Freitagetal.,2021c).
+y∈Y¯
+• Each work independently explores N-best
+Whenmultiplefeatures[f ,...,f ]areavailable,
+1 K reranking or MBR decoding, making unclear
+one can tune weights [w ,...,w ] for these fea-
+1 K whichmethodproducesbettertranslations.
+turestomaximizeagivenreference-basedevalua-
+In this work, we hypothesize that using more
+tionmetriconavalidationset(Och,2003;Duhand
+powerfulmetricsintherankingproceduremaylead
+Kirchhoff,2008)–wecallthistuned reranking. In
+tobetterqualitytranslations. Weproposeaunified
+thiscase,thefinaltranslationis
+frameworkforrankingwithbothreference-based
+yˆ = argmax (cid:80)K w f (y). (3) (§3.1)andreference-freemetrics(§3.2),indepen-
+T-RR k=1 k k
+y∈Y¯ dentlyofthecandidategenerationprocedure. We
+explorefourmethodswithdifferentcomputational
+2.2.2 MinimumBayesRisk(MBR)Decoding
+costsforagivennumberofcandidates,N.
+Whilethetechniquesaboverelyonreference-free
+FixedN-bestReranker. AnN-bestrerankerus-
+metricsforthecomputationoffeatures,MBRde-
+ingasinglereference-freemetric(§3.2)asafeature,
+codingusesreference-based metricstorankcandi-
+accordingtoEq.2. Thecomputationalcostofthis
+dates. UnlikeMAPdecoding,whichsearchesfor
+rankerisO(N×C ),whereC denotesthe
+themostprobabletranslation,MBRdecodingaims MQE MQE
+costofrunninganevaluationwithametricMQE.
+tofindthetranslationthatmaximizestheexpected
+utility (equivalently, that minimizes risk, Kumar Tuned N-best Reranker. An N-best reranker
+and Byrne 2002, 2004; Eikema and Aziz 2020). using as features all the reference-free metrics
+LetagainY¯ ⊆ Y beasetcontainingN hypotheses in §3.2, along with the model log-likelihood
+andu(y∗,y)autilityfunctionmeasuringthesimi-
+logp (y|x). The weights in Eq. 3 are optimized
+θ
+laritybetweenahypothesisy ∈ Y andareference tomaximizeagivenreference-basedmetricMref
+y∗ ∈ Y¯ (e.g,anautomaticevaluationmetricsuch usingMERT(Och,2003),acoordinate-ascentopti-
+asBLEUorCOMET).MBRdecodingseeksfor mizationalgorithmwidelyusedinpreviouswork.
+NotethatMref isusedfortuningonly;attesttime,
+yˆ = argmax E [u(Y,y)] , (4)
+MBR Y∼p θ(y|x) only reference-free metrics are used. Therefore,
+y∈Y¯ (cid:124) (cid:123)(cid:122) (cid:125) (cid:80)
+≈ 1 (cid:80)M u(y(j),y) thedecodingcostisO(N × iC MQE).
+M j=1 i
+MBRDecoding. Choosingastheutilityfunction
+whereinEq.4theexpectationisapproximatedas
+areference-basedmetricMref (§3.1),weestimate
+a Monte Carlo (MC) sum using model samples
+the utility using a simple Monte Carlo sum, as
+y(1),...,y(M) ∼ p (y|x).1 Inpractice,thetransla-
+θ showninEq.4. Theestimationrequirescomputing
+tionwiththehighestexpectedutilitycanbecom-
+pairwisecomparisonsandthusthecostofrunning
+putedbycomparingeachhypothesisy ∈ Y¯ toall
+MBRdecodingisO(N2×C ).
+Mref
+theotherhypothesesintheset.
+N-bestReranker→MBR. Usingalargenum-
+3 Quality-AwareDecoding ber of samples in MBR decoding is expensive
+due to its quadratic cost. To circumvent this is-
+Whilerecentworkshaveexploredvariouscombi-
+sue,weexploreatwo-stagerankingapproach: we
+nations of candidate generation and ranking pro-
+first rank all the candidates using a tuned N-best
+ceduresforNMT(Leeetal.,2021;Bhattacharyya
+reranker,followedbyMBRdecodingusingthetop
+et al., 2021; Eikema and Aziz, 2021; Müller and
+M candidates. The computational cost becomes
+Sennrich,2021),theysufferfromtwolimitations:
+O(N×(cid:80) C +M2×C ). Thefirstranking
+i Mi Mref
+• Therankingprocedureisusuallybasedonsimple stageprunesthecandidatelisttoasmaller,higher
+lexical-basedmetrics(BLEU,chrF,METEOR). quality subset, making possible a more accurate
+estimationoftheutilitywithlesssamples,andpo-
+1Wealsoconsiderthecasewherey(1),...,y(M)areob-
+tentiallyallowingabetterrankerthanplainMBR
+tainedfromnucleussamplingorbeamsearch.Althoughthe
+originalMCestimateisunbiased,theseonesarebiased. foralmostthesamecomputationalbudget.
+3.1 Reference-basedMetrics theyarecalledreference-freeorqualityestimation
+(QE) metrics. In the last years, considerable im-
+Reference-based metrics are the standard way to
+provementshavebeenmadetosuchmetrics,with
+evaluateMTsystems;themostusedonesrelyon
+state-of-the-artmodelshavingincreasingcorrela-
+the lexical overlap between hypotheses and ref-
+tionswithhumanannotators(Freitagetal.,2021c;
+erence translations (Papineni et al., 2002; Lavie
+Specia et al., 2021). These improvements enable
+andDenkowski,2009;Popovic´,2015). However,
+theuseofsuchmodelsforrankingtranslationhy-
+lexical-based approaches have important limita-
+pothesesinamorereliablewaythanbefore.
+tions: they have difficulties recognizing correct
+In this work, we explore four recently pro-
+translationsthatareparaphrasesofthereference(s);
+posedreference-freemetricsasfeaturesforN-best
+theyignorethesourcesentence,animportantindi-
+reranking,allatthesentence-level:
+cator of meaning for the translation; and they do
+notalwayscorrelatewellwithhumanjudgments,
+• COMET-QE(Reietal.,2020b),areference-free
+particularlyatsegment-level(Freitagetal.,2021c).
+version of COMET (§3.1). It was the winning
+In this work, apart from BLEU (computed us-
+ing SacreBLEU2 (Post, 2018)) and chrF, we use submissionfortheQE-as-a-metricsubtaskofthe
+WMT20sharedtask(Mathuretal.,2020b).
+the following state-of-the-art trainable reference-
+based metrics for both ranking and performance
+• TransQuest (Ranasinghe et al., 2020), the win-
+evaluationofMTsystems:
+ning submission for the sentence-level DA pre-
+• BLEURT (Sellam et al., 2020; Pu et al., 2021), diction subtask of the WMT20 QE shared task
+trained to regress on human direct assessments (Specia et al., 2020). Similarly to COMET-QE
+(DA; Graham et al. 2013). We use the largest thismetricpredictsaDAscore.
+multilingualversion,BLEURT-20,basedonthe
+RemBERTmodel(Chungetal.,2021). • MBART-QE (Zerva et al., 2021), based on the
+mBART(Liuetal.,2020)model,trainedtopre-
+• COMET (Rei et al., 2020a), based on XLM-R
+dictboththemeanandthevarianceofDAscores.
+(Conneauetal.,2020),trainedtoregressonqual-
+ItwasatopperformerintheWMT21QEshared
+ity assessments such as DA using both the ref-
+task(Speciaetal.,2021).
+erence and the source to assess the quality of a
+giventranslation. Weusethepubliclyavailable • OpenKiwi-MQM(Kepleretal.,2019;Reietal.,
+modeldevelopedfortheWMT20metricsshared 2021), based on XLM-R, trained to predict the
+task(wmt20-comet-da). multidimensional quality metric (MQM; Lom-
+mel et al. 2014).3 This reference-free metric
+Thesemetricshaveshownmuchbettercorrela-
+wasrankedsecondontheQE-as-a-metricsubtask
+tionatsegment-levelthanpreviouslexicalmetrics
+fromtheWMT2021metricssharedtask.
+inWMTmetricssharedtasks(Mathuretal.,2020b;
+Freitagetal.,2021c). Hence,asdiscussedin§2.2,
+4 Experiments
+they are good candidates to be used either indi-
+rectlyasanoptimizationobjectiveforlearningthe
+4.1 Setup
+tuned reranker’s feature weights, or directly as a
+We study the benefits of quality-aware decoding
+utility function in MBR decoding. In the former,
+overMAP-baseddecodingintworegimes:
+thehigherthemetriccorrelationwithhumanjudg-
+ment,thebetterthetranslationpickedbythetuned
+• A high-resource, unconstrained, setting with
+reranker. Inthelatter,weapproximatetheexpected
+large transformer models (6 layers, 16 atten-
+utilityinEq.4bylettingacandidategeneratedby
+tion heads, 1024 embedding dimensions, and
+the model be a reference translation – a suitable
+8192 hidden dimensions) trained by Ng et al.
+premiseif themodelisgoodinexpectation.
+(2019) for the WMT19 news translation task
+3.2 Reference-freeMetrics (Barraultetal.,2019),usingEnglishtoGerman
+(EN → DE)andEnglishtoRussian(EN → RU)
+MT evaluation metrics have also been developed
+language pairs. These models were trained on
+for the case where references are not available –
+2nrefs:1|case:mixed|eff:no|tok:13a 3MQMannotationsareexpert-leveltypeofannotations
+|smooth:exp|version:2.0.0 morefine-grainedthenDA,withindividualerrorsannotated.
+BLEU Beam Search Nucleus Sampling Vanilla Sampling BLEU Beam Search Nucleus Sampling Vanilla Sampling
+49 45 40
+45
+41 30 40
+37 30
+35
+33 20
+29 30 20
+25
+COMET COMET
+0.70 0.5 0.50
+0.6
+0.67
+0.64 Oracle 0.0 0.5 Oracle 0.25
+F-RR F-RR
+0.61 0.00
+T-RR 0.4 T-RR
+0.58 MBR 0.5 MBR 0.25
+0.55 0.3
+0 100 2000 100 2000 100 200 0 100 2000 100 2000 100 200
+Figure2: ValuesforBLEU(top)andCOMET(bottom)forEN → DEasweincreasethenumberofcandidates
+fordifferentgenerationandrankingprocedures,aswellasoracleswiththerespectivemetrics,forthelarge(left)
+andsmall(right)models. Baselinevalues(withbeamsizeof5)aremarkedwithadashedhorizontalline.
+over 20 million parallel and 100 million back- 4.2.1 ImpactofCandidateGeneration
+translatedsentences,beingthewinningsubmis-
+First,weexploretheimpactofthecandidategener-
+sionsofthatyear’ssharedtask. Weconsiderthe
+ationprocedureandthenumberofcandidates.
+non-ensembledversionofthemodelandusenew-
+stest19forvalidationandnewstest20fortesting. Which candidate generation method works best,
+beam search or sampling? We generate candi-
+• Amoreconstrainedscenariowithasmalltrans- dateswithbeamsearch,vanillasampling,andnu-
+former model (6 layers, 4 attention heads, 512 cleus sampling. For the latter, we use p = 0.6
+embeddingdimensions,and1024hiddendimen- based on early results showing improved perfor-
+sions)trainedfromscratchinFairseq(Ottetal., manceforallmetrics.4 ForN-bestreranking,we
+2019)onthesmallerIWSLT17datasets(Cettolo useupto200samples;forMBRdecoding,dueto
+etal.,2012)forEnglishtoGerman(EN → DE) thequadraticcomputationalcost,weuseupto100.
+and English to French (EN → FR), each with Figure 2 shows BLEU and COMET for differ-
+a little over 200k training examples. We chose entcandidategenerationandrankingmethodsfor
+thesedatasetsbecausetheyhavebeenextensively the EN → DE WMT20 and IWSLT17 datasets,
+used in previous work (Bhattacharyya et al., with increasing number of candidates. The base-
+2021) and smaller model allows us to answer lineisrepresentedbythedashedline. Toassessthe
+questions about how the training methodology performanceceilingoftherankers,wealsoreport
+affects ranking performance (see § 4.2.2). Fur- resultswithanoraclerankerforthereportedmet-
+thertrainingdetailscanbefoundinAppendixA. rics,pickingthecandidatethatmaximizesit. For
+thefixed N-bestreranker,weuseCOMET-QEas
+ametric,albeittheresultsforotherreference-free
+Weusebeamsearchwithabeamsizeof5asour
+metrics are similar. Performance seems to scale
+decodingbaselinebecausewefoundthatitresulted
+wellwiththenumberofcandidates,particularlyfor
+in better or similar translations than larger beam
+vanillasamplingandforthetuned N-bestreranker
+sizes. For tuned N-best reranking, we use Tra-
+and MBR decoder. (Lee et al., 2021; Müller and
+vatar’s(Neubig,2013)implementationofMERT
+Sennrich, 2021). However, all the rankers using
+(Och,2003)tooptimizetheweightofeachfeature,
+vanillasamplingseverelyunder-performthebase-
+asdescribedin§3.2. Finally,weevaluateeachsys-
+line in most cases (see also §4.2.2). In contrast,
+temusingthemetricsdiscussedin§3.1,alongwith
+therankersusingbeamsearchornucleussampling
+BLEUandchrF(Popovic´,2015).
+arecompetitiveoroutperformthebaselineinterms
+of BLEU, and greatly outperform it in terms of
+4.2 Results
+COMET.Forthelargermodels,weseethattheper-
+Overall,givenallthemetrics,candidategeneration, formanceaccordingtothelexicalmetricsdegrades
+andrankingprocedures,weevaluateover150sys- withmorecandidates. Inthisscenario,rankersus-
+tems per dataset. We report subsets of this data
+4Wepickednucleussamplingovertop-ksamplingbecause
+separately to answer specific research questions,
+itallowsvaryingsupportsizeandhasoutperformedtop-kin
+anddefertoAppendixBforadditionalresults. textgenerationtasks(Holtzmanetal.,2020).
+Nucleus Sampling Vanilla Sampling somespecificresearchquestions.
+0.49
+0.4
+0.45 Which QE metric works best in a fixed N-best
+0.41 0.2 reranker? We consider a fixed N-best reranker
+N-Best RR (train) w/ LS
+0.37 0.0 N-Best RR (train) w/o LS withasinglereference-freemetricasafeature(see
+0.33 MBR w/ LS
+MBR w/o LS Table1,secondgroup). Whilenoneofthemetrics
+0.29 0.2
+0 50 100 150 200 0 50 100 150 200 allowsforimprovingthebaselineresultsinterms
+Figure 3: COMET scores for EN → DE (IWSLT17) ofthelexicalmetrics(BLEUandchrF),rerankers
+formodelstrainedwithandwithoutlabelsmoothing. usingCOMET-QEorMBART-QEoutperformthe
+baselineaccordingtoBLEURTandCOMET,for
+ing nucleus sampling seem to have an edge over
+boththelargeandsmallmodels. Duetotheafore-
+theonesthatusebeamsearchforCOMET.
+mentionedbetterperformanceofthesemetricsfor
+Basedonthefindingsabove,andduetogener-
+translationqualityevaluation,wehypothesizethat
+ally better performance of COMET over BLEU
+theserankersproducebettertranslationsthanthe
+forMTevaluation(Kocmietal.,2021),infollow-
+baseline. However, since the sharp drop in the
+ingexperimentsweusenucleussamplingwiththe
+lexical metrics is concerning, we will verify this
+largemodelandbeamsearchwiththesmallmodel.
+hypothesisinahumanstudy,in§4.2.4.
+4.2.2 ImpactofLabelSmoothing
+How does the performance of a tuned N-best
+How does label smoothing affect candidate gen-
+reranker vary when we change the optimization
+eration? Labelsmoothing(Szegedyetal.,2016)
+objective? Weconsideratuned N-bestreranker
+isaregularizationtechniquethatredistributesprob-
+usingasfeaturesallthereference-freemetricsin
+abilitymassfromthegoldlabeltotheothertarget §3.2, and optimized using MERT. Table 1 (3rd
+labels,typicallypreventingthemodelfrombecom-
+group)showsresultsforEN → DE. Forthesmall
+ingoverconfident(Mülleretal.,2019). However,
+model,alltherankersshowimprovedresultsover
+ithasbeenfoundthatlabelsmoothingnegatively
+thebaselineforallthemetrics. Inparticular,opti-
+impactsmodelfit,compromisingtheperformance
+mizingforBLEUleadstothebestresultsinthelex-
+ofMBRdecoding(EikemaandAziz,2020,2021).
+icalmetrics,whileoptimizingforBLEURTleads
+Thus,wetrainasmalltransformermodelwithout
+tothebestperformanceintheothers. Finally,opti-
+labelsmoothingtoverifyitsimpactintheperfor-
+mizingforCOMETleadstosimilarperformance
+mance of N-best reranking and MBR decoding.
+thanoptimizingforBLEURT.Forthelargemodel,
+Figure3showsthatdisablinglabelsmoothingre-
+although none of the rerankers is able to outper-
+allyhelpswhengeneratingcandidatesusingvanilla
+form the baseline in the lexical metrics, we see
+sampling. However,theperformancedegradesfor
+similartrendsasbeforeforBLEURTandCOMET.
+candidatesgeneratedusingnucleussamplingwhen
+wedisablelabelsmoothing,hintingthatthepruning How does the performance of MBR decoding
+mechanismofnucleussamplingmayhelpmitigate vary when we change the utility function? Ta-
+thenegativeimpactoflabelsmoothinginsampling ble 1 (4th group) shows the impact of the utility
+basedapproaches. Evenwithoutlabelsmoothing, function(BLEU,BLEURT,orCOMET).Forthe
+vanilla sampling is not competitive with nucleus smallmodel,usingCOMETleadstothebestperfor-
+sampling or beam search with label smoothing, manceaccordingtoallthemetricsexceptBLEURT
+thus,wedonotexperimentfurtherwithit. (forwhichthebestresultisattainedwhenoptimiz-
+ing itself). For the large model, the best result
+4.2.3 ImpactofRankingandMetrics
+accordingtoagivenmetricisobtainedwhenusing
+We now investigate the usefulness of the metrics
+thatmetricastheutilityfunction.
+presentedin§3asfeaturesandobjectivesforrank-
+ing. ForN-bestreranking,weusealltheavailable Howdo(tuned)N-bestrerankingandMBRcom-
+candidates(200)while,forMBR,duetothecom- pare to each other? Looking at Table 1 we see
+putationalcostofusing100candidates,wereport that,forthesmallmodel,N-bestrerankingseems
+resultswith50candidatesonly(wefoundthatrank- to perform better than MBR decoding in all the
+ingwithtunedN-bestrerankingwithN = 100and evaluation metrics, including the one used as the
+MBRwithN = 50takesaboutthesametime). We utilityfunctioninMBRdecoding. Thepictureis
+report results in Table 1, and use them to answer lessclearforthelargemodel,withMBRdecoding
+Large(WMT20) Small(IWSLT)
+BLEU chrF BLEURT COMET BLEU chrF BLEURT COMET
+Baseline 36.01 63.88 0.7376 0.5795 29.12 56.23 0.6635 0.3028
+F-RRw/COMET-QE 29.83 59.91 0.7457 0.6012 27.38 54.89 0.6848 0.4071
+F-RRw/MBART-QE 32.92 62.71 0.7384 0.5831 27.30 55.62 0.6765 0.3533
+F-RRw/OpenKiwi 30.38 59.56 0.7401 0.5623 25.35 51.53 0.6524 0.2200
+F-RRw/Transquest 31.28 60.94 0.7368 0.5739 26.90 54.46 0.6613 0.2999
+T-RRw/BLEU 35.34 63.82 0.7407 0.5891 30.51 57.73 0.7077 0.4536
+T-RRw/BLEURT 33.39 62.56 0.7552 0.6217 30.16 57.40 0.7127 0.4741
+T-RRw/COMET 34.26 63.31 0.7546 0.6276 30.16 57.32 0.7124 0.4721
+MBRw/BLEU 34.94 63.21 0.7333 0.5680 29.25 56.36 0.6619 0.3017
+MBRw/BLEURT 32.90 62.34 0.7649 0.6047 28.69 56.28 0.7051 0.3799
+MBRw/COMET 33.04 62.65 0.7477 0.6359 29.43 56.74 0.6882 0.4480
+T-RR+MBRw/BLEU 35.84 63.96 0.7395 0.5888 30.23 57.34 0.6913 0.3969
+T-RR+MBRw/BLEURT 33.61 62.95 0.7658 0.6165 29.28 56.77 0.7225 0.4361
+T-RR+MBRw/COMET 34.20 63.35 0.7526 0.6418 29.46 57.13 0.7058 0.5005
+Table1: EvaluationmetricsforEN → DEforthelargeandsmallmodelsettings, usingafixed N-bestreranker
+(F-RR),atunedN-bestreranker(T-RR),MBRdecoding,andatwo-stageapproach.Bestoverallvaluesarebolded
+andbestforeachspecificgroupareunderlined.
+achievingbestvaluesforagivenfine-tunedmetric thatlearntoexploit“pathologies”inthesemetrics
+whenusingitastheutility;thiscomesatthecostof ratherthanimprovingtranslationquality. Toinves-
+worseperformanceaccordingtotheothermetrics, tigatethishypothesis,weperformahumanstudy
+hintingatapotential“overfitting”effect. Overall, acrossallfourdatasets. Weaskannotatorstorate,
+N-bestrerankingseemstohaveanedgeoverMBR from1(nooverlapinmeaning)to5(perfecttrans-
+decoding. Wewillfurtherclarifythisquestionwith lation),thetranslationsproducedbythe4ranking
+humanevaluationin§4.2.4. systems in §3, as well as the baseline translation
+and the reference. Further details are in App. C.
+Can we improve performance by combining N-
+WechooseCOMET-QEasthefeatureforthefixed
+best reranking with MBR decoding? Table 1 N-best ranker and COMET as the optimization
+showsthat,forboththelargeandthesmallmodel,
+metric and utility function for the tuned N-best
+the two-stage ranking approach described in §3
+rerankerandMBRdecoding,respectively. Therea-
+leads to the best performance according to the
+sons for this are two-fold: (1) they are currently
+fine-tuned metrics. In particular, the best result
+thereference-freeandreference-basedmetricswith
+isobtainedwhentheutilityfunctionisthesameas
+highestreportedcorrelationwithhumanjudgments
+the evaluation metric. These results suggest that
+(Kocmietal.,2021),(2)wesawthelargest“metric
+apromisingresearchdirectionistoseekmoreso-
+gap”forsystemsbasedonthesemetrics,hintingof
+phisticatedpruningstrategiesforMBRdecoding.
+a potential “overfitting” problem (specially since
+COMET-QEandCOMETaresimilarmodels).
+4.2.4 HumanEvaluation
+Which metric correlates more with human judg- Table 2 shows the results for the human eval-
+ments? How risky is it to optimize a metric and uation, as well as the automatic metrics. We see
+evaluate on a related metric? Our experiments that,withtheexceptionofT-RRw/COMET,when
+suggestthat,overall,quality-awaredecodingpro- fine-tunedmetricsareexplicitlyoptimizedfor,their
+ducestranslationswithbetterperformanceacross correlationwithhumanjudgmentsdecreasesand
+mostmetricsthanMAP-based decoding. However, they are no longer reliable indicators of system-
+forsomecases(suchasfixedN-bestrerankingand levelranking. ThisisnotableforthefixedN-best
+mostresultswiththelargemodel),thereisacon- rerankerwithCOMET-QE,whichoutperformsthe
+cerning “metric gap” between lexical-based and baselineinCOMETforeverysinglescenario,but
+fine-tunedmetrics. Whilethelatterhaveshownto leadstomarkedlylowerqualitytranslations. How-
+correlate better with human judgments, previous ever,despitethepotentialforoverfittingthesemet-
+workhasnotattemptedtoexplicitlyoptimizethese rics, we find that tuned N-best reranking, MBR,
+metrics,anddoingsocouldleadtorankingsystems andtheircombinationconsistentlyachievebetter
+EN-DE(WMT20) EN-RU(WMT20)
+BLEU chrF BLEURT COMET HumanR. BLEU chrF BLEURT COMET HumanR.
+Reference - - - - 4.51 - - - - 4.07
+Baseline 36.01 63.88 0.7376 0.5795 4.28 23.86 51.16 0.6953 0.5361 3.62
+F-RRw/COMET-QE 29.83 59.91 0.7457 0.6012 4.19 20.32 49.18 0.7130 0.6207 3.25
+T-RRw/COMET 34.26 63.31 0.7546 0.6276 4.33 22.42 50.91 0.7243 0.6441 3.65
+MBRw/COMET 33.04 62.65 0.7477 0.6359 4.27 23.67 51.18 0.7093 0.6242 3.66
+T-RR+MBRw/COMET 34.20 63.35 0.7526 0.6418 4.30 23.21 51.26 0.7238 0.6736 3.72†
+EN-DE(IWSLT17) EN-FR(IWSLT17)
+Reference - - - - 4.38 - - - - 4.00
+Baseline 29.12 0.6635 56.23 0.3028 3.68 38.12 0.6532 63.20 0.4809 3.92
+F-RRw/COMET-QE 27.38 0.6848 54.89 0.4071 3.67 35.59 0.6628 60.90 0.5553 3.63
+T-RRw/COMET 30.16 0.7124 57.32 0.4721 3.90† 38.60 0.7020 63.77 0.6392 4.05†
+MBRw/COMET 29.43 0.6882 56.74 0.4480 3.79† 37.77 0.6710 63.24 0.6127 4.05†
+T-RR+MBRw/COMET 29.46 0.7058 57.13 0.5005 3.83† 38.33 0.6883 63.53 0.6610 4.09†
+Table 2: Results for automatic and human evaluation. Top: WMT20 (large models); Bottom: IWSLT17 (small
+models). Methodswith†arestatisticallysignificantlybetterthanthebaseline,withp<0.05.
+translationqualitythanthebaseline,speciallywith COMET)achievethehighestMQMscore. Inad-
+the small model. In particular, N-best reranking dition,thesesystemspresentthesmallestnumber
+resultsinbettertranslationsthanMBR,andtheir oferrorswhencombiningbothmajorandcritical
+combinationisthebestsystemin2of4LPs. errors.
+Althoughtheperformanceofallsystemsiscom-
+4.2.5 ImprovedHumanEvaluation parable for EN→DE, both the T-RR and the T-
+Tofurtherinvestigatehowquality-awaredecoding RR+MBRdecodingmarkedlyreducethenumber
+performswhencomparedtoMAP-based decoding, ofgrammaticalregistererrorsrelatedtousingpro-
+weperformanotherhumanstudy,thistimebased nounsandverbformsthatarenotcompliantwith
+on expert-level multidimensional quality metrics theregisterrequiredforthattranslation,atthecost
+(MQM) annotations (Lommel et al., 2014). We ofincreasingthenumberoflexicalselectionerrors
+askedtheannotatorstoidentifyallerrorsandinde- (see Figure 4). For EN→RU, however, the num-
+pendentlylabelthemwithanerrorcategory(accu- beroflexicalselectionerrorsproducedwhenusing
+racy,fluency,andstyle,eachwithaspecificsetof theT-RRortheT-RR+MBRdecodingisapproxi-
+subcategories)andaseveritylevel(minor,major, matelyahalfoftheonesproducedbythebaseline
+andcritical). Inordertoobtainthefinalsentence- (see Figure 5). In this case, this comes at appar-
+level scores, we require a weighting scheme on entlyalmostnocostinothererrortypes,leadingto
+error severities. We use weights of 1, 5, and 10 significantlybetterresults,asshowninTable3.
+to minor, major, and critical errors, respectively,
+5 RelatedWork
+independentlyoftheerrorcategory. Furtherdetails
+areinApp.D.Giventhecostofperformingahu- Reranking. Inspired by the work of Shen et al.
+manstudylikethis,werestrictouranalysistothe (2004)ondiscriminativererankingforSMT,Lee
+translationsgeneratedbythelargemodelstrained etal.(2021)trainedalargetransformermodelus-
+onWMT20(EN→DEandEN→RU). ingarerankingobjectivetooptimizeBLEU.Our
+Table3showstheresultsforthehumanevalua- workdiffersinwhichourrerankersaremuchsim-
+tionusingMQMannotations,includingbotherror plerandthereforecanbetunedonavalidationset;
+severitycountsandfinalMQMscores. Ashinted andweusemorepowerfulqualitymetricsinstead
+in §4.2.4, despite the remarkable performance of of BLEU. Similarly, Bhattacharyya et al. (2021)
+the F-RR with COMET-QE in terms of COMET learnedanenergy-basedrerankertoassignlower
+(see Table 2), the quality of the translations de- energy to the samples with higher BLEU scores.
+creaseswhencomparedtothebaseline,suggesting WhiletheenergymodelplaysasimilarroletoaQE
+thepossibilityofmetricoverfittingwhenevaluating system, our work differs in two ways: we use an
+systems using a single automatic metric that was existing,pretrainedQEmodelinsteadoftraining
+directlyoptimizedfor(orasimilarone). However, a dedicated reranker, making our approach appli-
+for both language pairs, the T-RR with COMET cable to any MT system without further training;
+and the two stage approach (T-RR + MBR with andtheQEmodelistrainedtopredicthumanas-
+EN-DE(WMT20) EN-RU(WMT20)
+Minor Major Critical MQM Minor Major Critical MQM
+Reference 24 67 0 97.04 5 11 0 99.30
+Baseline 8 139 0 95.66 17 239 49 79.78
+F-RRw/COMET-QE 15 204 0 93.47 13 254 80 76.25
+T-RRw/COMET 12 109 0 96.20 9 141 45 85.97†
+MBRw/COMET 11 161 0 94.38 8 182 40 83.65
+T-RR+MBRw/COMET 10 138 0 95.44 11 134 45 86.78†
+Table 3: Error severity counts and MQM scores for WMT20 (large models). Best overall values are bolded.
+Methodswith†arestatisticallysignificantlybetterthanthebaseline,withp<0.05.
+sessments,ratherthanBLEUscores. Leblondetal. andKreutzer,2021). However, MRTisconsider-
+(2021)compareareinforcementlearningapproach ablymoreexpensiveanddifficulttotrainandthe
+torerankingapproaches(butnotMBRdecoding,as gains are often small. Incorporating our quality
+wedo). Theyinvestigatetheuseofreference-based metricsinMRTisanexcitingresearchdirection.
+metrics and, for the reward function, a reference-
+freemetricbasedonamodifiedBERTScore(Zhang 6 ConclusionsandFutureWork
+et al., 2020). This new multilingual BERTScore
+We leverage recent advances in MT quality esti-
+isnotfine-tunedonhumanjudgmentsasCOMET
+mationandevaluationandproposequality-aware
+and BLEURT and it is unclear what its level of
+decodingforNMT.Weexploredifferentcandidate
+agreementwithhumanjudgmentsis. Anotherline
+generationandrankingmethods,withacomprehen-
+ofworkisgenerativereranking,wherethereranker
+siveempiricalanalysisacrossfourdatasetsandtwo
+isnottrainedtooptimizeametric,butratherasa
+modelclasses. Weshowthat,comparedtoMAP-
+generative noisy-channel model (Yu et al., 2017;
+based decoding, quality-aware decoding leads to
+Yeeetal.,2019;Ngetal.,2019).
+bettertranslations,accordingtopowerfulautomatic
+evaluationmetricsandhumanjudgments.
+Minimum Bayes Risk Decoding. MBR decod-
+Thereareseveraldirectionsforfuturework. Our
+ing (Kumar and Byrne, 2002, 2004) has recently
+ranking strategies increase accuracy but are sub-
+beenrevivedforNMTusingcandidatesgenerated
+stantiallymoreexpensive,particularlywhenused
+withbeamsearch(Stahlbergetal.,2017;Shuand
+withcostlymetricssuchasBLEURTandCOMET.
+Nakayama,2017)andsampling(EikemaandAziz,
+Whilereranking-basedpruningbeforeMBRdecod-
+2020; Müller and Sennrich, 2021). Eikema and
+ing was found helpful, additional strategies such
+Aziz(2021)alsoexploreatwo-stageapproachfor
+ascachingencoderrepresentations(Amrheinand
+MBRdecoding. Additionally,thereisconcurrent
+Sennrich, 2022) and distillation (Pu et al., 2021)
+work by Freitag et al. (2021b) on using neural
+arepromisingdirections.
+metrics as utility functions during MBR decod-
+ing: howevertheylimittheirscopetoMBRwith Acknowledgments
+reference-basedmetrics,whileweperformamore
+extensiveevaluationoverrankingmethodsandmet- We would like to thank Ben Peters, Wilker Aziz,
+rics. Amrhein and Sennrich (2022) also concur- andtheanonymousreviewersforusefulfeedback.
+rentlyexploredusingMBRdecodingwithneural This work was supported by the P2020 program
+metrics,butwiththepurposesofidentifyingweak- MAIA(LISBOA-01-0247-FEDER-045909),the
+nessesinthemetric(intheircaseCOMET),simi- EuropeanResearchCouncil(ERCStGDeepSPIN
+larlytothemetricoverfittingproblemwediscussed 758969), theEuropeanUnion’sHorizon2020re-
+in §4.2.4. A comparison with N-best re-ranking search and innovation program (QUARTZ grant
+was missing in these works, a gap our paper fills. agreement 951847), and by the Fundação para a
+A related line of work is minimum risk training CiênciaeTecnologiathroughUIDB/50008/2020.
+(MRT; Smith and Eisner 2006; Shen et al. 2016),
+whichtrainsmodelstominimizerisk,allowingar-
+References
+bitrarynon-differentiablelossfunctions(Edunov
+etal.,2018;Wietingetal.,2019)andavoidingex-
+ChantalAmrheinandRicoSennrich.2022. Identifying
+posurebias(WangandSennrich,2020;Kiegeland weaknesses in machine translation metrics through
+minimum bayes risk decoding: A case study for BryanEikemaandWilkerAziz.2020. IsMAPdecod-
+comet. ingallyouneed?theinadequacyofthemodeinneu-
+ralmachine translation. In Proceedingsof the28th
+Loïc Barrault, Ondˇrej Bojar, Marta R. Costa-jussà, InternationalConferenceonComputationalLinguis-
+Christian Federmann, Mark Fishel, Yvette Gra- tics, pages 4506–4520, Barcelona, Spain (Online).
+ham,BarryHaddow,MatthiasHuck,PhilippKoehn, InternationalCommitteeonComputationalLinguis-
+Shervin Malmasi, Christof Monz, Mathias Müller, tics.
+SantanuPal,MattPost,andMarcosZampieri.2019.
+BryanEikemaandWilkerAziz.2021. Sampling-based
+Findingsofthe2019conferenceonmachinetransla-
+minimum bayes risk decoding for neural machine
+tion (WMT19). In Proceedings of the Fourth Con-
+translation.
+ferenceon MachineTranslation (Volume2: Shared
+TaskPapers,Day1),pages1–61,Florence,Italy.As-
+AngelaFan,MikeLewis,andYannDauphin.2018. Hi-
+sociationforComputationalLinguistics.
+erarchical neural story generation. In Proceedings
+of the 56th Annual Meeting of the Association for
+Sumanta Bhattacharyya, Amirmohammad Rooshenas,
+ComputationalLinguistics(Volume1:LongPapers),
+SubhajitNaskar,SimengSun,MohitIyyer,andAn-
+pages 889–898, Melbourne, Australia. Association
+drew McCallum. 2021. Energy-based reranking:
+forComputationalLinguistics.
+Improvingneuralmachinetranslationusingenergy-
+based models. In Proceedings of the 59th Annual MarkusFreitag,GeorgeFoster,DavidGrangier,Viresh
+Meeting of the Association for Computational Lin- Ratnakar, Qijun Tan, and Wolfgang Macherey.
+guisticsandthe11thInternationalJointConference 2021a. Experts, errors, and context: A large-scale
+on Natural Language Processing (Volume 1: Long study of human evaluation for machine translation.
+Papers), pages 4528–4537, Online. Association for Transactions of the Association for Computational
+ComputationalLinguistics. Linguistics,9:1460–1474.
+Mauro Cettolo, Christian Girardi, and Marcello Fed- Markus Freitag, David Grangier, Qijun Tan, and
+erico. 2012. WIT3: Web inventory of transcribed Bowen Liang. 2021b. Minimum bayes risk decod-
+andtranslatedtalks. InProceedingsofthe16thAn- ingwithneuralmetricsoftranslationquality.
+nualconferenceoftheEuropeanAssociationforMa-
+Markus Freitag, Ricardo Rei, Nitika Mathur, Chi-kiu
+chineTranslation,pages261–268,Trento,Italy.Eu-
+Lo, Craig Stewart, George Foster, Alon Lavie, and
+ropeanAssociationforMachineTranslation.
+Ondrej Bojar. 2021c. Results of the WMT21 Met-
+rics Shared Task: Evaluating Metrics with Expert-
+Hyung Won Chung, Thibault Fevry, Henry Tsai,
+based Human Evaluations on TED and News Do-
+Melvin Johnson, and Sebastian Ruder. 2021. Re-
+main. In Proceedings of the Sixth Conference on
+thinking embedding coupling in pre-trained lan-
+MachineTranslation(WMT),pages716–757.NRC.
+guage models. In Tenth International Conference
+onLearningRepresentations,ICLR. YvetteGraham,TimothyBaldwin,AlistairMoffat,and
+JustinZobel.2013. Continuousmeasurementscales
+AlexisConneau, KartikayKhandelwal, NamanGoyal, inhumanevaluationofmachinetranslation. InPro-
+Vishrav Chaudhary, Guillaume Wenzek, Francisco ceedingsofthe7thLinguisticAnnotationWorkshop
+Guzmán, Edouard Grave, Myle Ott, Luke Zettle- and Interoperability with Discourse, pages 33–41,
+moyer, and Veselin Stoyanov. 2020. Unsupervised Sofia,Bulgaria.AssociationforComputationalLin-
+cross-lingual representation learning at scale. In guistics.
+Proceedingsofthe58thAnnualMeetingoftheAsso-
+ciation for Computational Linguistics, pages 8440– AlexGraves.2012. Sequencetransductionwithrecur-
+8451, Online. Association for Computational Lin- rentneuralnetworks.
+guistics.
+AriHoltzman, JanBuys, LiDu, MaxwellForbes, and
+YejinChoi.2020. Thecuriouscaseofneuraltextde-
+Kevin Duh and Katrin Kirchhoff. 2008. Beyond log-
+generation. In Eighth International Conference on
+linearmodels: Boostedminimumerrorratetraining
+LearningRepresentations,ICLR.
+for n-best re-ranking. In Proceedings of ACL-08:
+HLT, Short Papers, pages 37–40, Columbus, Ohio.
+FabioKepler, JonayTrénous, MarcosTreviso, Miguel
+AssociationforComputationalLinguistics.
+Vera, and André F. T. Martins. 2019. OpenKiwi:
+An open source framework for quality estimation.
+SergeyEdunov,MyleOtt,MichaelAuli,DavidGrang- In Proceedings of the 57th Annual Meeting of the
+ier, and Marc’Aurelio Ranzato. 2018. Classical Association for Computational Linguistics: System
+structured prediction losses for sequence to se- Demonstrations,pages117–122,Florence,Italy.As-
+quence learning. In Proceedings of the 2018 Con- sociationforComputationalLinguistics.
+ferenceoftheNorthAmericanChapteroftheAsso-
+ciationforComputationalLinguistics: HumanLan- SamuelKiegelandandJuliaKreutzer.2021. Revisiting
+guageTechnologies,Volume1(LongPapers),pages the weaknesses of reinforcement learning for neu-
+355–364, New Orleans, Louisiana. Association for ralmachinetranslation. InProceedingsofthe2021
+ComputationalLinguistics. Conference of the North American Chapter of the
+Association for Computational Linguistics: Human andthe11thInternationalJointConferenceonNat-
+Language Technologies, pages 1673–1681, Online. uralLanguageProcessing(Volume1:LongPapers),
+AssociationforComputationalLinguistics. pages7250–7264,Online.AssociationforComputa-
+tionalLinguistics.
+Diederik P. Kingma and Jimmy Ba. 2015. Adam: A
+method for stochastic optimization. In Third Inter- YinhanLiu,JiataoGu,NamanGoyal,XianLi,Sergey
+national Conference on Learning Representations, Edunov, Marjan Ghazvininejad, Mike Lewis, and
+ICLR. Luke Zettlemoyer. 2020. Multilingual denoising
+pre-trainingforneuralmachinetranslation. Transac-
+Tom Kocmi, Christian Federmann, Roman Grund- tions of the Association for Computational Linguis-
+kiewicz, Marcin Junczys-Dowmunt, Hitokazu Mat- tics,8:726–742.
+sushita, andArulMenezes.2021. Toshipornotto
+ship: An extensive evaluation of automatic metrics ArleLommel,AljoschaBurchardt,andHansUszkoreit.
+formachinetranslation. InProceedingsoftheSixth 2014. Multidimensionalqualitymetrics(MQM):A
+ConferenceonMachineTranslation,pages478–494, framework for declaring and describing translation
+Online.AssociationforComputationalLinguistics. qualitymetrics. Tradumàtica: tecnologiesdelatra-
+ducció,0:455–463.
+Philipp Koehn and Rebecca Knowles. 2017. Six chal-
+lenges for neural machine translation. In Proceed- Nitika Mathur, Timothy Baldwin, and Trevor Cohn.
+ingsoftheFirstWorkshoponNeuralMachineTrans- 2020a. TangledupinBLEU:Reevaluatingtheeval-
+lation, pages 28–39, Vancouver. Association for uation of automatic machine translation evaluation
+ComputationalLinguistics. metrics. In Proceedings of the 58th Annual Meet-
+ingoftheAssociationforComputationalLinguistics,
+TakuKudoandJohnRichardson.2018. SentencePiece: pages4984–4997,Online.AssociationforComputa-
+A simple and language independent subword tok- tionalLinguistics.
+enizeranddetokenizerforneuraltextprocessing. In
+Proceedings of the 2018 Conference on Empirical Nitika Mathur, Johnny Wei, Markus Freitag, Qing-
+Methods in Natural Language Processing: System song Ma, and Ondˇrej Bojar. 2020b. Results of
+Demonstrations, pages 66–71, Brussels, Belgium. the WMT20 metrics shared task. In Proceedings
+AssociationforComputationalLinguistics. of the Fifth Conference on Machine Translation,
+pages 688–725, Online. Association for Computa-
+Shankar Kumar and William Byrne. 2002. Minimum tionalLinguistics.
+bayes-risk word alignments of bilingual texts. In
+ProceedingsoftheACL-02ConferenceonEmpirical Clara Meister, Ryan Cotterell, and Tim Vieira. 2020.
+Methods in Natural Language Processing - Volume Ifbeamsearchistheanswer,whatwasthequestion?
+10, EMNLP ’02, page 140–147, USA. Association InProceedingsofthe2020ConferenceonEmpirical
+forComputationalLinguistics. MethodsinNaturalLanguageProcessing(EMNLP),
+pages2173–2185,Online.AssociationforComputa-
+Shankar Kumar and William Byrne. 2004. Minimum tionalLinguistics.
+Bayes-risk decoding for statistical machine transla-
+tion. InProceedingsoftheHumanLanguageTech- MathiasMüllerandRicoSennrich.2021. Understand-
+nology Conference of the North American Chapter ingthepropertiesofminimumBayesriskdecoding
+of the Association for Computational Linguistics: inneuralmachinetranslation. InProceedingsofthe
+HLT-NAACL 2004, pages 169–176, Boston, Mas- 59thAnnualMeetingoftheAssociationforCompu-
+sachusetts, USA. Association for Computational tationalLinguisticsandthe11thInternationalJoint
+Linguistics. Conference on Natural Language Processing (Vol-
+ume 1: Long Papers), pages 259–272, Online. As-
+Alon Lavie and Michael J. Denkowski. 2009. The sociationforComputationalLinguistics.
+meteor metric for automatic evaluation of machine
+translation. MachineTranslation,23(2-3):105–115. Rafael Müller, Simon Kornblith, and Geoffrey E Hin-
+ton. 2019. When does label smoothing help? In
+Rémi Leblond, Jean-Baptiste Alayrac, Laurent Sifre, AdvancesinNeuralInformationProcessingSystems,
+Miruna Pislar, Lespiau Jean-Baptiste, Ioannis volume32.CurranAssociates,Inc.
+Antonoglou, Karen Simonyan, and Oriol Vinyals.
+2021. Machine translation decoding beyond beam Kenton Murray and David Chiang. 2018. Correct-
+search. In Proceedings of the 2021 Conference on ing length bias in neural machine translation. In
+EmpiricalMethodsinNaturalLanguageProcessing, Proceedings of the Third Conference on Machine
+pages8410–8434, OnlineandPuntaCana, Domini- Translation:ResearchPapers,pages212–223,Brus-
+can Republic. Association for Computational Lin- sels, Belgium. Association for Computational Lin-
+guistics. guistics.
+Ann Lee, Michael Auli, and Marc’Aurelio Ranzato. GrahamNeubig.2013. Travatar:Aforest-to-stringma-
+2021. Discriminative reranking for neural machine chine translation engine based on tree transducers.
+translation. InProceedingsofthe59thAnnualMeet- In Proceedings of the 51st Annual Meeting of the
+ingoftheAssociationforComputationalLinguistics Association for Computational Linguistics: System
+Demonstrations, pages 91–96, Sofia, Bulgaria. As- Spain(Online).InternationalCommitteeonCompu-
+sociationforComputationalLinguistics. tationalLinguistics.
+Nathan Ng, Kyra Yee, Alexei Baevski, Myle Ott, Ricardo Rei, Ana C Farinha, Chrysoula Zerva, Daan
+MichaelAuli,andSergeyEdunov.2019. Facebook van Stigt, Craig Stewart, Pedro Ramos, Taisiya
+FAIR’s WMT19 news translation task submission. Glushkova, André F. T. Martins, and Alon Lavie.
+In Proceedings of the Fourth Conference on Ma- 2021. Are references really needed? unbabel-IST
+chine Translation (Volume 2: Shared Task Papers, 2021submissionforthemetricssharedtask. InPro-
+Day1),pages314–319,Florence,Italy.Association ceedingsoftheSixthConferenceonMachineTrans-
+forComputationalLinguistics. lation, pages 1030–1040, Online. Association for
+ComputationalLinguistics.
+FranzJosefOch.2003. Minimumerrorratetrainingin
+statisticalmachinetranslation. InProceedingsofthe Ricardo Rei, Craig Stewart, Ana C Farinha, and Alon
+41st Annual Meeting of the Association for Compu- Lavie.2020a. COMET:AneuralframeworkforMT
+tationalLinguistics,pages160–167,Sapporo,Japan. evaluation. In Proceedings of the 2020 Conference
+AssociationforComputationalLinguistics. onEmpiricalMethodsinNaturalLanguageProcess-
+ing (EMNLP), pages 2685–2702, Online. Associa-
+Myle Ott, Michael Auli, David Grangier, and
+tionforComputationalLinguistics.
+Marc’Aurelio Ranzato. 2018. Analyzing uncer-
+tainty in neural machine translation. In Proceed- Ricardo Rei, Craig Stewart, Ana C Farinha, and
+ings of the 35th International Conference on Ma- Alon Lavie. 2020b. Unbabel’s participation in the
+chine Learning, volume 80 of Proceedings of Ma- WMT20 metrics shared task. In Proceedings of
+chineLearningResearch,pages3956–3965.PMLR. theFifthConferenceonMachineTranslation,pages
+911–920, Online. Association for Computational
+Myle Ott, Sergey Edunov, Alexei Baevski, Angela
+Linguistics.
+Fan, Sam Gross, Nathan Ng, David Grangier, and
+Michael Auli. 2019. fairseq: A fast, extensible Thibault Sellam, Dipanjan Das, and Ankur Parikh.
+toolkit for sequence modeling. In Proceedings of 2020. BLEURT: Learning robust metrics for text
+the 2019 Conference of the North American Chap- generation. InProceedingsofthe58thAnnualMeet-
+teroftheAssociationforComputationalLinguistics ingoftheAssociationforComputationalLinguistics,
+(Demonstrations), pages 48–53, Minneapolis, Min- pages7881–7892,Online.AssociationforComputa-
+nesota.AssociationforComputationalLinguistics. tionalLinguistics.
+KishorePapineni,SalimRoukos,ToddWard,andWei- Uri Shaham and Omer Levy. 2021. What do you get
+JingZhu.2002. Bleu: amethodforautomaticeval- whenyoucrossbeamsearchwithnucleussampling?
+uation of machine translation. In Proceedings of
+the40thAnnualMeetingoftheAssociationforCom- LibinShen,AnoopSarkar,andFranzJosefOch.2004.
+putationalLinguistics,pages311–318,Philadelphia, Discriminative reranking for machine translation.
+Pennsylvania,USA.AssociationforComputational In Proceedings of the Human Language Technol-
+Linguistics. ogy Conference of the North American Chapter
+of the Association for Computational Linguistics:
+Maja Popovic´. 2015. chrF: character n-gram F-score HLT-NAACL 2004, pages 177–184, Boston, Mas-
+forautomaticMTevaluation. InProceedingsofthe sachusetts, USA. Association for Computational
+Tenth Workshop on Statistical Machine Translation, Linguistics.
+pages 392–395, Lisbon, Portugal. Association for
+ComputationalLinguistics. Shiqi Shen, Yong Cheng, Zhongjun He, Wei He, Hua
+Wu, MaosongSun, andYangLiu.2016. Minimum
+MattPost.2018. AcallforclarityinreportingBLEU risktrainingforneuralmachinetranslation. InPro-
+scores. In Proceedings of the Third Conference on ceedingsofthe54thAnnualMeetingoftheAssocia-
+Machine Translation: Research Papers, pages 186– tionforComputationalLinguistics(Volume1: Long
+191, Belgium, Brussels. Association for Computa- Papers), pages 1683–1692, Berlin, Germany. Asso-
+tionalLinguistics. ciationforComputationalLinguistics.
+AmyPu,HyungWonChung,AnkurParikh,Sebastian RaphaelShuandHidekiNakayama.2017. Later-stage
+Gehrmann, and Thibault Sellam. 2021. Learning minimum bayes-risk decoding for neural machine
+compactmetricsforMT. InProceedingsofthe2021 translation.
+Conference on Empirical Methods in Natural Lan-
+guageProcessing,pages751–762,OnlineandPunta DavidA.SmithandJasonEisner.2006. Minimumrisk
+Cana,DominicanRepublic.AssociationforCompu- annealingfortraininglog-linearmodels. InProceed-
+tationalLinguistics. ings of the COLING/ACL 2006 Main Conference
+Poster Sessions, pages 787–794, Sydney, Australia.
+Tharindu Ranasinghe, Constantin Orasan, and Ruslan AssociationforComputationalLinguistics.
+Mitkov.2020. TransQuest: Translationqualityesti-
+mationwithcross-lingualtransformers. InProceed- Lucia Specia, Frédéric Blain, Marina Fomicheva, Er-
+ings of the 28th International Conference on Com- ickFonseca,VishravChaudhary,FranciscoGuzmán,
+putationalLinguistics,pages5070–5081,Barcelona, and André F. T. Martins. 2020. Findings of the
+WMT 2020 shared task on quality estimation. In Kyra Yee, Yann Dauphin, and Michael Auli. 2019.
+Proceedings of the Fifth Conference on Machine Simple and effective noisy channel modeling for
+Translation,pages743–764,Online.Associationfor neural machine translation. In Proceedings of the
+ComputationalLinguistics. 2019 Conference on Empirical Methods in Natu-
+ral Language Processing and the 9th International
+Lucia Specia, Frédéric Blain, Marina Fomicheva, Joint Conference on Natural Language Processing
+Chrysoula Zerva, Zhenhao Li, Vishrav Chaudhary, (EMNLP-IJCNLP), pages 5696–5701, Hong Kong,
+and André F. T. Martins. 2021. Findings of the China.AssociationforComputationalLinguistics.
+WMT 2021 shared task on quality estimation. In
+Proceedings of the Sixth Conference on Machine Lei Yu, Phil Blunsom, Chris Dyer, Edward Grefen-
+Translation,pages684–725,Online.Associationfor stette, and Tomás Kociský. 2017. The neural noisy
+ComputationalLinguistics. channel. In5thInternationalConferenceonLearn-
+ing Representations, ICLR 2017, Toulon, France,
+FelixStahlbergandBillByrne.2019. OnNMTsearch April 24-26, 2017, Conference Track Proceedings.
+errors and model errors: Cat got your tongue? In OpenReview.net.
+Proceedings of the 2019 Conference on Empirical
+ChrysoulaZerva, DaanvanStigt, RicardoRei, AnaC
+Methods in Natural Language Processing and the
+Farinha,PedroRamos,JoséG.C.deSouza,Taisiya
+9th International Joint Conference on Natural Lan-
+Glushkova, Miguel Vera, Fabio Kepler, and André
+guage Processing (EMNLP-IJCNLP), pages 3356–
+F. T. Martins. 2021. IST-unbabel 2021 submission
+3362,HongKong,China.AssociationforComputa-
+for the quality estimation shared task. In Proceed-
+tionalLinguistics.
+ings of the Sixth Conference on Machine Transla-
+tion, pages 961–972, Online. Association for Com-
+Felix Stahlberg, Adrià de Gispert, Eva Hasler, and
+putationalLinguistics.
+Bill Byrne. 2017. Neural machine translation by
+minimising the Bayes-risk with respect to syntactic
+Tianyi Zhang, Varsha Kishore, Felix Wu, Kilian Q.
+translationlattices. InProceedingsofthe15thCon-
+Weinberger,andYoavArtzi.2020. Bertscore: Eval-
+ferenceoftheEuropeanChapteroftheAssociation
+uating text generation with bert. In International
+forComputationalLinguistics: Volume2, ShortPa-
+ConferenceonLearningRepresentations.
+pers, pages 362–368, Valencia, Spain. Association
+forComputationalLinguistics.
+Ilya Sutskever, Oriol Vinyals, and Quoc V Le. 2014.
+Sequencetosequencelearningwithneuralnetworks.
+In Advances in Neural Information Processing Sys-
+tems,volume27.CurranAssociates,Inc.
+Christian Szegedy, Vincent Vanhoucke, Sergey Ioffe,
+JonShlens,andZbigniewWojna.2016. Rethinking
+the inception architecture for computer vision. In
+2016IEEEConferenceonComputerVisionandPat-
+ternRecognition(CVPR),pages2818–2826.
+ChaojunWangandRicoSennrich.2020. Onexposure
+bias, hallucination and domain shift in neural ma-
+chinetranslation. InProceedingsofthe58thAnnual
+Meeting of the Association for Computational Lin-
+guistics, pages 3544–3552, Online. Association for
+ComputationalLinguistics.
+JohnWieting,TaylorBerg-Kirkpatrick,KevinGimpel,
+andGrahamNeubig.2019. BeyondBLEU:training
+neuralmachinetranslationwithsemanticsimilarity.
+In Proceedings of the 57th Annual Meeting of the
+Association for Computational Linguistics, pages
+4344–4355,Florence,Italy.AssociationforCompu-
+tationalLinguistics.
+Yilin Yang, Liang Huang, and Mingbo Ma. 2018.
+Breaking the beam search curse: A study of (re-
+)scoring methods and stopping criteria for neural
+machine translation. In Proceedings of the 2018
+Conference on Empirical Methods in Natural Lan-
+guageProcessing, pages3054–3059, Brussels, Bel-
+gium.AssociationforComputationalLinguistics.
+Supplemental Material
+A TrainingDetails
+FortheexperimentsusingIWSLT17,wetrainasmalltransformermodel(6layers,4attentionheads,512
+embeddingdimensions,and1024hiddendimensions)fromscratch,usingFairseq(Ottetal.,2019). We
+tokenizethedatausingSentencePiece(KudoandRichardson,2018),withajointvocabularywith20000
+units. WetrainusingtheAdamoptimizer(KingmaandBa,2015)withβ = 0.9andβ = 0.98anduse
+1 2
+aninversesquarerootlearningratescheduler,withaninitiallearningrateof5×10−4 andwithalinear
+warm-upinthefirst4000steps. Formodelstrainedwithlabelsmoothing,weusethedefaultvalueof0.1.
+B AdditionalResults
+Forcompleteness,weincludeinTable4resultstoevaluatetheimpactofthemetricspresentedin§3as
+featuresandobjectivesforrankingusingtheotherlanguagepairs: EN → RU(largemodel)andEN → FR
+(smallmodel).
+Large(WMT20) Small(IWSLT)
+BLEU chrF BLEURT COMET BLEU chrF BLEURT COMET
+Baseline 23.86 51.16 0.6953 0.5361 38.12 63.20 0.6532 0.4809
+F-RRw/COMET-QE 20.32 49.18 0.7130 0.6207 35.59 60.90 0.6628 0.5553
+F-RRw/MBART-QE 22.39 50.59 0.6993 0.5481 36.68 62.17 0.6593 0.5091
+F-RRw/OpenKiwi 20.88 48.72 0.7040 0.5688 32.03 55.68 0.5996 0.2581
+F-RRw/Transquest 21.60 50.14 0.7060 0.5836 36.02 62.26 0.6681 0.5397
+T-RRw/BLEU 23.87 51.51 0.7042 0.5669 39.10 64.22 0.6968 0.6189
+T-RRw/BLEURT 22.84 51.25 0.7265 0.6470 38.60 63.76 0.7042 0.6405
+F-RRw/COMET 22.42 50.91 0.7243 0.6441 38.60 63.77 0.7020 0.6392
+MBRw/BLEU 24.03 51.12 0.6938 0.5393 37.97 63.13 0.6484 0.4764
+MBRw/BLEURT 23.01 50.87 0.7314 0.5984 37.29 62.82 0.6886 0.5361
+MBRw/COMET 23.67 51.18 0.7093 0.6242 37.77 63.24 0.6710 0.6127
+T-RR+MBRw/BLEU 24.11 51.44 0.6967 0.5482 38.96 64.04 0.6781 0.5636
+T-RR+MBRw/BLEURT 23.18 51.30 0.7344 0.6277 37.43 63.14 0.7092 0.5961
+T-RR+MBRw/COMET 23.21 51.26 0.7238 0.6736 38.33 63.53 0.6883 0.6610
+Table 4: Evaluation metrics for EN → RU for the large model setting and EN → FR for small model settings,
+usingafixedN-bestreranker(F-RR),atunedN-bestreranker(T-RR),MBRdecoding,andatwo-stageapproach.
+Bestoverallvaluesareboldedandbestforeachspecificgroupareunderlined.
+C HumanStudy
+Inordertoperformhumanevaluation, werecruitedprofessionaltranslatorswhowerenativespeakers
+ofthetargetlanguageonthefreelancingsiteUpwork.5 300sentenceswereevaluatedforeachlanguage
+pair,sampledrandomlyfromthetestsetsafterarestrictionthatsentenceswerenolongerthan30words.
+All translation hypotheses for a single source sentence were first deduplicated, and then shown to the
+translatorside-by-sideinrandomizedordertoavoidanyorderingbiases.
+Sentenceswereevaluatedaccordingtoa1-5rubricslightlyadaptedfromthatofWietingetal.(2019):
+1. Thereisnooverlapinthemeaningofthesourcesentencewhatsoever.
+2. Somecontentissimilarbutthemostimportantinformationinthesentenceisdifferent.
+3. Thekeyinformationinthesentenceisthesamebutthedetailsdiffer.
+4. Meaningisessentiallyequalbutsomeexpressionsareunnatural.
+5. Meaningisessentiallyequalandthesentenceisnatural.
+5https://upwork.com.Freelancerswerepaidamarketrateof18-20USdollarsperhour,andfinishedapproximately
+50sentencesinonehour.
+D MQMFramework
+HumanevaluationswereperformedbyUnbabel’sPROCommunity,madeofprofessionaltranslatorsand
+linguistswithrelevantexperienceinlinguisticannotationsandtranslationerrorsannotations. Inorderto
+properlyassesstranslationsquality,annotatorsmustbenativespeakersofthetargetlanguageandwitha
+provenhighproficiencyofthesourcelanguage,sothattheycanproperlycaptureerrorsandtheirnuances.
+Thesystems’outputswereevaluatedbyusingtheannotationframeworkadoptedinternallyatUnbabel,
+whichisanadaptationoftheMQMFramework(Lommeletal.,2014).
+Weaskedtheannotatorstoidentifyallerrorsandindependentlylabelthemwithanerrorcategoryanda
+severitylevel. Weconsiderthreecategories(eachofthemcontainingasetofdifferentsubcategories)
+thatmayaffectthequalityofthetranslations:
+• Accuracy, if the target text does not accurately reflect the source text (e.g., changes in the meaning,
+addition/omissionofinformation,untranslatedtext,MThallucinations);
+• Fluency,ifthereareissuesthataffectthereadingandthecomprehensionofthetext(e.g.,grammarand
+spellingerrors);
+• Style,ifthetexthasstylisticproblems(e.g.,gramaticalandlexicalregister).
+Additionally, each error is labeled according to three severity levels (minor, major, and critical), de-
+pending on the way they affect the accuracy, the fluency, and the style of the translation. The final
+sentence-level score is obtained using a weighting scheme where minor, major, and critical errors are
+weightedas1,5,and10,respectively.
+Figures4and5showthecountsoferrorsbreakdownbytypologyandseveritylevelforEN→DEand
+EN→RU,respectively.
+Reference Baseline
+wrongpreposition severity severity
+wrongconjunction major major
+minor minor
+wrongauxiliaryverb
+wordorder
+whitespace
+untranslated
+tensemoodaspect
+sourcetargetisagreement
+shouldn’thavebeentranslated
+punctuation
+pos
+overlyliteral
+otherposomitted
+omittedpronoun
+omittedpreposition
+omitteddeterminer
+omittedconjunction
+lexicalselection
+grammaticalregister
+agreement
+addition
+Fixed-RR Tuned-RR
+wrongpreposition severity severity
+wrongconjunction major major
+minor minor
+wrongauxiliaryverb
+wordorder
+whitespace
+untranslated
+tensemoodaspect
+sourcetargetisagreement
+shouldn’thavebeentranslated
+punctuation
+pos
+overlyliteral
+otherposomitted
+omittedpronoun
+omittedpreposition
+omitteddeterminer
+omittedconjunction
+lexicalselection
+grammaticalregister
+agreement
+addition
+MBRdecoding Tuned-RR+MBRdecoding
+wrongpreposition severity severity
+wrongconjunction major major
+minor minor
+wrongauxiliaryverb
+wordorder
+whitespace
+untranslated
+tensemoodaspect
+sourcetargetisagreement
+shouldn’thavebeentranslated
+punctuation
+pos
+overlyliteral
+otherposomitted
+omittedpronoun
+omittedpreposition
+omitteddeterminer
+omittedconjunction
+lexicalselection
+grammaticalregister
+agreement
+addition
+0 10 20 30 40 50 60 0 10 20 30 40 50 60
+Figure4: ErrortypologyandseveritylevelbreakdownforWMT20(largemodels)EN→DE.
+ygolopyt
+ygolopyt
+ygolopyt
+Reference Baseline
+wrongpronoun severity severity
+major critical
+wrongpreposition
+minor major
+wrongnumber minor
+wordorder
+whitespace
+untranslated
+tensemoodaspect
+punctuation
+overlyliteral
+otherposomitted
+orthography
+omittedpreposition
+namedentity
+lexicalselection
+capitalization
+ambiguoustranslation
+agreement
+addition
+Fixed-RR Tuned-RR
+wrongpronoun severity severity
+critical critical
+wrongpreposition
+major major
+wrongnumber minor minor
+wordorder
+whitespace
+untranslated
+tensemoodaspect
+punctuation
+overlyliteral
+otherposomitted
+orthography
+omittedpreposition
+namedentity
+lexicalselection
+capitalization
+ambiguoustranslation
+agreement
+addition
+MBRdecoding Tuned-RR+MBRdecoding
+wrongpronoun severity severity
+critical critical
+wrongpreposition
+major major
+wrongnumber minor minor
+wordorder
+whitespace
+untranslated
+tensemoodaspect
+punctuation
+overlyliteral
+otherposomitted
+orthography
+omittedpreposition
+namedentity
+lexicalselection
+capitalization
+ambiguoustranslation
+agreement
+addition
+0 25 50 75 100 125 150 175 200 0 25 50 75 100 125 150 175 200
+Figure5: ErrortypologyandseveritylevelbreakdownforWMT20(largemodels)EN→RU.
+ygolopyt
+ygolopyt
+ygolopyt

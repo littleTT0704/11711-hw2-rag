@@ -1,0 +1,1269 @@
+NATURALPROVER: Grounded Mathematical Proof
+Generation with Language Models
+SeanWelleck1,2∗,JiachengLiu1∗,XimingLu2,HannanehHajishirzi1,2,YejinChoi1,2
+1PaulG.AllenSchoolofComputerScience&Engineering,UniversityofWashington
+2AllenInstituteforArtificialIntelligence,∗Equalcontribution
+wellecks@uw.edu
+Abstract
+Theoremprovinginnaturalmathematicallanguage–themixtureofsymbolicand
+naturallanguageusedbyhumans–playsacentralroleinmathematicaladvances
+and education, and tests aspects of reasoning that are core to intelligence. Yet
+ithasremainedunderexploredwithmoderngenerativemodels. Westudylarge-
+scalelanguagemodelsontwonewgenerationtasks: suggestingthenextstepina
+mathematicalproof,andfullproofgeneration. WedevelopNATURALPROVER,a
+languagemodelthatgeneratesproofsbyconditioningonbackgroundreferences
+(e.g. theoremsanddefinitionsthatareeitherretrievedorhuman-provided),and
+optionallyenforcestheirpresencewithconstraineddecoding. Ontheoremsfrom
+the NATURALPROOFS benchmark, NATURALPROVER improves the quality of
+next-stepsuggestionsandgeneratedproofsoverfine-tunedGPT-3,accordingto
+humanevaluationsfromuniversity-levelmathematicsstudents. NATURALPROVER
+is capable of proving some theorems that require short (2-6 step) proofs, and
+providingnext-stepsuggestionsthatareratedascorrectandusefulover40%of
+thetime,whichistoourknowledgethefirstdemonstrationofthesecapabilities
+usingneurallanguagemodels.1
+Figure1: NATURALPROVERprovesEvenIntegerPlus5isOdd. Attrainingtime,NATURALPROVER
+obtainsbackgroundknowledgeaboutreferences(e.g. theoremsordefinitions)viareferencerecon-
+struction: learningtomapareference’stitletoitscontent. Attesttime,NATURALPROVERgrounds
+itsgenerationsthroughin-contextreferenceconstraintsthatareretrievedorhuman-provided,and
+optionallyenforcedwithstepwiseconstraineddecoding. Thistheorem’shuman-writtenproofin
+ProofWikicontainsanerroranddifferssubstantiallyfromNATURALPROVER’scorrectproof.
+1Codeanddataavailableathttps://github.com/wellecks/naturalprover.
+36thConferenceonNeuralInformationProcessingSystems(NeurIPS2022).
+2202
+tcO
+13
+]LC.sc[
+2v01921.5022:viXra
+1 Introduction
+Constructingarationalargumentthatjustifiesaclaimisakeyaspectofexplaining,verifying,and
+communicatingideasinsituationsrangingfromeverydayinteractions,tolegalandpoliticaldiscourse,
+toscienceandmathematics[DavisandHersh,1981,VossandMeans,1991,Kaye,1992]. Within
+thelattercontext,amathematicalproof –asequenceoflogicalargumentsexpressedinamixtureof
+symbolicandnaturallanguage–assumesthisrolebyprovidingjustificationandinsightintowhya
+claimistrue[deVilliers,1990]. Proofsoperateonarelativelyexplicitandobjectivesetofground
+knowledge,isolatingasubsetofreasoningthatisdesirableformodelsthatformthefoundationof
+machinelearningsystems[Bommasanietal.,2021]. Moreover,weenvisionassistivesystemsthat
+providesuggestedproofsornext-steps,analogoustolanguage-model-basedcodesuggestions(e.g.
+GitHub CoPilot [Chen et al., 2021]) or formal proof assistants (e.g. GPT-f [Han et al., 2021a]),
+whichcouldmakelearningorusingmathematicsmoreproductiveandaccessible.
+Tothisend,westudythecapabilitiesoflarge-scalelanguagemodels(e.g. GPT-3Brownetal.[2020])
+ontwonewtheoremprovingtasksinnaturalmathematicallanguage: next-stepsuggestion,inwhich
+amodelsuggeststhenextstepofaproof,andfull-proofgeneration,inwhichamodelfullyprovesa
+claim. Asproofsaregroundedinknowledgefrompastresults(e.g. theorems,definitions),analogous
+tofactsdeployedinaconversation[Dinanetal.,2019],priorrulingsusedinalegalopinion[ErikG.
+Jensen,2014],orarticlesusedtojustifyananswer[Nakanoetal.,2021],wedevelopamethodology
+forobtainingandusingbackgroundknowledgetoprovetheoremswithagenericlanguagemodel.
+WedevelopNATURALPROVER,alanguagemodelthatgeneratesproofsbyconditioningonback-
+groundreferences(e.g. theoremsanddefinitionsthatareeitherretrievedorhuman-provided),and
+optionallyenforcestheirpresencewithaconstraineddecodingalgorithmthatleveragesthemulti-step
+structureofproofs. OnacollectionoftheoremsfromtheNATURALPROOFSbenchmark[Welleck
+etal.,2021],NATURALPROVERimprovesthequalityofnext-stepsuggestionsandgeneratedproofs
+overfine-tunedGPT-3,accordingtohumanevaluationsfromuniversity-levelmathematicsstudents.
+NATURALPROVER iscapableofprovingsometheoremsthatrequireshort(2-6step)proofs,and
+providingnext-stepsuggestionsthatareratedascorrectandusefulmorethan40%ofthetime,which
+istoourknowledgethefirstdemonstrationofthesecapabilitiesusingneurallanguagemodels.
+Alongwiththesesuccesses,westudydeficienciesinourcurrentmodels. Wefindthatmodelscan
+strugglewithlogicalcoherenceonlongerproofs,withprovidingvalidjustifications,andwithperform-
+ingmulti-stepsymbolicderivations. Takentogether,ourtasks,methodology,andevaluationshowthe
+feasibilityoflanguagemodelsasinteractiveaidsinmathematics,alongwithopenchallenges.
+2 NATURALPROOFS-GEN DatasetandTasks
+WecreateaNATURALPROOFS-GENdatasetadaptedfromNATURALPROOFS[Wellecketal.,2021],
+andusethedatasetfortwotasks: suggestingthenextstepofaproof,andfullyprovingatheorem.
+NATURALPROOFS-GEN. NATURALPROOFS-GEN adapts data from NATURALPROOFS, which
+contains theorem statements, proofs, definitions, and additional pages (e.g. axioms, corollaries)
+sourcedfromProofWiki,anonlinecompendiumofcommunity-contributedmathematicalproofs. In
+NATURALPROOFS-GEN,eachexample(x,y)∈Dpairsatheoremxwithagoldproofy,bothof
+whichareamixtureoftextandLATEX. Wellecketal.[2021]splittheexamplesandreferencesetsinto
+training,dev,andtestsplitstoensurethatnotheoreminthedevortestsplitswasmentionedinthe
+trainingsplit.Weadoptthesesplitsofroughly12.5ktraining,1kvalidation,and1ktestexamples,and
+sampledcoreevaluationsetswith100devand100testtheoremsthatareusedforhumanevaluation.
+Theproofscontainadditionalstructure,discussednext.
+Multi-step proof structure. Each proof has a multi-step structure, meaning that a proof y =
+(y ,...,y )isavariable-lengthtokensequencethatissegmentedintoproofsteps,whereeachstep
+1 |y|
+y isitselfavariable-lengthsequenceoftokens(eithertextorLatex). Thesegmentationislargely
+t
+determined by ProofWiki’s formatting and community standards for structuring proofs, and we
+additionallymergestepstoensurethateachstepcontainsnon-trivialsemanticcontent. Forexample,
+Figure1showsa4-step(generated)proofwitheachstephighlightedingreen.
+References. Eachproofmentionsavariable-numberofreferences{r ,...,r }fromasetRof
+1 Ry
+roughly33ktheoremsanddefinitions,analogoustohowWikipediaarticlesreferenceotherpages.
+2
+Forexample, Figure1showsaproofwithreferencementionsinblue. Eachmentionidentifiesa
+referencebyitstitleandprovidesanaturallanguagesurfaceform. Forinstance,inFigure1,the
+firstproofstepmentionsthedefinitionofevenintegeraseven,whichisformattedintheproofas
+[[Definition:Even_Integer|even]]andtokenizedalongwiththerestoftheproof.
+Tasks. Weconsidertwotasksthataremotivatedbyanassistivesystemthatprovidessuggested
+proofsornext-stepstoauser.Thefullproofgenerationtaskistogenerateaproofygivenatheorem
+x. Thenext-stepsuggestiontaskistogenerateasetofnextsteps{yk}K giventheoremxand
+t k=1
+proofhistoryy fromagoldproof. Ineachcase,weconsideranadditionalprovidedreference
+<t
+settingwherethemodelisalsogiventhesetofreferences{r∗,...,r∗ }fromagoldproofofthe
+1 Ry
+theorem. Thenext-steptasksimulatesahumancorrectlyprovingthetheoremuptoapoint,then
+queryingasystemforsuggestednext-stepswhenstuck,whiletheprovidedreferencesettingsimulates
+ahumanspecifyingaplanforasystemthatwritesaproof.
+3 NATURALPROVER: GroundedProofGenerationviaLanguageModeling
+WedescribeNATURALPROVER,alanguagemodelwhichgeneratesgroundedproofsbyconditioning
+onreferencesandoptionallyenforcingtheirpresencewithconstraineddecoding.
+Setup. Our objective is to generate correct proofs, yˆ = argmax correct(x,y). Unfortunately,
+y
+evaluatingproofcorrectnessiscostly, andisonlydoneonceattesttime. Anaiveapproachisto
+approximatetheobjective,yˆ ≈argmax logp (y|x),byfine-tuningalanguagemodelp on(x,y)
+y θ θ
+examplesandusingadecodingalgorithm(e.g. greedydecoding). Weinsteadinvestigateconditioning
+onbackgroundknowledgeintheformofreferencedocuments,p (y|x,R),whichisbeneficialin
+θ
+relatedgenerationsettings(e.g. Shusteretal.[2021]),andofferscontroloverthegeneratedproof. To
+doso,NATURALPROVERusesin-contextreferencesandareferencereconstructionobjective.
+In-contextreferences. Languagemodelshavealimitedcontextwindowthatpreventsconditioning
+onfulldocuments. Instead,NATURALPROVERconditionsonasetofreferencetitles,p θ(y|x,R title).
+Concretely,wefine-tuneon(theorem,referencetitles,proof)sequencesoftheform,
+<theorem> <title> {theorem-title} </title> <content> {theorem-content} </content> </theorem>
+<ref> {ref-title-1} </ref> ... <ref> {ref-title-R} </ref> <proof> {proof} </proof> (1)
+withnew-linesand{}tokensomitted,relevantstringsinserted,andlossonlyontokensafter<proof>.
+Referencereconstruction. Referencetitlesdonotcapturealloftheinformationcontainedinthe
+referencedocuments. Welearnamappingbetweeneachreferencetitleanditsunderlyingdocument
+withareferencereconstructionobjective,p (r|r )forreferencesrinthetrainingreferenceset.
+θ title
+Concretely,wefine-tuneonadditional(title,content)pairsoftheform,
+<{type}> <title> {title} </title> <content> {content} </content> </{type}>, (2)
+wherethe{type}istheorem/definition/other,andthelossisonlyontokensafter<content>.Intuitively,
+thisletsthemodelassociateeachreferencetitlewiththereference’sunderlyingcontent.
+Thejointobjective. Fortraining,weminimizethejointloss,
+1 (cid:104) (cid:88) (cid:88) (cid:105)
+L(θ)= −logp (y|x,R )+ −logp (r|r ) . (3)
+|Dtrain|+|Rtrain| θ title θ title
+(x,y)∈Dtrain r∈Rtrain
+Evaluation-timereferences. Weconsidertwosettingsforevaluation-timereferences: (i)retrieved
+references,fromaretrievalmodelf(x)→{r ,...,r },and(ii)human-providedreferencesfrom
+1 k
+theground-truthproof. Theretrievalsettingsimulatesafullyautomatedproofassistant,whilethe
+secondsimulatesahumanspecifyingaplanforanassistantthatwritesaproof,andactsasanupper
+boundforaretrievalsystemoptimizedtopredictreferencesinaground-truthproof.
+3.1 Stepwiseconstraineddecoding
+Intheprovided-referencesetting,theconditionedreferencesareknowntoberelevanttoacorrect
+proof. Wehypothesizethatexplicitlyencouraginggeneratedproofstocontainthereferenceswill
+3
+improvecorrectness,byplacinglexicalconstraintsonthereference-titlesatdecodingtime,
+(cid:88)
+yˆ ≈argmaxlogp (y|x,R ), subjectto I[r ∈y]=|R |, (4)
+θ title title title
+y
+rtitle∈Rtitle
+where I[·] is an indicator function. To approximate this objective, we generate step-by-step by
+samplingmultipleproof-stepcandidates,retainingthosewithhighvalue(referencecoverageand
+log-probability)inabeam,andcontinuingtothenextstep,whichwecallstepwisebeamsearch.
+Valuefunction. Thesearchsupportsanyfunctionoftheproof-so-far,v(y )→R. Weuseavalue
+≤t
+functionthatisaweightedcombinationofconstraintsatisfactionandlog-probability,
+v (y )=αv (y )+(1−α)v (y ), (5)
+α ≤t constraint ≤t LM ≤t
+where v (y ) is the number of unique in-context reference-titles in y , and v (y ) is
+constraint ≤t ≤t LM ≤t
+logp (y ). Wenormalizeeachtermbydividingbythemaximumabsolutevalueamongcandidates.
+θ ≤t
+Stepwisebeamsearch. Theproceduregeneratesaproofy=(y ,...,y )byiterativelysampling
+1 T
+andpruningnext-proof-stepcandidatesy . Eachiterationexpandsasize-K beamofproofs-so-far,
+t
+S ={yk }K ,bygeneratingN next-stepcandidates,
+t−1 <t k=1
+S(cid:48) =∪ (cid:8) (y ◦yn)|yn ∼q(·|y ,x,R )(cid:9)N , (6)
+t y<t∈St−1 <t t t <t title n=1
+where q is a decoding algorithm (e.g. temperature sampling) and ◦ is concatenation. The next
+iteration’sbeamisformedbyselectingthetopscoringcandidates,S =argtop-K v (y ).
+t y≤t∈S t(cid:48) α ≤t
+Whenaproofinthebeamterminates,itisnotexpandedfurther. Thesearchendswhenthebeam
+consistsofK terminatedproofs. Thehighestvalueproofisreturnedasthefinaloutput.
+Stepwise++. Weaddtwomechanismsforpromotingexplorationateachstep. First,weexpandeach
+prefixinthebeam(Eqn. 6)bysamplingwithmultipletemperatures,{yn ∼q (·|y ,x,R )|τ ∈
+t τ <t title
+{τ }m }, where q is sampling with temperature τ. This relaxes the commitment to a single
+i i=1 τ
+temperatureforallproofsteps,balancingexploration(higherτ)withexploitation(lowerτ).
+Second,ratherthanselectingthetop-Kcandidates,weselectclustersbasedondifferentvalueweights:
+S =∪ top (Sα),whereSαisthesetofcandidatesscoredwithv ,andK(cid:48) =K/(cid:96). This
+t α∈{αj}(cid:96)
+j=1
+K(cid:48) t t α
+interpolatesbetweenselectingstepsbasedonlikelihood(lowα)andconstraintsatisfaction(highα).
+Fullproofsamplingandgreedydecoding. Analternativeistosamplefullproofsandselectthe
+best one according to the value function. This can be viewed as expansion (Eqn. 6) done at the
+fullproof,ratherthanthesteplevel. Moreover,greedydecodingcorrespondstoexpandingonly1
+candidatewithtemperature→ 0. Weformalizethisin§Dasasegment-levelsearchthatcontains
+stepwise++,fullproofsampling,andgreedydecodingasspecialcases.
+4 ProofEvaluation
+A proof’s correctness is contingent on a variety of factors, including reasoning with past results,
+performingsymbolicderivations,andaltogetherprovidingsufficientevidencethattheclaimistrue.
+Wedesignahuman-evaluationschemathatisolatestheseaspectsattheproof-steplevel,alongwitha
+full-proofsummary. Table1summarizestheschema,whichweoverviewbelow.
+References. First,proofsinvolvedeployingstatementsfromreferences,suchasapplyingadefinition
+oradaptingittofitthecontext. Deploymentsshouldbeconsistentwiththereference,e.g. deploying
+thedefinitionofevenintegeras‘...bydefinition,∃k ∈Z:x=2k...’,ratherthan‘...∃k ∈Z:x=
+2k+1’,andareacommonsourceoferrorsinstudentproofs[EdwardsandWard,2004].
+Second,proofsusereferencesasjustificationforstepsofreasoning;forinstance,RealAdditionis
+Commutativeprovidesjustificationforthestatementx+y = y+xwherex,y ∈ R,butnotfor
+xy =yx. Thisaspectisanalogoustousinganarticletojustifyaclaim(e.g. [Nakanoetal.,2021]).
+Finally,proofsshouldnothallucinatereferences,or‘begthequestion’byself-referencingthecurrent
+theorem.
+Equations. Proofscontainavarietyofmulti-stepderivations,rangingfromsimplearithmeticto
+moresophisticatedderivations(e.g. seeTable17). Aderivationshouldstartwithavalidequation
+giventhesurroundingcontext(e.g. x+x=2xinTable1versusx+x=3x). Eachsubsequentstep
+shouldbeavalidderivationfromthepreviousstep,e.g. stating=(2k+6)−1aftery =2k+5.
+4
+ErrorType Example
+Reasoning:Reference
+InvalidDeployment Sincexisaneveninteger,∃k∈Z:x=2k+1.
+InvalidJustification E(X2)=(cid:80)n k2Pr(X =k) PowerSeriesforExponentialFunction
+k=1 √
+HallucinatedRef. From PowerofNumberareIrrational, 32isirrational.
+SelfLoop (ProvingPythagoras’sTheorem:) FromPythagoras’sTheorem,c2 =a2+b2.
+Reasoning:Equation
+InvalidEquation ∀x∈R,x+x=3x.
+InvalidDerivation (Sincexisaneveninteger,x+1=2r+1) =2(r+1)
+Reasoning:Other
+SkipsSteps (x∈Zisnotamultipleof3.) Therefore,x3 ≡1or8(mod9)
+Repetition (Let(cid:52)ABCbearighttriangle.) Then(cid:52)ABCisarighttriangle.
+Invalid(Other) (xisaneveninteger.) So,x+1isaneveninteger.
+(cid:112)
+Language Letc= a2\addb2bethe (incompletestatement; unknownsymbol \add)
+Symbolic (Letx∈R.) Lety=x◦x−1. (undefinedoperator◦forrealnumbers)
+Table1: Overviewofhumanevaluationerrorschema. SeeTable24forthefullschema. Reference.
+Hallucinatedreference. Thenecessarycontext(e.g. knownconditions,priorsteps).
+Otherreasoning, language,& symbolic errors. Aproofshouldprovidesufficientevidence
+thataclaimistruetoahumanreader;itshouldnotskipsteps. Proofstepsshouldmakeprogress
+towardsprovingthegoal;inparticular,theyshouldnotrepeatknownconditionsinthetheoremor
+conclusionsmadeinapriorstep. Finally,ourschemaleavesroomforanyotherreasoningerrors,as
+wellassymbolerrors(e.g. undefinedsymbols)andlanguageerrors(e.g. incompletestatements).
+Usefulness and correctness. Tojudgethepotentialutilityoflanguagemodelsasassistivesystems
+in natural mathematics, we measure whether generated next-steps and full proofs are potentially
+usefulhintsforprovingthetheoremonone’sown. Additionally,wemeasureasummaryjudgmentof
+correctness. Notethatanincorrectstatementcanstillbehelpful;forinstance,itcouldgiveahintfor
+thetypeofreferencetouse,derivationtoperform,argumenttomake,etc.
+Humanevaluationprotocol.Wemeasuretheseaspectsthroughhumanannotationatastep-wiseand
+anoveralllevel. Forastep-wiseannotation,anannotatorispresentedwiththetheorem,proof-so-far,
+andageneratednext-step. Theannotatorlabelsthe{0,1}correctness,usefulness,andpresenceof
+fine-grainederrorsoutlinedabove. Afterlabelingeachstepofaproof,theannotatorratesthefull
+proof’soverallcorrectnessandusefulnessona0-5scale. Aratingof4or5isneededtobeconsidered
+ascorrect,andaratingof3oraboveisneededtobeconsideredasuseful.
+Automaticmetrics: lexicalcontent. Asautomaticproxiesforquality,wecompareeachgenerated
+proofagainstitsground-truthcounterpartusingthesentence-leveln-grammatchingmetricGLEU
+[Muttonetal.,2007],andfollowingworkinknowledge-groundeddialogue[Shusteretal.,2021]
+weuseF1overlapbetweengeneratedandground-truthtokens. Priortocomputingthemetrics,we
+normalizethegeneratedandground-truthproofsbyonlykeepingthesurfaceformofreferences,
+removingformattingcharacterswithaMediaWikiparser,andcollapsinganyconsecutivewhitespace
+intoasinglespace.
+Automatic metrics: knowledge grounding. We define knowledge grounding as meaning that a
+generatedproofcontainsthesamereferencesasthosefoundintheground-truthproof. Tomeasure
+this,weuseprecision,recall,andF1-scorebetweenthereferencesetscontainedinthegeneratedand
+ground-truthproofs;i.e. m({ˆr ,...,ˆr },{r∗,...,r∗ }),wherem(·)isprecision,recall,orF1. We
+1 Rˆ 1 R∗
+alsouseKnowledgeToken-F1(kF1)([Shusteretal.,2021]),theoverlapofthegeneratedproof’s
+tokenswithtokenscontainedinthereferencesmentionedintheground-truthproof.
+5 Experiments
+We use the training and dev splits of NATURALPROOFS-GEN during fine-tuning, and the core
+evaluation sets consisting of 100 theorems from the validation set and 100 from the test set for
+5
+ReasoningErrs(↓) LexicalErrs(↓) Per-Step(↑) FullProof(↑)
+Ref. Eqn. Other Lang. Sym. Useful Correct Useful Correct
+GPT-3 30.92 32.54 40.15 5.61 5.24 25.69 28.18 20% 13%
+NATURALPROVERRETRIEVE 23.52 37.55 23.66 4.54 6.19 41.54 33.56 32% 24%
+NATURALPROVER 25.84 35.93 25.23 8.41 5.35 39.60 26.30 35% 24%
+NATURALPROVER++ 23.61 28.54 18.45 5.58 3.65 46.57 35.41 45% 32%
+Next-step(NATURALPROVER) 19.70 26.32 19.10 8.57 5.86 51.43 42.86 – –
+Table 2: Human evaluation results on the core test set for full proof generation and next-step
+suggestion(bottomrow). Allmodelsarefine-tunedonNATURALPROOFS-GEN. Knowledge–either
+retrievedorhumanprovided–andconstraineddecodingimproveproofgeneration, with46%of
+proofstepsratedasusefuland35%correctaccordingtouniversity-levelmathematicsstudents.
+evaluation(see§2). Thesetheoremswereselectedbytheauthorssuchthatbylookingatthetheorem
+title each author could recall its content and sketch a proof. While this may shift the evaluation
+towardsaneasiersliceofthedataset,itwasnecessarytomakehumanevaluationatameaningful
+scalefeasible. Wealsousethecoresetsforexplorationsandablations.
+WefinetunethreeGPT-3[Brownetal.,2020](Curie)models,usingtheOpenAIAPI(seeAppendixE
+fordetails):
+1. BaselineGPT-3. WefinetuneabaselineGPT-3model, p (y|x), ontheorem-proofexamples
+θ
+{(x,y)}fromthetrainingsplit. Attesttime,weconditionthemodelonatesttheorem.
+2. NATURALPROVERRETRIEVE. WefinetuneGPT-3withretrievedreferences,p θ(y|x,ˆr 1,...,ˆr 20).
+We use a pretrained joint retrieval model f(x) → (r ,...,r ) from [Welleck et al., 2021],
+1 |R|
+whichwastrainedtoretrieveaninputtheorem’sgroundtruthreferences. Attesttime,themodel
+receivesatheoremandthetop-20referencetitlesthatareretrievedgiventhetheorem.
+3. NATURALPROVER. WefinetuneGPT-3withhuman-providedreferences,p θ(y|x,r∗ 1,...,r∗ Ry),
+where{r∗,...,r∗ }isthesetofreference-titlesintheground-truthproof. Weusereference-title
+1 Ry
+conditionedexamples(Eqn.1)andreference-reconstruction(Eqn.2)onthetrainingsplit/reference
+set. Attesttime,themodelreceivesatheoremandreferencetitlesfromitsground-truthproof.
+Fornext-stepsuggestionweusethehuman-providedknowledgemodel(NATURALPROVER).
+Decoding. For full proof generation, we use stepwise++ decoding with the provided knowledge
+model,whichwerefertoasNATURALPROVER++,andotherwiseusegreedydecoding. Wedonot
+usestepwiseconstraineddecodingwithretrievedreferencessincethesereferencesintroducenoisy
+constraints,norfornext-steppredictionsincethealgorithmisdesignedformulti-stepproofs. See§E
+foradditionalexperimentaldetails.
+Humanevaluationsetup. Toevaluatetheproofsgeneratedby NATURALPROVER, werecruited
+15 students from the Department of Mathematics and Applied Mathematics at the University of
+Washington,includingundergraduate,masters,andPh.D.students. Theannotatorsweretrainedon
+howtoevaluateproofcorrectnessandcompensatedaccordingtoIRBrequirements;see§F.2. For
+eachtask,wefirstrevealthetheoremanditsgoldprooftotheannotator. Iftheycannotunderstand
+atheoremoritsgoldproof, theymayskipevaluatingit. Otherwise, theymayproceedtoseethe
+model-generatedproof,onestepatatime,andannotateeachstepunderthestep-wiseevaluation
+schema(outlinedin§4). Afterallthestepsareshownandevaluated,forthefull-proofgeneration
+task,theannotatorisaskedtoannotatetheentireproofundertheoverallevaluationschema.
+5.1 MainResults
+Ourbestmethodiscapableofgeneratingcorrectandusefulproofs. Accordingtohumanevalu-
+ationresults(Table2),ourbestmethodisNATURALPROVERwithhuman-providedreferencesand
+stepwise++inference. 32%oftheproofsgeneratedbythismethodareratedas correct and45%are
+ratedas useful asanaidforhumanproofwriters. Ontheper-steplevel,35%oftheproofstepsare
+correct and47%are useful. Takingamoregranularview,ourbestmethodmakessignificantly
+less reference , equation , and other reasoning errors than other baselines. It makes very few
+language and symbolicerrors,meaningitproducesmostlycomplete,well-formattedmathematical
+statements,anddefinesandusessymbolsaccordingly. Itmostlyavoidshallucinatingreferencesor
+creatingcircularproofs. Ontheotherhand,despiteimprovingovertheothermethods,themodel
+6
+Theorem SingletonSetisnotDense-in-itself SingletonPointisIsolated
+LetT =(S,τ)beatopologicalspace. LetT =(S,τ)beatopologicalspace.
+Letx∈S. Letx∈S.
+Thenthesingletonset{x}isnotdense-in-itself. Thenxisanisolatedpointof
+GPT-3 Letx∈S. (cid:51) thesingletonset{x},
+From ClopenPointsinTopologicalSpace wehavethat (cid:55) butnotnecessarilyanisolatedpointof
+T.
+{x}isopeninT.
+From PointisOpeniffitisnotDense-in-itself,itfollows (cid:55) Dense-in-itself
+that{x}isnotdense-in-itself. LetT =S,τbeatopologicalspace.
+LetH⊆S.
+NATURALPROVER++ FromSingletonPointisIsolated,{x}hasanisolatedpoint. (cid:51) ThenHisdense-in-itselfiffitcontains
+Hencetheresultbydefinitionofdense-in-itself. (cid:51) noisolatedpoints.
+Table3: GPT-3 hallucinatesreferences,whiletheknowledge-groundedNATURALPROVER++with
+constraineddecodingcorrectlyusesreferences,resultinginacorrectandusefulproof.
+oftenstruggleswithcorrectlydeployingandusingreferences(23.6%referenceerrorrate),aswellas
+symboliccomputations(28.5%equationerrorrate),especiallymulti-stepderivations(21.9%invalid).
+Whatdothemodel’scorrectproofslooklike? Weinspectedtheproofslabeledascorrectand
+foundthreemaincategories: (1)reference-assemblyproofswhosecorrectnessisheavilydetermined
+byreferencestatements(e.g. Table18,Table20);(2)template-adaptationproofsinwhichthemodel
+adaptsthestructureandcontentofatrainingtheorem’sprooftoprovetheunseenevaluationtheorem
+(e.g. Table21,Table22);(3)complexproofsthatarenotfullydeterminedbyreferencestatementsand
+differsignificantlyfromtrainingproofs(e.g. Figure1,Table3). Intermsoftechniques,ourmethod
+demonstratessomeabilitytoproducedirectproofs(Table19),proofsbycases(Table22),proofsby
+induction(Table23),utilizereferences(Table20)anddosymboliccomputations(Table21).
+Vanillafine-tunedGPT-3struggleswithproofgeneration. Thevanillafine-tunedGPT-3model
+yieldedfewer useful and correct proofs,withmore reference-based and otherreasoningerrors
+thanallthreeknowledge-groundedsettings. Themodelshowedseverereferencehallucination(18%)
+andrepetition(23%). Italsomakessignificantlymorereasoningerrorsrelatedtoreferenceusage.
+Languageandsymbolicerrorratesroughlystaythesame. Overall,naivelyfine-tuningGPT-3on
+theorem-proofexamplesaloneissuboptimalforproofgeneration.
+Human-provided knowledge improves proof generation. Grounding the generations with
+human-providedreferencessignificantlyraises correctness and usefulness oftheproofsinboth
+full-proofandper-stepevaluation. Itmostsubstantiallyreduces referenceerrors,especiallyinvalid
+deploymentsandhallucinatedreferences. Forexample,Table3showsthemodelgroundingaproof
+withinformationfromthetheoremSingletonPointisIsolatedandthedefinitionofDense-in-itself,in
+contrasttothevanillaGPT-3modelwhichhallucinatesreferences.
+Retrieved knowledge also improves proof generation. Retrieved knowledge also turns out to
+beveryhelpful, andevencomparabletohuman-providedknowledgeinsomemetrics. Although
+theretrievalmodelisfarfromperfect,theproofgenerationmodeliscapableofnarrowingdown
+theretrieved referencetitlesprovidedinits context, assemblingproofs thatare useful and cor-
+rect moreoftenthantheno-knowledgemodel. Qualitatively,wefoundexampleswheregrounding
+inretrievedreferenceseliminatesrepetition,enablesmulti-stepderivationsjustifiedbyreferences
+(Table 21), and assembles references into a correct proof (Table 20). This paves a promising
+path towards fully automated mathematical proof generation in natural mathematical language.
+Constrained decoding further improves proof In-context Stepwise++ PPL(↓) Ref-F1(↑)
+generation. Table4confirmsthatstepwise++decod-
+(cid:55) (cid:55) 1.0639 26.33
+ingapproximatestheconstrainedobjective(Eqn.4) (cid:55) (cid:51) 1.0549 30.07
+betterthangreedysearch,yieldingproofswithlower
+perplexityandhigherconstraintsatisfaction(Ref-F1). (cid:51) (cid:55) 1.0644 89.43
+(cid:51) (cid:51) 1.0549 94.25
+This translates to generations that are correct and
+usefulmoreoftenaccordingtotheannotators. Intu-
+Table 4: Stepwise++ approximates the con-
+itively,theconstraintsencouragethemodeltoinclude
+strainedobjectivebetterthangreedy.
+referencesthathelpprovetheclaim(e.g. Table18).
+7
+Lexical Grounding
+GLEU TokenF1 kF1 Ref-P Ref-R Ref-F1 Halluc(↓)
+GPT-3 24.40 49.96 49.30 29.93 24.73 23.69 17.92
+NATURALPROVERRETRIEVE 26.58 53.02 55.88 38.17 28.48 27.10 2.25
+NATURALPROVER 35.27 66.00 90.07 93.05 86.05 87.08 1.60
+NATURALPROVER++ 34.49 65.61 96.39 94.66 95.00 93.92 1.71
+Table6: Automaticmetricsonthecoretestsetforfull-proofgeneration,andcorrelationbetween
+humanmetricsandautomaticmetricsonthecorevalidationset.
+Next-step suggestion. The next-step suggestion
+taskcharacterizesamodel’sperformanceonmakingasingleproofstepgivenacorrectproof-so-far.
+InTable2weusetheprovided-knowledgemodelwithgreedydecodingfornext-stepsuggestion,and
+findthatreasoningerrorsdecreaseandper-stepusefulnessandcorrectnessimprovecomparedtothe
+fullproofsetting,with51%oftheproofstepsratedasusefuland43%correct. Althoughweuseda
+singlesuggestioninourhumanevaluationstudy,inTable5wesimulateauserchoosingfromamong
+multiplesuggestionsbysampling10next-stepsfromourmodelandcomputingautomaticmetrics
+onthesamplewiththebestsumofmetrics. Using10samplesinsteadofgreedilydecodingasingle
+sequencesubstantiallyimproveseachmetric,suggestingthatutilitymightbeincreasedfurtherby
+presentingmultiplesuggestions.
+HowgoodareAutomaticMetrics? Westudyhowwellthe
+Decoding GLEU Ref-F1
+automaticlexicalandgroundingmetricsintroducedin(§4)can
+reflecttherealqualityofproofs, asaguideforusingthemas Greedy 47.87 65.50
+aproxyevaluationprotocolfor NATURALPROOFS-GEN. We
+Temp(t=.6) 60.60 84.44
+computethePearsoncorrelationcoefficientbetweeneachpair
+Temp(t=.8) 61.89 86.74
+ofhumanandautomaticmetrics,withdatafromthefourexper- Temp(t=1.0) 62.12 86.87
+imentsettingsforfull-proofgeneration. Resultsareshownin
+thelowerpartofTable6,witherrormetricsnegated,meaning Table 5: Next-step suggestion:
+positivecorrelationisdesired. Sampling10suggestionsimproves
+Thelexicalandgroundingmetricspositivelycorrelatewithfull overasinglegreedysuggestion.
+proof correctness and usefulness (≥0.8). Atthestep-level,
+themetricsshow(i)highcorrelationwithstep-level correctness and languageerrors;(ii)varied,but
+positive,correlationswithaggregatereasoningerrors;(iii)negativecorrelationwith symbolicerrors
+(thoughsymbolicerrorsarerelativelylowforallmodels). Theresultssuggestthatoptimizingfor
+automaticmetricsmaybeaviablestrategy,albeitwithoutguaranteesonhowfiner-grainedreasoning
+aspectsvaryacrossproofs.
+5.2 Ablationsanderroranalysis.
+Referencereconstruction. Wefine-tuneanadditionalGPT-
+3modelthatisprovidedwithin-contextreferencetitles,but Recon. Gleu Ref-F1 Halluc.
+withoutreferencereconstruction. AsseeninTable7,refer-
+(cid:55) 33.03 82.85 3.32
+encereconstructionimprovescontentandreferenceusage.
+(cid:51) 35.93 84.15 2.68
+Constrained decoding. First, Table 9 compares the step-
+levelsearchinstepwise++withsearchingatthefull-proof Table 7: Effect of reference re-
+level through sampling multiple proofs and selecting the construction in NATURALPROVER
+bestwiththeNATURALPROVERvaluefunction(rerank(n)). (greedydecoding,fullvalidationset).
+Reranking 60 samples matches the cost of stepwise++ in
+termsofnumberofdecodedtokens. Full-proofrerankingyieldsthebestGleu,thoughwithlower
+8
+Expand Select GLEU Ref-F1 Decoding Gleu Ref-F1
+(cid:55) (cid:55) 40.62(.84) 91.78(.49) Greedy 41.12(–) 89.30(–)
+(cid:51) (cid:55) 41.12(.58) 92.61(.63) Rerank(10) 43.88(.29) 91.72(.28)
+(cid:55) (cid:51) 39.14(.55) 93.11(.34) Rerank(60) 42.23(.80) 93.16(.27)
+(cid:51) (cid:51) 40.11(1.55) 94.13(.45) Stepwise++ 40.11(1.55) 94.13(.45)
+Table8: Ablationofthestepwise++expansion Table9: Stepwiseversusfull-proofsearch. Mean
+and selection mechanisms. Mean (std) over 3 (std)over3runsonthecoredevset.
+runsshownonthecoredevset.
+reference-F1. Second,Table8showsthattheexpansionandselectionmechanismstogetherresultin
+thebestreferencematching,whileholdingGleuatasimilarlevel. Finally,Table12showsthatboth
+termsintheNATURALPROVERvaluefunctionαv constraints+(1−α)v LMareneeded: increasingthe
+constraintweightαincreasesreference-matching,withatradeoffinGleuathighvalues.
+Languagemodelcomparison. Table10variesthelanguagemodelusedtoparameterizeNATU-
+RALPROVER. Thecontentandreferenceusagemetricsimprovewithlargermodels. Separately,we
+findthatincreasinginference-timecomputeclosesthegapinreference-matchingbetweenGPT-2
+andthelargerGPT-3model(Table11): sampling10full-proofsfromGPT-2andselectingthebest
+usingtheNATURALPROVERvaluefunctionachievesthesamereference-F1asGPT-3withasingle
+greedily-decodedproof. However,GleuremainsmuchhigherwiththelargerGPT-3model.
+Challenge: Reasoning with references. Although reference reasoning errors were decreased
+throughknowledge-groundingandconstraineddecoding,NATURALPROVERstillcommitsareference
+erroron23.6%ofteststeps(27%dev),with15%ofstepscontaininginvaliddeploymentsand10%
+invalidjustifications. Fornext-stepprediction, thereferenceerrorrateremainsnontrivial(19.7%
+test,13%dev). ,meaningthatthemodelcanstruggletocorrectlydeployreferencesorusethemas
+justificationevenintheabsenceofcompoundingerrorsfromprevioussteps. Table15showsexample
+invaliddeploymentsandjustifications;theerrorsareattimessubtle,andrequirereasoningaboutthe
+theoremstatement,referencecontent,andproofcontext.
+Challenge: Equations and derivations. NATURALPROVER commits an equation-related error
+on 28.5% of test steps (22.8% dev), including invalid equations (9.4%) and derivations (21.9%).
+Though an improvement over vanilla fine-tuned GPT-3 (32.5%), the errors occur frequently and
+remain high for next-step prediction (26%). Table 17 shows representative errors, which range
+fromsimple‘commonsense’mistakes(e.g. 24 = 23)tomakinginvalidstepswithfalsejustifica-
+tionwithinmoresophisticatedmulti-stepproofs. Investigatingtheroleofpretraining,in-context
+techniques [Nye et al., 2021], and autoformalization [Szegedy, 2020] is interesting future work.
+Challenge: Proof length. Although NATURAL-
+PROVER demonstrates some ability to write long
+proofs(e.g. Table23),the42%next-stepcorrectness
+suggeststhatcompoundingerrorsarelikelyasproof
+lengthincreases. Indeed,ourbestmodel’sfull-proof
+correctness is 48% on 1-4 step proofs (n = 102),
+decreasingto15.6%onproofswith5ormoresteps
+(n = 64), with lower per-step usefulness and cor-
+rectness at later steps (Figure 2). Our findings are
+Figure2: Per-stepcorrectnessandusefulness
+analogoustorecentworkonlanguagemodelingfor
+as a function of step number, for full-proof
+formal theorem proving [Polu et al., 2022], where
+generation with NATURALPROVER++ and
+currentmodelsaretypicallylimitedtochaining2or
+next-steppredictionwithNATURALPROVER.
+3non-trivialstepsofmathematicalreasoning.
+5.3 Additionaldiscussion
+Finally,weprovidehigher-levelcommentsonfutureworkrelatedtointeractivesystems,mathematical
+assistants,andgeneratingproofsininformalversusformalmathematics.
+Interactive&improvingsystems. Currently,ourtasksareattwoendsofaspectrum: innext-step
+generation,wealwaysassumepreviousstepsarefromahuman-writtenproof,whileinfullproof
+9
+generationtheyarealwaysfromthemodel. Ourresultswithmultiplenext-stepsuggestionssuggest
+thatusersmightfindsomesuggestionamongthemultiplereturnedusefulatahighrate,pointingto
+amiddleground: ahuman-in-the-loop NATURALPROVER,inwhichahumanpicksthenextstep
+fromamongthereturnedsuggestions,orwritesonebasedonthesuggestions. Theselectedorwritten
+next-stepcouldthenbeusedasfeedbacktoimprovethesystem,enablinganiterativelyimproving
+NATURALPROVER. Thisnotionofacontinuouslyimproving,teachablesystemisanemerging(e.g.
+Dalvietal.[2022])andinterestingfuturedirection.
+Assistantsformathematics. Ourtasksweremotivatedbyanassistantthathelpsauserwritea
+proof,eitherfromscratchorwhenstuckpartofthewaythrough.Ourstudyherefocusesoncapability:
+investigatingwhetherneurallanguagemodelsarecapableofperformingtheunderlyingmathematics
+thatwouldbeexpectedfromsuchanassistant. Afurtherchallengeistoalsoensurereliability–a
+usershouldhaveconfidencethatthemodelisnotdeceptiveorincorrect,andisrobusttochanges
+indomain,onnearbyproblems,andonalternativewaysofexpressingaproblem. Evenfurther,we
+wouldlikeflexibility–humanteacherscaninteractwithastudentflexiblythroughdialogue,natural
+language,anddiagrams,ratherthanthestrictinput-outputformatdefinedbyadataset. Ourwork
+providesaninitialsteptowardsthislargervision.
+Informalandformalizedmathematics. Ourworkinvestigatestheoremprovingentirelyinnatural
+mathematicallanguage(i.e. ‘informal’mathematics),asitreflectsaninterfacethatastudenttypically
+useswhenworkingwithmathematics. Analternativeisprovingtheoremsinaformalizedsystem,
+inwhichproofstepsareexpressedinaprogramminglanguage(e.g. LeandeMouraetal.[2015]).
+Operatingpurelyinaformalizedsystemallowsforverifyingcorrectness–unlikeoursettingwhich
+mustbeverifiedbyahuman–arguablyatthecostofflexibilityandinterpretability,asthemathematics
+is no longer expressed in natural language and must adhere to constraints of the formal system.
+Investigatingcombinationsofthetwo–e.g. expressingatheoreminnaturallanguage,receivinga
+verifiedformalproof,thenprovidinganinterpretationinnaturallanguage–presentsawiderangeof
+interestingdirectionsforfuturework.
+6 RelatedWork
+Formalized mathematics with neural language models. A large portion of work on machine
+learningformathematicsfocusesonformalizedmathematics. Languagemodelshavebeenusedfor
+interactivetheoremproving,includinginGPT-f [PoluandSutskever,2020,Poluetal.,2022],PACT
+[Hanetal.,2021a],andinUrbanandJakubuv[2020]. Inthesesettingsproofstepsareexpressedina
+programminglanguage(e.g. Lean[deMouraetal.,2015])andthereisaccesstoaverifier,which
+differsfromoursettingoftheoremprovinginnaturalmathematicallanguage.
+Informalmathematicswithneurallanguagemodels. Previousworkontheoremprovinginnat-
+ural mathematical language focuses on retrieving relevant premises (e.g. theorems, definitions)
+[FerreiraandFreitas,2020a,b,Wellecketal.,2021,Hanetal.,2021b],orinformal-to-formaltransla-
+tion[Wangetal.,2020],whichdifferfromoursettingofgeneratingnext-stepsorfullproofs. Outside
+oftheoremproving,variousworksusesequencemodelsforproblemsolving,includingbenchmarking
+languagemodelsonarithmetic[Saxtonetal.,2019]orcompetitionproblems[Hendrycksetal.,2021],
+symbolicmathematics[LampleandCharton,2020,Wellecketal.,2022], augmentingLMswith
+verifiers[Cobbeetal.,2021]orin-contextrationales[Weietal.,2022]formathwordproblems,or
+usinglanguagemodelsformath-relatedprogramsynthesis[Austinetal.,2021,Drorietal.,2021]and
+competitiveprogramming[Lietal.,2022]. Thesesettingsfocusongeneratingexecutableprograms
+oranumericalanswer,whichdifferfromourtheoremprovingsetting,wherethegoalistogenerate
+soundandconvincingargumentsonarangeoftopicsinnaturalmathematicallanguage.
+RelatedareasinNLP. Systematicreasoninginnaturallanguage(outsideofmath)hasbeenstudied
+withsyntheticproofs[Sahaetal.,2020,Tafjordetal.,2021],single-stepdeductions[Bostrometal.,
+2021],orentailmenttrees[Dalvietal.,2021],whichdifferfromprovingreal-worldmathematical
+theorems. Augmenting LMs with knowledge reduces hallucinations in dialogue [Shuster et al.,
+2021]whichhasananalogousstep-wisestructure,while[Nakanoetal.,2021]usereferenceswithin
+long-formanswers;theseandrelatedNLPfindingsdifferfromimprovingtheutilityofmathematical
+proofs. Lexically-constraineddecodingalgorithmsincludevariantsof(token-level)beamsearch(e.g.
+[Andersonetal.,2017,HokampandLiu,2017,Luetal.,2021b,a])whichassumeaccesstoper-token
+10
+logits,andgradient-baseddecoding[Qinetal.,2022];oursegment-leveldecodingonlyassumesa
+samplerthatreturnstextanditslog-probability,makingitcompatiblewithrecentlanguagemodel
+APIinterfaces(e.g. theGPT-3API).
+7 Conclusion
+WedescribedNATURALPROVER,aknowledge-groundedlanguagemodelthatgeneratesmathematical
+proofsbyconditioningonbackgroundtheoremsanddefinitions,andoptionallyenforcestheirpresence
+withconstraineddecoding. Oursystemimprovesthequalityofnext-stepsuggestionsandgenerated
+proofs over fine-tuned GPT-3, demonstrating an ability to correctly prove theorems and provide
+usefulsuggestionstohumanproofwriters.
+AcknowledgmentsandDisclosureofFunding
+ThisworkwasfundedinpartbytheNaturalSciencesandEngineeringResearchCouncilofCanada
+(NSERC)(fundingreferencenumber401233309),DARPAMCSprogramthroughNIWCPacific
+(N66001-19-2-4031),andtheAllenInstituteforAI.WealsothankGoogleCloudCompute,aswell
+asOpenAI.
+TheauthorswouldliketothankAlisaLiu,JulianMichael,Yuren(Rock)Pang,andKaimingCheng
+fordogfoodingandprovidingvaluablefeedbacktoourhumanevaluationsystem. Wewouldalsolike
+tothankJamesMcGivernfordevelopinganinteractivedemoforNaturalProver.
+References
+P.Anderson,B.Fernando,M.Johnson,andS.Gould. Guidedopenvocabularyimagecaptioning
+withconstrainedbeamsearch. InProceedingsofthe2017ConferenceonEmpiricalMethodsin
+NaturalLanguageProcessing,pages936–945,Copenhagen,Denmark,Sept.2017.Association
+forComputationalLinguistics. doi: 10.18653/v1/D17-1098. URLhttps://www.aclweb.org/
+anthology/D17-1098.
+J.Austin, A.Odena, M.Nye, M.Bosma, H.Michalewski, D.Dohan, E.Jiang, C.Cai, M.Terry,
+Q.Le,andC.Sutton. Programsynthesiswithlargelanguagemodels,2021.
+R.Bommasani,D.A.Hudson,E.Adeli,R.Altman,S.Arora,S.vonArx,M.S.Bernstein,J.Bohg,
+A.Bosselut,E.Brunskill,E.Brynjolfsson,S.Buch,D.Card,R.Castellon,N.S.Chatterji,A.S.
+Chen, K. Creel, J. Davis, D. Demszky, C. Donahue, M. Doumbouya, E. Durmus, S. Ermon,
+J. Etchemendy, K. Ethayarajh, L. Fei-Fei, C. Finn, T. Gale, L. E. Gillespie, K. Goel, N. D.
+Goodman, S. Grossman, N. Guha, T. Hashimoto, P. Henderson, J. Hewitt, D. E. Ho, J. Hong,
+K.Hsu,J.Huang,T.F.Icard,S.Jain,D.Jurafsky,P.Kalluri,S.Karamcheti,G.Keeling,F.Khani,
+O.Khattab,P.W.Koh,M.S.Krass,R.Krishna,R.Kuditipudi,A.Kumar,F.Ladhak,M.Lee,
+T.Lee,J.Leskovec,I.Levent,X.L.Li,X.Li,T.Ma,A.Malik,C.D.Manning,S.P.Mirchandani,
+E.Mitchell,Z.Munyikwa,S.Nair,A.Narayan,D.Narayanan,B.Newman,A.Nie,J.C.Niebles,
+H.Nilforoshan,J.F.Nyarko,G.Ogut,L.Orr,I.Papadimitriou,J.S.Park,C.Piech,E.Portelance,
+C.Potts,A.Raghunathan,R.Reich,H.Ren,F.Rong,Y.H.Roohani,C.Ruiz,J.Ryan,C.R’e,
+D. Sadigh, S. Sagawa, K. Santhanam, A. Shih, K. P. Srinivasan, A. Tamkin, R. Taori, A. W.
+Thomas,F.Tramèr,R.E.Wang,W.Wang,B.Wu,J.Wu,Y.Wu,S.M.Xie,M.Yasunaga,J.You,
+M.A.Zaharia,M.Zhang,T.Zhang,X.Zhang,Y.Zhang,L.Zheng,K.Zhou,andP.Liang. Onthe
+opportunitiesandrisksoffoundationmodels. ArXiv,abs/2108.07258,2021.
+K. Bostrom, X. Zhao, S. Chaudhuri, and G. Durrett. Flexible generation of natural language
+deductions. In Proceedings of the 2021 Conference on Empirical Methods in Natural Lan-
+guageProcessing,pages6266–6278,OnlineandPuntaCana,DominicanRepublic,Nov.2021.
+Association for Computational Linguistics. doi: 10.18653/v1/2021.emnlp-main.506. URL
+https://aclanthology.org/2021.emnlp-main.506.
+T.B.Brown,B.Mann,N.Ryder,M.Subbiah,J.Kaplan,P.Dhariwal,A.Neelakantan,P.Shyam,
+G.Sastry,A.Askell,S.Agarwal,A.Herbert-Voss,G.Krueger,T.J.Henighan,R.Child,A.Ramesh,
+D. M. Ziegler, J. Wu, C. Winter, C. Hesse, M. Chen, E. Sigler, M. Litwin, S. Gray, B. Chess,
+11
+J.Clark,C.Berner,S.McCandlish,A.Radford,I.Sutskever,andD.Amodei. Languagemodels
+arefew-shotlearners. ArXiv,abs/2005.14165,2020.
+M. Chen, J. Tworek, H. Jun, Q. Yuan, H. P. d. O. Pinto, J. Kaplan, H. Edwards, Y. Burda,
+N.Joseph,G.Brockman,etal. Evaluatinglargelanguagemodelstrainedoncode. arXivpreprint
+arXiv:2107.03374,2021.
+K.Cobbe,V.Kosaraju,M.Bavarian,M.Chen,H.Jun,L.Kaiser,M.Plappert,J.Tworek,J.Hilton,
+R.Nakano,C.Hesse,andJ.Schulman. Trainingverifierstosolvemathwordproblems. arXiv
+preprintarXiv:2110.14168,2021.
+B. Dalvi, P. Jansen, O. Tafjord, Z. Xie, H. Smith, L. Pipatanangkura, and P. Clark. Explaining
+answerswithentailmenttrees. InProceedingsofthe2021ConferenceonEmpiricalMethodsin
+NaturalLanguageProcessing,pages7358–7370,OnlineandPuntaCana,DominicanRepublic,
+Nov.2021.AssociationforComputationalLinguistics. doi: 10.18653/v1/2021.emnlp-main.585.
+URLhttps://aclanthology.org/2021.emnlp-main.585.
+B.Dalvi,O.Tafjord,andP.Clark. Towardsteachablereasoningsystems. ArXiv,abs/2204.13074,
+2022.
+DavisandHersh. Themathematicalexperience. Birkhauser,1981.
+L.M.deMoura,S.Kong,J.Avigad,F.vanDoorn,andJ.vonRaumer. Theleantheoremprover
+(systemdescription). InA.P.FeltyandA.Middeldorp,editors,CADE,volume9195ofLecture
+Notesin ComputerScience, pages 378–388.Springer, 2015. ISBN 978-3-319-21400-9. URL
+http://dblp.uni-trier.de/db/conf/cade/cade2015.html#MouraKADR15.
+M.deVilliers. TheroleandfunctionofproofinMathematics. Pythagoras,1990.
+E.Dinan,S.Roller,K.Shuster,A.Fan,M.Auli,andJ.Weston. Wizardofwikipedia: Knowledge-
+poweredconversationalagents. InInternationalConferenceonLearningRepresentations,2019.
+URLhttps://openreview.net/forum?id=r1l73iRqKm.
+I. Drori, S. Zhang, R. Shuttleworth, L. Tang, A. Lu, E. Ke, K. Liu, L. Chen, S. Tran, N. Cheng,
+R.Wang,N.Singh,T.L.Patti,J.Lynch,A.Shporer,N.Verma,E.Wu,andG.Strang. Aneural
+network solves, explains, and generates university math problems by program synthesis and
+few-shotlearningathumanlevel,2021. URLhttps://arxiv.org/abs/2112.15594.
+B.S.EdwardsandM.B.Ward. Surprisesfrommathematicseducationresearch: Student(mis)use
+of mathematical definitions. American Mathematical Monthly, 2004. ISSN 00029890. doi:
+10.2307/4145268.
+Erik G. Jensen. Thinking Like a Lawyer. In Thinking Like a Lawyer, chapter 2, "Forms. Stan-
+ford Law School, 2014. URL https://law.stanford.edu/wp-content/uploads/2018/
+04/ILEI-Forms-of-Legal-Reasoning-2014.pdf.
+D.FerreiraandA.Freitas. Naturallanguagepremiseselection: Findingsupportingstatementsfor
+mathematicaltext. InProceedingsofthe12thLanguageResourcesandEvaluationConference,
+pages 2175–2182, Marseille, France, May 2020a. European Language Resources Association.
+ISBN979-10-95546-34-4. URLhttps://www.aclweb.org/anthology/2020.lrec-1.266.
+D.FerreiraandA.Freitas. Premiseselectioninnaturallanguagemathematicaltexts. InProceedings
+ofthe58thAnnualMeetingoftheAssociationforComputationalLinguistics,pages7365–7374,
+Online,July2020b.AssociationforComputationalLinguistics. doi: 10.18653/v1/2020.acl-main.
+657. URLhttps://www.aclweb.org/anthology/2020.acl-main.657.
+L. Gao, S. Biderman, S. Black, L. Golding, T. Hoppe, C. Foster, J. Phang, H. He, A. Thite,
+N. Nabeshima, S. Presser, and C. Leahy. The Pile: An 800gb dataset of diverse text for lan-
+guagemodeling. arXivpreprintarXiv:2101.00027,2020.
+J.M.Han,J.Rute,Y.Wu,E.W.Ayers,andS.Polu. Proofartifactco-trainingfortheoremproving
+withlanguagemodels,2021a.
+12
+J.M.Han,T.Xu,S.Polu,A.Neelakantan,andA.Radford. Contrastivefinetuningofgenerative
+languagemodelsforinformalpremiseselection. InAITP,2021b.
+D. Hendrycks, C. Burns, S. Kadavath, A. Arora, S. Basart, E. Tang, D. Song, and J. Steinhardt.
+Measuringmathematicalproblemsolvingwiththemathdataset,2021.
+C.HokampandQ.Liu. Lexicallyconstraineddecodingforsequencegenerationusinggridbeam
+search.InProceedingsofthe55thAnnualMeetingoftheAssociationforComputationalLinguistics
+(Volume 1: Long Papers), pages 1535–1546, Vancouver, Canada, July 2017. Association for
+Computational Linguistics. doi: 10.18653/v1/P17-1141. URL https://www.aclweb.org/
+anthology/P17-1141.
+D.H.Kaye. PennStateLaweLibraryJournalArticlesFacultyWorks1992,ProofinLawandScience.
+JurimetricsJ,32,1992. URLhttp://elibrary.law.psu.edu/fac_works.
+G.LampleandF.Charton. Deeplearningforsymbolicmathematics. InInternationalConferenceon
+LearningRepresentations,2020. URLhttps://openreview.net/forum?id=S1eZYeHFDS.
+Y.Li, D.Choi, J.Chung, N.Kushman, J.Schrittwieser, R.Leblond, T.Eccles, J.Keeling, F.Gi-
+meno, A. D. Lago, et al. Competition-level code generation with alphacode. arXiv preprint
+arXiv:2203.07814,2022.
+X.Lu,S.Welleck,P.West,L.Jiang,J.Kasai,D.Khashabi,R.L.Bras,L.Qin,Y.Yu,R.Zellers,N.A.
+Smith,andY.Choi. Neurologica*esquedecoding: Constrainedtextgenerationwithlookahead
+heuristics. ArXiv,abs/2112.08726,2021a.
+X. Lu, P. West, R. Zellers, R. Le Bras, C. Bhagavatula, and Y. Choi. NeuroLogic decoding:
+(un)supervised neural text generation with predicate logic constraints. In Proceedings of the
+2021 Conference of the North American Chapter of the Association for Computational Lin-
+guistics: Human Language Technologies, pages 4288–4299, Online, June 2021b. Associa-
+tion for Computational Linguistics. doi: 10.18653/v1/2021.naacl-main.339. URL https:
+//aclanthology.org/2021.naacl-main.339.
+A.Mutton,M.Dras,S.Wan,andR.Dale. Gleu: Automaticevaluationofsentence-levelfluency. In
+Proceedingsofthe45thAnnualMeetingoftheAssociationofComputationalLinguistics,pages
+344–351,2007.
+R. Nakano, J. Hilton, S. A. Balaji, J. Wu, L. Ouyang, C. Kim, C. Hesse, S. Jain, V. Kosaraju,
+W. Saunders, X. Jiang, K. Cobbe, T. Eloundou, G. Krueger, K. Button, M. Knight, B. Chess,
+andJ.Schulman. Webgpt: Browser-assistedquestion-answeringwithhumanfeedback. ArXiv,
+abs/2112.09332,2021.
+M. Nye, A. J. Andreassen, G. Gur-Ari, H. Michalewski, J. Austin, D. Bieber, D. Dohan,
+A.Lewkowycz,M.Bosma,D.Luan,C.Sutton,andA.Odena. Showyourwork: Scratchpadsfor
+intermediatecomputationwithlanguagemodels. ArXiv,abs/2112.00114,2021.
+S.PoluandI.Sutskever. Generativelanguagemodelingforautomatedtheoremproving,2020.
+S. Polu, J. M. Han, K. Zheng, M. Baksys, I. Babuschkin, and I. Sutskever. Formal mathematics
+statementcurriculumlearning,2022.
+L. Qin, S. Welleck, D. Khashabi, and Y. Choi. Cold decoding: Energy-based constrained text
+generationwithlangevindynamics. ArXiv,abs/2202.11705,2022.
+A.Radford,J.Wu,R.Child,D.Luan,D.Amodei,andI.Sutskever.Languagemodelsareunsupervised
+multitasklearners. arXiv,2019.
+S. Saha, S. Ghosh, S. Srivastava, and M. Bansal. PRover: Proof generation for interpretable
+reasoningoverrules. InProceedingsofthe2020ConferenceonEmpiricalMethodsinNatural
+LanguageProcessing(EMNLP),pages122–136,Online,Nov.2020.AssociationforComputational
+Linguistics. doi: 10.18653/v1/2020.emnlp-main.9. URLhttps://aclanthology.org/2020.
+emnlp-main.9.
+13
+D. Saxton, E. Grefenstette, F. Hill, and P. Kohli. Analysing mathematical reasoning abilities of
+neuralmodels. InInternationalConferenceonLearningRepresentations, 2019. URLhttps:
+//openreview.net/forum?id=H1gR5iR5FX.
+K.Shuster,S.Poff,M.Chen,D.Kiela,andJ.Weston. Retrievalaugmentationreduceshallucination
+in conversation. In Findings of the Association for Computational Linguistics: EMNLP 2021,
+pages3784–3803,PuntaCana,DominicanRepublic,Nov.2021.AssociationforComputational
+Linguistics. doi: 10.18653/v1/2021.findings-emnlp.320. URLhttps://aclanthology.org/
+2021.findings-emnlp.320.
+C.Szegedy,editor. APromisingPathTowardsAutoformalizationandGeneralArtificialIntelligence,
+2020.
+O. Tafjord, B. Dalvi, and P. Clark. ProofWriter: Generating implications, proofs, and abductive
+statementsovernaturallanguage. InFindingsoftheAssociationforComputationalLinguistics:
+ACL-IJCNLP2021,pages3621–3634,Online,Aug.2021.AssociationforComputationalLin-
+guistics. doi: 10.18653/v1/2021.findings-acl.317. URLhttps://aclanthology.org/2021.
+findings-acl.317.
+J. Urban and J. Jakubuv. First neural conjecturing datasets and experiments. In International
+ConferenceonIntelligentComputerMathematics,pages315–323.Springer,2020.
+J. F. Voss and M. L. Means. Learning to reason via instruction in argumentation. Learning and
+Instruction,1991. ISSN09594752. doi: 10.1016/0959-4752(91)90013-X.
+Q. Wang, C. Brown, C. Kaliszyk, and J. Urban. Exploration of neural machine translation in
+autoformalizationofmathematicsinMizar. InCPP2020-Proceedingsofthe9thACMSIGPLAN
+InternationalConferenceonCertifiedProgramsandProofs,co-locatedwithPOPL2020,2020.
+doi: 10.1145/3372885.3373827.
+J.Wei,X.Wang,D.Schuurmans,M.Bosma,E.Chi,Q.Le,andD.Zhou.Chainofthoughtprompting
+elicitsreasoninginlargelanguagemodels,2022.
+S.Welleck, J.Liu, R.L.Bras, H.Hajishirzi, Y.Choi, andK.Cho. Naturalproofs: Mathematical
+theoremprovinginnaturallanguage. InThirty-fifthConferenceonNeuralInformationProcessing
+SystemsDatasetsandBenchmarksTrack(Round1),2021. URLhttps://openreview.net/
+forum?id=Jvxa8adr3iY.
+S.Welleck,P.West,J.Cao,andY.Choi. Symbolicbrittlenessinsequencemodels: onsystematic
+generalizationinsymbolicmathematics. AAAI,abs/2109.13986,2022.
+14
+A AdditionalResults
+A.1 Additionalablations
+Table10showsautomaticmetricswithvariouslanguagemodelsusedtoparameterizeNATURAL-
+PROVER.
+Table11showsresultswiththe774MparameterGPT-2modelwithgreedydecoding,andfull-proof
+sampling&rerankingwith5and10samples,comparedtothe13BparameterGPT-3withgreedy
+decoding. Weuseτ =0.3andα=0.75basedonourfull-proofsamplingexperimentswithGPT-3.
+Table 12 varies the value function parameter α (core dev set). We use full-proof sampling since
+stepwise++usesmultiplevaluesofαinitsselection.
+Model Params Gleu Ref-F1 Halluc Model Decoding Gleu Ref-F1 Halluc
+GPT-Neo 125M 24.85 61.42 11.07 GPT-2 Greedy 32.06 65.22 6.76
+GPT-2 774M 32.06 65.22 6.76 GPT-2 Rerank(5) 32.95 83.55 5.24
+GPT-J 6B 39.14 79.23 3.51 GPT-2 Rerank(10) 32.65 89.30 2.89
+GPT-3 13B 42.39 89.29 1.90 GPT-3 Greedy 42.39 89.29 1.90
+Table10:Varyingthelanguagemodelparameter- Table11: Increasingtheinference-timecompute
+izationofNATURALPROVER(providedknowl- budgetandrerankingwiththeNATURALPROVER
+edge,greedydecoding,coredevset). valuefunctionclosesthereference-matchinggap
+betweenGPT-2(774M)andGPT-3(13B).
+α Gleu Ref-F1
+0.0 42.79 88.40
+.25 42.05 90.81
+.50 42.59 91.75
+.75 42.17 93.19
+1.0 41.90 93.60
+Table12: Effectofvaluefunction,fromα:0(LMonly)toα:1.0(constraintonly),withfull-proof
+sampling(10).
+Lexical Grounding
+GLEU TokenF1 kF1 Ref-P Ref-R Ref-F1 Halluc(↓)
+StepwiseStochasticBeam 41.0 68.89 90.33 91.43 82.04 84.21 4.60
+ConstrainedStepwise++ 40.4 68.90 97.24 95.05 94.85 94.15 2.00
+Table13: NaturalProverwithastepwisestochasticbeamsearchbaselineversusstepwise++decoding.
+ThebaselinesearchcorrespondstousingstepwisedecodingwithanLM-onlyvaluefunction(α:0).
+Constrainedstepwise++decodingsubstantiallyimprovesgroundingmetricscomparedtostochastic
+beamsearch,whilekeepingthelexicalcontentmetricsatasimilarlevel. Corevalidationset.
+A.2 Multiplenext-stepsuggestions
+Table14showsnext-stepsuggestionresultswith10sampledsuggestionsversusgreedydecoding.
+15
+Lexical Grounding
+Decoding GLEU TokenF1 kF1 Ref-P Ref-R Ref-F1 Halluc(↓)
+Greedy 47.87 65.33 70.03 80.04 72.78 65.50 0.93
+Nucleus(p=.5) 51.10 68.34 73.69 82.75 74.93 69.21 0.94
+Nucleus(p=.7) 53.97 71.01 78.86 84.75 79.28 74.52 0.66
+Nucleus(p=.9) 57.79 74.45 85.66 90.17 84.03 81.83 0.22
+Temperature(t=.6) 60.60 76.43 87.46 91.03 87.48 84.44 0.62
+Temperature(t=.8) 61.89 77.48 89.67 93.19 88.46 86.74 0.43
+Temperature(t=1.0) 62.12 77.60 89.78 93.05 88.96 86.87 0.63
+Table14: Automaticmetricsonthecoredevsetfornext-stepsuggestion,withdifferentdecoding
+strategies. GenerationsarefromNATURALPROVER(providedknowledge). Forstochasticdecoding,
+10 candidates are sampled. We compute metrics using the candidate with the highest sum of all
+metrics(withHallucinationnegated).
+B QualitativeExamples
+B.1 ErrorAnalysis
+B.1.1 Referenceerrors
+Theorem1 GeometricMeanoftwoPositiveRealNumbersisBetweenthem
+Leta,b∈Rberealnumberssuchthat0<a<b.
+LetG(a,b)denotethegeometricmeanofaandb.
+Then:
+a<G(a,b)<b
+NATURALPROVER++ Proof: correct deploy
+Bydefinitionofgeometricmean: (cid:55) (cid:55)
+a2+b2
+G(a,b)=
+2
+...
+GoldProof Proof:
+Bydefinitionofgeometricmean:
+√
+G(a,b):= ab
+√
+where abspecificallydenotesthepositivesquarerootofaandb.
+...
+Reference GeometricMean
+Letx1,x2,...,xn∈R >0be(strictly)positiverealnumbers.
+Thegeometricmeanofx1,x2,...,xnisdefinedas:
+Gn:=((cid:81)n k=1xk)1/n.
+Theorem2 PowerSetofTransitiveSetisTransitive
+LetSbeatransitiveset.
+ThenitspowersetP(S)isalsoatransitiveset.
+NATURALPROVER++ Proof: correct deploy
+FromSetisTransitiveiffSubsetofPowerSet: (cid:51)
+S⊆P(S)
+FromPowerSetofSubset: (cid:55) (cid:55)
+P(S)⊆S
+...
+GoldProof Proof:
+LetSbetransitive.
+BySetisTransitiveiffSubsetofPowerSet:
+S⊆P(S)
+ThenbyPowerSetofSubset:
+P(S)⊆P(P(S))
+...
+Reference PowerSetofSubset
+LetS⊆TwhereSandTarebothsets.
+Then:
+P(S)⊆P(T)whereP(S)denotesthepowersetofS.
+16
+Table15: Referencedeploymenterrors. Theorem1: NATURALPROVERincorrectlydeploysthedefi-
+nitionofgeometricmean(G(a,b)=(ab)1/2wouldbecorrect). Theorem2: Aninvaliddeployment
+of Power Set of Subset; a correct application would yield P(S) ⊆ P(P(S)). All generated
+proofsarewithprovidedknowledgeandstepwise++decoding.
+Theorem3 DerivativeatPointofInflection
+Letfbearealfunctionwhichistwicedifferentiableontheopeninterval(a..b).
+Letfhaveapointofinflectionatξ∈(a..b).
+Then:
+f(cid:48)(cid:48)(ξ)=0
+wheref(cid:48)(cid:48)(ξ)denotesthesecondderivativeoffatξ.
+NATURALPROVER++ Proof: correct deploy justif.
+Bydefinitionofpointofinflection: (cid:55) (cid:55) (cid:55)
+∀η∈(a..b):f(η)=0
+wheref(η)denotesthederivativeoffwithrespecttoη.
+...
+GoldProof Proof:
+Bydefinitionofpointofinflection,
+f(cid:48)haseithera localmaximum ora localminimum atξ.
+...
+Reference PointofInflection
+LetfbearealfunctionwhichisdifferentiableonanintervalI⊆R.
+Letξ∈I.
+fhasapointofinflectionatξiffthederivativef(cid:48)off
+haseitheralocalmaximumoralocalminimumatξ.
+Theorem4 MinusOneisLessthanZero
+−1<0
+NATURALPROVER++ Proof: correct useful justif.
+0<1 RealZeroisLessthanRealOne (cid:51) (cid:51)
+(cid:32)−1<0 OrderofRealNumbersisDualofOrderoftheirNegatives (cid:55) (cid:51) (cid:55)
+(cid:32)−1<0 NegativeofRealZeroequalsZero (cid:51) (cid:51)
+(cid:4)
+GoldProof Proof:
+0<1 RealZeroisLessthanRealOne
+(cid:32)−0>−1 OrderofRealNumbersisDualofOrderoftheirNegatives
+(cid:32)0>−1 NegativeofRealZeroequalsZero
+(cid:32)−1<0 DualOrdering
+(cid:4)
+Reference OrderofRealNumbersisDualofOrderoftheirNegatives
+∀x,y∈R:x>y ⇐⇒ (−x)<(−y)
+Table16: Referencejustificationerrors. Theorem3: NATURALPROVERmakesaninvalidinference
+using the definition of point of inflection (given the theorem statement, f(ξ) = 0 holds, but not
+necessarilyf(η) = 0forallηintheinterval),whichcanbeviewedasbothincorrectlydeploying
+thedefinitionandusingitasinvalidjustification. Theorem4: Asubtleinvalidjustificationthatis
+stillusefultothehumanannotator: thereferenceprovidesjustificationfor−0 > −1ratherthan
+−1<0. SeeTable17foradditionaljustificationerrorswithinderivations. Allgeneratedproofsare
+withprovidedknowledgeandstepwise++decoding.
+17
+B.1.2 Equationerrors
+Theorem1 SumofSquaresofDivisorsof24and26areEqual
+Thesumofthesquaresofthedivisorsof24equalsthesumofthesquaresofthedivisorsof
+26:
+σ2(24)=σ2(26)
+whereσαdenotesthedivisorfunction.
+Proof: correct eqn.
+NATURALPROVER++ 24=23 (cid:55) (cid:55)
+26=22 (cid:55) (cid:55)
+(cid:32)σ2(24)=σ2(26) (cid:55) (cid:55)
+(cid:4)
+Theorem2 TraceofSumofMatricesisSumofTraces
+LetA=[a]nandB=[b]nbesquarematricesofordern.
+LetA+BdenotethematrixentrywisesumofAandB.
+Then:tr(A+B)=tr(A)+tr(B)wheretr(A)denotesthetraceofA.
+Proof: correct eqn. ref.
+NATURALPROVER++ =tr( (cid:80)A+B) tr= (C(cid:80)
+)C
++=(cid:80)A+Btr t( rC (C)
+)
+ST ur mace ofo Sf uM ma mtr aix
+tionsequalsSummationofSum
+(cid:55)
+(cid:55)
+(cid:55)
+(cid:55)
+(cid:55)
+(cid:55)
+C=A C=B
+=tr(A)+tr(B) TraceofMatrix (cid:55) (cid:55) (cid:55)
+(cid:4)
+Theorem3 MomentGeneratingFunctionofDiscreteUniformDistribution
+LetXbeadiscreterandomvariablewithadiscreteuniformdistributionwithparametern
+forsomen∈N.
+ThenthemomentgeneratingfunctionMXofXisgivenby:
+et(1−ent)
+MX(t)=
+n(1−et)
+Proof: correct eqn. ref.
+NATURALPROVER++ Fromthedefinitionofthe discreteuniformdistribution, (cid:55) (cid:55) (cid:55)
+n
+Xhasprobabilitymassfunction: Pr(X=k)=
+n+k
+Fromthedefinitionofamomentgeneratingfunction: (cid:51)
+So:
+MX(t)=EetX =(cid:80)n k=0Pr(X=k)etk
+(cid:51)
+MX(t)=(cid:80)n k=0Pr(X=k)etk
+= n+n k(cid:80)n k=0((etk)n(cid:81)n j− =1 0(etj+ n1 )) SumofGeometricSequence (cid:55) (cid:55) (cid:55)
+= n+n k(cid:80)n j=0(etj+ n1 etj) (cid:55) (cid:55)
+= n (1−ent) DiscreteUniformDistribution (cid:55) (cid:55) (cid:55)
+n+k
+= et(1−ent) (cid:55) (cid:55)
+n(1−et)
+(cid:4)
+Table17: Equation-relatederrorsinfullproofgeneration. NATURALPROVER canstrugglewith
+invalidequations and derivations,includingbasicequalities(Theorem1),andmoresophisticated
+settings(Theorems2and3).Sincederivationsinvolvedeployingdefinitionsandrulesfromreferences
+andusingreferencesasjustification,equation-relatederrorsareoftencoupledwith referenceerrors.
+18
+B.2 Examples
+Theorem MetricSpaceisPerfectlyNormal GoldProof
+LetM =(A,d)beametricspace. Bydefinition,atopologicalspaceisperfectlynormalspaceiffitis:
+ThenMisaperfectlynormalspace. perfectlyT4spaceandT1(Fréchet)space.
+Wehavethat:
+MetricSpaceisPerfectlyT4
+MetricSpaceisT2(Hausdorff)
+T2(Hausdorff)SpaceisaT1(Frechet)Space.
+(cid:4)
+NATURALPROVER++From: NATURALPROVER From:
+MetricSpaceisHausdorff (withoutstepwise++) MetricSpaceisPerfectlyT4
+T2(Hausdorff)SpaceisT1Space MetricSpaceisT2(Hausdorff)
+MetricSpaceisPerfectlyT4 itfollowsthatM
+itfollowsthatMisatopologicalspacewhich isa perfectlynormalspace.
+isperfectlynormal.
+Table 18: Example proof using provided in-context reference constraints. The key theorem T
+2
+Space is T Spaceisprovidedasaconstraint,butundergreedydecodingthemodelignoresthe
+1
+constraint,resultingin skippingsteps. Stepwise++decodingselectsproofstepsbasedonlikelihood
+andconstraintsatisfaction,resultinginbetterreferencecoverageandacorrectproof.
+TheoremTitle Equality of Complex Numbers
+TheoremContent
+GoldProof
+NATURALPROVER
+NATURALPROVER++
+Table19: Acomplex,directproof. Withoutstepwise++decoding, NATURALPROVER makesan
+invaliddeploymenterror,continueswithsomenonsense,andprematurelyterminatestheproof. The
+NATURALPROVER++proofiscorrect,thankstostepwise++decoding.
+19
+TheoremTitle Compact Complement Topology is Connected
+TheoremContent
+GoldProof
+GPT-3
+NATURALPROVER
+RETRIEVE
+Table20: Areferenceassemblyproof. GPT-3’sproofisincorrect,possiblybecauseitdoesn’tknow
+tousethetworeferences. NATURALPROVERRETRIEVE usesretrievedreferences(shownontheright)
+toarriveatacorrectproof.
+20
+TheoremTitle Pointwise Addition on Real-Valued Functions is Associative
+Theorem Con-
+tent
+GoldProof
+GPT-3
+NATURALPROVER
+Table21: Atemplateadaptationproof,whichisprovedviasymbolicderivations. NATURALPROVER
+adaptstheproofofasimilartrainingtheorem,Pointwise Addition on Complex-Valued Func-
+tions is Associative,toprovetheclaim. Despitetrainingonthesame(theorem,proof)pairs,
+vanillaGPT-3failstoprovetheclaim.
+21
+TheoremTitle Cosine in terms of Sine
+Theorem Con-
+tent
+GoldProof
+GPT-3
+NATURALPROVER
+Table22: Atemplateadaptationproofbycases. GPT-3’sproofgoescompletelyderailedandit
+doesnotknowtousethereferenceSum of Squares of Sine and Cosine. NATURALPROVER’s
+proofiscorrect. Themodeladaptstheproofofthemirroringtheorem,Sine in terms of Cosine,
+inthetrainingset.
+22
+TheoremTitle: Triangle Inequality/Complex Numbers/General Result
+TheoremContent:
+GoldProof NATURALPROVER
+Table 23: A complex proof by induction. NATURALPROVER’s proof makes one hallucinated
+reference error, one repetition error, and is otherwise correct. The model did not see a similar
+proofduringtraining: whiletherearemorevariantsoftheTriangle Inequalitytheoreminour
+dataset(i.e. withReal NumbersandGeometry),theyonlydiscussthe2-variablecaseandnoneof
+themdiscussthen-variablegeneralresult. Sointhiscase,themodelhaslearnedtheformatofproof
+byinductionandcanapplyitinnewcontext. (Aproof-by-inductionexampleintrainset: Sum of
+Sequence of Squares/Proof by Induction.)
+23
+C DatasetDetails
+We provide an overview of NATURALPROOFS and its ProofWiki domain from which we build
+NATURALPROOFS-GEN. Referto[Wellecketal.,2021]forfurtherdetailsaboutNATURALPROOFS.
+OurdatasetisderivedfromNATURALPROOFS,amulti-domaincorpusoftheoremstatements,proofs,
+definitions,andadditionalpages(e.g. axioms,corollaries)innaturalmathematicallanguage. We
+usetheProofWiki2domain,whichprovidesbroad-coverageofmanysubjectareas(e.g. SetTheory,
+Analysis)sourcedfromProofWiki,anonlinecompendiumofcommunity-contributedmathematical
+proofs. PROOFWIKIcontains∼20ktheorems,∼20kproofs,∼12kdefinitions,and∼1kadditional
+pages(e.g. axioms,corollaries). Thesetofall∼33ktheorems,definitions,andadditionalpagesform
+thereferencesetR. Finally,∼14.5kofthetheoremsxarepairedwithatleastoneproofytoform
+examplesD ={(x,y) }N . Wellecketal.[2021]splitthereferencesetsandexamplesintotraining,
+i i=1
+validation,andtestsplitstoensurethatnotheoreminthevalidationortestsplitswasmentionedin
+thetrainingsplit.
+D Segment-levelConstrainedDecoding
+In this section we present a generic segment-level decoding algorithm that contains stepwise++,
+full-proofsampling,andgreedydecodingasspecialcases. Wegenerateamulti-stepproofusinga
+valuefunctionv(·)thatmeasureslanguagequalityandconstraintsatisfaction. Searchcanbedone
+atthestep-level,inwhichcandidatenext-stepsaregeneratedandhigh-valuestepsareretainedin
+abeam,orattheproof-level,inwhichmultipleproofsaregeneratedandthehighest-valueproof
+isselected. Weformalizetheseintoagenericsegment-levelsearch,whereasegments iseithera
+t
+proof-stepy orafullproofy.
+t
+Thesearchiterativelybuildsamulti-stepproofy=(y ,...,y )byexpanding,scoring,andselecting
+1 T
+asetofcandidatesegments:
+• Expand:S →S(cid:48) extendssegmentsS ={s }intocandidatesS(cid:48) ={(s ,s )}.
+t−1 t t−1 ≤t t ≤t t
+• Score: (s ,v)→Rscoresacandidateusingavaluefunction,v(s )→R.
+≤t ≤t
+• Select: S(cid:48) →S prunescandidatesS(cid:48) intosegmentsS usedinthenextiteration.
+t t t t
+Valuefunction. Wescorecandidatesbasedonconstraintsatisfactionandlanguagequality,
+v(s )=αv (s )+(1−α)v (s ), (7)
+≤t constraint ≤t LM ≤t
+where v (y ) is the number of unique in-context reference-titles in s , and v (s ) is
+constraint ≤t ≤t LM ≤t
+logp (s ). Wenormalizeeachtermbydividingbythemaximumabsolutevalueamongcandidates.
+θ ≤t
+Greedysearch. Thisbaselinesearchdefinesasegmentasafullproof,meanings isanempty
+0
+sequenceands isaproofy. Expandsamplesonesegmentcandidatewithtemperature0. Score
+1
+andselectaretrivialsincethereisonlyonecandidate. GreedysearchcostsT stepsoftokens.
+Sample-and-rerank. In this search, a segment is again full proof, but expand samples N can-
+didates, S(cid:48) = {yn ∼ q(·|x)}N , where q is a decoding algorithm (e.g. temperature sampling).
+1 n=1
+Selecttakesthetopscoringcandidate,y=argmax v(yn). ThecostisNT stepsoftokens.
+yn∈S(cid:48)
+1
+Step-wisestochasticbeamsearch. Thissearchgeneratesbyiterativelysamplingandre-ranking
+next-step candidates. In this case, a segment is a proof step, y , and each iteration starts with a
+t
+beamofproofs-so-far,S ={yk }K ,whereK isthebeamsize. ExpandsamplesN next-step
+t−1 <t k=1
+candidatesforeachproof-so-farinthebeam,
+S(cid:48) = (cid:91) (cid:8) (y ◦yn)|yn ∼q(·|y ,x)(cid:9)N , (8)
+t <t t t <t n=1
+y<t∈St−1
+whereqisadecodingalgorithm(e.g. temperaturesampling)and◦isconcatenation. Selectforms
+thenextbeamusingthetop-K scoringcandidates,
+S =argtop-K v(y ). (9)
+t ≤t
+y≤t∈S t(cid:48)
+2TheProofWikidomainofNATURALPROOFSdatasetisundertheCCBY-SA4.0license.
+24
+Whenaproofinthebeamterminates,itisnotexpandedfurther. Thesearchendswhenthebeam
+consistsofK terminatedproofs. Thehighestscoringproofisreturnedasthefinaloutput. Thecostis
+NTK stepsoftokens.
+Stepwise++. Atcertainproofstepsitisimportanttoenumerateandexploreoptions,whileatothers
+(e.g. derivations)asinglehighlyprobablepredictionisbetter. Tothisend,weexpandbysampling
+withmultipletemperatures,meaningthatweexpandeachprefixy in(6)using:
+<t
+{yn ∼q (·|y ,x)|τ ∈{τ ,...,τ }}, (10)
+t τ <t 1 m
+whereq issamplingwithtemperatureτ. Thisrelaxesthecommitmenttoasingletemperatureforall
+τ
+proofsteps,intuitivelybalancingexploration(higherτ)withexploitation(lowerτ).
+Second,duringthesearchwewanttobalanceselectingproofstepsthatsatisfyconstraintsandproof
+stepswithhighlog-probability. Tothisend,weselectclusterswithdifferentvalueweights,
+S ={y ∈top (S )|α∈{α ,...,α }}, (11)
+t ≤t K(cid:48) α 1 (cid:96)
+whereS meansthesetofcandidatesscoredwithv = αv +(1−α)v ,andK(cid:48) = K/(cid:96).
+α constraint LM
+Thisinterpolatesbetweenselectingstepswithgoodlanguagescore(αsmall),constraintscore(α
+large),andbalance(α:0.5).
+E ImplementationDetailsandExperimentalSetup
+Datapreprocessing. Weautomaticallyinfertheboundariesofproofstepswithintherawproof
+contents,andmergecontiguouslinesintoatomicproofstepswhenappropriate. Stepsareseparated
+bythe\ntoken(\\ninPythonstring),andlineswithinastepareseparatedbythenewlinetoken(\n
+inPythonstring).
+Additionalmodeldetails. AllGPT-3models(includingNATURALPROVERmodels)arefine-tuned
+instancesoftheCurieengine,thesecondlargestmodelavailablethroughtheOpenAIAPIatthe
+timeofwriting.3 Themodel’sperformanceontheEleutherAIevaluationharness4 isbetweenthe
+6.7Band13BvariantsoftheautoregressivetransformerlanguagemodelGPT-3from[Brownetal.,
+2020],5thoughfurtherdetailsoftheCuriemodelarenotpubliclyavailable.
+Separately,wefine-tuneGPT-J6B,6 apubliclyavailableautoregressivetransformerlanguagemodel
+trainedonthePile[Gaoetal.,2020],GPT-2[Radfordetal.,2019],anautoregressivetransformer
+language model trained on scraped web documents, and GPT-Neo-125M,7 a GPT-2 like causal
+languagemodeltrainedonthePile.
+Our retrieval model is the joint retrieval model from [Welleck et al., 2021] trained for reference
+retrievalonProofWikiusingthesamedatasetsplitsasNaturalProver. Weusethepublicly-available
+pretrainedmodelfromtheGitHubrepositoryof[Wellecketal.,2021]anddonotupdatethemodel
+further. Weusethemodeltoretrievethetop-20referencesforeachinputtheorem.
+Implementationdetails. AllGPT-3models(includingNATURALPROVERmodels)arefine-tuned
+withtheOpenAIAPI8for4epochswithabatchsizeof64. Othermodels(GPT-2/J/Neo)aretrained
+ononeQuadroRTX8000GPU.Duringinference,theprompt(upto<proof>)istruncatedto1024
+tokens. Forfullproofgeneration,weallowamaximumof1020generatedtokens. Fornext-step
+suggestion,wetruncatetheproof-so-farto900tokens,andallowamaximumof120generatedtokens
+perstep.
+Stepwise++ decoding. For expansion with multiple temperatures, we use N = 10 candidates
+sampledwith(n,τ)∈{(1,0.0),(3,0.3),(3,0.5),(3,0.7)}. Wealsotriedincludingτ =1.0which
+resultedinverypoorGLEU,and{(1,0.0),(5,0.3),(4,0.5)}. Forselection,weuseabeamsizeK =9,
+andthreeequally-sizedclustersformedwithα∈{0.1,0.5,1.0}. Wealsotried{0.5,0.75,0.9}. We
+useα=0.75topickselectthefinalsequence,basedonourablationwithfull-proofsampling.
+3https://beta.openai.com/docs/guides/fine-tuning
+4https://github.com/EleutherAI/lm-evaluation-harness
+5https://blog.eleuther.ai/gpt3-model-sizes/
+6https://huggingface.co/EleutherAI/gpt-j-6B
+7https://github.com/EleutherAI/gpt-neo
+8https://beta.openai.com/docs/guides/fine-tuning
+25
+Full proof sampling. We use temperature τ = 0.3, selected based on a search over τ ∈
+{0.1,0.3,0.5,0.7}usingGLEUplusRef-F1onthecoredevset.
+F AdditionalEvaluationDetails
+F.1 FullEvaluationSchema
+Table24showsthefullschemaofhumanevaluation. Theoverall correctness and usefulness are
+ratedona0-5scale. Thestep-wise correctness and usefulness areyes/noquestions,whiletheerror
+typesaskforabinaryindicatorfortheexistenceofeacherrortype.
+F.2 AdditionalHumanEvaluationDetails
+Process. Theauthorsconductedandmoderatedgroupsessionswiththeannotators. Eachsession
+consistedof30-minutesoftraininganda1-hourworking/Q&Aperiod. Afterattendingthesession,
+annotators could continue working on their assigned tasks for two weeks. Each annotator was
+assigned25theorems(with5proofspertheorem,equaling125totaltasks)andaskedtocomplete
+asmanytasksastheywouldlike. Theevaluationguidelinethattheannotatorsreferencedtocan
+be found in the supplementary materials. The pre-recorded training video is available at https:
+//drive.google.com/file/d/1TRS5XRf_coLEkC4lqaizaqSwHHgBPrG2.
+Interface. We developed an interface that displays theorems and proofs in a rendered, human-
+readableformatandcollectsannotations. TheinterfaceisbuiltonMediaWiki9,whichalsopowers
+theProofWikiwebsite10. Wealsodevelopedawebconsolethathelpshumanannotatorsnavigate
+annotationtasksandtrackprogress. Figure3showsscreenshotsoftheinterface.
+Payment. Humanannotatorsarepaidbasedonthenumberoftaskstheycomplete. Eachtaskis
+worth($1.0+#steps×$0.4).Wepayeachannotatoranadditional$40forattendingthegroupsession.
+Annotatorsareguaranteedaminimalrateof$20/hour. Thehumanevaluationcostsapproximately
+$5,000.
+Ethicsreview. ThehumanevaluationstudyisapprovedbyUniversityofWashingtonunderIRB
+STUDY00014751. Consentwasobtainedfromeachhumanannotatorbysigningaconsentformvia
+DocuSignpriortothebeginningofstudy. TheIRBapprovalletterandatemplateoftheconsentform
+canbefoundinthesupplementarymaterials. Minimalpersonallyidentifiableinformation(PII)was
+collected,andremovedpriortoanydataanalysis.
+F.3 Fullresults
+Table25showsthefullresultsofhumanevaluation,includingtheerrorratesoffine-grainederror
+types.
+F.4 AnalyzingtheAnnotators
+Inter-annotatoragreement. Wecomputeinter-annotatoragreementusingproofsinthecoredev
+setthatgetanevaluationfromtwoormoreannotators.Overall,theannotatorsachievedfairagreement
+(Fleisskappaκ=0.24). ThelevelofagreementforeachevaluationquestionisshowninFigure4.
+Fairtomoderateagreementisreachedforidentifyingcoarse-grainederrortypes,whilethehigh-level
+questions(i.e. correctness,usefulness)haverelativelylowagreement.
+Sourcediversity. Figure5showsthelargestproportionofevaluationscoveredbyafixednumber
+ofannotators. Thetop-1annotatorcontributes20%ofthetotalevaluationswhencountingbyproofs
+and18%whencountingbysteps. 50%ofthetotalevaluationsiscoveredbyroughlythetop3or4
+annotators. Therefore,ourhumanevaluationresultshavegoodsourcediversityanddonotheavily
+dependonasingleannotator’sopinion.
+9https://www.mediawiki.org
+10https://www.proofwiki.org
+26
+Aspect/ErrorType Definition
+OVERALLEVALUATION
+Correctness Choosearatingbelow.Noteverystatementineachratingwillapplytotheproof
+giventherating,butmanystatementswillapply,andthegeneralthemeofthe
+ratingwillhold:
+◦0:Theproofismissing.
+◦1:Theproofmakesnosenseorisunrelatedtotheproblemstatement.
+◦2:Theproofcontainsseriouslogicalflawsandlacksadequatejustificationor
+explanation.
+◦3:Theproofhassomegapsinreasoning.
+◦4:Theproofiscorrectornearlycorrectandlogicallycoherent.
+◦5:Theproofiscorrectandflowslogically.
+Usefulness Eveniftheproofisnotperfect,woulditbeusefultoyouifyouweretoprove
+thistheorem?
+◦0:Theproofismissing.
+◦1:Seeingthisproofwouldnothelpwithprovingthetheorembymyselfatall.
+◦2:Seeingthisproofproofwouldslightlydecreasetheeffortneededtoprove
+thetheorembymyself.
+◦3:Seeingthisproofwouldmakeitsubstantiallyeasiertoprovethetheoremby
+myself.
+◦4.Theproofisalmostcorrect,andonlyneedsafewminorcorrections.
+◦5:Theproofiscorrectandcouldbedirectlyusedasasolution.
+STEP-WISEEVALUATION
+Correctness Isthisstepcorrect?
+◦Yes
+◦No(checkthisifyouidentifiedanyerrorinpreviousquestions)
+◦Cannotdetermine(e.g.thisstepmakesavalidprogress,butitdependsonan
+invalidpriorstep)
+◦Thisisameaninglessstep(e.g.QED)
+Usefulness Couldthisstepbeahelpfulhintforprovingthetheorembymyself?
+◦Yes
+◦No
+Reasoning:Reference
+InvalidDeployment Astatementdeployedfromareferenceisnotconsistentwiththereference.
+InvalidJustification Areferenceisusedasinvalidjustificationforastatement.
+HallucinatedRef. Areferencethatdoesnotexistisused.
+SelfLoop Thestepreferstothetheoremitself.
+Reasoning:Equation
+InvalidEquation Astandaloneequationorinitialequationinaderivationisinvalid.
+InvalidDerivation Anequationinaderivationdoesnotfollowfromtheprecedingsteps.
+Reasoning:Other
+SkipsSteps Thestepassumesunprovenstatements,orskipsnon-trivialsteps.
+Repetition Thestepismerelyarepetitionofknownthings.
+Invalid(Other) Thestep’sreasoningisinvalidforreasonsnotcapturedbytheothercategories.
+Language
+Incomplete Thestepisnotacompletemathematicalstatementorequation.
+MisformattedMath Amathexpressionisnotproperlyformatted.
+Unknown Thereisamis-spelledword,orunrecognizedmathsymbol.
+Symbolic
+Undefined Oneofthesymbolsisundefined.
+Overloaded Oneofthesymbolshasoverloadedmeanings.
+Mistyped Asymbolusageisnotwell-typed.
+Unconventional Unconventionalnotationisused.
+Table24: Detaileddescriptionofthehumanevaluationschema.
+27
+Figure3: Humanevaluationinterface. Thefirstscreenshotisthewebconsolefortasknavigationand
+progresstracking. Thenextthreescreenshotsshowexamplesofqualificationpage,overallevaluation
+page,andstep-wiseevaluationpage.
+28
+Model GPT-3 NP NP NP NP
+RETRIEVE ++
+Task Full-proof Full-proof Full-proof Full-proof Next-step
+OVERALLEVALUATION(0-5scale)
+Samples 90 88 90 92 –
+Correctness (↑) 1.94 2.49 2.41 2.68 –
+Usefulness (↑) 1.80 2.34 2.43 2.75 –
+STEP-WISEEVALUATION(%)
+Samples 802 727 654 466 665
+Correctness (↑) 28.18 33.56 26.30 35.41 42.86
+Usefulness (↑) 25.69 41.54 39.60 46.57 51.43
+Reasoning:ReferenceErrors (↓) 30.92 23.52 25.84 23.61 19.70
+InvalidDeployment 14.71 13.48 18.04 15.24 13.68
+InvalidJustification 17.96 13.62 13.30 10.30 9.62
+HallucinatedRef. 4.61 1.10 1.38 1.29 1.05
+SelfLoop 2.24 1.24 0.31 0.86 0.75
+Reasoning:EquationErrors (↓) 32.54 37.55 35.93 28.54 26.32
+InvalidEquation 15.21 16.23 12.23 9.44 12.63
+InvalidDerivation 24.56 27.10 27.37 21.89 15.64
+Reasoning:OtherErrors (↓) 40.15 23.66 25.23 18.45 19.10
+SkipsSteps 2.87 3.03 2.29 4.51 3.46
+Repetition 23.07 4.95 5.66 1.93 2.56
+Invalid(Other) 15.21 16.37 18.35 12.02 13.53
+LanguageErrors (↓) 5.61 4.54 8.41 5.58 8.57
+Incomplete 1.62 2.48 1.99 1.07 3.76
+MisformattedMath 2.99 1.93 3.82 3.22 3.91
+Unknown 1.62 0.69 3.98 1.72 2.56
+SymbolicErrors (↓) 5.24 6.19 5.35 3.65 5.86
+Undefined 1.25 2.06 1.53 1.07 2.11
+Overloaded 2.00 0.41 0.76 0.43 0.60
+Mistyped 1.87 2.89 1.83 1.93 3.01
+Unconventional 0.87 1.38 1.83 1.07 1.05
+Table25:Fullhumanevaluationresultsonthecoretestset. NP=NATURALPROVER.Coarse-grained
+errorrates(e.g. Reasoning:ReferenceErrors)arecomputedasthefrequencyofexistenceofany
+fine-grainederrorundertherespectivebucket.
+Figure5:Sourcediversityofhumanannotations.
+Figure 4: Inter-annotator agreement of human
+evaluation.
+29
+G EthicalConsiderations
+Oursystemmayproduceproofsofmathematicaltheoremsthatarefallaciousormisleading,which
+mayhavenegativeimpactifdeployedinrealeducationalenvironments. Wekindlyremindpotential
+usersthatoursystemandmodelsareexperimental,andtheiroutputsshouldbeinterpretedcritically.
+30

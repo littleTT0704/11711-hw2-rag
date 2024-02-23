@@ -1,0 +1,1464 @@
+Modeling Non-Cooperative Dialogue: Theoretical and Empirical Insights
+AnthonySicilia TristanMaidment
+IntelligentSystemsProgram, IntelligentSystemsProgram,
+UniversityofPittsburgh, UniversityofPittsburgh,
+Pittsburgh,USA Pittsburgh,USA
+anthonysicilia@pitt.edu tristan.maidment@pitt.edu
+PatHealy MaliheAlikhani
+DepartmentofInformatics DepartmentofComputerScience
+andNetworkedSystems, andIntelligentSystemsProgram,
+UniversityofPittsburgh, UniversityofPittsburgh,
+Pittsburgh,USA Pittsburgh,USA
+pat.healy@pitt.edu malihe@pitt.edu
+Abstract ple from different demographics, political views,
+and intents, continuously learning from the col-
+Investigating cooperativity of interlocutors is
+lected data. Examples include Amazon Alexa,
+central in studying pragmatics of dialogue.
+task-oriented systems that help patients recover-
+Models of conversation that only assume co-
+ing from injuries or can teach a person a new
+operative agents fail to explain the dynamics
+ofstrategicconversations.Thus,weinvestigate language,andsystemsthathelppredictdeceptive
+theabilityofagentstoidentifynon-cooperative behaviors in courtrooms. To effectively commu-
+interlocutors while completing a concurrent nicateinthepresenceofunwantedbehaviorslike
+visual-dialoguetask.Withinthisnovelsetting, bullying (Cercas Curry and Rieser, 2018), sys-
+we study the optimality of communication
+temsneedtounderstandusers’strategicbehaviors
+strategies for achieving this multi-task ob-
+(AsherandLascarides,2013)andbeabletoiden-
+jective. We use the tools of learning theory
+tify non-cooperative actions. Designing agents
+to develop a theoretical model for identify-
+ing non-cooperative interlocutors and apply that learn to identify non-cooperative interlocu-
+this theory to analyze different communica- tors is challenging since it requires processing
+tion strategies. We also introduce a corpus the context of the dialogue in addition to mod-
+of non-cooperative conversations about im- eling the choices that interlocutors make under
+ages in the GuessWhat?! dataset proposed by
+uncertainty—choices which typically affect their
+De Vries et al. (2017). We use reinforcement
+ability to complete tasks unrelated to identifying
+learning to implement multiple communica-
+non-cooperationaswell.Inlightofthis,weask: tion strategies in this context and find that
+empiricalresultsvalidateourtheory.
+What communication strategies are ef-
+1 Introduction fective for identifying non-cooperative
+interlocutors, while also achieving the
+A robust dialogue agent cannot always assume a
+goalsofadistinctdialoguetask?
+cooperative conversational counterpart when de-
+ployed in the wild. Even in goal-oriented settings,
+where the intent of an interlocutor may seem to To answer this question, we appeal to a sim-
+be granted, bad actors and disinterested parties are plenon-cooperativeversionofthevisualdialogue
+free to interact with our dialogue systems. These game Guess What?! (De Vries et al., 2017). See
+non-cooperative interlocutors add harmful noise to Figure 1 for an example. The game consists of
+data, which can elicit unexpected behaviors from a multi-round dialogue between two players: a
+ourdialoguesystems.Thus,theneedtostudynon- question-player and an answer-player. Both have
+cooperationincreasesdailyaswebuildanddeploy accesstothesameimagewhereasonlytheanswer-
+conversational systems which interact with peo- player has access to an image-secret; that is, a
+1084
+TransactionsoftheAssociationforComputationalLinguistics,vol.10,pp.1084–1102,2022.https://doi.org/10.1162/tacla00507
+ActionEditor:ClaireGardent.Submissionbatch:12/2021;Revisionbatch:4/2022;Published9/2022.
+(cid:2)c 2022AssociationforComputationalLinguistics.DistributedunderaCC-BY4.0license.
+Downloaded
+from
+http://direct.mit.edu/tacl/article-pdf/doi/10.1162/tacl_a_00507/2043737/tacl_a_00507.pdf
+by
+guest
+on
+22
+February
+2024
+of a non-cooperative player which is based on
+the conceptual idea that cooperation is necessary
+to make progress in dialogue. Our analysis con-
+cludes that when the answer-player is effective in
+this sense, the question-player can gather useful
+informationforboththeobjectidentificationtask
+andthenon-cooperationidentificationtaskbyse-
+lecting a communication strategy based only on
+theformerobjective.
+To test the assumptions of our theoretical
+Figure 1: (Example) The question-player’s objective model as well as the value of the aforementioned
+is to identify a secret goal-object (the dining table). communication strategy in practice, we imple-
+The answer-player, who may be cooperative or non- ment this strategy using reinforcement learning
+cooperative, gives binary responses to the question- (RL). Our experiments validate our theory. As
+player’s queries. In this example, the answer-player
+compared to heuristically justified baselines, the
+is non-cooperative and leads the question-player to
+communication strategy motivated by our theory
+an incorrect object (the orange). This is a real ex-
+yields consistently better results. To conduct this
+ample produced by autonomous agents (described in
+experiment, we have collected a novel corpus
+Section5).
+ofnon-cooperativeGuessWhat?!gameinstances
+which is publicly available.1 Throughout experi-
+particular goal-object for the question-player to
+mentation, we provide a qualitative and quanti-
+recognize. The question-player’s goal is to ask
+tative analysis of the non-cooperative strategies
+theanswer-playerquestionswhichwillrevealthe
+presentinourcorpus.Theseresults,inparticular,
+secret. A cooperative answer-player then provides
+demonstratethatnon-cooperativeautonomousagents
+good answers to assist in this goal. In the original
+that utilize dialogue history can better deceive
+game, the answer-player is always cooperative.
+question-players. This contrasts the observation of
+Our modified game instead allows the answer-
+Strub et al. (2017) that cooperative answer-players
+playertobenon-cooperativewithsomenon-zero
+donotusethisinformation.
+probability.Unlikeacooperativeanswer-player,a
+In total, our work is positioned at the inter-
+non-cooperative answer-player will not necessar-
+section of two foci: detection of non-cooperative
+ilyactinassistancetothequestion-player,andin-
+dialogue and modeling of non-cooperative dia-
+stead,mayattempttorevealanincorrectsecretor
+logue.Unlikemanydetectionworks,weconsider
+otherwisehinderinformationexchange.Inexper-
+detection in context of interaction. Additionally,
+iments,thespecificstrategieswestudyarelearned
+while many modeling works consider the intent
+from human non-cooperative conversation. The
+of conversational agents and construct strategies
+question-player, importantly, does not know if
+for non-cooperative dialogue based on this, our
+answer-player is non-cooperative. At the end of strategies are motivated purely from a learning
+thedialogue,thequestion-player’sfinalobjective
+theoretic argument. As we are aware, a theoreti-
+is not only to identify the goal-object, but also to
+cal description similar to ours has not been given
+determine if the conversation takes place with a
+before.
+cooperativeornon-cooperativeanswer-player.
+Weproposeaformaltheoreticalmodelforana-
+2 RelatedWorks
+lyzing communication strategies in the described
+scenario. We frame the question-player’s objec- The view that conversation is not necessarily co-
+tive in terms of two distinct classification tasks operative is not novel, but the argument can be
+and use tools from the theory of learning algo- made that it has lacked sufficient investigation in
+rithmstoanalyzerelationshipsbetweenthesetasks. the dialogue literature (Lee, 2000). Game theo-
+Our main theoretical result identifies circumstances reticinvestigationsofnon-cooperationareplenti-
+wherethequestion-player’sperformanceiniden- ful,perhapsbeginningwithworkofNash(1951).
+tifyingnon-cooperationcorrelateswithperformance
+inidentifyingthegoal-object.Buildingonthis,we 1https://github.com/anthonysicilia/modeling
+provide a mathematical definition of the efficacy -non-cooperation-TACL2022.
+1085
+Downloaded
+from
+http://direct.mit.edu/tacl/article-pdf/doi/10.1162/tacl_a_00507/2043737/tacl_a_00507.pdf
+by
+guest
+on
+22
+February
+2024
+Concepts from this space, such as the stochas- 2014), human micro-expressions (Wu et al.,
+tic games introduced by Shapley (1953), have 2018), and acoustics (Levitan, 2019). There are
+beenusedtomodeldialogue(Barlieretal.,2015) also many novel scenarios for detection of dece-
+whennon-cooperationbetweenpartiesisallowed. ption including talk-show games (Soldner et al.,
+Pinkeretal.(2008)alsoconsideragame-theoretic 2019),interrogationgames(ChouandLee,2020),
+model of speech. In fact, even the dialogue game andnews(Conroyetal.,2015;Shuetal.,2017).
+we consider in this text can be modeled through
+game-theoretic constructs; for example, a Baye-
+sian Game (Kajii and Morris, 1997). Whereas Other Visual Dialogue Games. As Galati and
+gametheoryfocusesprimarilyonanalysisofstrat- Brennan (2021) observe, conversation involving
+egies, studying non-cooperation in dialogue re- multiple media for information transfer (instead of
+quires both the learning of strategies and the a single medium) typically leads to increased un-
+learning of utterance meaning. Aptly, our use of derstanding between interlocutors. Thus, visual-
+thetheoryoflearningalgorithms(ratherthangame dialogue is a particularly interesting setting for
+theory) is suited to handle both of these. While investigating both cooperation and non-cooperation.
+wearefirsttouselearningtheory,effortstochar- Appropriately, cooperative visual-dialogue games
+acterize non-cooperation in dialogue, learn non- (Das et al., 2017; Schlangen, 2019; Haber et al.,
+cooperative strategies in autonomous agents, and 2019) are a growing area of study. We extend,
+detectnon-cooperationindialoguearenotabsent inparticular,thecooperativegameGuessWhat?!
+from the literature (Plu¨ss, 2010; Georgila and proposed by De Vries et al. (2017) to explicitly
+Traum, 2011a; Shim and Arkin, 2013; Vourliotakis allowfornon-cooperation.Whereasvisual-dialogue
+et al., 2014). We discuss these topics in detail in research often focuses on mechanisms to improve
+thefollowing. task success, our work is more broadly interested
+in an analysis of human communication strate-
+Modeling Non-Cooperative Dialogue. One of gieswithinanon-cooperative,multi-tasksetting.
+the earliest works on non-cooperation—specific to
+dialogue—isthatofJamesonetal.(1994),which
+considers strategic conversation for advantage in Related Learning Theoretic Work. Classifi-
+commerce. Similarly, Traum et al. (2008) focus cation of non-cooperative examples is similar to
+on negotiation and Georgila and Traum (2011b) detection of adversarial examples; see Serban
+focusonlearningnegotiationstrategies(i.e.,argu- et al. (2018) for a survey. Still, most learning-
+mentation) through reinforcement learning (RL). theoretic work only discusses models which are
+Morerecently,EfstathiouandLemon(2014)con- robusttoadversaries;forexample,seeFeigeetal.
+sider using RL to teach agents to compete in a (2015), Cullina et al. (2018), Attias et al. (2019),
+resource-trading game and Keizer et al. (2017) Bubeck et al. (2019), Diochnos et al. (2019),
+use deep RL to model negotiation in a similiar and Montasser et al. (2020) to name a few. In
+game.Inmostofthese,theintentofinterlocutors contrast,wefocusondetection.Additionally,our
+isassumedandutilizedinmodeldesign.Inthelast, theoretical results are more broad and do not
+strategies are learned from data similarly to our explicitly model adversarial intent. Identifying
+work,butobjectivesforlearningarenotmotivated non-cooperation in dialogue is also related to
+bylearning-theoreticanalysisasinours. detecting distribution shift in high-dimensional,
+distribution-independent settings (Gretton et al.,
+Detecting Non-Cooperative Dialogue. The 2012; Lipton et al., 2018; Rabanser et al., 2019;
+work of Zhou et al. (2004) presents an early ex- Atwell et al., 2022) as well as learning to gen-
+ample of automated deception detection which eralize in presence of such distribution shift
+focuses on indicators arising from the used lan- (Ben-David et al., 2010; Ganin and Lempitsky,
+guage. Plu¨ss (2014) also focus on how (more 2015;Zhaoetal.,2018,2019; Schoenauer-Sebag
+general) non-cooperative dialogue can be iden- et al., 2019; Johansson et al., 2019; Germain
+tified at a linguistic level. Besides linguistic et al., 2020; Sicilia et al., 2022). This connec-
+cues, several works employ additional features tionisastrongmotivationforourtheoreticalwork,
+in identification of deception. These include but we emphasize our results are not a trivial ap-
+physiological responses (Abouelenien et al., plicationofexistingtheory.
+1086
+Downloaded
+from
+http://direct.mit.edu/tacl/article-pdf/doi/10.1162/tacl_a_00507/2043737/tacl_a_00507.pdf
+by
+guest
+on
+22
+February
+2024
+3 Dataset
+images objects words(+3) questions
+In this section, we first describe our modified Ours 2.7K 2.8K 2.3K(1K) 8.1K
+version of the GuessWhat?! game. Then, we de- GW 67K 134K 19K(6.6K) 277K
+scribe the data acquisition process as well as
+the non-cooperative dataset used in this study. Table1:Countofuniqueimages,objects,words,
+The dataset will be made publicly available upon and questions within the non-cooperative games
+publication. collected. (+3) gives count of words with at least
+3 occurences. First row is our proposed dataset.
+3.1 ProposedDialogueGame Second(GW)reportscomputedstatsontheorig-
+inalGuessWhat?!corpus.
+As noted, our proposed dialogue game is a mod-
+ification of the cooperative two-player visual-
+dialogue game GuessWhat?! (De Vries et al.,
+to lead the question-player away from this goal
+2017). Distinctly, our version incorporates non-
+object; that is, to ensure the question-player does
+cooperation.
+not correctly guess this object. There is no spe-
+cific way in which this misleading must be done
+Initialization. An image is randomly selected
+(e.g., there is not always an alternate object).
+and an object within this image is randomly cho-
+Instead, during data collection, participants are
+sen to be the goal-object. With some probability,
+simplyinstructedtodeceivethequestion-player.
+the game instance is designated as a cooperative
+game.Otherwise,thegameisnon-cooperative.
+Gameplay. The question-player and active
+answer-player converse until the question-player
+Players. Unlike the original GuessWhat?!
+is ready to make a guess or a pre-specified max-
+game, there are three (not two) player roles: the
+ium number of dialogue rounds have transpired.3
+question-player, the cooperative answer-player,
+The question-player is then presented with a list
+and the non-cooperative answer-player. For co-
+of possible objects and must guess which of
+operative game instances (decided at initializa-
+these was the secret goal-object. In addition, the
+tion), the cooperative answer-player is put in play.
+question-player must guess whether the answer-
+Otherwise, the non-cooperative answer-player is
+playerwascooperativeornon-cooperative.
+put in play. The question-player always plays and
+does not know whether the answer-player is
+3.2 DataCollection
+cooperative or non-cooperative. To start, all ac-
+Collection. We developed a web application
+tive players are granted access to the image. The
+to collect dialogue from human participants tak-
+question-player asks yes/no questions about the
+ing the role of a non-cooperative answer-player.
+imageandobjectswithintheimage.Attheendof
+Participants were native English speakers re-
+dialogue, the question-player will use the gath-
+cruitedviaanonlinecrowd-sourcingplatformand ered information to guess both the unknown goal-
+paid $15 per hour according to our institution’s
+object and the (cooperation) type of the active
+human subject review board. Participants were
+answer-player.2 Unlike the question-player, the
+asked to deceive an autonomous question-player
+active answer-player has knowledge of the game’s
+pre-trained to identify the goal-object only. For
+goal-object and responds to the question-player’s
+pre-training, we used the original Guess What?!
+querieswithyes,no,orn/a(notapplicable).
+game corpus and supervised learning setup
+Objectives. The question-player’s goals are al- (De Vries et al., 2017; Strub et al., 2017). Par-
+ways to identify both the goal-object and the ticipants received an image and a crop that indi-
+presence of non-cooperation if it exists (i.e., if catedthegoal-object.Bothofthesearerandomly
+the non-cooperative answer-player is in play). sampledfromtheoriginalGuessWhat?!gamecor-
+Thecooperativeanswer-player’sgoalistoreveal pus. They were tasked with leading the question-
+the goal-object to the question-player by an- player away from this goal object by answering
+swering the yes/no questions appropriately. The questions with yes, no, or n/a. Dialogue persisted
+non-cooperative answer-player’s goal is instead untilthequestion-playermadeaguess.
+2This is done simultaneously, so knowledge of the 3Fordatacollection,noquestionlimitisset.Experiments
+correctnessofoneguesscannotinformtheotherguess. inSection5followStrubetal.(2017)andsetthemaxto5.
+1087
+Downloaded
+from
+http://direct.mit.edu/tacl/article-pdf/doi/10.1162/tacl_a_00507/2043737/tacl_a_00507.pdf
+by
+guest
+on
+22
+February
+2024
+Figure 2: Our new non-cooperative dataset. Left shows distribution of objects in the collected games. All 80
+objectsintheoriginalGuessWhat?!corpusoccur.Rightshowsdistributionofquestion-countsperdialogue.
+Figure 3: Original GuessWhat?! dataset. Left shows distribution of objects in original games. Right shows
+distributionofquestion-countsperdialoguewith114outlierslargerthan27removedforimprovedvisualization.
+Dataset. We collected 3746 non-cooperative di- the size of our collected dataset is smaller than
+alogues. Dataset statistics are shown in Table 1, the original cooperative corpus, we only use our
+while visualization of the object and dialogue- data to train an autonomous, non-cooperative
+length distributions are shown in Figure 2. Com- answer-player. When a larger sample is required
+pared to the original Guess What?! corpus, both (e.g., when training the question-player via RL),
+dialogue-length and object distributions are sim- we use simulated non-cooperative data generated
+ilar. For objects, this is expected as these are bythepre-trained,non-cooperativeanswer-player,
+uniformly sampled from the original corpus. We which is a standard technique in the literature
+see 16 of our 20 most likely objects are shared (Strubetal.,2017).
+with the 20 most likely of the original Guess- Besides the statistics shown in Table 1 and
+What?! object distribution, and further, the first Figure 2, we also point out the question-player
+4 objects have identical ordering (see Figure 3). succeeded at identifying the goal-object in only
+Differencesherearesimplyattributedtorandom- 19%ofthecollectedgames.Comparatively,onan
+ness and the increasing uniformity as likelihood autonomouslygeneratedandfullycooperativetest
+of an object decreases. For dialogue length, one set, comparably trained question-players achieve
+might expect non-cooperative dialogue to be 52.3%success(Strubetal.,2017).Thisindicates
+longer. Instead, the distributions are both right- that the deceptive strategies employed by the hu-
+skew with an average near 5 (i.e., 4.99 in our manswereeffectiveatfoolingthequestion-player
+datasetand5.11intheoriginalGuessWhat?!cor- to select the wrong goal-object. More detailed
+pus). The primary difference is that the original analysis of the strategies used by the partici-
+corpus has more outliers, which is most probably pants is given in Section 5; these strategies are
+a result of the increased sample size. We likely self-described by the participants and also auto-
+observeconsistencybetweenournon-cooperative matically detected for a simple case. Finally, we
+corpus and the original corpus because the alsocomputedtheanswerdistributiononthecol-
+question-player—whocontrolsdialoguelength— lected corpus: answers were 46% yes, 52% no,
+is autonomous and trained on a cooperative and2%n/a.
+corpus. Hence, this and other aspects of our non-
+cooperative corpus may be influenced by pre-
+conditioning the question-player for cooperation. 4 ATheoreticalModel
+Thisissueismitigatedinourexperiments(Section5)
+wherethequestion-playerisalsotrainedonsimu- This section formally models the objectives of
+lated non-cooperative dialogue. Also note, while thequestion-playerastwodistinctlearningtasks.
+1088
+Downloaded
+from
+http://direct.mit.edu/tacl/article-pdf/doi/10.1162/tacl_a_00507/2043737/tacl_a_00507.pdf
+by
+guest
+on
+22
+February
+2024
+We use results from the theory of learning algo- in learning theory. Besides learning the hypothe-
+rithms to give a relationship between these tasks ses o and c, the question-player can also select
+inThm4.1.WethenuseThm4.1toanalyzecom- the communication policy π . This policy im-
+θ
+municationstrategiesinSection4.3. plicitly dictates the distribution over which the
+question-player learns, and thus, can either im-
+4.1 Setup
+prove or hurt the player’s chance at success. As
+As described in Section 3, the question-player in reality, neither we nor the learner have knowl-
+has two primary objectives: identification of the edgeofthemechanismthroughwhichchangesto
+goal-objectandidentificationofnon-cooperation. the communication policy π θ modify the distri-
+Todoso,thequestion-playerisgrantedaccessto bution P θ. Our only assumption is that changing
+theimageandmayalsoconversewithananswer- π θ does not modify the probability of coopera-
+player. In the end, the question-player guesses tion.Thatis,thereisaconstantp NC ∈ (0,1)such
+basedonthisevidence(i.e.,theimagefeaturesand thatforallπ θ
+dialogue history). Mathematically, we encapsu-
+late the question player’s guess as a learned hy- Pr(Z = NC) = p ; (X,Y,Z) ∼ P . (1)
+NC θ
+pothesis (i.e., function) from the game features
+to the set of object labels or the set of coopera-
+This agrees with the description in Section 3
+tionlabels.
+where the game instance is designated coopera-
+Key Terms. We write Y to describe the finite tive or non-cooperative prior to dialogue. With a
+set of object labels and Z = {CP,NC} for the randomsampleS,anunbiasedestimateforp is
+NC
+set of cooperation labels; CP denotes cooperation
+(cid:3)
+andNCdenotesnon-cooperation.Inrelationtothe
+example in Figure 1, Y might contain labels for p(cid:2) S d =ef m1 i1[Z i = NC] (2)
+the orange, apple, cups, and dining-table. In the
+sameexample,thecooperationlabelwouldbeNC where1istheindicatorfunction.
+to indicate a non-cooperative answer-player. We
+use X to denote the feature space which contains
+Error. To measure the quality of the question-
+all possible game configurations. For example,
+player’s guesses, we report the observed error-rate
+each X ∈ X might capture the dialogue history,
+on the sample S = (X ,Y ,Z )m . In particular,
+i i i i=1
+the image, and particular features of the image
+the empirical object-identification error for any
+pre-extracted for the question-player (i.e., which hypothesiso : X → Y isdefined
+objects are contained in the image at which lo-
+cations).Withthisnotation,thequestion-player’s (cid:3)
+learnedhypothesesmaybedescribedasanobject o(cid:4)er (o) d =ef 1 m 1[o(X ) (cid:6)= Y ]. (3)
+S m i=1 i i
+identification hypothesis o : X → Y and a coop-
+erationidentificationhypothesisc : X → Z.The
+Similarly, the cooperation identification error for
+question-player learns these functions by exam-
+anyhypothesisc : X → Z isdefined
+ple. In particular, we assume the question-player
+is given access to a random sequence of m ex- (cid:3)
+amples S = (X ,Y ,Z )m independently and c(cid:4)er (c) d =ef 1 m 1[c(X ) (cid:6)= Z ]. (4)
+i i i i=1 S m i=1 i i
+identically distributed according to an unknown
+distribution P over X × Y × Z. To abbrevi-
+θ In some cases, we instead restrict the sample
+ate, we write S ∼iid P and assume all samples
+θ over which we compute the empirical object-
+are of size m for simplicity. The distribution P
+θ identification error. Specifically, we restrict to
+is dependent on the question-player’s communi-
+cooperativegameinstancesandwrite
+cation policy π , which we assume is uniquely
+θ
+determined by the real-vector θ. Later, this al-
+lows us to select communication strategies using o(cid:4)er S(o | CP) d =ef o(cid:4)er S(cid:7)(o) (5)
+commonreinforcementlearningalgorithms.
+We emphasize that the dependence of P θ on where S(cid:7) = ((X i,Y i) | Z i = CP) is the sample
+π distinguishes our setup from typical scenarios S with each triple where Z (cid:6)= CP removed. The
+θ i
+1089
+Downloaded
+from
+http://direct.mit.edu/tacl/article-pdf/doi/10.1162/tacl_a_00507/2043737/tacl_a_00507.pdf
+by
+guest
+on
+22
+February
+2024
+case o(cid:4)er (o | NC) is defined similarly. Based on 4.2 BoundingCooperationIdentification
+S
+these,wefurtherdefinethecooperationgap Error
+Δ (o)d=efp(cid:2) ·o(cid:3)er (o|NC)−(1−p(cid:2) )·o(cid:3)er (o|CP). (6) To motivate our main result, we informally ob-
+S S S S S serve that identifying non-cooperation is essen-
+tially a problem of identifying distribution-shift.
+Thisgapdescribesobservedchangein(weighted)
+Specifically, we are interested in differences be-
+object-identification error induced by change in
+tween the two dialogue distributions induced by
+cooperation.WeoftenexpectΔtobepositive.4 cooperative and non-cooperative answer-players,
+Finally, recall S ∼iid P and P is unknown, so respectively. Luckily, there is a rich literature on
+θ θ
+the topic of distribution-shift. We take insight,
+in practice, we can only report the observed er-
+in particular, from the work of Ben-David et al.
+ror discussed above. Still, we are typically more
+(2007,2010)whichmeasuresshiftusingthesym-
+interested in the true or expected error for fu-
+metric difference hypothesis class. For a set of
+ture samples from P θ. This quantity tells us how hypotheses O ⊆ {o | o : X → Y}, this class
+the question-player’s hypotheses generalize be- contains hypotheses characteristic to disagree-
+yond the random samples we observe. Precisely, mentsinO:
+the expected cooperation-identification error of
+ahypothesisc : X → Z isdefined OΔO d =ef{x(cid:9)→NC[o(x)(cid:6)=o(cid:7) (x)]|o,o(cid:7) ∈O} (8)
+cer (c) d =ef E[c(cid:4)er (c)] = Pr(c(X) (cid:6)= Z) (7) where NC[·] acts like an indicator function, re-
+θ S
+turning NC for true arguments and CP otherwise.
+Using this class, we identify a relationship
+where (X,Y,Z) ∼ P . The true (or expected) between the true error when identifying non-
+θ
+object-identificationerrorissimilarlydefined. cooperation cer and the observed object-
+θ
+identification errors o(cid:4)er (·| CP) and o(cid:4)er (·| NC)
+S S
+4.1.1 ApplicabilitytoDistinctContexts against the cooperative and non-cooperative
+answer-player, respectively. While a more tradi-
+While we have specified our discussion above tionallearning-theoreticboundwouldrelatecer
+θ
+to promote understanding, one of the benefits to the empirical observation c(cid:4)er for the same
+S
+of our theoretical framework is that it is fairly task, our novel bound reveals a connection to the
+general. In fact, the reader may be concerned seemingly distinct task of object-identification.
+that our discussion above lacks precise defini- Later,thisrelationshipisusefulforanalyzinghow
+tions of seemingly important terms; that is, the the question-player’s communication policy con-
+feature space X and the communication policy trols the data-distribution so that both objectives
+π θ. These components are intentionally left ab- are improved. Proofs of all result are provided in
+stract because our theoretical results make no Section4.4.
+assumptionsonthemechanismthroughwhichπ
+θ
+influences P (i.e., except Eq. (1)). Further, our Theorem4.1. DefineOasaboveandtakeCtobe θ
+results make no assumptions on how the game sufficiently complex so that OΔO ⊆ C. Let d be
+configurationsarerepresentedinthefeaturespace the VC-Dimension of C. Then for any δ ∈ (0,1),
+X. This space could correspond to any set of di- withprobabilityatleast1−δ,forallo,o(cid:7) ∈ O,
+alogues with/without some associated data (e.g.,
+images).Lastly,theonlyassumptionsonthelabel cer (cˆ) ≤ p(cid:2) +o(cid:4)er (o)−Δ (o(cid:7) )+C (9)
+θ S S S
+spaces are that Y is finite and Z is binary. In
+(cid:5) √
+this sense, our theoretical discussion is applica-
+where C = (4 + dlog(2em/d))/(δ 2m),
+ble to very general scenarios beyond the simple
+visual-dialogue game considered. We emphasize S i∼id P θ,andcˆ∈ argmin c∈Cc(cid:4)er S(c).
+someexampleslaterinSection6.
+Remarks. Notice, one sensible choice of o and
+(cid:7)
+o is to pick o which minimizes the observed
+4Deltaisnegativewhentheobject-identificationerroris (cid:7)
+object-identification error and o which maxi-
+higheroncooperativeexamplesthannon-cooperativeexam-
+mizes Δ ; this produces the tightest bound on
+ples(forsimplicity,thisassumespˆ =0.5).Inpractice,we S
+S
+rarelyexpectcooperationtoleadtoworseperformance. the expected cooperation-identificationerror. We
+1090
+Downloaded
+from
+http://direct.mit.edu/tacl/article-pdf/doi/10.1162/tacl_a_00507/2043737/tacl_a_00507.pdf
+by
+guest
+on
+22
+February
+2024
+leave these hypotheses unspecified because later episode. So, the question-player holds a full dia-
+we must make limiting assumptions on the prop- logue with the answer-player, guesses the goal-
+(cid:7)
+erties of o and o (e.g., Prop. 4.1). Greater object and answer-player’s cooperation based on
+generality here makes our results more broadly this dialogue, and then receives a reward depen-
+applicable. Besides this, we also observe that C dent on whether the guesses are correct. Under
+goes to 0 as m grows. Ultimately, we ignore C theseassumptions,thequestion-playerselectsthe
+in interpretation, but point out that bounds based communicationpolicyπ tomaximize:
+θ
+on the VC-Dimension (as above) are notoriously
+loose for most P . As we are primarily inter- J(θ) = E[ρ(X,Y,Z)]; (X,Y,Z) ∼ P
+θ θ
+estedintheseboundsforpurposeofinterpretation (10)
+and algorithm design, this is a non-issue. On
+whereρ : X ×Y×Z → Ristherewardstructure
+the other hand, if practically computable bounds
+to be decided. In particular, selection of θ can
+are desired, other (more data-dependent) tech-
+often be achieved through policy gradient meth-
+niques may be fruitful; e.g., see Dziugaite and
+ods. Williams (1992) and Sutton et al. (1999) are
+Roy(2017).
+attributed with showing we can estimate ∇ J(θ)
+θ
+in an un-biased manner through Monte-Carlo es-
+Interpretation. As noted, the question-player
+timation. In our implementation in Section 5, our
+hassomecontroloverthedistributionP through
+θ particularpolicygradienttechniqueisidenticalto
+the communication policy π . So, Thm. 4.1 can
+θ previous work on communication strategies for
+be interpreted to motivate indirect mechanisms
+the Guess What?! dataset (Strub et al., 2017).
+for controlling the cooperation-identification er-
+Thus, we focus discussion on the reward struc-
+ror cer (gˆ). Specifically, with respect to o(cid:4)er ,
+θ S ture ρ and understanding its role through a theo-
+we can infer that improving performance on
+reticallens.
+the object identification task should implicitly
+To select ρ, we first consider some obvious
+improve performance on the separate task of
+choices without appealing to complex analysis.
+identifying non-cooperation. The term Δ also
+S
+Specifically, for c fixed, define ρ(X,Y,Z) =
+offersinsight.Itsuggestscertainnon-cooperative
+1[c(X) = Z].Then,
+answer-players—whose actions induce a large
+reductioninperformanceascomparedtothecoop-
+J(θ) = 1−cer (c). (11)
+erativeanswer-player—areeasytoidentify.Stated θ
+moreplainly,non-cooperativeagentsrevealthem-
+Thus, maximizing J(θ) is equivalent to mini-
+selves by their non-cooperation; this is true, in
+mizing the cooperation-identification error. This
+particular, when their behavior causes large per-
+rewardfocusesonlyonidentifyingnon-cooperation.
+formancedrops.InSection4.3,weformalizethese
+Ontheotherhand,ifρ(X,Y,Z) = 1[o(X) = Y]
+conceptsfurther.
+forsomefixedo,then
+4.3 AnalyzingCommunicationStrategies
+J(θ) = 1−oer (o) (12)
+θ
+In this section, we analyze methods for the
+question-player to select the communication pol- So, in this case, maximizing J(θ) minimizes the
+icy π . In recent dialogue literature, reinforce- expectedobject-identificationerror.
+θ
+ment learning (RL) has proven successful in It is easy to see the trade-off between the two
+teaching agents effective communication strate- choices discussed above. Each focuses distinctly
+gies. For example, Strub et al. (2017) show this onasingleobjectiveofthequestion-playerandit
+to be the case in the fully cooperative version isnotclearhowthesetwoobjectivescanrelateto
+of Guess What?!. Selecting an appropriate re- eachother.Toproperlyanswerthis,weappealto
+ward structure is fundamental to any RL training analysis.Wefirstgivesomedefinitions.
+regime. To this end, we use Thm 4.1 to study
+different reward structures. We consider, in par- Definition 4.1. We say a hypothesis o ∈ O
+ticular, an episodic RL scenario where the dis- is α-improved by θ∗ relative to θ if J(θ∗) ≥
+count factor (often called γ) is set to 1 and the J(θ) + α for ρ(X,Y,Z) = 1[o(X) = Y] and
+only non-zero reward comes at the end of the α ≥ 0.
+1091
+Downloaded
+from
+http://direct.mit.edu/tacl/article-pdf/doi/10.1162/tacl_a_00507/2043737/tacl_a_00507.pdf
+by
+guest
+on
+22
+February
+2024
+Simply, Def. 4.1 formally describes when a foranyδ > 0,thereisnsuchthatforallm ≥ n,
+communication policy π θ∗ improves the question- withprobabilityatleast1−δ−γ wehave
+player’s ability to identify the goal-object. Next,
+we define efficacy of an answer-player as a p(cid:2) T +o(cid:4)er T(o)−Δ T(o(cid:7) )
+(14)
+property of the errors induced by this player’s ≤ p(cid:2) +o(cid:4)er (o)−Δ (o(cid:7) )+O(C)
+S S S
+dialogue.
+(cid:6) (cid:7)
+Definition4.2. Wesayanon-cooperativeanswer-
+where S i∼id P θ, T i∼id P θ∗, γ = √2exp −mω2/2 ,
+player is effective with fixed parameter (cid:8) if for ω = α−(cid:8),andC = (2m)−1 2 ln6−lnδ.
+all δ > 0 there is n such that for all θ,θ(cid:7) ∈ Θ,
+Remarks. Notice, the result assumes the hy-
+o ∈ O,andm ≥ n,wehave (cid:7)
+potheses o,o and policies π θ,π θ∗ are fixed
+Pr(|o(cid:4)er (o | NC)−o(cid:4)er (o | NC)| > (cid:8)) ≤ δ aprioritodrawingS,T.Hence,theboundisonly
+T S
+valid for test sets independent from training. Re-
+(13)
+gardless,itisstillusefulforinterpretationandthis
+whereS ∼iid P θ,T ∼iid P θ(cid:7).
+style of bound produces tighter guarantees than
+Def. 4.2 requires that the error of all question- conventional learning-theoretic bounds; that is,
+playersconvergeinprobabilitytothesameO((cid:8))- frombothanalyticandempiricalperspectives,re-
+sized region when playing against an effective spectively(Shalev-ShwartzandBen-David,2014;
+answer-player.Ifanon-cooperativeanswer-player Sicilia et al., 2021). Like Thm. 4.1, we also use
+is effective, then regardless of the communica- two hypotheses o,o(cid:7) ∈ O, but the result is easily
+tion strategy employed by the question-player, specified to the one hypothesis case by taking
+we should not expect to observe large changes o = o(cid:7) (albeit,thismayloosenthebound).Inany
+in object-identification performance against the case,theassumptionisnotunreasonable.Apolicy
+non-cooperativeopponent.Conceptually,thiscap- π θ∗—optimized with respect to just one hypoth-
+turesthefollowingidea:Withoutcooperation,we esis o—may also offer relative improvement for
+cannot expect interlocutors to make significant other hypotheses distinct from o. For greater cer-
+headway.Thisassumptionisinherentlyrelatedto tainty, the term δ in the probability can be made
+an answer-player’s failure to abide by Gricean arbitrarily small provided a large enough sample.
+maxims of conversation: Uninformative and de- Sensibly, the term γ indicates the probability is
+ceitfulresponsesviolatethemaximofrelationand also proportional to how much better the com-
+quality, respectively. Instead of explicitly mod- munication mechanism π θ∗ is where ‘‘better’’ is
+eling these violations, Def. 4.2 focuses on the given precise meaning by comparing population
+effect of violations—namely, failure to progress. statisticsfortheobjectiveJ(·)viaα.Atminimum,
+While violation of other Gricean maxims (i.e., we require α > (cid:8), but (cid:8) should be small for suit-
+quantity and manner) are less applicable to the ablyeffectiveanswer-playersanyway.Finally,we
+simple game we consider, the definition of non- again,safelyignoreO(C)terms,whichgoto0as
+cooperationwegive(asanobservableeffect)still mgrows.
+applies.
+Interpretation. The takeaway from Prop. 4.1
+As alluded, when the non-cooperative answer-
+isanunexpectedlysensiblestrategyforgamesuc-
+playeriseffective,thisnon-cooperationisenough
+cess:Thequestion-playerfocusescommunication
+torevealtheanswer-playertothequestion-player.
+efforts only on identifying the goal-object. When
+The question-player may focus on communicat-
+the non-cooperative agent is effective, this com-
+ingtoidentifythegoal-objectandthiswillreduce
+munication strategy essentially reduces an up-
+all terms in the upper-bound of Thm. 4.1; subse-
+perbound on the true cooperation-identification
+quently, we expect this communication strategy
+error. All the while, this strategy very obviously
+to be effective not only for identifying the goal-
+assists the object-recognition task as well. We
+object,butalsoforidentifyingnon-cooperation.
+again note the implication that non-cooperative
+Proposition 4.1. Let o,o(cid:7) ∈ O and θ∗ ,θ ∈ Θ. agents can reveal themselves by their non-
+Supposethenon-cooperativeanswer-playerisef- cooperation.Thequestion-playerneednotexpend
+fective and further suppose both o and o(cid:7) are additional effort to uncover them by dialogue
+α-improved by θ∗ relative to θ with α > (cid:8). Then, actions.
+1092
+Downloaded
+from
+http://direct.mit.edu/tacl/article-pdf/doi/10.1162/tacl_a_00507/2043737/tacl_a_00507.pdf
+by
+guest
+on
+22
+February
+2024
+Comparison to Thm. 4.1. While Thm. 4.1 al- resultshelptounderstandthisheuristicmorefor-
+ludes the interpretation given above—since the mally.Theysuggestthetwostrategiesare,infact,
+object-identificationerrorisshowntocontrolco- complementary and outline the assumptions nec-
+operation identification error in part—Prop. 4.1 essaryforthistobethecase.Incontrast,empirical
+distinguishes itself because it considers all terms analyses can be much more specific to the data
+in the upperbound (not just o(cid:4)er). This subtlety used, among other factors. This, in general, is a
+is important. In particular, a priori, one cannot key differentiation between the analysis we have
+becertainthatimprovingtheobject-identification providedhereandtheoft-usedappealtoheuristics.
+error from S to T also improves the coopera-
+4.4 Proofs
+tion gap Δ. Instead, it could be the case that Δ
+decreases and the overall bound on cer is wors- Here, we provide proof of all theoretical results.
+ened. Aptly, Prop. 4.1 isolates the circumstances Wefirstremindthereaderofsomekeydefinitions
+(i.e., related to Def. 4.2), which ensure this ad- foreasyreference:
+verse effect does not occur. It shows us, under
+reasonableassumptions,thecommunicationstrat-
+Pr(Z=NC)=pNC; (X,Y,Z)∼P θ;
+(cid:3)
+egy discussed in our interpretation controls the p(cid:2) S d=ef m1 i1 (cid:3)[Zi=NC];
+w Ah so nl oe tb edo ,un dd rai wn inT ghm in. fe4 r. e1 na cn ed frn oo mt j ou nst lyso am pe orp ta iort n. o(cid:4)erS(o)d=ef m1 (cid:3)m i=11[o(Xi)(cid:6)=Yi];
+(15)
+of the bound can have unexpected consequences.
+c(cid:5)erS(c)d=ef m1 m i=11[c(Xi)(cid:6)=Zi];
+In fact, this is the topic of much recent work in o(cid:4)erS(o|CP)d=efo(cid:4)er S(cid:7)(o), S(cid:7)=((Xi,Yi)|Zi=CP);
+analysis of learning algorithms (Johansson et al., ΔS(o)d=efp(cid:2) S·o(cid:4)erS(o|NC)−(1−p(cid:2) S)·o(cid:4)erS(o|CP).
+2019; Wu et al., 2019; Zhao et al., 2019; Sicilia
+See Section 4.1 for additional definitions and
+etal.,2022).
+context.
+Comparison to Cooperative Setting. It is also
+Theorem4.1.
+worthwhile to note that setting the reward as
+Claim. Define O as above and take C to be
+ρ(X,Y,Z) = 1[o(X) = Y]isalsoanappropriate
+sufficiently complex so that OΔO ⊆ C. Let d be
+strategy in the distinct fully cooperative Guess
+the VC-Dimension of C. Then for any δ ∈ (0,1),
+What?! game. The authors of the original Guess-
+withprobabilityatleast1−δ,forallo,o(cid:7) ∈ O,
+What?!corpusproposethisrewardexactlyintheir
+follow-up work (Strub et al., 2017), which uses cer (cˆ) ≤ p(cid:2) +o(cid:4)er (o)−Δ (o(cid:7) )+C (16)
+θ S S S
+RLtolearncommunicationstrategiesinthefully
+(cid:5) √
+cooperative setting. Thus, the theoretical results
+whereC = (4+ dlog(2em/d))/(δ 2m),S
+i∼id
+of this section are exceedingly practical. They
+P θ,andcˆ∈ argmin c∈Cc(cid:4)er S(c).
+suggest, for effective non-cooperative agents, we
+maysensiblyemploythesametechniquesinboth Proof. Foranyc ∈ C andδ ∈ (0,1),wehave
+the fully cooperative setting and the partially
+non-cooperative setting. This is beneficial, be- Pr(cer θ(c) ≤ c(cid:4)er S(c)+C) ≥ 1−δ. (17)
+cause the nature of our problem anticipates we
+This is a standard VC-bound; for example,
+willnotknowthesettinginwhichweoperate.
+Thm. 6.11 in Shalev-Shwartz and Ben-David
+(2014). Thus, it suffices to show that for any
+MotivatingaMixedObjective. Asafinalnote,
+sampleS ofsizemandanychoiceofhypotheses
+we remark on how this result may be applied to
+o,o(cid:7) ∈ H,wehave
+properly motivate a reward which, a priori, can
+onlybeheuristicallyjustified.Specifically,avery
+c(cid:4)er (cˆ) ≤ p(cid:2) +o(cid:4)er (o)−Δ (o(cid:7) ). (18)
+reasonable suggestion would be to combine the S S S S
+rewardsinEq.(11)andEq.(12)viaconvexsum. Noticefirst,bychoiceofcˆ,foranyc ∈ C wehave
+Prior to our theoretical analyses, it is unclear that
+the two strategies would be complementary. In- c(cid:4)er (cˆ) ≤ c(cid:4)er (c). (19)
+S S
+stead, the objectives could be competing, and so,
+this mixed strategy could lead to sub-par perfor- By definition of OΔO and its relation to C, for
+manceonbothtasks.Inlightofthis,ourtheoretical anychoiceofo,o(cid:7) ∈ O,thereissomec(cid:7) ∈ C such
+1093
+Downloaded
+from
+http://direct.mit.edu/tacl/article-pdf/doi/10.1162/tacl_a_00507/2043737/tacl_a_00507.pdf
+by
+guest
+on
+22
+February
+2024
+thatc(cid:7)(X) = NC[o(X) (cid:6)= o(cid:7)(X)]forallX.Recall, Then, E[U] = J(θ) − J(θ∗) and application of
+NC[·] acts like an indicator function, returning NC Hoeffding’sinequalityyields
+(cid:6) (cid:7)
+fortrueargumentsandCPotherwise.Thus, Pr(U ≥−(cid:8))≤exp −m(J(θ∗ )−J(θ)−(cid:8))2
+2
+c(cid:4)er (cˆ) ≤ c(cid:4)er (c(cid:7) ) (25)
+S S Tofinish,applyJ(θ∗)−J(θ)−(cid:8) ≥ α−(cid:8) > 0.
+(cid:3)
+1
+= p(cid:2) − 1[o(X ) (cid:6)= o(cid:7) (X )]
+S m i i Now,weproceedwiththeproofofProp.4.1.
+i∈{k|Z k=NC} (20)
+1 (cid:3) Proof. Webeginbyboundingtheprobabilityofa
++ 1[o(X ) (cid:6)= o(cid:7) (X )].
+j j feweventsofinterest.First,
+m
+j∈{k|Z k=CP}
+γ
+Pr(o(cid:4)er (o) ≥ o(cid:4)er (o)−(cid:8)) ≤ (26)
+T S
+Theequalityfollowsbyapplyingthedefinitionof 2
+(cid:7)
+c, appropriately grouping terms, and then using
+aswellas
+the fact: 1[o(X ) = o(cid:7)(X )] = 1 − 1[o(X ) (cid:6)=
+i i i
+o(cid:7)(X i)]. Now, the triangle inequality for classi- Pr(o(cid:4)er T(o(cid:7) ) ≥ o(cid:4)er S(o(cid:7) )−(cid:8)) ≤ γ (27)
+fication error (Crammer et al., 2007; Ben-David 2
+et al., 2007) tells us for any (X,Y) ∈ X × Y
+by two applications of Lemma 4.1. Second, by
+andanyo,o(cid:7) ∈ O wehave
+Hoeffding’s Inequality,√for any δ ∈ (0,1) we
+1[o(cid:7) (X)(cid:6)=Y]−1[o(X)(cid:6)=Y]≤1[o(X)(cid:6)=o(cid:7) (X)] knowwithC = (2m)−1 2 ln6−lnδ
+≤1[o(X)(cid:6)=Y]+1[o(cid:7) (X)(cid:6)=Y].
+δ
+(21) Pr(|p(cid:2) T −p NC| ≥ C) ≤ (28)
+3
+Applying these bounds to the result of Eqn. (20)
+andre-arrangingtermscompletestheproof. and
+δ
+Pr(|p(cid:2) −p | ≥ C) ≤ . (29)
+S NC
+Proposition4.1. 3
+Claim. Let o,o(cid:7) ∈ O and θ∗ ,θ ∈ Θ. Suppose the Third, by assumption on the non-cooperative
+agent,weknowwemaypicklargeenoughsamples
+non-cooperative answer-player is effective and
+further suppose both o and o(cid:7) are α-improved by S andT so
+θ∗ relative to θ with α > (cid:8). Then, for any δ > 0, δ
+Pr(|o(cid:4)er (o | NC)−o(cid:4)er (o | NC)| > (cid:8)) ≤ .
+thereisnsuchthatforallm ≥ n,withprobability T S 3
+atleast1−δ−γ wehave (30)
+ApplyingBoole’sinequalityboundstheprobabil-
+p(cid:2) +o(cid:4)er (o)−Δ (o(cid:7) )
+T T T ity that any one of these events holds by δ +γ.
+(22)
+≤ p(cid:2) S +o(cid:4)er S(o)−Δ S(o(cid:7) )+O(C) Consideringthecomplementeventyieldsalower
+(cid:6) (cid:7) bound on the probability that every one of these
+where S i∼id P θ, T i∼id P θ∗, γ = √2exp −mω2/2 , eventsfailstohold.Specifically,thelowerbound
+ω = α−(cid:8),andC = (2m)−1 2 ln6−lnδ. is1−δ−γ.Thus,itissufficienttoshow
+WefirstgiveaLemma. p(cid:2) +o(cid:4)er (o)−Δ (o(cid:7) )
+T T T
+(31)
+Lemma 4.1. Let o ∈ O and θ,θ∗ ∈ Θ. For any ≤ p(cid:2) S +o(cid:4)er S(o)−Δ S(o(cid:7) )+O(C)
+(cid:8) ≥ 0,supposeoisα-improvedbyθ∗ relativetoθ
+under assumption of the complement event. To
+withα > (cid:8).Then,
+this end, assume the complement. Then, we have
+Pr(o(cid:4)er (o)≥o(cid:4)er (o)−(cid:8))≤exp(−m(α−(cid:8))2) directlythat
+T S 2
+(23)
+whereS i∼id P θ,T i∼id P θ∗. p(cid:2) T +o(cid:4)er T(o) ≤ p(cid:2) S +o(cid:4)er S(o)+2C −(cid:8)
+(32)
+Proof. Given samples S i∼id P θ and T i∼id P θ∗ with So, in the remainder, we concern ourselves with
+S = (X i,Y i,Z i) i andT = (X i∗ ,Y i∗ ,Z i∗) i define showing−Δ (o(cid:7)) ≤ −Δ (o(cid:7))+(cid:8)+O(C).First
+T S
+(cid:3)m notethatforT itisalwaystruethat
+1
+U = ρ(X ,Y ,Z
+)−ρ(X∗ ,Y∗ ,Z∗
+).
+m i i i i i i o(cid:4)er (o(cid:7) ) =p(cid:2) ·o(cid:4)er (o(cid:7)|NC)
+T T T
+i=1 (33)
+(24) +(1−p(cid:2) )·o(cid:4)er (o(cid:7)|CP).
+T T
+1094
+Downloaded
+from
+http://direct.mit.edu/tacl/article-pdf/doi/10.1162/tacl_a_00507/2043737/tacl_a_00507.pdf
+by guest
+on
+22
+February
+2024
+AsimilarequationholdsforS.Then,o(cid:4)er (o(cid:7)) ≤ history. Each is modeled by a neural-network.
+T
+o(cid:4)er (o(cid:7))−(cid:8)byassumption,soexpanding, Architectures of o and the policy π are identical
+S θ
+to the guesser model and questioner model de-
+(1−p(cid:2) )·o(cid:4)er (o(cid:7)|CP)−p(cid:2) ·o(cid:4)er (o(cid:7)|NC)
+T T S S scribed by Strub et al. (2017). We give an over-
+≤ (1−p(cid:2) )o(cid:4)er (o(cid:7)|CP)−p(cid:2) o(cid:4)er (o(cid:7)|NC)−(cid:8).
+S S T T viewofthearchitecturesinFigure4aswell.
+(34)
+Wealsoassume|p(cid:2) −p | ≤ Cand|p −p(cid:2) | ≤ Answer-Player. The cooperative answer-player
+S NC NC T
+C,soapplyingtobothsidesofEq.(34)yields ismodeledbyaneural-networkwithbinaryoutput
+dependent only on the goal-object and the most
+(1−p(cid:2) )·o(cid:4)er (o(cid:7)|CP)−p(cid:2) ·o(cid:4)er (o(cid:7)|NC)
+T T T S immediate question. Strub et al. (2017) demon-
+≤ (1−p(cid:2) S)·o(cid:4)er S(o(cid:7)|CP)−p(cid:2)
+S
+·o(cid:4)er T(o(cid:7)|NC)
+strate—in the cooperative case—that additional
+−(cid:8)+2C ·(o(cid:4)er (o(cid:7)|NC)+o(cid:4)er (o(cid:7)|NC)) featuresdonotimproveperformance.Ontheother
+T S
+≤ (1−p(cid:2) )·o(cid:4)er (o(cid:7)|CP)−p(cid:2) ·o(cid:4)er (o(cid:7)|NC) hand, non-cooperative behaviors may require more
+S S S T
+complex modeling. We explore different features
+−(cid:8)+4C
+for the network modeling the non-cooperative
+(35)
+answer-player. During experimentation, we con-
+Finally,thefact|o(cid:4)er S(o(cid:7)|NC)−o(cid:4)er T(o(cid:7)|NC)| ≤ (cid:8) dition on various combinations of the full (and
+maybeappliedtobothsidesofEq.(35)toattain immediate) dialogue-history, the image, and the
+(1−p(cid:2) )·o(cid:4)er (o(cid:7)|CP)−p(cid:2) ·o(cid:4)er (o(cid:7)|NC) goal-object. The architectures in both cases are
+T T T T
+based on the oracle model described by Strub
+≤ (1−p(cid:2) )·o(cid:4)er (o(cid:7)|CP)−p(cid:2) ·o(cid:4)er (o(cid:7)|NC)
+S S S S et al. (2017) with the addition of an LSTM that
+−(cid:8)+4C +(p(cid:2) +p(cid:2) )(cid:8)
+S T allows conditioning on the full dialogue-history.
+≤ (1−p(cid:2) )·o(cid:4)er (o(cid:7)|CP)−p(cid:2) ·o(cid:4)er (o(cid:7)|NC) SeeFigure4foranoverview.
+S S S S
++4C +(cid:8).
+(36) Training. As noted, o is assumed fixed before
+considering the task of c. In practice, we achieve
+this through supervised learning (SL) by training
+o on human games in the Guess What?! (GW)
+5 Experimentation
+corpus. Similarly, the cooperative answer-player
+Inthissection,weempiricallystudythecommuni- is trained via SL on the GW corpus. The non-
+cationstrategiesjustdiscussedinatheoreticalcon- cooperative answer-player uses our novel corpus
+text.Wealsogiveinsightsonthenon-cooperative of non-cooperative games (see Section 3). Fol-
+strategiesfoundinthecollecteddata. lowing Strub et al. (2017), we pre-train the com-
+munication policy π using SL on the GW cor-
+5.1 Implementation θ
+pus. In some cases, π is then taught a specific
+θ
+Our implementation makes use of the existing communication strategy by fine-tuning with RL
+framework of De Vries et al. (2017). The pri- on simulated dialogue. Dialogue is simulated by
+mary difference in the game we consider is the randomlysamplingZ ∼ Bernoulli(p ),drawing
+NC
+includedpossibilitythattheanswer-playerisnon- an image-object pair uniformly at random from
+cooperative.Assuch,manyofourmodelcompo- the GW corpus, and allowing the current policy
+nents are based on those proposed by the dataset π and the already trained answer-player indi-
+θ
+authors(DeVriesetal.,2017;Strubetal.,2017). catedbyZ toconverse5rounds.Thehypothesisc
+is trained simultaneously on simulated dialogue
+Question-Player. The question-player consists
+during the RL phase of π via SL. We do so
+of: a hypothesis o which predicts the goal-object θ
+because c is assumed to minimize sample error
+given the object categories, object locations, and
+in Thm 4.1. While simultaneous gradient meth-
+thedialogue-history;ahypothesiscwhichpredicts
+ods only approximate this goal, it is more in line
+cooperation given the same information; and the
+with assumptions than fixing c a priori. In gen-
+communication policy π which generates dia-
+θ
+logue given the image5 and the current dialogue- eral, hyper-parameters are fixed for all exper-
+iments and are detailed in the code, which is
+5The image is processed by a VGG network and these publicly available. When possible, we follow the
+featuresinitializetheLSTMstateinFigure4. parameter choices of Strub et al. (2017). As an
+1095
+Downloaded
+from
+http://direct.mit.edu/tacl/article-pdf/doi/10.1162/tacl_a_00507/2043737/tacl_a_00507.pdf
+by
+guest
+on
+22
+February
+2024
+Figure 4: Architecture used in our implementation. Object categories and words are represented using one-hot
+encoding so an embedding is learned for each object/word. Locations are represented by assigning a common
+coordinate-systemtoallimagesandreportingtheobjectcenter’simage-relativecoordinates.
+Figure5:Thefirstthreecommunicationstrategies(toptobottominthelegend)correspondtousingRLwiththe
+objectivedescribedbyEq.(11),Eq.(12),oranaverageofboth.Respectively,thelasttwostrategiescorrespond
+to using no RL to learn a strategy (i.e., supervised learning only) or to making predictions at random. For
+object-identification error, parentheses indicate the subset of examples on which the error rate is computed.
+For non-cooperation detection, the error rate is computed on all samples. Overall, results validate our theoret-
+icalargument.
+exception, we shorten the number of epochs in 5.2 Results
+the RL phase to 10. Recall, the new network
+Wereporterrorforcooperation-identificationand
+c is trained in this phase as well. For c, the
+object-identification. We use a sample S which
+learning rate is 1e-4. The new non-cooperative
+has simulated dialogue (see Training) between
+answer-players are trained similarly to the co-
+our trained question- and answer-players using
+operative answer-players (i.e., as in Strub et al.,
+about 23K image-object pairs sampled from the 2017) but we remove early-stopping to avoid the
+GW test set. The objects/images are fixed for all
+needforavalidationset.Ournon-cooperativecor-
+experiments, but dialogue will of course change
+pusisthususedinitsentiretyfortrainingsinceall
+dependingonthequestion-player.Eachdata-point
+trained agents are evaluated on novel generated
+in the figures corresponds to a single run using
+dialogue(seeSection5.2).Whentrainingwiththe
+a specified percentage of cooperative examples;
+GWcorpus,weusetheoriginaltrain/valsplit.
+that is, the answer-player’s type is selected by
+Comparison. Despite some slight deviations sampling Bernoulli(p NC) and setting p NC as the
+from the original Guess What?! training setup,
+desired%.
+we point out that our fully cooperative results
+are fairly similar. In Figure 5, we show error- HumanNon-CooperativeStrategies. Between
+rate on simulated, cooperative, test dialogues qualitativeanalysisofthisdataandconversations
+for our question-player trained solely on object- withtheworkers,wedeterminedthreeprimaryhu-
+identification;thepreciseerror-rateis48.8%.For manstrategiesfordeception:spamming,absolute
+themostsimilartrainingandtestingsetupusedby contradiction, and alternate goal objects. When
+Strub et al. (2017), the question-player achieves spamming,participantswouldanswereveryques-
+anerror-rateof46.7%. tion with the same answer; for example, always
+1096
+Downloaded
+from
+http://direct.mit.edu/tacl/article-pdf/doi/10.1162/tacl_a_00507/2043737/tacl_a_00507.pdf
+by
+guest
+on
+22
+February
+2024
+answering no. Absolute contradiction was when Strubetal.(2017)foundthatcooperativeanswer-
+participants determined the correct answer to the playersonlyneededaccesstothegoal-objectand
+question-player’s query and then provided the the most immediate question to perform well. This
+negation of this. Finally, alternate goal objects result indicates the complexities inherent to de-
+describes the strategy of selecting an incorrect ception and suggests that distinct strategies were
+object in the image and providing answers as learnedwhennon-cooperativeanswer-playershad
+if this object was the correct goal. Of these, access to more information. In the remainder, we
+spamming is fairly easy to automatically detect; focus on non-cooperative answer-player 2 with
+namely, by searching for games where all an- access to the full dialogue history. Our interpre-
+swersareidentical.Wefind19%ofthecollected tation for answer-players 1, 3, and 4 is largely
+non-cooperative dialogues contain entirely spam similar.
+answers. This, of course, does not account for
+mixedstrategieswithinagame,butitdoesindicate
+EmpiricalValidityofDef.4.2. Ournextobser-
+the dataset is not dominated by the least com-
+vation concerns the formal definition of effective
+plexstrategy.Lastly,weremindthereader,some
+given in Section 4 Def. 4.2. While the limiting
+non-cooperativestrategiesdirectlydescribeviola-
+property required by the definition is not easy
+tions of Gricean maxims. In particular, absolute
+to measure empirically, we observe in Figure 5
+contradiction and alternate goal objects violate
+that the object-identification error on non-
+themaximofquality,whilespammingviolatesthe
+cooperative examples is relatively stable across
+maxim of relevance. Due to the answer-player’s
+question-player communication strategies. This
+simple vocabulary and the greater control given
+fact—that the non-cooperative answer-player ex-
+to the question-player (i.e., in directing conver-
+hibitsbehaviorconsistentwithaneffectiveanswer-
+sation topic and length), the maxims of manner
+player—points to the validity of our theory.
+andquantityaredifficultfortheanswer-playerto
+Recall, an effective answer-player is assumed in
+violate. So, it is expected observed strategies do
+Prop.4.1.
+notviolatethesemaxims.
+Modeling Human Non-Cooperation. We EmpiricalValidityofProposition4.1. Finally,
+further studied strategies in the autonomous the primary conclusion of our theoretical anal-
+non-cooperative answer-players. Notice, besides ysis was that communication strategies which
+spamming, the human strategies may require focusonlyontheobject-identificationtaskshould
+knowledge of the full dialogue history as well be effective for both object-identification and
+as other objects in the image. We tested whether cooperation-identification. Figure 5 confirms this.
+theautonomousanswer-playerutilizedthisinfor- Selecting a communication strategy based on
+mation by training multiple answer-players with improving object-identification improves object-
+different information access: The first produced identification as expected. Further, on the
+answers conditioned only on the goal-object and potentiallyopposingobjectiveofidentifyingnon-
+the most immediate question (1), the next two cooperation, this strategy is also effective. It far
+werealsoconditionedonthefulldialogue-history improves over a random baseline and also im-
+(2) or the full image (3), and the last was condi- provesoverthebaselinewhichusesnoRL-based
+tioned on all of these features(4). We pairedthese strategy. On the other hand, the communication
+non-cooperative answer-players with a question- strategy which focuses only on the identification
+player whose communication strategy focused of non-cooperation fails at the opposing task of
+on the object-identification task; that is, using object-identification. This strategy performs al-
+Eqn. (12). Answer-players 2,3, and4inducedan mostasbadlyasarandombaselinewhentheper-
+object-identification error outside a 95% confi- cent of non-cooperative examples is large and is
+dence interval6 of answer-player 1. In contrast, also consistently worse than the baseline which
+usesnoRL.Themixtureofbothstrategiesseems
+6An upper bound on true error induced by the 1st to achieve good middle ground. Recall, while
+answer-player is 0.749 with confidence 95% (Hoeffding
+this strategy may be heuristically intuited, our
+Bound ≈ 10K samples). The sample error of the 2nd, 3rd,
+theoretical results formally justified this strategy
+and 4th answer-player are, respectively, 0.756, 0.757, and
+0.752. aswell.
+1097
+Downloaded
+from
+http://direct.mit.edu/tacl/article-pdf/doi/10.1162/tacl_a_00507/2043737/tacl_a_00507.pdf
+by
+guest
+on
+22
+February
+2024
+6 Conclusion 7 EthicalConsiderations
+We have described a research prototype. The
+Combining tools from learning theory, reinforce-
+proposeddatasetdoesnotincludesensitiveorper-
+mentlearning,andsupervisedlearning,wemodel
+sonaldata.Ourhumansubjectboardapprovedour
+partially non-cooperative communicative strate-
+protocol.Humansubjectsparticipatedvoluntarily
+gies in dialogue. Understanding such strategies
+and were compensated fairly for their time. The
+is essential when building robust agents capable
+publiclyavailabledatasetisfullyanonymized.
+of conversing with parties of varying intent.
+The proposed architecture relies on pretrained
+Our theoretical and empirical findings suggest
+modelssuchaswordorimageembeddingssoany
+non-cooperative agents may sufficiently reveal
+harmorbiasassociatedwiththesemodelsmaybe
+themselvesthroughtheirnon-cooperativecommu-
+presentinourmodel.Webelievegeneralmethods
+nicativebehavior.
+that propose to mitigate harms can resolve these
+Although the dialogue game studied is simple,
+issues.
+the results have ramifications for more complex
+dialogue systems. Our theoretical results, in par-
+Acknowledgments
+ticular,arenotlimitedinthissenseandmayapply
+to designing communication strategies in distinct We would like to thank Matthew Stone, Raquel
+contexts. As noted in Section 4.1.1, the limited Fernandez, Katherine Atwell, and the anony-
+assumptionswemakefacilitatethis.Forexample, mous reviewers for their helpful comments and
+classifying intents and asking the right clarifica- suggestions.Wealsothanktheactioneditors.
+tion questions is crucial to decision making in
+dialogue(Purveretal.,2003;DeVaultandStone,
+References
+2007; Khalid et al., 2020). Our theory is directly
+applicable to this setting and could be applied
+Mohamed Abouelenien, Veronica Pe´rez-Rosas,
+to inform learning objectives for any dialogue
+Rada Mihalcea, and Mihai Burzo. 2014. Decep-
+agent that asks clarification questions to make a
+tion detection using a multimodal approach. In
+classification.Areal-worldexampleofthisisthe
+Proceedings of the 16th International Confer-
+online-bankingsettingstudiedbyDhole(2020),in
+ence on Multimodal Interaction, pages 58–65.
+which the dialogue agent asks clarification ques-
+https://doi.org/10.1145/2663204
+tions to decide the type of account a user would
+.2663229
+like to open. If we suppose some users may be
+non-cooperative in this context, our theoretical Nicholas Asher and Alex Lascarides. 2013.
+setupissatisfied:thereissomefeaturespace(the Strategic conversation. Semantics and Prag-
+dialogues),thelabelspaceofuser-intentsisfinite, matics, 6:2–1. https://doi.org/10.3765
+/sp.6.2
+users are labeled with a binary indicator of co-
+operation, and the dialogue agent can control the Idan Attias, Aryeh Kontorovich, and Yishay
+distribution over which it learns by asking clari- Mansour. 2019. Improved generalization bounds
+fication questions. Our theoretical results should for robust learning. In Algorithmic Learning
+apply to many similar dialogue systems that can Theory,pages162–183.PMLR.
+askclarificationquestionsorothertypesofques-
+Katherine Atwell, Anthony Sicilia, Seong Jae
+tions.Theonlystipulationsarethatthetheoretical
+Hwang,andMaliheAlikhani.2022.Thechange
+setup is satisfied (e.g., in the manner just shown)
+that matters in discourse parsing: Estimating
+and that our proposed assumptions on the nature
+the impact of domain shift on parser error. In
+of non-cooperative dialogue still hold (i.e., see
+Findings of the Association for Computational
+Section4.3,Def.4.2).
+Linguistics:ACL2022,pages824–845,Dublin,
+To promote continued research, the collected
+Ireland. Association for Computational Lin-
+corpusaswellasourcodearepubliclyavailable.7
+guistics. https://doi.org/10.18653/v1
+/2022.findings-acl.68
+MerwanBarlier,JulienPerolat,RomainLaroche,
+7https://github.com/anthonysicilia/modeling and Olivier Pietquin. 2015. Human-machine
+-non-cooperation-tacl2022. dialogue as a stochastic game. In 16th Annual
+1098
+Downloaded
+from
+http://direct.mit.edu/tacl/article-pdf/doi/10.1162/tacl_a_00507/2043737/tacl_a_00507.pdf
+by
+guest
+on
+22
+February
+2024
+SIGdial Meeting on Discourse and Dialogue AbhishekDas,SatwikKottur,KhushiGupta,Avi
+(SIGDIAL 2015). https://doi.org/10 Singh,DeshrajYadav,Jose´ M.F.Moura,Devi
+.18653/v1/W15-4602 Parikh, and Dhruv Batra. 2017. Visual dia-
+log. In Proceedings of the IEEE Conference
+Shai Ben-David, John Blitzer, Koby Crammer,
+on Computer Vision and Pattern Recognition,
+Alex Kulesza, Fernando Pereira, and Jennifer
+pages326–335.
+Wortman Vaughan. 2010. A theory of learn-
+ingfromdifferentdomains.MachineLearning,
+Harm De Vries, Florian Strub, Sarath Chandar,
+79(1–2):151–175. https://doi.org/10
+Olivier Pietquin, Hugo Larochelle, and Aaron
+.1007/s10994-009-5152-4
+Courville. 2017. Guesswhat?! Visual object
+discovery through multi-modal dialogue. In
+Shai Ben-David, John Blitzer, Koby Crammer,
+Proceedings of the IEEE Conference on
+andFernandoPereira.2007.Analysisofrepre-
+Computer Vision and Pattern Recognition,
+sentations for domain adaptation. In Advances
+pages 5503–5512. https://doi.org/10
+in Neural Information Processing Systems,
+.1109/CVPR.2017.475
+pages137–144.
+Se´bastien Bubeck, Yin Tat Lee, Eric Price, and David DeVault and Matthew Stone. 2007. Man-
+Ilya Razenshteyn. 2019. Adversarial examples agingambiguitiesacrossutterancesindialogue.
+from computational constraints. In Inter- InProceedingsofthe11thWorkshopontheSe-
+national Conference on Machine Learning, mantics and Pragmatics of Dialogue (Decalog
+pages831–840.PMLR. 2007),pages49–56.
+Amanda Cercas Curry and Verena Rieser. 2018.
+Kaustubh D. Dhole. 2020. Resolving intent am-
+#MeToo Alexa: How conversational systems
+biguitiesbyretrievingdiscriminativeclarifying
+respond to sexual harassment. In Proceed-
+questions.arXivpreprintarXiv:2008.07559.
+ings of the Second ACL Workshop on Ethics
+in Natural Language Processing, pages 7–14, Dimitrios I. Diochnos, Saeed Mahloujifar,
+NewOrleans,Louisiana,USA.Associationfor and Mohammad Mahmoody. 2019. Lower
+Computational Linguistics. https://doi bounds for adversarially robust PAC learning.
+.org/10.18653/v1/W18-0802 arXiv:1906.05815v1.
+Huang-Cheng Chou and Chi-Chun Lee. 2020.
+Gintare Karolina Dziugaite and Daniel M. Roy.
+‘‘Your behavior makes me think it is a
+2017. Computing nonvacuous generalization
+lie’’: Recognizing perceived deception using
+bounds for deep (stochastic) neural networks
+multimodal data in dialog games. In 2020
+with many more parameters than training data.
+Asia-Pacific Signal and Information Process-
+arXivpreprintarXiv:1703.11008.
+ingAssociationAnnualSummitandConference
+(APSIPAASC),pages393–402.IEEE. Ioannis Efstathiou and Oliver Lemon. 2014.
+Learningnon-cooperativedialoguebehaviours.
+Nadia K. Conroy, Victoria L. Rubin, and Yimin
+In Proceedings of the 15th Annual Meeting of
+Chen. 2015. Automatic deception detection:
+the Special Interest Group on Discourse and
+Methods for finding fake news. Proceedings
+Dialogue (SIGDIAL), pages 60–68. https://
+of the Association for Information Science and
+doi.org/10.3115/v1/W14-4308
+Technology, 52(1):1–4. https://doi.org
+/10.1002/pra2.2015.145052010082
+Uriel Feige, Yishay Mansour, and Robert
+Schapire. 2015. Learning and inference in the
+Koby Crammer, Michael Kearns, and Jennifer
+presenceofcorruptedinputs.InConferenceon
+Wortman. 2007. Learning from multiple
+LearningTheory,pages637–657.PMLR.
+sources. In Advances in Neural Information
+ProcessingSystems,pages321–328.
+Alexia Galati and Susan E. Brennan. 2021. What
+Daniel Cullina, Arjun Nitin Bhagoji, and Prateek is retained about common ground? Distinct
+Mittal. 2018. PAC-learning in the presence of effects of linguistic and visual co-presence.
+adversaries. Advances in Neural Information Cognition, 215:104809. https://doi.org
+ProcessingSystems,31. /10.31234/osf.io/6at5w
+1099
+Downloaded
+from
+http://direct.mit.edu/tacl/article-pdf/doi/10.1162/tacl_a_00507/2043737/tacl_a_00507.pdf
+by
+guest
+on
+22
+February
+2024
+Yaroslav Ganin and Victor Lempitsky. 2015. 22nd International Conference on Artificial
+Unsuperviseddomainadaptationbybackpropa- Intelligence and Statistics, pages 527–536.
+gation.InInternationalConferenceonMachine PMLR.
+Learning,pages1180–1189.
+Atsushi Kajii and Stephen Morris. 1997. The ro-
+bustness of equilibria to incomplete informa-
+Kallirroi Georgila and David Traum. 2011a.
+tion.Econometrica:JournaloftheEconometric
+Learningculture-specificdialoguemodelsfrom
+Society, pages 1283–1309. https://doi
+non culture-specific data. In International
+.org/10.2307/2171737
+Conference on Universal Access in Human-
+Computer Interaction, pages 440–449. Springer. Simon Keizer, Markus Guhe, Heriberto
+https://doi.org/10.1007/978-3-642 Cuaya´huitl, Ioannis Efstathiou, Klaus-Peter
+-21663-3 47 Engelbrecht, Mihai Dobre, Alex Lascarides,
+and Oliver Lemon. 2017. Evaluating persua-
+Kallirroi Georgila and David Traum. 2011b.
+sionstrategiesanddeepreinforcementlearning
+Reinforcement learning of argumentation dia-
+methods for negotiation dialogue agents. In
+loguepoliciesinnegotiation.InTwelfthAnnual
+Proceedings of the 15th Conference of the Eu-
+Conference of the International Speech Com-
+ropean Chapter of the Association for Com-
+munication Association. https://doi.org
+putational Linguistics: Volume 2, Short Papers,
+/10.21437/Interspeech.2011-544
+pages 480–484, Valencia, Spain. Association
+Pascal Germain, Amaury Habrard, Franc¸ois for Computational Linguistics. https://doi
+Laviolette, and Emilie Morvant. 2020. PAC- .org/10.18653/v1/E17-2077
+bayesanddomainadaptation.Neurocomputing,
+Baber Khalid, Malihe Alikhani, and Matthew
+379:379–397. https://doi.org/10.1016
+Stone. 2020. Combining cognitive modeling
+/j.neucom.2019.10.105
+and reinforcement learning for clarification in
+dialogue. In Proceedings of the 28th Interna-
+Arthur Gretton, Karsten M. Borgwardt, Malte J.
+tional Conference on Computational Linguis-
+Rasch, Bernhard Scho¨lkopf, and Alexander
+tics, pages 4417–4428. https://doi.org
+Smola. 2012. A kernel two-sample test.
+/10.18653/v1/2020.coling-main.391
+The Journal of Machine Learning Research,
+13(1):723–773. Mark G. Lee. 2000. The ethics of deception:
+Why AI must study selfish behaviour. Cog-
+Janosch Haber, Tim Baumga¨rtner, Ece Takmaz,
+nitive Science Research Papers-University of
+Lieke Gelderloos, Elia Bruni, and Raquel
+BirminghamCSRP.
+Ferna´ndez. 2019. The PhotoBook dataset:
+Building common ground through visually- Sarah Ita Levitan. 2019. Deception in spoken
+grounded dialogue. In Proceedings of the dialogue: Classification and individual differ-
+57th Annual Meeting of the Association for ences.Ph.D.thesis,ColumbiaUniversity.
+Computational Linguistics, pages 1895–1910, Zachary Lipton, Yu-Xiang Wang, and Alexander
+Florence, Italy. Association for Computational Smola. 2018. Detecting and correcting for
+Linguistics. https://doi.org/10.18653 label shift with black box predictors. In In-
+/v1/P19-1184 ternational Conference on Machine Learning,
+pages3122–3130.PMLR.
+Anthony Jameson, Bernhard Kipper, Alassane
+Ndiaye, Ralph Scha¨fer, Joep Simons, Thomas OmarMontasser,SteveHanneke,andNatiSrebro.
+Weis, and Detlev Zimmermann. 1994. Co- 2020. Reducing adversarially robust learn-
+operating to be noncooperative: The dialog ing to non-robust PAC learning. Advances
+system pracma. In Annual Conference on Arti- in Neural Information Processing Systems,
+ficial Intelligence, pages 106–117. Springer. 33:14626–14637.
+https://doi.org/10.1007/3-540-58467
+JohnNash.1951.Non-cooperativegames.Annals
+-610
+of Mathematics, pages 286–295. https://
+doi.org/10.2307/1969529
+Fredrik D. Johansson, David Sontag, and Rajesh
+Ranganath. 2019. Support and invertibility Steven Pinker, Martin A. Nowak, and James J.
+in domain-invariant representations. In The Lee. 2008. The logic of indirect speech.
+1100
+Downloaded
+from
+http://direct.mit.edu/tacl/article-pdf/doi/10.1162/tacl_a_00507/2043737/tacl_a_00507.pdf
+by
+guest
+on
+22
+February
+2024
+Proceedings of the National Academy of IEEE. https://doi.org/10.1109/SMC
+sciences, 105(3):833–838. https://doi.org .2013.398
+/10.1073/pnas.0707192105
+Kai Shu, Amy Sliva, Suhang Wang, Jiliang
+BrianPlu¨ss.2010.Non-cooperationindialogue.In Tang, and Huan Liu. 2017. Fake news detec-
+ProceedingsoftheACL2010StudentResearch tion on social media: A data mining perspec-
+Workshop,pages1–6. tive. ACM SIGKDD Explorations Newsletter,
+19(1):22–36. https://doi.org/10.1145
+Brian Plu¨ss. 2014. A Computational Model of /3137597.3137600
+Non-Cooperation in Natural Language Dia-
+Anthony Sicilia, Katherine Atwell, Malihe
+logue.Ph.D.thesis,TheOpenUniversity.
+Alikhani, and Seong Jae Hwang. 2022. PAC-
+Matthew Purver, Jonathan Ginzburg, and Patrick bayesian domain adaptation bounds for mul-
+Healey. 2003. On the means for clarifica- ticlass learners. In The 38th Conference on
+tionindialogue.InCurrentandNewDirections UncertaintyinArtificialIntelligence.
+in Discourse and Dialogue, pages 235–255.
+Anthony Sicilia, Xingchen Zhao, Anastasia
+Springer. https://doi.org/10.1007/978
+Sosnovskikh, and Seong Jae Hwang. 2021. -94-010-0019-211
+PAC bayesian performance guarantees for
+Stephan Rabanser, Stephan Gu¨nnemann, and deep (stochastic) networks in medical imag-
+Zachary Lipton. 2019. Failing loudly: An ing. In Medical Image Computing and Com-
+empirical study of methods for detecting data- puter Assisted Intervention – MICCAI 2021,
+set shift. Advances in Neural Information Pro- pages 560–570, Cham. Springer International
+cessingSystems,32. Publishing. https://doi.org/10.1007
+/978-3-030-87199-4_53
+David Schlangen. 2019. Grounded agreement
+Felix Soldner, Vero´nica Pe´rez-Rosas, and Rada
+games: Emphasizing conversational grounding
+invisualdialoguesettings.arXiv:1908.11279v1. Mihalcea. 2019. Box of lies: Multimodal de-
+ception detection in dialogues. In Proceed-
+Alice Schoenauer-Sebag, Louise Heinrich, Marc ings of the 2019 Conference of the North
+Schoenauer, Michele Sebag, Lani F. Wu, and American Chapter of the Association for
+SteveJ.Altschuler.2019.Multi-domainadver- Computational Linguistics: Human Language
+sarial learning. In International Conference on Technologies, Volume 1 (Long and Short
+LearningRepresentation. Papers), pages 1768–1777. https://doi
+.org/10.18653/v1/N19-1175
+Alexandru Constantin Serban, Erik Poll, and
+Joost Visser. 2018. Adversarial examples - A Florian Strub, Harm De Vries, Jeremie Mary,
+complete characterisation of the phenomenon. Bilal Piot, Aaron Courvile, and Olivier
+arXiv:1810.01185v2. Pietquin. 2017. End-to-end optimization of
+goal-driven and visually grounded dialogue
+Shai Shalev-Shwartz and Shai Ben-David.
+systems. In Proceedings of the 26th Interna-
+2014. Understanding Machine Learning:
+tional Joint Conference on Artificial Intelli-
+From Theory to Algorithms. Cambridge Uni-
+gence,pages2765–2771.https://doi.org
+versity Press. https://doi.org/10.1017
+/10.24963/ijcai.2017/385
+/CBO9781107298019
+Richard S. Sutton, David A. McAllester,
+Lloyd S. Shapley. 1953. Stochastic games. Pro- Satinder P. Singh, Yishay Mansour, et al.
+ceedings of the National Academy of Sciences, 1999. Policy gradient methods for reinforce-
+39(10):1095–1100. https://doi.org/10 ment learning with function approximation.
+.1073/pnas.39.10.1095 In Advances in Neural Information Process-
+ing Systems, volume 99, pages 1057–1063.
+JaeeunShimandRonaldC.Arkin.2013.Ataxon-
+Citeseer.
+omy of robot deception and its benefits in HRI.
+In 2013 IEEE International Conference on Sys- David Traum, William Swartout, Jonathan
+tems, Man, and Cybernetics, pages 2328–2335. Gratch, and Stacy Marsella. 2008. A virtual
+1101
+Downloaded
+from
+http://direct.mit.edu/tacl/article-pdf/doi/10.1162/tacl_a_00507/2043737/tacl_a_00507.pdf
+by
+guest
+on
+22
+February
+2024
+human dialogue model for non-team inter- videos. In Thirty-Second AAAI Conference on
+action, Recent Trends in Discourse and Artificial Intelligence. https://doi.org
+Dialogue, pages 45–67. Springer. https:// /10.1609/aaai.v32i1.11502
+doi.org/10.1007/978-1-4020-6821-83
+Han Zhao, Remi Tachet Des Combes, Kun
+Aimilios Vourliotakis, Ioannis Efstathiou, and Zhang,andGeoffreyGordon.2019.Onlearning
+Verena Rieser. 2014. Detecting deception in invariant representations for domain adapta-
+non-cooperativedialogue:Asmarteradversary tion. In International Conference on Machine
+cannot be fooled that easily. In 18th Workshop Learning,pages7523–7532.PMLR.
+on the Semantics and Pragmatics of Dialogue,
+Han Zhao, Shanghang Zhang, Guanhang Wu,
+pages252–254.
+Jose´ M. F. Moura, Joao P. Costeira, and
+Ronald J. Williams. 1992. Simple statistical
+Geoffrey J. Gordon. 2018. Adversarial mul-
+gradient-following algorithms for connection- tiple source domain adaptation. In Advances
+ist reinforcement learning. Machine Learning, in Neural Information Processing Systems,
+8(3–4):229–256. https://doi.org/10
+pages8559–8570.
+.1007/BF00992696
+Lina Zhou, Judee K. Burgoon, Jay F.
+Yifan Wu, Ezra Winston, Divyansh Kaushik,
+Nunamaker, and Doug Twitchell. 2004. Au-
+and Zachary Lipton. 2019. Domain adaptation
+tomating linguistics-based cues for detecting
+withasymmetrically-relaxeddistributionalign-
+deception in text-based asynchronous computer-
+ment. In International Conference on Machine
+mediated communications. Group Decision
+Learning,pages6872–6881.PMLR.
+and Negotiation, 13(1):81–106. https://
+Zhe Wu, Bharat Singh, Larry S. Davis, and V. S. doi.org/10.1023/B:GRUP.0000011944
+Subrahmanian. 2018. Deception detection in .62889.6f
+1102
+Downloaded
+from
+http://direct.mit.edu/tacl/article-pdf/doi/10.1162/tacl_a_00507/2043737/tacl_a_00507.pdf
+by
+guest
+on
+22
+February
+2024

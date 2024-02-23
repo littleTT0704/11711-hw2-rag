@@ -1,0 +1,566 @@
+MSNet: A Multilevel Instance Segmentation Network for Natural Disaster
+Damage Assessment in Aerial Videos
+Multilevel
+Consistency
+XiaoyuZhu JunweiLiang AlexanderHauptmann
+CarnegieMellonUniversity CarnegieMellonUniversity CarnegieMellonUniversity
+xiaoyuz3@cs.cmu.edu junweil@cs.cmu.edu alex@cs.cmu.edu
+Aerial Video Collection MSNet Building Damage Assessment
+Natural Disasters:
+Hurricanes, Tornadoes
+House Box Damage Box
+Figure1.Illustrationofthenaturaldisasterdamageassessmentpipeline.Aftermathsofnaturaldisastersarerecordedbydrones.Ourmodel
+isabletodetectdamagemasksanddamagescalesindifferentlocations. Thedamagedetectionsalongwithdrones’GPStrajectorycould
+generateadamageassessmentlocationheatmaptoaidtimelydisasterreliefefforts.
+Hierarchical Region Proposal Network
+Abstract relief. However, current damage assessments are mostly
+based on manual damage detection and documentation,
+Inthispaper,westudytheproblemofefficientlyassess- whichisslow,expensiveandlabor-intensivework[24].
+ingbuildingdamageafternaturaldisasterslikehurricanes,
+With the increasing availability of consumer-grade
+floods or fires, through aerial video analysis. We make
+drones, a large number of aerial videos are recorded and
+two main contributions. The first contribution is a new
+sharedacrosssocialmedia[18].Afteranaturaldisaster,like
+dataset,consistingofuser-generatedaerialvideosfromso-
+ahurricaneoraflood,peoplefrequentlysharedronefootage
+cialmediawithannotationsofinstance-levelbuildingdam-
+ofthedistrict,ortheauthoritiescoulddispatchdronesthem-
+age masks. This provides the first benchmark for quanti-
+selvestoassessthedamageofthearea. Thesevideoscould
+tative evaluation of models to assess building damage us-
+serve as valuable resources for automatic damage assess-
+ingaerialvideos. Thesecondcontributionisanewmodel,
+ment. Compared with satellite imagery used in previous
+namely MSNet, which contains novel region proposal net-
+damage assessment task works [7, 12, 26], drone videos
+work designs and an unsupervised score refinement net-
+have the advantage of capturing detailed observations of
+workforconfidencescorecalibrationinbothboundingbox
+each building from different angles other than just from a
+and mask branches. We show that our model achieves
+top-down perspective. Valuable structural information of
+state-of-the-artresultscomparedtopreviousmethodsinour
+thebuildingscouldbeextractedfromdronevideosforfur-
+dataset.1
+therdamageevaluation,i.e.,whetherthebuildingsaregoing
+tocollapse.
+Consider the example in Figure 1, there are three chal-
+1.Introduction
+lengesforautomaticbuildingdamageassessment. Thefirst
+isthediversityofbuildings,thelevelofdamagesandthelo-
+In recent years, natural disasters have impacted many
+cationofdamages.Buildingscouldincludehomes,schools,
+vulnerableareasaroundtheworld.In2019,therehavebeen
+coastalbuildings,factories,andotherfacilities.Somemight
+tennaturaldisastereventswithdamagesofmorethan1bil-
+beslightlydamaged,andothersmightbecompletelydam-
+lion dollars each across the United States [9]. Timely re-
+aged. Some might only have severe damage on the roof.
+sponse to natural disasters plays a crucial role in disaster
+The second challenge is the detection of small objects and
+1https://github.com/zgzxy001/MSNET debris. Thedronevideosareusuallyrecordedfromahigh
+0202
+ceD
+13
+]VC.sc[
+2v97461.6002:viXra
+altitude where many of the damaged parts are only repre- media [22]. Those datasets only have image-level labels
+sented by a few dozen pixels (See Section 3). The third available, because the scene captured by a single ground-
+challenge is the changes of viewpoints as the drone flies level image is highly limited. Besides, due to the lack of
+over the area. The damage of a building might only be geo-tags in social media, ground-level images may not be
+visible from a certain viewpoint. This leads to problems suitableforlarge-scaledamageassessment. Anotherdisas-
+like missed detection and inconsistent detections by a sin- terdatasourceissatelliteimagerybasedonremotesensing
+gleimage-baseddetector. [7, 12, 26, 27, 16]. However, the main limitation of satel-
+To overcome the aforementioned challenges, we have liteimageryisthatitcouldnotprovidedetaileddamagein-
+collectedthefirstdatasetwithaerialvideosfornaturaldis- formation due to the long distance to the captured build-
+aster damage assessment. Our dataset, namely ISBDA ings and its limited vertical viewpoint. We are the first to
+(Instance Segmentation in Building Damage Assessment), propose a dataset from drone video viewpoints (typically
+consistsoffine-grainedbuildingdamageboundingboxand aboutforty-fivedegrees)fordamageassessmenttaskswith
+mask annotations of different damage levels. This pro- instance-leveldamageannotations.
+videsthefirstquantitativebenchmarkforevaluatingbuild-
+ingdamageassessmentmodels. Oursecondcontributionis
+toproposeanewneuralnetworkmodel,MSNet,toaddress Damage Detection Approaches. Current damage detec-
+thedifficultiesofaccuratelydetectingdamagesinbuildings tion approaches can be put into three categories. The
+with aerial videos. Our model makes use of the hierarchi- first category is using supervised machine learning meth-
+cal relationship between building and damage, and inter- ods which include pixel-based relevant change detection
+frame spatial consistency of multiple viewpoints to train [5] and object-based local descriptors [29]. The second
+more robust representations. To summarize, our contribu- category includes unsupervised methods [11, 21, 23] that
+tionisfourfold: generally refer to outlier detection in scene changes. The
+third category, a recent trend on damage assessment is us-
+• We present the first natural disaster building damage ing semi-supervised approaches [10] aimed at using less
+assessmentdataset,namelyISBDA,usingaerialdrone human-labeleddataandmaintaininghigheraccuracy.Other
+videos. Itisannotatedwithfine-grainedinstance-level literature also proposed deep learning frameworks such as
+building and damage bounding boxes and masks. It Convolutional Neural Networks (CNN) [1, 22] to predict
+providesthefirstquantitativebenchmarkforassessing the damage level of each image. However, existing mod-
+damageassessmentinaerialvideos. elsonlyworkedonbuildingboundingboxpredictiontasks,
+whichlackspecificlocationsofdamagedparts.
+• WeproposeanovelneuralmodeltermedHierarchical
+RegionProposalNetwork(HRPN),whichexploresthe
+hierarchical spatial relationship among different ob- Anchor-basedRegionProposalNetworks. Existinglit-
+jects, andthussignificantlyimprovingthemodelper- erature on anchor-based region proposal networks mostly
+formance. adopted dense anchoring scheme, where anchors are sam-
+pleddenselyoverthespatialfeaturespacewithpredefined
+• We propose an unsupervised score refinement model
+scales and aspect ratios. The most representative work is
+named Score Refinement Network (SRN) based on
+Region Proposal Network (RPN) introduced in Faster R-
+inter-frameconsistencytotacklethechallengesofde-
+CNN [25], which designed a light fully convolutional net-
+tectionsusingdronevideos.
+worktomapslidingwindowstoalow-dimensionalfeature
+space. Thisframeworkhasbeenwidelyadoptedinlaterre-
+• We empirically validate our model on the proposed
+search[8,13]. Someresearch[33]focusedonusingmeta-
+ISBDA dataset for damage assessment, in which our
+learningtodynamicallygenerateanchorsfromthearbitrary
+model achieves the best results compared to state-of-
+customized prior boxes. Other research works [4, 6, 34]
+the-artobjectdetectionmodels.
+adoptedcascadearchitecturetoregressboundingboxesiter-
+ativelyforprogressiveanchorrefinement.Someresearchers
+2.RelatedWork
+[30]triedtoremovetheiterationprocessbypredictingthe
+Natural Disaster Damage Assessment Datasets. Exist- center of objects of interest. However, there is still a lack
+ingdamageassessmentdatasetcanberoughlycategorized ofregionproposalnetworksthatcouldutilizespatialhierar-
+into two types: ground-level images and satellite imagery. chicalrelationshipsamongobjectswhichcouldpotentially
+Theground-levelimagesweremostlycollectedfromsocial improvedetectionaccuracy.
+Figure2.VisualizationofourISBDAdataset. Thegreen,yellowandredpolygonsdenotedamagesinSlight,SevereandDebrislevels,
+respectively.Therectanglescomposedofsolidlinesrepresentdamagedbuildingboundingboxes.Thepolygonswithdottedlinesrepresent
+segmentationmasksofdamagedparts.
+Detection Score Refinement. Current research in detec- thesevideoclips. Overall,wehavecollected1,030frames
+tion score refinement can be categorized into two streams, forinstance-levelbuildinganddamageannotation.
+boundingboxscorerefinementandmaskscorerefinement. One important problem is to define damage scale and
+In bounding box score correction, most works focused on corresponding standards which can cover various types of
+making modifications on the basis of Non-maximum Sup- damagesindifferentscenes. Followingthedamageassess-
+pression (NMS) algorithm, such as Fitness NMS [28] and ment practice, Joint Damage Scale [12], we divide build-
+SoftNMS [2]. Jiang et al. [15] proposed IoU-Net that di- ing damages into three levels: Slight, Severe and Debris.
+rectly predicted box IoU, and the predicted IoU was used Slight refers to visible cracks or appearance damages. Se-
+fortheboundingboxesrefinement.Intermsofscorerefine- vere refers to partial wall or roof collapse, which are ap-
+ment in mask level, Mask Scoring R-CNN [14] was pro- parentstructuraldamages. Debrisreferstocompletelycol-
+posed by adding a MaskIoU head to regress the IoU be- lapsedbuildings.
+tween the predicted mask and its ground truth mask. One
+3.2.HierarchicalInstance-levelAnnotation
+limitationofthisapproachisthatitcanonlyrefinethemask
+scores, which nearly has no impact on the bounding box Toprovidefine-grainedlocalizationinformationofindi-
+branch. Our proposed score refinement algorithm based vidualdamages,weformulatethedamageassessmenttask
+oninter-frameconsistencyisabletoachieveconsistentim- as an instance segmentation problem. We annotate both
+provementinbothboundingboxandmaskbranches. the polygons of damaged buildings and the specific dam-
+aged parts of the buildings. In order to explore the hierar-
+3.TheISBDADataset chicalrelationshipsbetweenbuildinganddamagedpartin-
+stances(i.e.,specificdamagedpartsarewithincorrespond-
+3.1.DataCollection
+ingdamagedbuildingboxes),wealsoincludethemappings
+Inordertofullyassessbuildingdamagesindifferentsce- betweeneachdamagedpartIDanditscorrespondingdam-
+nariosandlocations,wehavecollectedtenvideosfromso- agedbuildingID.Thedatasetisannotatedbythreeexperi-
+cialmediaplatforms, whichrecordedseverehurricaneand encedannotators,andonepassofverificationisperformed
+tornado disaster aftermaths in recent years. Specifically, foreachannotationtoensureaccuracy.
+the aerial videos were recorded after Hurricane Harvey in
+3.3.DatasetStatistics
+2017, Hurricane Micheal and Hurricane Florence in 2018
+and other three tornadoes (EF-2 or EF-3) in 2017, 2018 Overall,1,030imagessampledfrom10videosareanno-
+and 2019, respectively. The affected areas recorded in the tatedwithinstance-levelbuildingmasksanddamagedpart
+videos include Florida, Missouri, Illinois, Texas, Alabama masks.Thedatasethas2,961damagedpartinstanceswhich
+andNorthCarolinaintheUnitedStates. Thetotallengthof are divided into three levels: Slight, Severe, and Debris.
+thecollectedvideosisabout84minutes. Following Microsoft COCO’s [20] size definition, we cal-
+Togetindividualframes,wefirstobtainvideoclipsfrom culate the number of damaged part instances in different
+the ten videos that: (1) do not have apparent camera rota- sizesforeachdamagescale,showninTable1.
+tions;and(2)flywithmoderateandstablespeed.Tofurther We also analyze the distribution of the area of damage
+improve the annotation efficiency and cover different sce- segmentationintheISBDAdataset,showninFigure3. We
+narios, we extract one frame out of every ten frames from observe that the majority of the damage segmentation are
+DamageScale Small Medium Large Total pervise low-level anchor sampling and damage proposals
+Slight 204 1169 746 2119 generation.
+Severe - 120 440 560
+Score Refinement Network is proposed to calibrate the
+Debris - 54 228 282
+confidence scores of instances in adjacent frames which
+Table 1. Distribution of annotation sizes. Small: area less than share common appearance features but have confidence
+32×32;Medium:areagreaterthan32×32andlessthan96×96; scorevariances.
+Large:areagreaterthan96×96.Areaismeasuredasthenumber MaskR-CNNHeadincludestheR-CNNheadforbound-
+ofpixelsinthesegmentationmask. ing box and class prediction, and the Mask head for mask
+prediction[13].
+relatively small. Visualization of the ISBDA dataset and
+In the rest of this section, we will introduce the above
+annotationsisshowninFigure2.
+componentsandthelearningobjectivesindetails.
+4.2.HierarchicalRegionProposalNetwork
+Traditional Region Proposal Network (RPN) treats all
+objects in the same spatial level, and uniformly generates
+dense anchors over the feature space. If we adopt a con-
+ventionalRPNschemeandtraintheRPNwithbuildingand
+damageproposalssimultaneously,thehierarchicalrelation-
+ship between buildings and damaged parts will not be uti-
+lized. Therefore, we propose a new model, termed Hier-
+archicalRegionProposalNetwork(HRPN),toaddressthe
+aforementionedproblems.
+In HRPN, there are two RPNs sharing the same back-
+bone network: a high-level RPN and a low-level RPN.
+Figure3.Thedistributionoftheareaofdamagesegmentationin
+Thehigh-levelRPNistrainedwithdamagedbuildingboxes
+our ISBDA dataset. We only show the distribution of areas be-
+withbinarylabelsindicatingwhethertheproposalisadam-
+low 90th percentile of the whole dataset for better visualization
+aged building or not. The low-level RPN utilizes building
+purpose.Areaismeasuredasthenumberofpixelsinthesegmen-
+proposaloutputsfromthehigh-levelRPNforanchorsam-
+tationmask.
+pling. We sample anchors based on one of the two met-
+rics: Intersection over Union (IoU) and Inner Intersection
+4.Method (II) between high-level region proposals and low-level an-
+chors. For each low-level low-level (damage) anchor A ,
+4.1.Overview wedefineitssamplingscoreas:
+(cid:101)a
+to
+T soo mpr eov oi fde thfi ene e- xg ir sa ti in ne gdl wo oc ra kli sza [t 1io 2n ],in wfo erm foat ri mon u, las ti emi tl ha er SIoU(A a(cid:101),Ap)= Am pa ∈x
+P
+AA aa(cid:101) (cid:101)(cid:84) (cid:83)AA pp (1)
+damage assessment task as an instance segmentation
+p inr so tb al ne cm e. mM aso kr seo inv se tr e, ao du or fm bo ud ile dl inw gi -l ll evp ere l,di wct hid ca hm ia sg ae- mle ov re el
+SII(A a(cid:101),Ap)= Am pa ∈x
+P
+A
+a(cid:101)
+A(cid:84) a(cid:101)Ap
+(2)
+challenging task due to the high damage variance and
+small damaged area. We propose a new model named whereP isasetofhigh-level(building)regionpropos-
+MSNet in order to learn more robust representations in als. For each anchor, we compute its sampling score and
+different scenarios with different viewpoints. It includes onlykeepanchorswithscoreslargerthanacertainthresh-
+twotypesofsupervision: supervisionofbuildingbounding oldS. Thenthesampledanchorsareusedfordamagepro-
+boxes for low-level damage anchor sampling and mask posalsgeneration.
+segmentation; and supervision of temporal and spatial
+4.3.ScoreRefinementNetwork
+relationships between adjacent video frames. In summary,
+ithasthefollowingkeycomponents: In previous works [3], the confidence scores are deter-
+Pyramid Backbone Network uses ResNet-50 based minedbysingle-framedetection,whilecorrespondencebe-
+Feature Pyramid Network (FPN) [19] to extract spatial tween two adjacent frames is not utilized. We propose
+featuresofinputimages. a score refinement model based on inter-frame temporal
+Hierarchical Region Proposal Network first generates and spatial correspondence termed Score Refinement Net-
+high-level building proposals and then uses them to su- work(SRN).Theinputofthemodelisrandomlygenerated
+Score Refinement Network Mask R-CNN Head and
+Score Refinement
+0.35
+0.25
+Pyramid Backbone
+Hierarchical Region Proposal Network
+Network
+0.5 0.6
+0.85
+0.75
+Figure4.NetworkarchitectureofMSNet.Theleftpartcontainsapyramidbackbonenetworktoextractfeaturesinmulti-scalelevels.The
+backbonenetworkissharedinthetwoneuralnetwork’straining.Thefirstneuralnetwork(Bottom)isforgeneratinginstancesegmentation
+results.Specifically,foreachimage,HierarchicalRegionProposalNetworktakestheencodedfeaturestogenerateproposalsfordamaged
+buildings.Thebuildingproposalsareusedtogivesupervisionondamageproposalsgeneration(YellowArrow).Thesecondbranch(Top)
+isforthetrainingofScoreRefinementNetwork.Theadjacentframes(imageswithgreenandblueedges)alongwithonenegativesample
+(imagewithrededges)arefirstlyfedintothePyramidBackboneNetwork,thenScoreRefinementNetworkistrainedwiththeproposed
+Multi-scaleConsistencyLosstolearnfeaturesimilarity. Thesetwobranchesarejoinedattheend,whereMaskR-CNNHeadgenerates
+boundingboxandmaskpredictions.Finally,thescorerefinementalgorithmisperformedtocalibratetheconfidencescores.
+tripletsandeachtripletiscomposedofoneframeanditsad- ture P, we can obtain its feature from the last SRN layer
+jacentframeasapositiveframeandanotherrandomframe as f(P), where f is a feature encoder which is composed
+as a negative frame. By incorporating multi-scale features ofthreefullyconnectedlayers. Then,weproposeaspatial-
+from the FPN backbone, we design a multi-scale consis- wisesimilaritymetricoftwofeaturemapsP ,P inFPN
+ik jk
+tencylosstoforceSRNtolearnfeaturerepresentationssuch levelkusing:
+that one sample’s distance to its positive sample is closer
+t sh ca on rei sts ofd ii nst sa tn ance cet so inth ae dn jae cg ea nti tv fe rao mn ee s. wW he ica him shato rer ce ofi mne mt oh ne
+Sim(P ik,P jk)=
+(cid:88)W (cid:88)H (cid:107)ff (( PP
+i
+ww
+k
+hh )) (cid:107)· (cid:107)f f( (P Pjw wkh h)
+)(cid:107)
+(3)
+w=0h=0 ik jk
+appearancefeaturesbuthaveconfidencescorevariances.
+Inspired by [31], we use patch mining to build triplets
+and each is composed of one sample P i, its relative adja- D(P ik,P jk)=1−Sim(P ik,P jk) (4)
+centframeP+ anditsrandomsampleP−. Thetripletsare
+i i
+sampledbasedonthefactthattheaveragedronespeedis50
+Givenasetoftripletsandeachtripletisdenotedas(X,
+mph and thus the frame variances within half seconds are X+, X−) , we aim to train SRN which can learn feature
+small. Therefore, givenaframex t attimetandthevideo representations such that D(X,X−) > D(X,X+) using
+framerater,thepositivesampleisdefinedastheframein
+theMulti-scaleConsistencyLoss(MCL):
+range[x −0.5r,x +0.5r]. Thenegativesampleisdefined
+t t
+(cid:83)
+astheframeinrange[0,x −10r] [x +10r,T]. T isthe
+t t L
+maximumframenumberofthevideo. L mcl(X,X+,X−)=(cid:88) max{0,D(Xi,X i+)−D(Xi,X i−)+m} (5)
+i=1
+Multi-scalefeaturesusuallydemonstratesignificantper-
+formance improvement in object detection tasks [13, where m is a margin constraint parameter, and L is the
+19]. Therefore, we propose Multi-scale Consistency Loss numberofmulti-scalelayers.
+(MCL) which makes use of multi-scale feature maps. For
+4.4.Training
+two image patches X , X , we firstly obtain the feature
+i j
+maps of each image from the last four layers of the FPN In this section, we provide detailed descriptions of the
+backbone, namelyP , P , wherek ∈[1, 2, 3, 4]. These trainingprocedure. Thefirstpartofthelossfunctionisthe
+ik jk
+feature maps are used as input to SRN. For an input fea- HRPNloss,whichisdefinedas:
+testontherest20%dataset. Werepeatthesplitandexper-
+L hrpn=Lh rpn+Ll rpn. (6) iments 3 times and report the results in Table 2. The final
+reported results are the average over the evaluation results
+Here, Lh and Ll represent the loss of high-level ofallsplits.
+rpn rpn
+RPNandlow-levelRPN,respectively. Thelow-levelRPN We report the standard COCO instance segmentation
+conducts anchor sampling and proposal generation under metric[20]includingAP(averagedoverallIoUthresholds),
+the supervision of high-level RPN. As described in Sec- AP@0.25,AP@0.5,andAP S,AP M,AP L (APatdifferent
+tion 4.2, the losses of damage proposals which are filtered scales). Unlessnoted,APisevaluatingusingmaskIoU.
+out under the supervision of high-level building proposals
+5.1.ImplementationDetails
+arenotcomputedintheHRPNloss. ThedefinitionofRPN
+lossfollows[25]. L cls,L box,andL mask followthedefini- We compare our model with two recent state-of-the-art
+tionsin[13]. L mcl iscomputedusingEquation4.3. instance segmentation models, PolarMask [32] and Mask
+Thefinalmulti-tasklossofourproposedapproachiscal- R-CNN [13]. All models use ResNet-50 based FPN as
+culatedusing: a backbone network. We train all the networks for 100
+epochs, with a starting learning rate of 0.003 then we de-
+L=L hrpn+L cls+L box+L mask+L mcl. (7) crease it to 0.001 after 10 epochs. Mini-batch SGD is
+used as the optimizer with batch size equals 8. We initial-
+TheHRPNandMaskR-CNNHeadcanbetrainedend- izeallthebackbonenetworkswiththeweightspre-trained
+to-endtogetherwithSRN.However,inthatcase,themodel on COCO [20]. The input images are resized to have the
+trainingandinferencewouldbeheavyduetothemulti-scale shorter side being 800 and the longer side less or equal to
+featuresimilaritycalculation. Therefore,weonlycalibrate 1333. For testing, an NMS with threshold 0.5 is used and
+confidencescoresofthemodelwhichhasthebestinstance top100detectionsareretainedforeachimage.
+segmentationperformance. Forthescorerefinementprocedure,SRNistrainedusing
+hard negative mining. We firstly generate 1,000 (X, X+)
+4.5.Inference pairsfromdifferentvideos,andrandomlyextract5negative
+samplesforeach(X,X+)pairasdescribedinSection4.3.
+In test time, we use HRPN to generate building region
+Wecalculatethelossof5negativesamples,andchoosethe
+proposals. Thenthebuildingproposalsareusedassupervi-
+top K ones with the highest losses as in [31] to optimize.
+sionfordamageanchorsamplingandproposalgeneration,
+Fortheexperiments,weuseK = 1. Adamoptimizer[17]
+asdescribedinSection4.2. Inthesecondstage,themodel
+is used for network training with learning rate 0.001, and
+extractsfeaturesusingRoIAlignforeachdamageproposal
+eachbatchiscomposedofone(X,X+)pairand5negative
+andperformsproposalclassification,boundingboxregres-
+samples. Fortesting,wechooseC =0.2,andC =0.7for
+sionandmaskprediction. 0 1
+therangedescribedinSection4.5.
+DuringtheinferenceofSRN,giventwoadjacentframes
+P and Q, we firstly extract the last four layers from the 5.2.Comparisontostate-of-the-art
+PyramidBackboneNetworkforeachframe.Thefourlayers
+Baseline methods. We compare our method with state-
+areusedasinputforSRNdescribedinSection4.3toextract
+of-the-artmodelsandtheirvariantscustomizedforthedam-
+similarityfeaturemaps. ThenweuseRoIAligntoalignthe
+age instance segmentation problem. PolarMask [32] is
+extracted features with each bounding box. For each pre-
+a single shot instance segmentation model with damage
+diction(includingboundingboxandmask)inframeP,we
+masksasinputonly. MaskR-CNN[13]isoneofthestate-
+calculate its similarity score with each prediction in frame
+of-the-art instance segmentation models. Two variants of
+Q,usingequation3withthealignedfeaturemapsasinput.
+MaskR-CNNareusedasbaselines: (1)MaskR-CNNwith
+Then we can obtain the prediction in frame Q that has the
+damageboundingboxesandmasksasinput;and(2)Mask
+highest similarity score with it. The average of these two
+R-CNN co-trained with damaged buildings and damages.
+confidencescoresisusedastheirfinalscores. Notethatwe
+Damaged building bounding boxes are used for RPN and
+only refine confidence scores that fall within the range of
+R-CNN head training, and damage masks are used for the
+[C ,C ].
+0 1
+trainingofMaskhead.
+5.Experiments
+Quantitative results. Table 2 lists the damage instance
+Inthissection,wecompareourMSNetmodelwithstate- segmentation results. Compared with PolarMask, our
+of-the-art baselines on the proposed ISBDA dataset. We model is able to obtain significant improvement, e.g., an
+randomlysplitthedatasetintosubsetswithnooverlapping absolute increment of 14.9% mask AP. For the Mask R-
+scenes. We train our model using 80% of the dataset, and CNNbaselines,weobservethatMaskR-CNNtrainedwith
+Method AP AP AP APbb APbb APbb
+25 50 25 50
+PolarMask+Damage 22.3 29.1 15.4 24.4 29.6 18.2
+MaskR-CNN+Damage 34.4 40.6 26.9 35.9 40.9 29.4
+MaskR-CNN+Building+Damage 32.2 39.5 23.3 34.0 40.3 25.7
+Ours 37.2 44.2 28.8 38.7 44.4 31.5
+Table2.Crosssceneevaluationresults. Wereportdetectionandinstancesegmentationresults. APdenotesinstancesegmentationresults
+andAPbbdenotesboundingboxdetectionresults. Intheresultsarea,rows1androw2usethePolarMaskandMaskR-CNNframeworks
+withonlydamagemasksasinput;row3usesMaskR-CNNco-trainedwithdamagedbuildingsanddamagesasthebaselinemodel. The
+resultsshowthatourproposedmethodgainssignificantimprovementscomparedtostate-of-the-artmodels.
+Figure5.Visualizationofthepredicteddamagesegmentation.Thisfiguredemonstratesthatourproposedmodelcanalleviatethefollowing
+errors:(1)labelmisclassification(firstcolumn,lefttoright);(2)falsepositivesegmentationinthecomplexscenariowithcarsandbuildings
+(secondcolumn);(3)incompletedmasksinnoisyvideoscenario(thirdcolumn);and(4)missedmasks(fourthcolumn).
+damage masks could be confused by the high variance of posed model can alleviate the following errors: (1) label
+damage masks in different locations and scenarios. When misclassification (first column); (2) false positive segmen-
+theMaskR-CNNmodelistrainedwithbuildingboxesand tationinthecomplexscenariowithcarsandbuildings(sec-
+damage masks, the errors in building detection will im- ond column); (3) incompleted masks in noisy video sce-
+pact the damage detection in the second stage. Also, the nario(thirdcolumn);and(4)missedmasks(fourthcolumn).
+model could not precisely predict the damage masks from Thanks to the HRPN module and the inter-frame supervi-
+large building bounding boxes. Our proposed model uti- sion, ourmodelisabletogenerateaccurateandrobustde-
+lizes the hierarchical nature of the damaged buildings and tections even in very noisy scenarios like the third column
+damagedparts,andoutperformsthebaselinewith5.0%AP ofFigure5.
+in the segmentation branch and 4.7% AP in the bounding
+boxbranch. 5.3.AblationStudy
+WeevaluateourmethodontheISBDAdataset. Weuse
+Qualitative analysis. We qualitatively demonstrate the ResNet-50 FPN as a backbone network for ablation study.
+advantagesofourmodelinFigure5,showingthatourpro- Allexperimentsinthissectionareperformedononesplit.
+hturT
+dnuorG
+NNC-R
+ksaM
+sruO
+Model AP AP AP APbb APbb APbb
+25 50 25 50
+Baseline 35.0 41.9 27.8 36.8 42.9 29.9
+Baseline+HRPN 39.3(+4.3) 46.6(+4.7) 31.0(+3.2) 41.4(+4.6) 47.1(+4.2) 33.7(+3.8)
+Baseline+HRPN+SRN 40.0(+5.0) 47.7(+5.8) 31.3(+3.5) 42.1(+5.3) 48.1(+5.2) 33.9(+4.0)
+Table3.EffectofHRPNandSRN.WeuseMaskR-CNNco-trainedwithbuildinganddamageinstancesasthebaselinemodel.Theresults
+showthatHRPNcomponentgainssignificantimprovementby4.3%APcomparedwiththebaselinemodel. CombinedwithHRPN,the
+SRNcomponentalsogetsconsistentimprovementinbothboundingboxandmaskbranches.
+M AP AP AP AP AP AP
+25 50 S M L
+IoU 36.6 42.5 30.1 47.4 41.1 38.6
+II 39.3 46.6 31.0 54.5 38.0 42.0
+Table4.Resultsofdifferentanchorsamplingmetrics.
+dlesuchcasesasitperformsanchorsamplingbycalculating
+theintersectionwithinthedamageanchors.
+Effect of HRPN and SRN. In Table 3, we experiment
+with the effect of HRPN and SRN. We observe that the
+HRPN component gains significant improvement by 4.3%
+AP compared with the baseline model. The SRN com-
+ponent further improves the model performance in both
+boundingboxandmaskbranches.
+Figure6.mAPofboundingboxandsegmentationusingdifferent
+IoUandIIthresholds. TheblueandredlinesdenoteIoUandII 6.Conclusion
+metrics,respectively.
+In this paper, we investigate the problem of conducting
+damageassessmentusinguser-generatedaerialvideodata.
+Different IoU and II thresholds. In Figure 6, we com- Weprovidethefirstbenchmark,namelyISBDA,forquan-
+paretheeffectsofdifferentthresholdsforIoUandIIonthe titativeevaluationformodelstoassessbuildingdamagein
+modelperformanceusingequationsinSection4.2.Wetrain aerialvideos. Also,ourproposedMSNetisabletoexplore
+our model with IoU and II from 0.0 to 0.5 in steps of 0.1. thehierarchicalspatialrelationshipamongdifferentobjects
+ForthemodelwithIoUasmetrics,themodelgetsthebest and calibrate confidence scores to improve the model per-
+performancewhenIoUequals0.4. ForthemodelwithIIas formanceinbothboundingboxandmaskbranches.Weem-
+metrics, the model achieves the best performance when it piricallyvalidateourmodelontheproposedISBDAdataset,
+equals0.1. in which our model achieves the best results compared to
+state-of-the-art object detection models. We believe our
+dataset, together with our models, will facilitate future re-
+ChoicesofIoUandIImetrics. InTable4,wereportthe
+searchinremotesensinganddamageassessmentforbetter
+bestperformancemodelamongdifferentIoUandIIthresh-
+andfasternaturaldisasterrelief.
+olds, respectively, where IoU equals 0.4 and II equals 0.1.
+WeobservethatIImetricgains2.7%APimprovementcom-
+pared with IoU metric. By analyzing the AP in different
+sizes, we find that the small objects get the most signifi- Acknowledgements This research was supported by the
+cant improvement for 7.1% absolute value. This is proba- financial assistance award 60NANB17D156 from NIST.
+blybecauseinIoUcalculation,smalldamageanchorsonly The views and conclusions contained herein are those of
+occupy a small portion of its union with a large building theauthorsandshouldnotbeinterpretedasnecessarilyrep-
+boundingbox. Therefore,smalldamageinstancesmaynot resenting the official policies or endorsements, either ex-
+bewelldetected. Ontheotherhand,IIcouldproperlyhan- pressedorimplied,ofNISTortheU.S.Government.
+References objectdetection. InTheIEEEConferenceonComputerVi-
+sionandPatternRecognition,2018.
+[1] SheharyarAhmad,KashifAhmad,NasirAhmad,andNicola
+[16] Mohammad Kakooei and Yasser Baleghi. Fusion of satel-
+Conci. Convolutional neural networks for disaster images
+lite,aircraft,anduavdataforautomaticdisasterdamageas-
+retrieval. InMediaEval,2017.
+sessment. International Journal of Remote Sensing, 38(8-
+[2] Navaneeth Bodla, Bharat Singh, Rama Chellappa, and
+10):2511–2534,2017.
+LarryS.Davis. Soft-nms–improvingobjectdetectionwith
+[17] Diederik P. Kingma and Jimmy Ba. Adam: A method for
+onelineofcode. InTheInternationalConferenceonCom-
+stochasticoptimization. InTheInternationalConferenceon
+puterVision,2017.
+LearningRepresentations,2015.
+[3] DanielBolya,ChongZhou,FanyiXiao,andYongJaeLee.
+[18] JunweiLiang, LuJiang, andAlexanderHauptmann. Tem-
+Yolact: Real-time instance segmentation. In The Interna-
+porallocalizationofaudioeventsforconflictmonitoringin
+tionalConferenceonComputerVision,2019.
+social media. In 2017 IEEE International Conference on
+[4] ZhaoweiCaiandNunoVasconcelos.Cascader-cnn:Delving Acoustics, Speech and Signal Processing (ICASSP), pages
+intohighqualityobjectdetection. InTheIEEEConference
+1597–1601.IEEE,2017.
+onComputerVisionandPatternRecognition,2018.
+[19] Tsung-Yi Lin, Piotr Dolla´r, Ross Girshick, Kaiming He,
+[5] G. Camps-Valls, L. Gomez-Chova, J. Munoz-Mari, J. L. Bharath Hariharan, and Serge Belongie. Feature pyramid
+Rojo-Alvarez, and M. Martinez-Ramon. Kernel-based networksforobjectdetection. InTheIEEEConferenceon
+frameworkformultitemporalandmultisourceremotesens- ComputerVisionandPatternRecognition,2017.
+ingdataclassificationandchangedetection. IEEETransac-
+[20] Tsung-Yi Lin, Michael Maire, Serge Belongie, Lubomir
+tionsonGeoscienceandRemoteSensing,46(6):1822–1835,
+Bourdev, Ross Girshick, James Hays, Pietro Perona, Deva
+2008.
+Ramanan,C.LawrenceZitnick,andPiotrDolla´r. Microsoft
+[6] Kai Chen, Jiangmiao Pang, Jiaqi Wang, Yu Xiong, Xiaox- coco: Commonobjectsincontext. InEuropeanConference
+iaoLi,ShuyangSun,WansenFeng,ZiweiLiu,JianpingShi, onComputerVision,2014.
+WanliOuyang, ChenChangeLoy, andDahuaLin. Hybrid
+[21] G.Mercier,G.Moser,andS.B.Serpico. Conditionalcop-
+taskcascadeforinstancesegmentation. InTheIEEECon-
+ulas for change detection in heterogeneous remote sensing
+ferenceonComputerVisionandPatternRecognition,2019.
+images.IEEETransactionsonGeoscienceandRemoteSens-
+[7] SeanAndrewChen,AndrewEscay,ChristopherHaberland, ing,46(5):1428–1441,2008.
+Tessa Schneider, Valentina Staneva, and Youngjun Choe.
+[22] DatT.Nguyen,FerdaOfli,MuhammadImran,andPrasen-
+Benchmark dataset for automatic damaged building detec-
+jit Mitra. Damage assessment from social media imagery
+tion from post-hurricane remotely sensed imagery. Arxiv,
+dataduringdisasters.InProceedingsofthe2017IEEE/ACM
+2018.
+International Conference on Advances in Social Networks
+[8] JifengDai,YiLi,KaimingHe,andJianSun. R-fcn: Object Analysis and Mining 2017, ASONAM ’17, page 569–576,
+detectionviaregion-basedfullyconvolutionalnetworks. In NewYork,NY,USA,2017.AssociationforComputingMa-
+TheConferenceandWorkshoponNeuralInformationPro- chinery.
+cessingSystems,2016.
+[23] A. A. Nielsen. The regularized iteratively reweighted mad
+[9] NOAA National Centers for Environmental Informa- method for change detection in multi- and hyperspectral
+tion(NCEI). U.s.billion-dollarweatherandclimatedisas- data. IEEETransactionsonImageProcessing, 16(2):463–
+ters,2019. 478,2007.
+[10] LionelGueguenandRaffayHamid. Large-scaledamagede- [24] DepartmentofHomelandSecurityFederalEmergencyMan-
+tectionusingsatelliteimagery. InTheIEEEConferenceon agement Agency (FEMA). Damage assessment operations
+ComputerVisionandPatternRecognition,June2015. manual,2016.
+[11] L. Gueguen, P. Soille, and M. Pesaresi. Change detection [25] Shaoqing Ren, Kaiming He, Ross Girshick, and Jian Sun.
+basedoninformationmeasure. IEEETransactionsonGeo- Fasterr-cnn: Towardsreal-timeobjectdetectionwithregion
+scienceandRemoteSensing,49(11):4503–4515,2011. proposal networks. In Conference on Neural Information
+[12] RitwikGupta,RichardHosfelt,SandraSajeev,NiravPatel, ProcessingSystems,2015.
+BryceGoodman,JigarDoshi,EricHeim,HowieChoset,and [26] Vito Romaniello, Alessandro Piscini, Christian Bignami,
+MatthewGaston.xbd:Adatasetforassessingbuildingdam- Roberta Anniballe, and Salvatore Stramondo. Earthquake
+agefromsatelliteimagery. InArxiv,2019. damage mapping by using remotely sensed data: the Haiti
+[13] KaimingHe,GeorgiaGkioxari,PiotrDolla´r,andRossGir- case study. Journal of Applied Remote Sensing, 11(1):1 –
+shick.Maskr-cnn.InInternationalConferenceonComputer 16,2017.
+Vision,2017. [27] Tim G. J. Rudner, Marc Rußwurm, Jakub Fil, Ramona
+[14] Zhaojin Huang, Lichao Huang, Yongchao Gong, Chang Pelich, Benjamin Bischke, Veronika Kopackova, and Piotr
+Huang, and Xinggang Wang. Mask scoring r-cnn. In The Bilinski.Multi3net:Segmentingfloodedbuildingsviafusion
+IEEEConferenceonComputerVisionandPatternRecogni- of multiresolution, multisensor, and multitemporal satellite
+tion,2019. imagery. InConferenceonArtificialIntelligence,2019.
+[15] BoruiJiang,RuixuanLuo,JiayuanMao,TeteXiao,andYun- [28] LachlanTychsen-SmithandLarsPetersson. Improvingob-
+ingJiang.Acquisitionoflocalizationconfidenceforaccurate ject localization with fitness nms and bounded iou loss.
+In The IEEE Conference on Computer Vision and Pattern
+Recognition,2018.
+[29] C. Vaduva, T. Costachioiu, C. Patrascu, I. Gavat, V.
+Lazarescu, and M. Datcu. A latent analysis of earth
+surface dynamic evolution using change map time series.
+IEEE Transactions on Geoscience and Remote Sensing,
+51(4):2105–2118,2013.
+[30] Jiaqi Wang, Kai Chen, Shuo Yang, Chen Change Loy, and
+DahuaLin. Regionproposalbyguidedanchoring. InThe
+IEEEConferenceonComputerVisionandPatternRecogni-
+tion,2019.
+[31] XiaolongWangandAbhinavGupta. Unsupervisedlearning
+ofvisualrepresentationsusingvideos.InIEEEInternational
+ConferenceonComputerVision,2016.
+[32] Enze Xie, Peize Sun, Xiaoge Song, Wenhai Wang, Ding
+Liang, Chunhua Shen, and Ping Luo. Polarmask: Single
+shotinstancesegmentationwithpolarrepresentation. InThe
+IEEEConferenceonComputerVisionandPatternRecogni-
+tion,2020.
+[33] Tong Yang, Xiangyu Zhang, Zeming Li, Wenqiang Zhang,
+andJianSun. Metaanchor: Learningtodetectobjectswith
+customizedanchors. InConferenceonNeuralInformation
+ProcessingSystems,2018.
+[34] Shifeng Zhang, Longyin Wen, Xiao Bian, Zhen Lei, and
+Stan Z. Li. Single-shot refinement neural network for ob-
+jectdetection. InTheIEEEConferenceonComputerVision
+andPatternRecognition,2018.

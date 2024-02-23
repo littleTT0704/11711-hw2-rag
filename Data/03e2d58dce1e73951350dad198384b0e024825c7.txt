@@ -1,0 +1,351 @@
+Sounding Board: A User-Centric and Content-Driven Social Chatbot
+HaoFang HaoCheng MaartenSap ElizabethClark AriHoltzman
+∗ ∗ † † †
+YejinChoi NoahA.Smith MariOstendorf
+† † ∗
+UniversityofWashington
+{hfang,chenghao,ostendor}@uw.edu
+∗
+{msap,eaclark7,ahai,yejin,nasmith}@cs.washington.edu
+†
+Abstract
+We present Sounding Board, a social chatbot
+that won the 2017 Amazon Alexa Prize. The
+system architecture consists of several com-
+ponents including spoken language process-
+ing, dialogue management, language genera-
+tion,andcontentmanagement,withemphasis
+onuser-centricandcontent-drivendesign. We
+alsoshareinsightsgainedfromlarge-scaleon-
+linelogsbasedon160,000conversationswith
+real-worldusers.
+1 Introduction
+Researchersinartificialintelligence(AI)havelong
+been interested in the challenge of developing a
+systemthatcanhaveacoherentconversationwith
+humans: earlysystemsincludeParry(Colbyetal.,
+Figure1: Asampledialog. Suspectedspeechrecogni-
+1971),Eliza(Weizenbaum,1966),andAlice(Wal-
+lace,2009). TheLoebnerPrize1 isaTuringtestfor tionerrorsintheuserutterancesareunderlined.
+conversationalAIthathaschallengedresearchers
+since1990. Recentworkhasaddressedtaskswhere ingBoard,2 demonstratesthatitisfeasibletobuild
+passing the Turing test is not a concern. Goal- anagentthatcanengageinlong-termconversation
+oriented conversational systems facilitate natural whenbackedbyrichcontentandknowledgeofthe
+user interaction with devices via text and spoken userobtainedthroughinteraction. SoundingBoard
+language. These AI assistants typically focus on won the inaugural Amazon Alexa Prize with an
+shortinteractions,asincommercialproductssuch average score of 3.17 on a 5-point scale and an
+asAmazonAlexa,MicrosoftCortana,GoogleAs- averageconversationdurationof10:22,evaluated
+sistant, and Apple Siri. General conversational byapanelofindependentjudges.3
+systems, called chatbots, have constrained social
+TherearetwokeydesignobjectivesofSounding
+interactioncapabilitiesbuthavedifficultygenerat-
+Board: tobeuser-centricandcontent-driven. Our
+ingconversationswithlong-termcoherence(Ser-
+systemisuser-centricinthatuserscancontrolthe
+banetal.,2017;Satoetal.,2017;Shaoetal.,2017;
+topicofconversation,whilethesystemadaptsre-
+Tianetal.,2017;Ghazvininejadetal.,2018).
+sponsestotheuser’slikelyinterestsbygaugingthe
+TheAlexaPrizesetsforthanewchallenge: creat- user’spersonality. SoundingBoardisalsocontent-
+ingasystemthatcanholdacoherentandengaging driven, as it continually supplies interesting and
+conversationoncurrenteventsandpopulartopics relevantinformationtocontinuetheconversation,
+suchassports,politics,entertainment,fashionand
+technology(Rametal.,2017). Oursystem,Sound- 2https://sounding-board.github.io
+3https://developer.amazon.com/alexaprize/
+1http://aisb.org.uk/events/loebner-prize 2017-alexa-prize
+96
+ProceedingsofNAACL-HLT2018:Demonstrations,pages96–100
+NewOrleans,Louisiana,June2-4,2018.(cid:13)c2018AssociationforComputationalLinguistics
+T u rn1
+2
+3
+4
+5
+6
+7
+U s e rL
+e t's c h a t
+I'm fiv e .
+S u p e rm a n .
+I g u e s s s o .
+R e a lly , I
+d id n 't k n o wth
+a t.Y
+e s , it w a s
+h ila rio u s .T
+h e p a rt
+w h e n h e
+m e t L e w is
+L e a h .
+S o u n d in g B o a rdH
+i! T h is is a n A le x a P riz e s o c ia lb o t. H o w 's y o u r
+d a y ?G
+la d to h e a r it! W e c o u ld ta lk a b o u t ro b o ts ,
+B a tm a n , o r S u p e rm a n . S a y " n e x t" , to c h a t a b o u t
+o th e r th in g s .It
+lo o k s lik e y o u w a n n a c h a t a b o u t S u p e rm a n . I
+w a s h ig h u p in th e c lo u d w h e n I re a liz e d : If
+p e o p le d o n 't re c o g n iz e C la rk K e n t a s S u p e rm a n
+b e c a u s e o f h is g la s s e s , d o e s h is e y e d o c to r k n o w
+h is tru e id e n tity ?D
+id y o u k n o w th a t H e n ry C a v ill a lm o s t m is s e d th e
+c a ll fo r th e ro le o f S u p e rm a n c a u s e h e w a s
+p la y in g " W o rld o f W a rc ra ft"W
+e ird , rig h t? S p e a k in g o f S u p e rm a n , D id y o u s e e :
+S u p e rm a n ? It w a s re le a s e d in 1 9 9 7 . It's a
+c o m e d y .I'm
+g la d y o u fe e l th is is h ila rio u s . W h ic h p a rt d o
+y o u lik e b e s t a b o u t th is m o v ie ?In
+te re s tin g . M e c c a rtin a n d R a ffi c o -d ire c te d th is
+film . T h e m o v ie h a s a 6 .3 o u t o f 1 0 o n IM D B .
+w h ic h s e e m s p re tty g o o d ! d o y o u lik e th e m o v ie 's
+d ire c to r?
+enabledbyarichcontentcollectionthatitupdates ment. TheDMtriestomaintaindialogcoherence
+daily. It is this content that can engage users for bychoosingcontentonthesameorarelatedtopic
+a long period of time and drive the conversation within a conversation segment, and it does not
+forward. AsampleconversationisshowninFig.1. presenttopicsorcontentthatwerealreadyshared
+Wedescribethesystemarchitecturein§2,share withtheuser. Toenhancetheuserexperience,the
+ourinsightsbasedonlargescaleconversationlogs DM uses conversation grounding acts to explain
+in§3,andconcludein§4. (eitherexplicitlyorimplicitly)thesystem’saction
+andtoinstructtheuserwithavailableoptions.
+2 SystemArchitecture TheDMusesahierarchically-structured,state-
+baseddialogmodeloperatingattwolevels: amas-
+Sounding Board uses a modular framework as
+ter that manages the overall conversation, and a
+shown in Fig.2. When a user speaks, the system
+collectionofminiskillsthathandledifferenttypes
+produces a response using three modules: natu-
+ofconversationsegments. Thishierarchyenables
+rallanguageunderstanding(NLU),dialogmanager
+varietywithinspecifictopicsegments. IntheFig.1
+(DM),andnaturallanguagegeneration(NLG).The
+dialog, Turn3 was produced using the Thoughts
+NLUproducesarepresentationofthecurrentevent
+miniskill, Turn4 using the Facts miniskill, and
+byanalyzingtheuser’sspeechgiventhecurrentdia-
+Turns5–7usingtheMoviesminiskill. Thehierar-
+logstate(§2.1). Then,basedonthisrepresentation,
+chicalarchitecturesimplifiesupdatingandadding
+theDMexecutesthedialogpolicyanddecidesthe
+newcapabilities. Itisalsousefulforhandlinghigh-
+nextdialogstate(§2.2). Finally,theNLGusesthe
+levelconversationmodechangesthatarefrequent
+contentselectedbytheDMtobuildtheresponse
+inuserinteractionswithsocialbots.
+(§2.3),whichisreturnedtotheuserandstoredas
+At each conversation turn, a sequence of pro-
+context in the DM. During the conversation, the
+cessing steps are executed to identify a response
+DM also communicates with a knowledge graph
+strategythataddressestheuser’sintentandmeets
+thatisstoredintheback-endandupdateddailyby
+the constraints on the conversation topic, if any.
+thecontentmanagementmodule(§2.4).
+First, a state-independent processing step checks
+2.1 NaturalLanguageUnderstanding ifthespeakerisinitiatinganewconversationseg-
+ment (e.g., requesting a new topic). If not, a sec-
+Givenauser’sutterance,theNLUmoduleextracts
+ondprocessingstageexecutesstate-dependentdia-
+thespeaker’sintentorgoals,thedesiredtopicorpo-
+logpolicies. Bothoftheseprocessingstagespoll
+tentialsubtopicsofconversation,andthestanceor
+miniskillstoidentifywhichonesareabletosatisfy
+sentimentofauser’sreactiontoasystemcomment.
+constraintsofuserintentand/ortopic. Ultimately,
+We store this information in a multidimensional
+the DM produces a list of speech acts and corre-
+framewhichdefinestheNLUoutput.
+sponding content to be used for NLG, and then
+Topopulatetheattributesoftheframe,theNLU
+updatesthedialogstate.
+module uses ASR hypotheses and the voice user
+interface output (Kumar et al., 2017), as well as
+2.3 NaturalLanguageGeneration
+thedialogstate. Thedialogstateisusefulforcases
+where the system has asked a question with con- The NLG module takes as input the speech acts
+straintsontheexpectedresponse. Asecondstage andcontentprovidedbytheDMandconstructsa
+ofprocessingusesparsingresultsanddialogstate responsebygeneratingandcombiningtheresponse
+inasetoftextclassifierstorefinetheattributes. components.
+Phrase Generation: The response consists of
+2.2 DialogManagement
+speech acts from four broad categories: ground-
+WedesignedtheDMaccordingtothreehigh-level ing,inform,request,andinstruction. Forinstance,
+objectives: engagement,coherence,anduserexpe- thesystemresponseatTurn7containsthreespeech
+rience. The DM takes into account user engage- acts: grounding(“Interesting.”),inform(theIMDB
+mentbasedoncomponentsoftheNLUoutputand rating), and request (“do you like the movie’s di-
+triestomaintainuserinterestbypromotingdiver- rector?”). Asrequiredbythehostingplatform,the
+sityofinteractionstrategies(conversationmodes). response is split into a message and a reprompt.
+Eachconversationmodeismanagedbyaminiskill Thedevicealwaysreadsthemessage;thereprompt
+that handles a specific type of conversation seg- is optionally used if the device does not detect a
+97
+Figure2: Systemarchitecture. Front-end: Amazon’sAutomaticSpeechRecognition(ASR)andText-to-Speech
+(TTS)APIs. Middle-end: NLU,DMandNLGmodulesimplementedusingtheAWSLambdaservice. Back-end:
+ExternalservicesandAWSDynamoDBtablesforstoringtheknowledgegraph.
+responsefromtheuser. Theinstructionspeechacts tent and topics that are appropriate for a general
+areusuallyplacedinthereprompt. audience. Thisrequiresfilteringoutinappropriate
+Prosody: We make extensive use of speech syn- and controversial material. Much of this content
+thesismarkuplanguage(SSML)forprosodyand isremovedusingregularexpressionstocatchpro-
+pronunciationtoconveyinformationmoreclearly. fanity. However,wealsofilteredcontentcontain-
+to communicate. We use it to improve the nat- ing phrases related to sensitive topics or phrases
+uralness of concatenated speech acts, to empha- thatwerenotinherentlyinappropriatebutwereof-
+size suggested topics, to deliver jokes more ef- tenfoundinpotentiallyoffensivestatements(e.g.,
+fectively, to apologize or backchannel in a more “yourmother”). Contentthatisnotwellsuitedin
+natural-sounding way, and to more appropriately styletocasualconversation(e.g.,URLsandlengthy
+pronounceunusualwords. content)iseitherremovedorsimplified.
+UtterancePurification: Theconstructedresponse
+3 EvaluationandAnalysis
+(whichmayrepeatauserstatement)goesthrough
+anutterancepurifierthatreplacesprofanitywitha Toanalyzesystemperformance,westudyconver-
+non-offensivewordchosenrandomlyfromalistof sationdatacollectedfromSoundingBoardovera
+innocuousnouns,oftentoahumorouseffect. onemonthperiod(Nov.24–Dec.24,2017). Inthis
+period,SoundingBoardhad160,210conversations
+2.4 ContentManagement
+withusersthatlasted3ormoreturns. (Weomitthe
+Contentisstoredinaknowledgegraphattheback- shortersessions,sincemanyinvolvecaseswhere
+end,whichisupdateddaily. Theknowledgegraph theuserdidnotintendtoinvokethesystem.) Atthe
+isorganizedbasedonminiskillssothatqueryand endofeachconversation,theAlexaPrizeplatform
+recommendationcanbecarriedoutefficientlyby collectsaratingfromtheuserbyasking“onascale
+theDM.TheDMdrivestheconversationforward of1to5,howdoyoufeelaboutspeakingwiththis
+andgeneratesresponsesbyeithertraversinglinks socialbotagain?” (Rametal.,2017). Inthisdata,
+between content nodes associated with the same 43%wereratedbytheuser,withameanscoreof
+topic or through relation edges to content nodes 3.65(σ = 1.40). Oftheratedconversations,23%
+on a relevant new topic. The relation edges are receivedascoreof1or2,37%receivedascoreof
+compiledbasedonexistingknowledgebases(e.g., 3or4,and40%receivedascoreof5.4 Thedataare
+Wikipedia and IMDB) and entity co-occurrence usedtoanalyzehowdifferentpersonalitytypesin-
+betweencontentnodes. teractwiththesystem(§3.1)andlength,depth,and
+BecauseSoundingBoardisaccessibletoawide
+4Someusersgiveafractionalnumberscore.Thesescores
+range of users, the system needs to provide con- areroundeddowntothenextsmallestinteger.
+98
+ope con ext agr neu
+%users 80.02% 51.70% 61.59% 79.50% 42.50%
+#turns 0.048** notsig. 0.075** 0.085** notsig.
+rating 0.108** notsig. 0.199** 0.198** notsig.
+Table 1: Association statistics between personal-
+ity traits (openness, conscientiousness, extraversion, Figure 3: Average conversation score by conversation
+agreeableness,neuroticism)andz-scoredconversation length. Eachbarrepresentsconversationsthatcontain
+metrics. “%users”showstheproportionofusersscor- the number of turns in the range listed beneath them
+ing positively on a trait. “# turns” shows correlation andismarkedwiththestandarddeviation.
+between the trait and the number of turns, and “rat-
+ing” the correlation between the trait and the conver-
+user ratings (r = 0.14) and because some turns
+sation rating, controlled for number of turns. Sig-
+nificance level (Holm corrected for multiple compar- (e.g.,repairs)mayhaveanegativeimpact. There-
+isons): p<0.001. fore, we also study the breadth and depth of the
+∗∗
+sub-dialogswithinconversationsofroughlyequal
+length(36–50)withhigh(5)vs.low(1–2)ratings.
+breadthcharacteristicsoftheconversations(§3.2).
+We automatically segment the conversations into
+sub-dialogs based on the system-identified topic,
+3.1 PersonalityAnalysis
+andannotateeachsub-dialogasengagedornotde-
+The Personality miniskill in SoundingBoard cal-
+pendingonthenumberofturnswherethesystem
+ibrates user personality based on the Five Factor
+detects that the user is engaged. The breadth of
+model(McCraeandJohn,1992)throughexchang-
+theconversationcanberoughlycharacterizedby
+ing answers on a set of personality probing ques-
+thenumberandpercentageofengagedsub-dialogs;
+tions adapted from the mini-IPIP questionnaire
+depth is characterized by the average number of
+(Donnellanetal.,2006).
+turns in a sub-dialog. We found that the average
+Wepresentananalysisofhowdifferentperson-
+topicengagementpercentagesdiffersignificantly
+alitytraitsinteractwithSoundingBoard,asseenin
+(62.5%forhighscoringvs.28.6%forlow),butthe
+Table1. Wefindthatpersonalityonlyveryslightly
+numberofengagedsub-dialogsweresimilar(4.2
+correlates with length of conversation (# turns).
+forhighvs.4.1forlow). Consistentwiththis,the
+However,whenaccountingforthenumberofturns,
+averagedepthofthesub-dialogwashigherforthe
+personalitycorrelatesmoderatelywiththeconver-
+highconversations(4.0vs.3.8turns).
+sation rating. Specifically, we find users who are
+moreextraverted,agreeable,oropentoexperience
+4 Conclusion
+tendtorateoursocialbothigher. Thisfallsinline
+withpsychologyfindings(McCraeandJohn,1992), We presented Sounding Board, a social chatbot
+which associate extraversion with talkativeness, thathaswontheinauguralAlexaPrizeChallenge.
+agreeablenesswithcooperativeness,andopenness As key design principles, our system focuses on
+withintellectualcuriosity.5 providingconversationexperiencethatisbothuser-
+centric and content-driven. Potential avenues for
+3.2 ContentAnalysis futureresearchincludeincreasingthesuccessrate
+ofthetopicsuggestionandimprovingtheengage-
+Most Sounding Board conversations were short
+ments via better analysis of user personality and
+(43%consistoffewerthan10turns),butthelength
+topic-engagementpatternsacrossusers.
+distributionhasalongtail. Thelongestconversa-
+tion consisted of 772 turns, and the average con-
+Acknowledgements
+versationlengthwas19.4turns. AsseeninFig. 3,
+longerconversationstendedtogethigherratings. InadditiontotheAlexaPrizefinancialandcloud
+Whileconversationlengthisanimportantfactor, computingsupport,thisworkwassupportedinpart
+it alone is not enough to assess the conversation byNSFGraduateResearchFellowship(awardedto
+quality, as evidenced by the low correlation with E.Clark),NSF(IIS-1524371),andDARPACwC
+programthroughARO(W911NF-15-1-0543). The
+5Theseinsightsshouldbetakenwithagrainofsalt,both
+conclusions and findings are those of the authors
+becausethemini-IPIPpersonalityscalehasimperfectrelia-
+bility(Donnellanetal.,2006)anduserresponsesinsucha anddonotnecessarilyreflecttheviewsofsponsors.
+casualscenariocanbenoisy.
+99
+References
+KennethMarkColby,SylviaWeber,andFranklinDen-
+nisHilf.1971. Artificialparanoia. ArtificialIntelli-
+gence,2(1):1–25.
+M Brent Donnellan, Frederick L Oswald, Brendan M
+Baird, and Richard E Lucas. 2006. The mini-IPIP
+scales: tiny-yet-effective measures of the Big Five
+factors of personality. Psychological assessment,
+18(2):192.
+Marjan Ghazvininejad, Chris Brockett, Ming-Wei
+Chang,BillDolan,JianfengGao,Wen-tauYih,and
+MichelGalley.2018. Aknowledge-groundedneural
+conversationmodel. InProc.AAAI.
+Anjishnu Kumar, Arpit Gupta, Julian Chan, Sam
+Tucker, Bjorn Hoffmeister, and Markus Dreyer.
+2017. JustASK:Buildinganarchitectureforexten-
+sibleself-servicespokenlanguageunderstanding. In
+Proc.NIPSWorkshopConversationalAI.
+Robert R McCrae and Oliver P John. 1992. An intro-
+ductiontothefive-factormodelanditsapplications.
+Journalofpersonality,60(2):175–215.
+Ashwin Ram, Rohit Prasad, Chandra Khatri, Anu
+Venkatesh, Raefer Gabriel, Qing Liu, Jeff Nunn,
+Behnam Hedayatnia, Ming Cheng, Ashish Nagar,
+Eric King, Kate Bland, Amanda Wartick, Yi Pan,
+HanSong,SkJayadevan,GeneHwang,andArtPet-
+tigrue.2017. ConversationalAI:Thesciencebehind
+theAlexaPrize. InProc.AlexaPrize2017.
+Shoetsu Sato, Naoki Yoshinaga, Masashi Toyoda, and
+Masaru Kitsuregawa. 2017. Modeling situations in
+neural chat bots. In Proc. ACL Student Research
+Workshop,pages120–127.
+Iulian Vlad Serban, Alessandro Sordoni, Ryan Lowe,
+Laurent Charlin, Joelle Pineau, Aaron C Courville,
+and Yoshua Bengio. 2017. A hierarchical latent
+variable encoder-decoder model for generating dia-
+logues. InAAAI,pages3295–3301.
+Yuanlong Shao, Stephan Gouws, Denny Britz, Anna
+Goldie,BrianStrope,andRayKurzweil.2017. Gen-
+eratinghigh-qualityandinformativeconversationre-
+sponseswithsequence-to-sequencemodels. InProc.
+EMNLP,pages2210–2219.
+Zhiliang Tian, Rui Yan, Lili Mou, Yiping Song, Yan-
+songFeng,andDongyanZhao.2017. Howtomake
+contextmoreuseful? Anempiricalstudyoncontext-
+aware neural conversational models. In Proc. ACL,
+pages231–236.
+RichardS.Wallace.2009. TheAnatomyofA.L.I.C.E.,
+chapter Parsing the Turing Test. Springer, Dor-
+drecht.
+Joseph Weizenbaum. 1966. ELIZA – a computer pro-
+gram for the study of natural language communica-
+tion between man and machine. Commun. ACM,
+9(1):36–45.
+100

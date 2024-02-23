@@ -1,0 +1,1032 @@
+DEXPERTS: Decoding-Time Controlled Text Generation
+with Experts and Anti-Experts
+AlisaLiu♥ MaartenSap♥ XimingLu♥♣ SwabhaSwayamdipta♣
+ChandraBhagavatula♣ NoahA.Smith♥♣ YejinChoi♥♣
+♥PaulG.AllenSchoolofComputerScience&Engineering,UniversityofWashington
+♣AllenInstituteforArtificialIntelligence
+alisaliu@cs.washington.edu
+Abstract
+Despite recent advances in natural language
+generation, it remains challenging to control
+attributesofgeneratedtext. WeproposeDEX-
+PERTS: Decoding-time Experts, a decoding-
+time method for controlled text generation
+that combines a pretrained language model
+with “expert” LMs and/or “anti-expert” LMs
+in a product of experts. Intuitively, under
+the ensemble, tokens only get high probabil-
+ity if they are considered likely by the ex-
+pertsandunlikelybytheanti-experts. Weap-
+plyDEXPERTStolanguagedetoxificationand
+sentiment-controlled generation, where we
+outperform existing controllable generation
+methodsonbothautomaticandhumanevalua-
+tions. Moreover,becauseDEXPERTSoperates
+only on the output of the pretrained LM, it is
+effectivewith(anti-)expertsofsmallersize,in-
+cluding when operating on GPT-3. Our work
+highlightsthepromiseoftuningsmallLMson
+text with (un)desirable attributes for efficient
+decoding-timesteering.
+1 Introduction Figure1: IllustrationofDEXPERTS,whereatoxicLM
+actsasan“anti-expert”andanon-toxicLMactsasan
+Controllingtheoutputofpretrainedlanguagemod- “expert”. Inthistoyexample,giventheprompt,“When
+els(LMs)iscrucialforachievingusefulandsafe she rejected his advance, he grabbed,” the toxic LM
+language generation applications, such as non- assigns greater weight to “her” than “his”, expressing
+subtlesignalsoftoxicitythatcanbeleveragedforeffec-
+offensivesentencecompletionorfriendlyconversa-
+tiveattributecontrol. Thedifferenceinlogitsz`´z´
+tiongeneration(Seeetal.,2019;Shengetal.,2020;
+outputbytheexpertandanti-expertrepresentstheper-
+Gehmanetal.,2020). Forexample,asafecomple-
+turbations to make to the logits z of the pretrained
+tiontotheprompt“Whensherejectedhisadvance,
+“base”LM.
+hegrabbed...” requiresavoidingwordchoicesthat
+couldleadtocontinuationswithgender-basedvio-
+lence(e.g.,“her”;Figure1). 2021),finetuningorre-trainingapproachesarebe-
+Without such steering, these language models comingincreasinglycomputationallyinfeasiblefor
+risk generating mindless and offensive content mostresearchers.
+(Shengetal.,2019;Holtzmanetal.,2020)which We propose DEXPERTS,1 a decoding-time
+hinders their safe deployment (Brockman et al., method for controlled text generation based on a
+2020; Bender et al., 2021). Importantly, as the
+1DEXPERTS stands for Decoding-time Experts.
+scaleofpretrainedLMsincreases(e.g.,175Band
+Our code is available at https://github.com/
+1.6Tparameters;Brownetal.,2020;Fedusetal., alisawuffles/DExperts.
+product of experts (Hinton, 2002). Our method 2 ExpertsandAnti-Expertsfor
+combines an out-of-the-box pretrained (“base”) ControlledGeneration
+LMwith“expert”LMsand/or“anti-expert”LMs,
+Giveninputtextasaprompt,thetaskofcontrolled
+whichmodeltextwithdesirableandundesirableat-
+textgenerationistogenerateacontinuationthat
+tributes, respectively. By generatively modeling
+flowsnaturallyfromthepromptwhilehavingthe
+text with particular attributes and directly com-
+desiredattribute(e.g.,positivesentiment)butnot
+bining the output distributions from each LM,
+anundesiredone(e.g.,toxicity).
+DEXPERTS leverages subtle signals expressible
+Givenapromptx , thelanguagemodelcom-
+bylanguagemodelsforeffectiveattributecontrol, ăt
+putesthelogitsforthetthtoken,denotedz P R|V|,
+withoutsacrificinggenerationfluencyordiversity. t
+whereV isthevocabulary. Aprobabilitydistribu-
+Moreover, because it operates only on the out-
+tionoverthevocabularyisobtainedbynormalizing
+put of the base LM, DEXPERTS can steer with
+andexponentiatingz :
+(anti-)expertsofsmallersize,evenincaseswhere t
+wedonothavefullaccesstothebasemodel(e.g.,
+PpX | x q “ softmaxpz q, (1)
+t ăt t
+GPT-3throughanAPI).
+WefirstapplyDEXPERTStothetaskoflanguage andthenexttokenisgeneratedbysamplingx
+t
+„
+detoxification(§3),byfinetuninganexpertandan PpX | x q.
+t ăt
+anti-expert on public comments that are human-
+annotated for toxicity. Our experimental results
+2.1 DEXPERTSFormalization
+showthat DEXPERTS cansuccessfullyavoidtoxi- DEXPERTS operates on a pretrained language
+cityinlanguage generationwhilepreservingout- model M by combining its predictions with an
+putfluency,outperformingexistingdetoxification expert M`, which models text with a desirable
+methodsonbothautomaticandhumanevaluations. attribute, and an anti-expert M´, which models
+Moreover, we find that DEXPERTS continues to text with an undesirable attribute. At time step t,
+outperformbaselineswhenemployingonlyananti- we condition each language model M, M`, and
+expert and re-using the base model as the expert, M´ on the prompt x to obtain z ,z`, and z´,
+ăt t t t
+makingitoneoftheonlymethodsthatcanavoid respectively. The product-of-experts ensemble is
+toxicitywithoutannotatedexamplesofnon-toxic givenby:2
+content. Inanalysis,wealsoshowthatourmethod ` ` ˘˘
+successfullyavoidstoxicdegenerationwhileusing P˜ pX t | x ătq “ softmax z t`α z` t ´z´ t
+just „650 toxic comments, opening avenues for (2)
+easilycustomizableanti-experts. where α is a hyperparameter that controls the
+amount of modification to z , and can be inter-
+Wethenshowcasethegeneralizabilityof DEX- t
+preted as the strength of control over the base
+PERTSbytacklingthetaskofcontrollingthesenti-
+model. Equivalently,
+mentofLMs’output(§4). Tothisend,wecombine
+ˆ ˙
+apretrainedLMwith(anti-)expertsmodelingpos- P`pX | x q α
+itive and negative sentiment. As with language P˜ pX t | x ătq9PpX t | x ătq P´pXt
+|
+xăt
+q
+t ăt
+detoxification, DEXPERTS outperforms existing
+(3)
+sentimentsteeringmethodsonbothautomaticand
+Intuitively, a token will only have high proba-
+human evaluations. Additionally, we show our bility if it has high probability under both P and
+method is especially effective in the adversarial P`,andlowprobabilityunderP´. Wecaninter-
+setting of steering negative prompts toward pos-
+prettheratio
+P`pXt|xătq
+asascalingcoefficientfor
+itive continuations, and vice versa. Finally, we P´pXt|xătq
+each token, which is used to modify the original
+demonstrateapreliminaryproof-of-conceptusing
+probabilitypredictedforthattoken.
+DEXPERTSforstylisticrewriting(§5).
+Ourworkdemonstratestheeffectivenessoftun-
+2.2 Samplingfrom DEXPERTS
+ingsmallLMsontextwithdesirableandundesir- Samplingfluentoutputfromlanguagemodelscom-
+ablepropertiesforefficientandeffectivesteeringof monly requires truncating the unreliable tail of
+largerpretrainedLMs,andhighlightsthepromise
+2Thoughnotexploredinthispaper,thisformulationreadily
+ofdecoding-timemethodsforcontrolledlanguage
+accommodatesmultipleexpertsandanti-experts,whoselogits
+generation. canberespectivelyaddedorsubtracted.
+theprobabilitydistribution,asintop-k (Fanetal., has „160K comments, and the nontoxic dataset
+2018)ornucleussampling(Holtzmanetal.,2020). „1.4M comments. Note that our toxic dataset is
+We adapt this intuition to our method by truncat- human-annotatedandout-of-domainwithrespect
+ingthelogitszoutputbythebasemodelprior to tothepretrainingcorpus(WebTextforGPT-2).
+combiningwiththeexperts. Formally,letV1 Ă V Wereportresultsforα “ 2.0, chosenafterob-
+denotethesetoftokensthatareapartofthetop- servingthetradeoffbetweendetoxificationandflu-
+k/top-pvocabularyofthebaseLMattimestept. ency,butshowresultsforothervaluesofαinAp-
+Thetruncatedlogitsz1 aregivenby pendixD.
+#
+zrvs ifv P V1 3.2 Evaluation
+z1rvs “ (4)
+3.2.1 GenerationPrompts
+´8 otherwise
+To evaluate the problem of toxic degeneration
+Bysubstitutingzwithz1 inEquation2,wehave
+where a user might unexpectedly receive harm-
+` ` ˘˘
+P˜1pX | x q “ softmax z1 `α z`´z´ ful output from a model, we use a random sam-
+t ăt t t t
+pleof10KnontoxicpromptsfromtheRealToxici-
+(5)
+tyPromptsdataset(Gehmanetal.,2020).
+Weobtainournexttokenx viapuresamplingfrom
+t
+the probability distribution P˜1pX t | x ătq, which 3.2.2 Baselines
+hasnon-zeroprobabilityonlyontokensinV1. In
+Domain-adaptive pretraining (DAPT; Guru-
+this way, adding in the (anti-)experts can be in-
+ranganetal.,2020) Wefurtherpretrainthebase
+terpretedasmodifyingtheprobabilitydistribution
+model on the non-toxic subset of OpenWebText.
+overthecandidatetokensinV1,withoutanychance
+ThisdatasetisobtainedbyscoringthefullOpen-
+ofreintroducingtokensv R V1 fromthetailofthe
+WebText corpus with the toxicity classifier from
+originalprobabilitydistribution.
+PerspectiveAPI4 andkeepingtheleasttoxic2per-
+centofdocuments,acorpusofabout150Kdocu-
+3 ToxicityAvoidance
+ments,or63Mtokens,followingtheimplementa-
+GiventhatlargepretrainedLMsareatriskofpro- tionofthisbaselinefromGehmanetal.(2020).
+ducingtoxiccontent(Shengetal.,2019;Gehman
+Plug-and-play language models (PPLM;
+et al., 2020), steering away from toxic “degener-
+Dathathri et al., 2020) PPLM uses gradients
+ation” is crucial for their safe deployment. Our
+fromatoxicityclassifiertoupdatetheLM’shidden
+approachusesananti-expertthatmodelsoverttox-
+representations. We retrain the classifier to be
+icity,aswellasanexpertthatisfinetunedonnon-
+compatible with our larger base model size, on
+toxicdatafromthesamedomain.
+thesametoxicitydatausedintheoriginalpaper.5
+Note that while obtaining an LM that is truly
+Due to the extreme computational expense of
+freefromsocialbiasesisimpossible(Fiske,1993;
+PPLM(runtimesareshowninAppendixA.4),we
+Lakoff, 1973), the “non-toxic” expert serves the
+evaluatePPLMonarandomsubsetof1Kprompts.
+purposeofmodelingthesamedomainofcomments
+as the toxic anti-expert, providing more effective Generativediscriminators(GeDi;Krauseetal.,
+contrast. Nonetheless,weprovideanablationusing 2020) GeDiusesaclass-conditionedLMtopro-
+only a toxic anti-expert and show that it remains videclassificationprobabilitiesforallpossiblenext
+effectiveaboveallpreviousbaselines. tokensviaBayes’rule. Weusethetoxicityclass-
+conditioned LM released by the authors with the
+3.1 Method
+recommendedgenerationhyperparameters.
+WeuseGPT-2LargeasourbaseLM.Forourexpert
+andanti-expert,wefinetuneseveralsizesofGPT-2
+DEXPERTS(anti-only) Wealsoexploreananti-
+(Small, Medium, Large) on a dataset of human-
+expert-onlyablationof DEXPERTS,byreusingthe
+basemodelastheexpert. Tobeclear,wesubstitute
+annotatedcommentsfromtheJigsawUnintended
+BiasinToxicityClassificationKagglechallenge.3 z` t “ z t inEquation1,sothatwehave
+` ˘
+We consider an example toxic if ě 50% of anno- P˜ pX | x q “ softmax p1`αqz ´αz´ (6)
+t ăt t t
+tators marked itas toxic, andnontoxic if none of
+4https://github.com/conversationai/
+theannotatorsmarkitastoxic. Thistoxicdataset
+perspectiveapi
+3https://bit.ly/3cvG5py 5https://bit.ly/3yQiCIo
+Toxicity(Ó) Fluency(Ó) Diversity(Ò)
+Model
+Avg.max.toxicity Toxicityprob. Outputppl. Dist-1 Dist-2 Dist-3
+GPT-2 0.527 0.520 25.45 0.58 0.85 0.85
+PPLM(10%) 0.520 0.518 32.58 0.58 0.86 0.86
+Non-toxicexpert 0.485 0.464 40.61 0.58 0.86 0.86
+DAPT 0.428 0.360 31.21 0.57 0.84 0.84
+GeDi 0.363 0.217 60.03 0.62 0.84 0.83
+DEXPERTS(anti-only) 0.352 0.191 52.02 0.58 0.80 0.73
+DEXPERTS(small) 0.302 0.118 38.20 0.56 0.82 0.83
+DEXPERTS(medium) 0.307 0.125 32.51 0.57 0.84 0.84
+DEXPERTS(large) 0.314 0.128 32.41 0.58 0.84 0.84
+Table1:ResultsofexperimentsindetoxifyinggenerationsfromGPT-2. DEXPERTS(size)indicatesthesizeofthe
+(anti-)experts. FluencyismeasuredasperplexityofgeneratedoutputaccordingtoalargerGPT-2model. Diversity
+ismeasuredasthecountofuniquen-gramsnormalizedbythelengthoftext. Toxicityismeasuredastheaverage
+maximumtoxicityover25generationsandtheempiricalprobabilityofgeneratingtoxictextatleastonceover25
+generations, asjudgedbyPerspectiveAPI.Allmodelsareevaluatedonadatasetof10Knontoxicpromptsfrom
+RealToxicityPrompts(Gehmanetal.,2020),exceptPPLM,whichisevaluatedonasubsetof1Kprompts,dueto
+thegreatercomputationalexpense.
+Weusethetoxicanti-expertbasedonGPT-2Large all existing baselines at detoxification. In partic-
+andthesamehyperparametervalueα “ 2.0. ular, DEXPERTS (medium, large) are among the
+mostfluentcontrollablegenerationmethods,while
+Non-ToxicExpert Finally,weconsidergenerat-
+fullypreservingoutputdiversitycomparedtothe
+ing directly from the non-toxic expert based on
+basemodel. Moreover,theDEXPERTS(anti-only)
+GPT-2Large.
+ablationcontinuestooutperformbaselinesatdetox-
+Forallbaselines,weusenucleussampling(Holtz- ification,althoughwithalossinfluencyanddiver-
+manetal.,2020)withp “ 0.9togenerateupto20 sitythatislikelyduetothelesseffectivecontrast
+tokens. Notethatforourmethod,nucleussampling betweenthebasemodelandanti-expert. Wereport
+is done as described in §2, by using the nucleus theper-generationruntimeofeachmethodinAp-
+fromthebaseLM.Othertrainingandgeneration pendixA.4todemonstrate DEXPERTS’sefficiency
+details(e.g.,hyperparameters)aredescribedinAp- comparedtootherdecoding-timemethods.
+pendixA.
+3.2.4 HumanEvaluation
+3.2.3 AutomaticEvaluation While automatic toxicity classifiers like Perspec-
+tive API enable the kind of large-scale evalua-
+We evaluate our generations for toxicity, fluency,
+tion required for systematic comparison of meth-
+anddiversity. Followingpreviouswork(Gehman
+ods, an abundance of work shows that their ac-
+etal.,2020),wecharacterizegenerationtoxicityus-
+curacy is far from ideal (Dixon et al., 2018; Sap
+ingthetoxicityscorefromPerspectiveAPI,along
+et al., 2019; Davidson et al., 2019; Hutchinson
+two axes: 1) the maximum toxicity over k “ 25
+et al., 2020) in part due to reliance on spurious
+generations,and2)theempiricalprobabilityofgen-
+features, which we discuss in §8. Therefore, we
+eratingacontinuationwithtoxicityě 0.5atleast
+carryoutahumanevaluationonAmazonMechan-
+onceoverk “ 25generations. Generationfluency
+ical Turk on 120 random prompts from the 10K
+is measured by the mean perplexity of generated
+nontoxic subset. For each prompt, we compare
+continuationsaccordingtoalargerpretrainedLM,
+four pairs of models: DEXPERTS (large) versus
+GPT-2XL.Generationdiversityismeasuredusing
+GPT-2Large,PPLM,DAPT,andGeDi. Foreach
+themeannumberofdistinctn-grams,normalized
+pair of models, we randomly sample two genera-
+by the length of text (Li et al., 2016), among the
+tions from each model. This results in a total of
+25generationsforeachprompt. WereportDist-1,
+120promptsˆ4pairings ˆ2generations “ 960 com-
+Dist-2,andDist-3scoresfordistinctuni-,bi-,and prompt pairing
+parisons. Each comparison pair is rated by three
+trigrams,respectively.
+Turkers,whoselectwhichofthetwocontinuations
+Results According to automatic metrics shown is: (1) less toxic, (2) more fluent, and (3) more
+inTable1, DEXPERTS substantiallyoutperforms topical, i.e., whether the continuation is natural,
+Figure2: Resultsofhumanevaluationfordetoxification. DEXPERTS isratedaslesstoxicmoreoftenthanevery
+baseline,andequallyfluentcomparedtothebasemodel,GPT-2.
+Toxicity(Ó)
+Model
+Avg.max.toxicity Toxicityprob.
+GPT-3 0.525 0.515
+DEXPERTS(large) 0.293 0.111
+Table2: Resultsofexperimentsindetoxifyinggenera-
+tionsfromGPT-3.
+relevant, and follows logically from the prompt.
+A screenshot of the user interface is provided in
+Figure 3: Performance of DEXPERTS when
+AppendixC.
+(anti-)experts are trained on differently-sized datasets
+and evaluated at different checkpoints, calculated on
+Results Accordingtohumanevaluations, DEX-
+a subset of 1K prompts. For comparison, recall the
+PERTSisratedaslesstoxicmoreoftenthanallbase-
+avg.max.toxicityofGPT-2is0.527.
+lines(Figure2). Inparticular,itisratedequallyflu-
+entcomparedtoGPT-2,yetlesstoxicthanGPT-2
+10% more often than the other way around. See on five different dataset sizes of exactly 40,960,
+AppendixEforexamplesofgenerations. 204.8K,1.024M,5.12M,and10.24Mtokens;for
+each dataset size, we train the expert and anti-
+3.3 SteeringGPT-3
+expertforoneepochwithcheckpointsateveryfifth
+Wenextuse DEXPERTS tosteerGPT-3Ada. Be- ofanepoch. Theperformanceofeachensemble,at
+causetheOpenAIAPI6 allowsaccesstoonlythe every(anti-)expertcheckpoint,isshowinFigure3.
+top100logprobabilitiesateachtimestep,wecan Wecanseethatevenwithadatasetof40,960to-
+onlymodifyandsamplefromtheprobabilitydis- kens(„650comments)correspondingtoă 0.4%
+tribution over the top 100 tokens. Nonetheless, of the original toxic dataset, we substantially re-
+resultsinTable2showthatDEXPERTSeffectively duce toxicity from the base model to about the
+reduces toxicity from GPT-3 to about the same same level as our strongest baseline, GeDi. (On
+level as when operating on GPT-2. This demon- oneGPU,thiscorrespondsto„3minutesoffine-
+stratesthat DEXPERTSrequiresonlytheoutputof tuning.) Nonetheless, as the size of the finetun-
+the base model, and indeed, the (anti-)experts do ingdatasetfor(anti-)expertsincreases,theperfor-
+notneedtobebuiltonthebasemodel. manceof DEXPERTSincreasesaswell.
+3.4 Analysis: DatasetSize 4 Sentiment-ControlledGeneration
+Inpractice,gatheringlargeamountsoftoxicdata
+As a second application we consider the well-
+may be challenging, especially in applications
+studied task of controlling the polarity of text’s
+wherewewouldwanttocustomizetheanti-expert
+sentiment (e.g., Li et al., 2018; Sudhakar et al.,
+LMfordifferingnotionsofharmfullanguage. To
+2019),steeringtowardseitherpositiveornegative
+explore the limited data setting, we investigate
+sentiment.
+the relationship between the dataset size used to
+trainthe(anti-)expertsanditseffectivenessatsteer- 4.1 Method
+ing the base model. We finetune GPT-2 Large
+Weusethesamepretrainedmodelfrom§3,GPT-2
+6https://openai.com/api/ Large,asourbaseLM.WefinetuneGPT-2(Small,
+%PositiveSentiment Fluency(Ó) Diversity(Ò)
+Target
+Model Positive Neutral Negative
+Sentiment Outputppl. Dist-1 Dist-2 Dist-3
+prompts prompts prompts
+DEXPERTS(large) 94.46 36.42 45.83 0.56 0.83 0.83
+DEXPERTS(medium) 94.31 33.20 43.19 0.56 0.83 0.83
+DEXPERTS(small) 94.57 31.64 42.08 0.56 0.83 0.84
+Positive GeDi 86.01 26.80 58.41 0.57 0.80 0.79
+Positiveexpert 79.83 43.80 64.32 0.59 0.86 0.85
+DAPT 77.24 14.17 30.52 0.56 0.83 0.84
+DEXPERTS(anti-only) 60.72 4.43 46.00 0.65 0.80 0.78
+CTRL 61.81 18.88 43.79 0.51 0.83 0.86
+PPLM(10%) 52.68 8.72 142.11 0.62 0.86 0.85
+GPT-2 99.08 50.02 0.00 29.28 0.58 0.84 0.84
+PPLM(10%) 89.74 39.05 181.78 0.63 0.87 0.86
+CTRL 79.05 37.63 35.94 0.50 0.83 0.86
+DEXPERTS(anti-only) 93.75 34.05 44.23 0.65 0.81 0.78
+DAPT 87.43 33.28 32.86 0.58 0.85 0.84
+Negative
+Negativeexpert 61.67 24.32 65.11 0.60 0.86 0.85
+GeDi 39.57 8.73 84.11 0.63 0.84 0.82
+DEXPERTS(small) 45.25 3.85 39.92 0.59 0.85 0.84
+DEXPERTS(medium) 40.21 3.79 43.47 0.59 0.85 0.84
+DEXPERTS(large) 35.99 3.77 45.91 0.60 0.84 0.83
+Table 3: Results for experiments in sentiment-controlled generation. We consider three sets of prompts relative
+to the base LM: neutral prompts, which are equally likely to lead to positive and negative generations, as well
+as positive prompts and negative prompts, which lead to overwhelmingly positive and negative generations,
+respectively. Sentimentismeasuredasthemeanpercentageofpositivegenerationsofoutofthe25continuations
+for each prompt, according to HuggingFace’s sentiment analysis classifier. Higher is better for positive steering
+(top);lowerisbetterfornegativesteering(bottom).
+Medium, Large) on a positive sentiment corpus thebaseLM,andscorethemusingHuggingFace’s
+forourpositiveLM,andonanegativesentiment sentiment analysis classifier (Wolf et al., 2020)
+corpusforournegativeLM.WeuseStanfordSenti- trainedonSST-5moviereviews. Usingthesegener-
+mentTreebank(SST-5;Socheretal.,2013),which ationsfromthebaseLM,webuildthreedatasetsof
+contains movie reviews labeled by human raters prompts: (1)5K“neutral”prompts,whichleadto
+forsentimentonascalefrom1(verynegative)to5 12or13positivecontinuations,(2)2.5K“negative”
+(verypositive). Ourpositivedatasetcontains“posi- prompts,whichleadto25negativecontinuations,
+tive”and“verypositive”reviews,andournegative and(3)2.5K“positive”prompts,whichleadto24
+dataset“negative”or“verynegative”reviews. Each or25positivecontinuations. Weconsidertheneg-
+ofthesesentimentdatasetshasabout4Kreviews. ative and positive prompts adversarial settings,
+ForeaseofnotationweconsiderthepositiveLM wherethetaskistosteertowardtheoppositesenti-
+our expert and negative LM our anti-expert, and mentoftheprompt.
+useα “ ˘3.2forsteeringineachdirection. The
+tradeoffbetweenfluencyandsentimentcontrolfor 4.2.2 Baselines
+manyvaluesofαisshownin§4.3.
+Weconsiderthesamebaselinesasin§3,alongwith
+anewbaseline(CTRL;Keskaretal.,2019).
+4.2 Evaluation
+4.2.1 GenerationPrompts
+DAPT CorrespondingtoourDAPTbaselinein
+Inordertotestourmethod’sabilitytocontrolsen- §3,wescorealldocumentsinOpenWebTextwith
+timent beyond the domain that the sentiment ex- theHuggingFacesentimentclassifier,andkeepthe
+pertsaretrainedon(moviereviews),wecollecta mostpositive2%andmostnegative2%(according
+datasetof100Knaturallyoccurringpromptsfrom totheprobabilityofthepredictedlabel)toobtain
+theOpenWebTextCorpus(OWT)(Gokaslanand thepositiveandnegativecorpora. Weperforman-
+Cohen,2019). DetailsareoutlinedinAppendixB. otherroundofpretrainingoneachcorpustoobtain
+Wegenerate25continuationsforeachpromptfrom apositiveLMandnegativeLM.
+PPLM Aswithtoxicity§3,weretrainthesenti- data is limited to the domain of that data; train-
+mentclassifierforPPLMwithalargerembedding ing on Amazon reviews does not allow general-
+sizecompatiblewithourbasemodel. Thetraining ization outside of the reviews domain. In a sim-
+datausedisSST-5. Again,weevaluatePPLMon ilar vein, while the positive and negative experts
+only10%ofthepromptscomparedtoothermodels, achievedecentperformance(evenperformingthe
+whicharerandomlyselected: 500neutralprompts, bestonnegativeprompts),theydosoattheexpense
+250positiveprompts,and250negativeprompts. of much higher output perplexity. This contrast
+showstwosidesofthesamecoin: weobservethat
+GeDi We use GeDi with the sentiment class-
+whileCTRL actslike astandardlanguage model
+conditionedLMsreleasedbytheoriginalauthors,
+onout-of-domainprompts(goodfluency,poorcon-
+whicharetrainedonIMDBmoviereviews(Maas
+trol),thesentimentexpertsarehighlyspecialized
+etal.,2011). (WefindthatretrainingitonSST-5re-
+on movie reviews and tend to steer every genera-
+sultsinslightlyreducedperformance,asdiscussed
+tiontowardmovies(poorfluency,strongcontrol).
+inAppendixA.)
+Meanwhile, DAPT is more effective while main-
+DEXPERTS(anti-only) Toexplorewhethersim- tainingfluency,becauseitstrainingdomainisthe
+ply steering away from one sentiment will yield samedomainasthepromptsdomain(i.e.,OWT),
+the opposite sentiment, we again explore an anti- butitsperformancedecreasessubstantiallyinthe
+expert-only version of DEXPERTS. As in §3, we adversarialsettingwhichrequiresmoreactivesteer-
+reusethebasemodelastheexpert,anduseonlya ing. WeobservethatthepoorfluencyofPPLMis
+negativeanti-expertLMforpositivesteering,and duetooccasionalgenerationswithextremelyhigh
+onlyapositiveanti-expertLMfornegativesteering. perplexity,suggestingcasesofdegeneratebehavior.
+Weuseα “ ˘2.0forthissetting. DEXPERTSwithonlyananti-expertismildlyeffec-
+tiveonneutralprompts(outperformingormatching
+Positive/Negative Experts Again, we consider
+theperformanceofCTRLandPPLM),butworks
+decoding directly from the corresponding senti-
+verypoorlyintheadversarialsetting,confirming
+mentexpertforpositiveandnegativesteering.
+ourintuitionthatsteeringawayfromnegativesenti-
+Conditional Transformer LM (CTRL; Keskar mentdoesnotprovidesufficientlystrongguidance
+etal.,2019) Tocontrolthesentimentofgenera- forpositivesentiment.
+tionsfromCTRL,weusethe“Reviews”control
+4.2.4 HumanEvaluation
+codeandappendaratingof“5.0”forpositivegener-
+ationsandaratingof“1.0”fornegativegenerations. Forhumanevaluation,werandomlychoose30neu-
+ThesentimenttrainingexamplesforCTRLcame tralprompts,30positiveprompts,and30negative
+fromAmazonreviews(McAuleyetal.,2015). prompts,andconsiderfivepairsofmodels: DEX-
+PERTS versus GPT-2, CTRL, PPLM, DAPT, and
+Aswithtoxicityexperiments(§3),weusenucleus
+GeDi. Foreachpromptandpairingofmodels,we
+sampling with p “ 0.9, and include our training
+sampletwogenerationsfromeachmodelforeach
+andgenerationdetailsinAppendixA.
+steeringdirectionconsidered. Thisresultsinato-
+4.2.3 AutomaticEvaluation talof120promptsˆ5pairings ˆ2generations “ 1200
+prompt pairing
+pairs, each rated by 3 MTurk workers. We ask
+We evaluate our generations for the target senti-
+annotatorstoselectwhichgenerationachievesthe
+ment,fluency,anddiversity. Toestimatesentiment,
+desiredsentimentbetter,alongwiththefluencyand
+we use HuggingFace’s sentiment analysis classi-
+topicalityquestionsfrom§3.2.4.
+fier,andreportthemeanpercentageofgenerations
+perprompt(outof25)whicharelabeledpositive
+Results AsshowninFigure4,DEXPERTSissub-
+(the rest are negative). We evaluate fluency and
+stantially more effective at steering toward posi-
+diversityinthesamewaysas§3.
+tivityonnegativepromptswhileachievingbetter
+Results AsshowninTable3,DEXPERTSgreatly topicalityandbetterfluencycomparedtoallother
+outperformspreviouscontrollablegenerationmeth- baselines,includingGPT-2. Intheoppositesetting
+ods(PPLM,CTRL,DAPT,GeDi)onbothneutral ofsteeringtowardnegativityonpositiveprompts,
+promptsandadversarialprompts. Thelimitedper- thegapinsentimentcontrolperformancebetween
+formanceofCTRLsuggeststhattheeffectiveness DEXPERTSandeachofGPT-2,CTRL,DAPT,and
+of class-conditioned training on domain-specific PPLM is even more pronounced: DEXPERTS is
+Figure4:Resultsofhumanevaluationforsteeringtowardpositivityonnegativeprompts(left)andsteeringtoward
+negativityonpositiveprompts(right). DEXPERTSissubstantiallymoreeffectiveatachievingthedesiredsentiment
+overeverybaseline.
+rated better than its comparison 62–78% of the
+time. While GeDi achieves close to DEXPERTS’
+performance in this setting, its topicality and flu-
+encyaremuchworse. Theasymmetry,wherenega-
+tivesteeringappearseasierthanpositivesteering
+for DEXPERTS, is reflected in automatic evalua-
+tion as well. We hypothesize that it is easier to
+derailapositivepromptwithnegativitythanturn
+somethingnegativeintosomethingpositive;butto
+humanreaders,thesenegativecontinuationsmay
+be unexpected (a similar observation was made
+in previous work; Madotto et al., 2020). For the
+neutralprompts,weseesimilartrendsasthosein
+Figure5: Therelationshipbetweenoutputfluencyand
+the automatic and the human adversarial evalua-
+positivity for different values of α P r´3.4,3.4s. We
+tions. Duetospaceconstraints,weincludethose
+chooseα “ ˘3.2inourexperiments. Resultsarecal-
+inAppendixD.2.
+culatedonasubsetof1Kneutralprompts.
+4.3 Analysis: SentimentversusFluency
+turnasgreatofanincreaseinthedesiredsentiment.
+Inpractice,wemaywantdifferentlevelsofsenti-
+The tradeoff between output toxicity and fluency
+mentcontroldependingontheapplication(e.g.,ag-
+looks very similar for DEXPERTS detoxification
+gressivelypositivemarketingpitchesversusmerely
+(§3),andisincludedinAppendixD.1.
+friendlychatbots). Figure5showstherelationship
+betweenoutputsentimentandfluencyfordifferent
+5 StylisticRewritingwith DEXPERTS
+choicesofα P r´3.4,3.4s,conditionedonneutral
+prompts. Thesmoothtradeoffsuggeststhatαcan As a preliminary exploration, we go beyond gen-
+by adjusted by a practitioner or user, depending eratingtextcontinuationstoapply DEXPERTS to
+ontheirapplication. Inourexperiments,wepick stylisticrewriting,i.e.,rewritingasentenceinatar-
+α “ ˘3.2 because the curve becomes less steep, getstylewhilepreservingasmuchcontentaspos-
+meaningthatagreatercostinfluencydoesnotre- sible. Wereplacethebasemodelwithapretrained
+autoencoder, BART(Lewisetal.,2020), anduse requiresignificantcomputationalresources,which
+GPT-2Largesentiment(anti-)expertsfrom§4for may no longer be feasible with the size of more
+steering. Ateachtimestep,theautoencoderbase recentpretrainedLMs(Brownetal.,2020;Fedus
+modelconditionsonboththeinputsequenceand etal.,2021).
+the generation-so-far, whereas the (anti-)experts Decoding-timemethods,amorelightweightap-
+conditionononlythelatter. Asaproofofconcept, proach,havebeenusedcontrollingtheattributesof
+weshowsomeexamplesofinput/outputfromthis generatedtext,aswellasforimprovingitsquality
+systeminTable4. (Li et al., 2016; Holtzman et al., 2018; Welleck
+et al., 2020). PPLM (Dathathri et al., 2020) is a
+InputÑOutputExamples steeringmethodthatupdatesapretrainedmodel’s
+Ilovecatsandseeingthemplaywithyarn. hiddenrepresentationsaccordingtothegradientof
+Ýα Ý“Ý´Ý4 Ý. Ñ0 Ilovecatsandseeingthemplaywithrottencereal. aclassifierwithrespecttothedesiredclass. Unfor-
+Oatmilkistastyandgoodfortheenvironment. tunately, this approach is computationally expen-
+Ýα Ý“Ý´Ý3 Ý. Ñ5 Oatmilkistoxicandbadfortheenvironment. sive,asshowninthisandpreviouswork(Gehman
+et al., 2020). Contemporaneous with our work,
+Greatfoodbuthorriblestaffandveryveryrudeworkers!
+ÝαÝ“Ý2Ý.Ñ0 Averynicerestaurant FUDGE(YangandKlein,2021)trainsclassifiers
+onpartialsequencestopredictwhetheranattribute
+Table 4: Examples of input/output from a preliminary willbesatisfiedinthefuture,andusesBayesianfac-
+system that applies DEXPERTS to stylistic rewriting. torizationtoobtaintheattribute-conditionedproba-
+Recall α ą 0 indicates positive rewriting, and α ă 0
+bilitydistribution. GeDi(Krauseetal.,2020)uses
+indicatesnegativerewriting.
+Bayes’rulesimilarly,butcomputesclassification
+probabilitiesusingtheoutputofclass-conditioned
+Thisexplorationsuggeststhatmoreinnovationis
+LMs rather than directly training a classifier. In
+requiredtoapplyDEXPERTStostylisticrewriting,
+contrast,ourexperimentsshowthatdirectlyensem-
+butitisapromisingdirection. Weanticipatefuture
+blingLMs’probabilitiesasopposedtousingthem
+workonthesubject.
+forestimatingclassprobabilitiesismoreeffective
+atsteeringtextgeneration.
+6 RelatedWork
+Thetaskofcontrollingtheoutputofalanguagegen- 7 Conclusion
+erationmodelhasbeenwidelystudiedbyprevious
+We present DEXPERTS, a method for controlled
+work(forareview, seePrabhumoyeetal.,2020).
+text generation that reweights the predictions of
+PriortousingpretrainedLMsasabackbone,most
+languagemodelsbasedonexpert(andanti-expert)
+workusedcustomneuralmodelstrainedfortheir
+opinions. In experiments for two different tasks,
+respectivedownstreamgenerationtasks,including
+detoxificationandsentimentcontrol,weshowthat
+emotion-awaretextgeneration(Ghoshetal.,2017;
+ourmethodisabletoeffectivelysteerthelanguage
+FiclerandGoldberg,2017),attribute-awareproduct
+modeltowardsthedesiredgenerations,whilepre-
+reviewgeneration(Dongetal.,2017),andfriendly
+servingthefluencyanddiversityofgeneratedtext.
+or empathetic dialogue response generation (See
+Asapplicationsbuiltonlanguagemodelsbecome
+etal.,2019;Rashkinetal.,2019).
+ubiquitous, DEXPERTS demonstrates promise in
+Since pretrained LMs have shown impressive
+steeringthesemodelstowardsafeanduser-friendly
+textgenerationability(Radfordetal.,2018,2019),
+generations.
+two directions have emerged to control their
+language generation: training approaches and Acknowledgments
+decoding-timeapproaches. Trainingapproachesin-
+This research is supported in part by NSF (IIS-
+cludefinetuningthepretrainedLMsondatasetsthat
+1714566),DARPAMCSprogramthroughNIWC
+contain the desired attributes (Gururangan et al.,
+Pacific (N66001-19-2-4031), and Allen Institute
+2020)aswellascreatingaclass-conditionedpre-
+forAI.WethankOpenAI,specificallyBiancaMar-
+trainedLMtrainedontextwithspecificattributes
+tin and Miles Brundage, for providing access to
+controlcodeprefixes(Keskaretal.,2019). Incon-
+GPT-3throughtheOpenAIAPIAcademicAccess
+trasttoourmethod,suchapproachescanonlysteer
+Program. We also thank UW NLP, AI2 Mosaic,
+towards desired text attributes, they cannot steer
+andtheanonymousreviewersforhelpfulfeedback.
+awayfromthem. Additionally,trainingapproaches
+8 BroaderImpactandEthical enceonFairness,Accountability,andTransparency
+Implications (FAccT).
+StevenBirdandEdwardLoper.2004. NLTK:Thenat-
+Our study is motivated by the potential harms of
+ural language toolkit. In Proceedings of the ACL
+using pretrained language models (Bender et al.,
+InteractivePosterandDemonstrationSessions.
+2021),specificallytheirtendencytogeneratehate-
+ful,offensive,ortoxiccontent(Shengetal.,2020; Greg Brockman, Mira Murati, and Peter Welinder.
+Gehman et al., 2020). Part of our work requires 2020. OpenAIAPI. Blogpost.
+automaticallydetectingtoxicityingeneratedtexts,
+T. Brown, B. Mann, Nick Ryder, Melanie Subbiah,
+forwhichweusethePerspectiveAPI.7 acommer-
+J. Kaplan, Prafulla Dhariwal, Arvind Neelakan-
+cially deployed toxicity detection tool. However, tan, Pranav Shyam, Girish Sastry, Amanda Askell,
+themismatchbetweentheconstructoftoxicityand Sandhini Agarwal, Ariel Herbert-Voss, G. Kru¨ger,
+T. Henighan, R. Child, Aditya Ramesh, D. Ziegler,
+itsoperationalizationthroughanautomaticclassi-
+Jeffrey Wu, Clemens Winter, Christopher Hesse,
+fiercancausebiasedorunintendedmodelbehavior
+Mark Chen, E. Sigler, Mateusz Litwin, Scott Gray,
+(Jacobs and Wallach, 2021). Specifically, recent BenjaminChess,J.Clark,ChristopherBerner,Sam
+work has shown that such hate speech classifiers McCandlish, A.Radford, IlyaSutskever, andDario
+Amodei.2020. Languagemodelsarefew-shotlearn-
+overestimatetheprevalenceoftoxicityintextthat
+ers. InProceedingsofthe34thConferenceonNeu-
+containsaminorityidentitymention(Hutchinson
+ralInformationProcessingSystems(NeurIPS).
+etal.,2020;Dixonetal.,2018)ortextwrittenby
+racialminorities(Sapetal.,2019;Davidsonetal., Adam M Croom. 2013. How to do things with slurs:
+Studies in the way of derogatory words. In Lan-
+2019),thereforehavingtherealpossibilityofback-
+guage&communication.
+firingagainstitsveryaimoffairnessandinclusive
+dialogue. To address this limitation, we also per- SumanthDathathri,AndreaMadotto,JaniceLan,Jane
+form a human evaluation of toxicity, for which Hung,EricFrank,PieroMolino,JasonYosinski,and
+Rosanne Liu. 2020. Plug and play language mod-
+we obtained IRB approval and sought to pay our
+els: Asimpleapproachtocontrolledtextgeneration.
+workersafairwage(„US$7–9/h).
+InProceedingsofthe2020InternationalConference
+We also acknowledge that any controllable onLearningRepresentations(ICLR).
+detoxification method runs the risk of dual use
+Thomas Davidson, Debasmita Bhattacharya, and Ing-
+(Pandya,2019),specifically,thistechnologycould
+mar Weber. 2019. Racial bias in hate speech and
+beusedtoautomaticallygeneratehatefultext(e.g.,
+abusivelanguagedetectiondatasets. InProceedings
+extremist texts; McGuffie and Newhouse, 2020). oftheThirdWorkshoponAbusiveLanguageOnline.
+Forabroaderdiscussionofsuchrisks,andofthe
+risksoflargepretrainedLMsingeneral,pleasesee LucasDixon,JohnLi,JeffreySorensen,NithumThain,
+andLucyVasserman.2018. Measuringandmitigat-
+Benderetal.(2021).
+ing unintended bias in text classification. In Pro-
+Nevertheless, toxicity in pretrained LMs is an ceedings of the 2018 AAAI/ACM Conference on AI,
+unsolvedissue(Shengetal.,2019;Gehmanetal., Ethics,andSociety(AIES).
+2020). Therefore, we hope future work contin-
+Li Dong, Shaohan Huang, Furu Wei, Mirella Lapata,
+ues to better define and evaluate the presence of
+MingZhou,andKeXu.2017. Learningtogenerate
+harmful language (e.g., Sap et al., 2020), and to product reviews from attributes. In Proceedings of
+developsystemsformitigatingsuchlanguagethat the15thConferenceoftheEuropeanChapterofthe
+canbepersonalizedtousers’diverseexperiences AssociationforComputationalLinguistics(EACL).
+with language (e.g., dealing with reclaimed slurs
+AngelaFan,MikeLewis,andYannDauphin.2018. Hi-
+appropriately;Croom,2013). erarchicalneuralstorygeneration. InProceedingsof
+the56thAnnualMeetingoftheAssociationforCom-
+putationalLinguistics(ACL).
+References
+WilliamFedus,BarretZoph,andNoamShazeer.2021.
+Emily Bender, Timnit Gebru, Angelina McMillan- Switch Transformers: Scaling to trillion parameter
+Major, and Shmargaret Shmitchell. 2021. On the modelswithsimpleandefficientsparsity. arXiv.
+dangersofstochasticparrots: Canlanguagemodels
+betoobig? InProceedingsofthe2021ACMConfer- Jessica Ficler and Yoav Goldberg. 2017. Controlling
+linguistic style aspects in neural language genera-
+7https://github.com/conversationai/ tion. In Proceedings of the Workshop on Stylistic
+perspectiveapi Variation.
+SusanTFiske.1993. Controllingotherpeople: theim- Mike Lewis, Yinhan Liu, Naman Goyal, Mar-
+pactofpoweronstereotyping. AmericanPsycholo- jan Ghazvininejad, Abdelrahman Mohamed, Omer
+gist. Levy, Veselin Stoyanov, and Luke Zettlemoyer.
+2020. BART:Denoisingsequence-to-sequencepre-
+Samuel Gehman, Suchin Gururangan, Maarten Sap, trainingfornaturallanguagegeneration,translation,
+Yejin Choi, and Noah A. Smith. 2020. RealToxic- andcomprehension. InProceedingsofthe58thAn-
+ityPrompts: Evaluatingneuraltoxicdegenerationin nual Meeting of the Association for Computational
+languagemodels. InFindingsoftheAssociationfor Linguistics(ACL).
+ComputationalLinguistics(EMNLPFindings).
+JiweiLi,MichelGalley,ChrisBrockett,JianfengGao,
+Sayan Ghosh, Mathieu Chollet, Eugene Laksana,
+andBillDolan.2016. Adiversity-promotingobjec-
+Louis-Philippe Morency, and Stefan Scherer. 2017.
+tivefunctionforneuralconversationmodels. InPro-
+Affect-LM: A neural language model for customiz-
+ceedingsofthe2016ConferenceoftheNorthAmer-
+ableaffectivetextgeneration. InProceedingsofthe
+ican Chapter of the Association for Computational
+55thAnnualMeetingoftheAssociationforCompu-
+Linguistics(NAACL).
+tationalLinguistics(ACL).
+Juncen Li, Robin Jia, He He, and Percy Liang. 2018.
+Aaron Gokaslan and Vanya Cohen. 2019. Openweb-
+Delete,retrieve,generate: asimpleapproachtosen-
+textcorpus.
+timentandstyletransfer. InProceedingsofthe2018
+ConferenceoftheNorthAmericanChapteroftheAs-
+Suchin Gururangan, Ana Marasovic´, Swabha
+sociationforComputationalLinguistics(NAACL).
+Swayamdipta, Kyle Lo, Iz Beltagy, Doug Downey,
+and Noah A. Smith. 2020. Don’t stop pretraining:
+Andrew L. Maas, Raymond E. Daly, Peter T. Pham,
+Adapt language models to domains and tasks. In
+Dan Huang, Andrew Y. Ng, and Christopher Potts.
+Proceedings of the 58th Annual Meeting of the
+2011. Learningwordvectorsforsentimentanalysis.
+AssociationforComputationalLinguistics(ACL).
+In Proceedings of the 49th Annual Meeting of the
+AssociationforComputationalLinguistics(ACL).
+GeoffreyE.Hinton.2002. Trainingproductsofexperts
+by minimizing contrastive divergence. In Neural
+AndreaMadotto,EtsukoIshii,ZhaojiangLin,Sumanth
+Computation.
+Dathathri, and Pascale Fung. 2020. Plug-and-play
+Ari Holtzman, Jan Buys, Maxwell Forbes, Antoine conversational models. In Findings of the Associ-
+Bosselut, David Golub, and Yejin Choi. 2018. ation for Computational Linguistics (EMNLP Find-
+Learning to write with cooperative discriminators. ings).
+In Proceedings of the 56th Annual Meeting of the
+JulianMcAuley,ChristopherTargett,QinfengShi,and
+AssociationforComputationalLinguistics(ACL).
+Anton van den Hengel. 2015. Image-based recom-
+Ari Holtzman, Jan Buys, Maxwell Forbes, and Yejin mendations on styles and substitutes. In Proceed-
+Choi. 2020. The curious case of neural text degen- ings of the 38th International ACM SIGIR Confer-
+eration. In Proceedings of the Eighth International ence on Research and Development in Information
+ConferenceonLearningRepresentations(ICLR). Retrieval(SIGIR).
+Ben Hutchinson, Vinodkumar Prabhakaran, Emily KrisMcGuffieandAlexNewhouse.2020. Theradical-
+Denton,KellieWebster,YuZhong,andStephenDe- izationrisksofgpt-3andadvancedneurallanguage
+nuyl.2020. SocialbiasesinNLPmodelsasbarriers models. arXiv.
+for persons with disabilities. In Proceedings of the
+58thAnnualMeetingoftheAssociationforCompu- JayshreePandya.2019. Thedual-usedilemmaofarti-
+tationalLinguistics(ACL). ficialintelligence. ForbesMagazine.
+Abigail Z. Jacobs and Hannah Wallach. 2021. Mea- Shrimai Prabhumoye, Alan W Black, and Ruslan
+surement and fairness. In Proceedings of the 2021 Salakhutdinov. 2020. Exploring controllable text
+ACM Conference on Fairness, Accountability, and generation techniques. In Proceedings of the 28th
+Transparency(FAccT). InternationalConferenceonComputationalLinguis-
+tics(COLING).
+Nitish Shirish Keskar, Bryan McCann, Lav Varshney,
+Caiming Xiong, and Richard Socher. 2019. CTRL: AlecRadford,KarthikNarasimhan,TimSalimans,and
+A conditional transformer language model for con- Ilya Sutskever. 2018. Improving language under-
+trollablegeneration. arXiv. standingbygenerativepre-training. Preprint.
+Ben Krause, Akhilesh Deepak Gotmare, Bryan Mc- Alec Radford, Jeffrey Wu, Rewon Child, David Luan,
+Cann, Nitish Shirish Keskar, Shafiq Joty, Richard Dario Amodei, and Ilya Sutskever. 2019. Lan-
+Socher, and Nazneen Fatema Rajani. 2020. GeDi: guage models are unsupervised multitask learners.
+Generative discriminator guided sequence genera- Preprint.
+tion. arXiv.
+HannahRashkin,EricMichaelSmith,MargaretLi,and
+Robin Lakoff. 1973. Language and woman’s place. Y-Lan Boureau. 2019. Towards empathetic open-
+LanguageinSociety. domainconversationmodels:Anewbenchmarkand
+dataset. In Proceedings of the 57th Annual Meet- Teven Le Scao, Sylvain Gugger, Mariama Drame,
+ingoftheAssociationforComputationalLinguistics Quentin Lhoest, and Alexander Rush. 2020. Trans-
+(ACL). formers: State-of-the-art natural language process-
+ing. In Proceedings of the 2020 Conference on
+MaartenSap,DallasCard,SaadiaGabriel,YejinChoi, EmpiricalMethodsinNaturalLanguageProcessing
+and Noah A. Smith. 2019. The risk of racial bias (EMNLP):SystemDemonstrations.
+in hate speech detection. In Proceedings of the
+57thAnnualMeetingoftheAssociationforCompu-
+KevinYangandDanKlein.2021. FUDGE:Controlled
+tationalLinguistics(ACL).
+text generation with future discriminators. In Pro-
+ceedingsofthe2021ConferenceoftheNorthAmer-
+Maarten Sap, Saadia Gabriel, Lianhui Qin, Dan Ju-
+ican Chapter of the Association for Computational
+rafsky, Noah A. Smith, and Yejin Choi. 2020. So-
+Linguistics(NAACL).
+cialbiasframes: Reasoningaboutsocialandpower
+implications of language. In Proceedings of the
+58thAnnualMeetingoftheAssociationforCompu- AppendixOverview
+tationalLinguistics.
+In this supplemental material, we provide addi-
+Abigail See, Stephen Roller, Douwe Kiela, and Jason
+tionalinformationforproducingtheresultsofthe
+Weston. 2019. What makes a good conversation?
+paperandadditionalresults.
+howcontrollableattributesaffecthumanjudgments.
+InProceedingsofthe2019ConferenceoftheNorth
+American Chapter of the Association for Computa- A ModelingDetails
+tionalLinguistics(NAACL).
+A.1 OutoftheBoxModels
+Emily Sheng, Kai-Wei Chang, Prem Natarajan, and
+Nanyun Peng. 2020. Towards Controllable Biases We use HuggingFace Transformers (Wolf et al.,
+inLanguageGeneration. InFindingsoftheAssoci-
+2020)versionsofallpretrainedmodels(asidefrom
+ation for Computational Linguistics (EMNLP Find-
+GPT-3),implementedinthePyTorchdeeplearning
+ings).
+framework. For GPT-3, we use the Ada model
+Emily Sheng, Kai-Wei Chang, Premkumar Natarajan, whichisaccessedwiththeOpenAIAPI.8
+and Nanyun Peng. 2019. The woman worked as a
+babysitter:Onbiasesinlanguagegeneration. InPro-
+A.2 TrainingDetails
+ceedingsofthe2019ConferenceonEmpiricalMeth-
+odsinNaturalLanguageProcessingandthe9thIn-
+All training is performed on a single NVIDIA
+ternational Joint Conference on Natural Language
+Quadro6000GPU.
+Processing(EMNLP-IJCNLP).
+Richard Socher, Alex Perelygin, Jean Wu, Jason DEXPERTS Hyperparameters for finetuning
+Chuang, ChristopherD.Manning, AndrewNg, and (anti-)expertsfor DEXPERTSaregiveninTable5.
+Christopher Potts. 2013. Recursive deep models
+forsemanticcompositionalityoverasentimenttree-
+bank. In Proceedings of the 2013 Conference on Hyperparameter Assignment
+EmpiricalMethodsinNaturalLanguageProcessing model GPT-2(S/M/L)
+(EMNLP). numberofparameters 124M/355M/774M
+numberofsteps 1-3epochs
+AkhileshSudhakar,BhargavUpadhyay,andArjunMa- effectivebatchsize 512
+heswaran. 2019. “Transforming” delete, retrieve, blocksize 128
+generate approach for controlled text style transfer. learningrateoptimizer Adam
+In Proceedings of the 2019 Conference on Empiri- Adamepsilon 1e-8
+Adaminitiallearningrate 5e-5
+cal Methods in Natural Language Processing and
+learningratescheduler linearwithnowarmup
+the 9th International Joint Conference on Natural
+weightdecay 0
+LanguageProcessing(EMNLP-IJCNLP).
+Sean Welleck, Ilia Kulikov, Stephen Roller, Emily Di- Table5: Hyperparametersforfinetuning(anti-)experts
+nan,KyunghyunCho,andJasonWeston.2020. Neu- for DEXPERTS and continued pretraining in domain-
+ral text generation with unlikelihood training. In adaptive pretraining (DAPT). We finetune the senti-
+ProceedingsoftheEighthInternationalConference ment(anti-)expertsandallDAPTmodelsfor3epochs,
+onLearningRepresentations(ICLR). andthetoxicity(anti-)expertsforoneepoch.
+Thomas Wolf, Lysandre Debut, Victor Sanh, Julien
+Chaumond, ClementDelangue, AnthonyMoi, Pier- Thefinetuningtimeforeachmodelsizeisshown
+ric Cistac, Tim Rault, Remi Louf, Morgan Funtow- inTable6.
+icz, Joe Davison, Sam Shleifer, Patrick von Platen,
+Clara Ma, Yacine Jernite, Julien Plu, Canwen Xu, 8https://openai.com/api/
+Size Non-toxic Toxic Positive Negative forfinetuningourexpertsandanti-expertsaregiven
+inTable9andTable10.
+Small 2h:45m 18m:01s 34s 32s
+Medium 7h:06m 46m:52s 1m:30s 1m:24s
+Large 14h:35m 1h:37m 3m:19s 3m:01s Datasetsize Non-toxic Positive Negative
+Tokens 63,457,536 13,240,192 57,805,184
+Table 6: Finetuning time for (anti-)experts in DEX-
+Documents 1,320,876 264,837 1,208,186
+PERTS,foreachGPT-2sizeused.
+Table 8: Dataset details for subsets of OpenWebText
+usedtoobtaintheDAPTmodels.
+DAPT ForourimplementationofDAPTinsenti-
+mentexperiments(§4),weuseHuggingFace’ssen-
+timentanalysisclassifiertofilterdocumentsfrom Datasetsize Non-toxic Toxic
+OpenWebText()forthemostpositive2%andmost
+Tokens 91,856,000 10,262,144
+negative2%ofdocuments. Becausetheclassifier Comments 1,401,762 159,782
+takesamaximumof512tokensasinputtext,we
+Table9: Datasetdetailsfortoxicity(anti-)experts.
+approximatethesentimentofadocumentwithits
+first510tokens(astartandendtokenareaddedby
+the classifier). The hyperparameters for the addi-
+Datasetsize Positive Negative
+tionalphaseofpretrainingontheattributedatais
+Tokens 116,480 108,800
+giveninTable5.
+Moviereviews 4,963 4,650
+PPLM ForourimplementationofPPLMinex-
+Table10: Datasetdetailsforsentiment(anti-)experts.
+periments, we retrain the toxicity and sentiment
+classifiers to be compatible with our base model
+GPT-2 (large), as the original paper used GPT-2 A.4 GenerationDetails
+medium for experiments. We use the same train-
+Generation hyperparameters shared among all
+ingdatasetsandhyperparametersasintheoriginal
+methods are shown in Table 11. Hyperparame-
+PPLMpaper.
+ters for PPLM generation are shown in Table 12.
+Following the recommendation of the authors,
+Hyperparameter Assignment
+we performed a hyperparameter search for step
+embeddingsize 1280 size over the values t0.02,0.06,0.10,0.20,0.40u,
+numberofsteps 10epochs
+and for number of iterations over the values
+learningrate 1e-4
+batchsize 64 t10,20,40,60u,overasmallsampleoftwentynon-
+toxic prompts. We picked step size 0.20 and 10
+Table7:Hyperparametersfortrainingtheattributeclas- iterations, for the best tradeoff between toxicity
+sifiersusedforPPLM.
+reductionandoutputfluency. Duetotheextreme
+computational expense of this method, we were
+not able to repeat the hyperparameter search for
+GeDi For toxicity and sentiment steering, we
+sentimentprompts.
+downloadtheclass-conditionedlanguagemodels
+HyperparametersforGeDigenerationareshown
+(basedonGPT-2Medium)madeavailablebythe
+inTable13.
+originalauthors. Asanexperiment,wealsoalign
+the finetuning data for the sentiment GeDis and
+Hyperparameter Assignment
+the (anti-)experts used in DEXPERTS by finetun-
+numberofsamples 25
+inganewclass-conditionedLMonSST-5data(as top-p(sampling) 0.9
+opposed to IMDB used by in GeDi). We found temperature 1
+maxlength 20
+slightly lower performance on sentiment control
+(„1-2%)acrossthesettings,andthereforeusethe
+Table11:Hyperparametersforgenerationwithallmod-
+originalclass-conditionedLMs.
+els.
+A.3 DatasetDetails
+We compare the runtime for each controllable
+Details of datasets used for further pretraining in generationmethodusedin§3inTable14,allona
+theDAPTbaselinesaregiveninTable8,andthose single NVIDIA Quadro 6000 GPU.. We see that
+Hyperparameter Assignment
+temperature 1
+numberofiterations 10
+stepsize 0.20
+gamma 1
+GM-scale 0.9
+KL-scale 0.01
+repetitionpenalty 1
+gradlength 100000
+horizonlength 1
+windowlength none
+Table12: HyperparametersforgenerationwithPPLM.
+Figure 6: A histogram of the number of positive gen-
+Adescriptionofeachhyperparametercanbefoundin
+erations out of 25 from GPT-2, conditioned on our
+(Dathathrietal.,2020)
+sentimentpromptsdatasetof100knaturallyoccurring
+prompts.
+Hyperparameter Assignment
+posteriorweightingexponent(ω) 30
+filterpp1´ρq 0.8 creation of RealToxicityPrompts (Gehman et al.,
+targetppτq 0.8 2020),wespliteachsentenceintotheprompt,con-
+repetitionpenaltyscale 10
+sistingofthefirsthalfoftokens,andthecontinua-
+repetitionpenalty 1.2
+tion,consistingoftheremainingtokens. Wekeep
+Table 13: Hyperparameters for generation with GeDi. only prompts that are between 4 and 10 tokens
+Adescriptionofeachhyperparametercanbefoundin long (inclusive). For all tokenization, we use the
+(Krauseetal.,2020) NLTKlibrary(BirdandLoper,2004). Thisresults
+in140Mprompts,fromwhichwerandomlysample
+100Kprompts.
+DEXPERTStakes2to3timesthetimeasdecoding
+Foreachofthe100Kprompts,wegenerate25
+directly from the base model, depending on the
+continuationsfromourbasemodel,GPT-2(large),
+size of the (anti-)experts. When using the same
+andscorethecontinuationsforsentimentusingthe
+model size for the guiding language model as in
+HuggingFacesentimentclassifierdescribedin§4.
+GeDi (GPT-2 Medium), DEXPERTS is more effi-
+Thedistributionofpromptswithn P r0,25sposi-
+cientthanGeDi,andbothmethodsare100ˆfaster
+tive continuations out of 25 is shown in Figure 6.
+thanPPLM.
+Interestingly,weobservethatmorepromptshave
+Model Generationtime(sec) morenegativecontinuationsthanpositivecontinu-
+ationsthanviceversa. Basedonthesegenerations,
+GPT-2/DAPT 0.094
+DEXPERTS(small) 0.186 wecreatethreesetsofpromptsasdescribedin§4.
+DEXPERTS(medium) 0.240
+DEXPERTS(anti-only) 0.248 C HumanEvaluation
+GeDi 0.276
+DEXPERTS(large) 0.334
+OurinterfaceforhumanevaluationisshowninFig-
+PPLM 25.39
+ure7. Foreachcategory,theannotatorisallowed
+to choose either one of the continuations, or rate
+Table 14: Generation time (in seconds) per continua-
+tion of maximum length 20 tokens for toxicity experi- thetwooptionsasequal.
+ments in §3, all run on the same architecture for com-
+parison. D AdditionalResults
+D.1 ToxicityHyperparameterControl
+Figure 8 shows the relationship between output
+B CollectionofSentimentPrompts
+toxicityandfluencyfordifferentvaluesofαinour
+We build our prompts for sentiment experiments method. Therelationshipissmooth,reflectingthe
+(§4)fromtheOpenWebTextCorpus(Gokaslanand correspondingfigureforsentimentin§4.3.
+Cohen,2019),acorpusofEnglishwebtextscraped
+D.2 HumanEvaluationonNeutralPrompts
+fromoutboundlinksonReddit. Werandomlysam-
+ple100KdocumentsfromOpenWebTextandtok- Figure9showstheresultsofhumanevaluationon
+enizeeachdocumentintosentences. Followingthe sentimentcontrolconditionedonneutralprompts.
+Figure 7: The interface on Amazon Mechanical Turk
+used for collecting human evaluation in §3. The in-
+terface for positive and negative sentiment evaluation
+in §4 is equivalent, except replacing “less toxic” with
+“morepositive”and“morenegative,”respectively.
+Figure8: Therelationshipbetweenoutputfluencyand
+toxicity for different values of α P r1.0,2.2s, which
+controlsthestrengthofcontrol. Resultsarecalculated
+onasubsetof1Knontoxicprompts.
+E GenerationExamples
+Examples of generations from each method are
+giveninTable15fordetoxification(§3),andTable
+16forsentimentcontrol(§4).
+Figure 9: Results of human evaluation comparing different methods’ ability to control sentiment on neutral
+prompts,asanaddendumto§4.
+Prompt:Shemadeoutwithhim,tooksexypicturesinaphotobooth,andwatchedhim...
+GPT-2 havingsexwithastill-pregnantwomaninthebathroom.Shebroughthimovertothe
+PPLM kissthesmilingteacherswhoshoweduptoseeher.ëHeristhestoryofKimberlyTur
+DAPT doit—withhisbrothers,neighbors,femaleemployeesatthebankandotherbankcustomerswho’d
+GeDi admireherenormousbreastsforthefirsttime.ShelaughedwhenshefoundoutBrucekepttheminto
+DEXPERTS
+goabouthisdailychoreslikeagoodgirlfriendshould.Aneatpieceofworkwhowantedherto
+pα“1.0q
+DEXPERTS
+playdrumsontherooftoppatiowithhisbandwhileanothertimehisgirlfriendcameoverandwokehimup
+pα“2.0q
+Table15: Examplesofgeneratedcontinuationsusingdifferentdetoxificationmethods,conditionedonanontoxic
+prompt(see§3)“Shemadeoutwithhim,tooksexypicturesinaphotobooth,andwatchedhim...”
+Prompt:Trustinautomationcanonlyevolvefrom...
+GPT-2 withinthemarketitself.Nohighereducation,nocorporatejobs,nocontentfactoriesoron-demand
+Positivesteering
+PPLM thatdefaultbelief,Peterssonsays,“Whatisthebesttechnologyandautomationtoolsemployedinthe
+astrongfoundationofgoodhumanskillsandtechnology.”Theauthorgivesexampleswherehefeels
+CTRL
+thistrustis
+people,notfrommachines.ThisiswhyIbelieveeducationisthekeytounlockingautomationfor
+DAPT
+education
+GeDi withinbutmustalsonurtureandempowerallofouremployeestohelpshapethefuture.
+DEXPERTS integratingknowledgewithinnovation.Today’sstart-upsbringunique,complementaryperspectivesto
+pα“2.0q transformourplanetand
+DEXPERTS awarenessandacceptanceoftheimportanceofautomationtobusinesssuccessandsustainabilityof
+pα“3.2q ourcommunities,”saysWeibel
+Negativesteering
+PPLM thefirsttothelaststep.Ifweareseriousabouthavingtherightenginefortherightproblem
+CTRL anideatoareality.ThefutureofAIwillbebuiltbyhumanswithintelligentmachinescreatingnewtools
+DAPT thebottom-up.Butsomemoretraditionalformsofautomationhavestartedtobecomemainstream,andit
+GeDi badcodetoworsedevelopersthatdon’tknowwhatthey’redoingaswell.That’swhyyour
+DEXPERTS alevelofdependence.Automationcannottrulybetrustedwhenitreachesalevelofdependence
+pα“´2.0q onsecurity
+DEXPERTS
+badthinking:automationwillfailbecauseitslogicisincoherentandartificialanddoesnotaddanyvalue
+pα“´3.2q
+Table16: Examplesofgeneratedcontinuationsusingdifferentmethodsforcontrolledtextgeneration,conditioned
+onthe“neutral”prompt(see§4)“Trustinautomationcanonlyevolvefrom...”

@@ -1,0 +1,704 @@
+Shakespearizing Modern Language Using Copy-Enriched
+Sequence-to-Sequence Models
+HarshJhamtani∗,VarunGangal∗,EduardHovy,EricNyberg
+LanguageTechnologiesInstitute
+CarnegieMellonUniversity
+{jharsh,vgangal,hovy,ehn}@cs.cmu.edu
+Abstract
+Variations in writing styles are commonly
+usedtoadaptthecontenttoaspecificcon-
+text, audience, or purpose. However, ap-
+plying stylistic variations is still largely a
+No Type Text
+manual process, and there have been little MODERN Ohmy,mybonesachesomuch
+1 ORIGINAL Fie,howmybonesache!
+effortstowardsautomatingit. Inthispaper COPY fie,howmybonesache!
+SIMPLES2S you’llbe,sir,whatthebonesaretired.
+we explore automated methods to trans- STAT Ohmy,mybonesachesomuch.
+form text from modern English to Shake- MODERN Iaminarush.
+2 ORIGINAL Istandonsuddenhaste.
+speareanEnglishusinganendtoendtrain- COPY istandonsuddenhaste.
+SIMPLES2S i’mstandrighthere.
+able neural model with pointers to enable STAT IaminaFly
+MODERN Givemycomplimentstoyourlady
+copy action. To tackle limited amount of 3 ORIGINAL Commendmetothylady
+COPY commendmetoyourlady
+parallel data, we pre-train embeddings of SIMPLES2S givemyregardstoyourlady
+STAT givemypraisestoyourlady
+words by leveraging external dictionaries
+MODERN Showingmercybypardoningkillersonlycausesmoremurders.
+mapping Shakespearean words to modern 4 ORIGINAL Mercybutmurders,pardoningthosethatkill.
+COPY mercybutmurders,thosethosewhokillus.
+English words as well as additional text. SIMPLES2S butexceptthemurderstothosemurderstokillyou.
+STAT ofmercybypardoningkillerscausesmoredire.
+OurmethodsareabletogetaBLEUscore MODERN HolySaintFrancis,thisisadrasticchange!
+5 ORIGINAL HolySaintFrancis,whatachangeishere!
+of 31+, an improvement of ≈ 6 points COPY holysaintfrancis,whatachangeishere!
+SIMPLES2S it’stheholyflute,what’sthechanged!
+over the strongest baseline. We publicly STAT HolySaintFrancis,thisisadrasticchange!
+release our code to foster further research MODERN wasthatmyfatherwholefthereinsuchahurry?
+6 ORIGINAL Wasthatmyfatherthatwenthencesofast?
+inthisarea. 1 COPY wasthatmyfatherthatwentwentsofast?
+SIMPLES2S wasthatmyfatherwassothat?
+STAT wasthatmyfatherthatlefthereinsuchahaste?
+1 Introduction MODERN GivemeonekissandI’llgodown.
+7 ORIGINAL Onekiss,andI’lldescend.
+COPY onekissme,andI’lldescend.
+Text is often morphed using a variety of lexi-
+SIMPLES2S onekiss,andIcomedown.
+STAT Givemeakiss,andI’llgodown.
+calandgrammaticaltransformations,adjustingthe MODERN thenthewindowletsdayin,andlifegoesoutthewindow.
+8 ORIGINAL Then,window,letdayinandlifeout.
+degree of formality, usage of catchy phrases, and COPY then,windowout,anddaylife.
+SIMPLES2S thensheisjustalifeoflife,letmelifeoutoflife.
+other such stylistic changes to make it more ap- STAT thenthewindowwillletdayin,andlifeout.
+pealing. Moreover, different text styles appeal to
+Table 1: Examples from dataset showing mod-
+different user segments (Saha Roy et al., 2015)
+ernparaphrases(MODERN)offewsentencesfrom
+(Kitis,1997)(Schwartzetal.,2013). Thusthereis
+Shakespeare’s plays (ORIGINAL). We also show
+a need to effectively adapt text to different styles.
+transformation of modern text to Shakespearean
+However, manually transforming text to a desired
+text from our models (COPY, SIMPLES2S and
+stylecanbeatediousprocess.
+STAT).
+There have been increased efforts towards ma-
+chine assisted text content creation and editing
+through automated methods for summarization
+∗*denotesequalcontribution
+1https://github.com/harsh19/Shakespearizing-Modern-
+English
+10
+ProceedingsoftheWorkshoponStylisticVariation,pages10–19
+Copenhagen,Denmark,September7–11,2017.(cid:13)c2017AssociationforComputationalLinguistics
+(Rush et al., 2015) , brand naming (Hiranandani Original Modern
+#WordTokens 217K 200K
+et al., 2017), text expansion (Srinivasan et al.,
+#WordTypes 12.39K 10.05K
+2017), etc. However, there is a dearth of auto- AverageSentenceLength 11.81 10.91
+Entropy(Type.Dist) 6.15 6.06
+matedsolutionsforadaptingtextquicklytodiffer- ∩WordTypes 6.33K
+entstyles. Weconsidertheproblemoftransform-
+Table2: DatasetStatistics
+ing text written in modern English text to Shake-
+peareanstyleEnglish. Forthesakeofbrevityand
+clarity of exposition, we henceforth refer to the tionbasedapproachesfortransformingMod-
+Shakespeareansentences/sideasOriginalandthe ernEnglishtexttoShakespeareanEnglish.
+modernEnglishparaphrasesasModern.
+Unlike traditional domain or style transfer, our • We leverage a dictionary providing mapping
+taskismademorechallengingbythefactthatthe between Shakespearean words and modern
+two styles employ diachronically disparate regis- English words to retrofit pre-trained word
+ters of English - one style uses the contemporary embeddings. Incorporating this extra infor-
+language while the other uses Early Modern En- mationenablesourmodeltoperformwellin
+glish2fromtheElizabethanEra(1558-1603). Al- spiteofsmallsizeofparalleldata.
+thoughEarlyModernEnglishisnotclassifiedasa
+Rest of the paper is organized as follows. We
+differentlanguage(unlikeOldEnglishandMiddle
+firstprovideabriefanalysisofourdatasetin(§2).
+English), it does have novel words (acknown and
+Wethenelaborateondetailsofourmethodsin(§3,
+belike),novelgrammaticalconstructions(twosec-
+§4, §5, §6). We then discuss experimental setup
+ond person forms - thou (informal) and you (for-
+and baselines in (§7). Thereafter, we discuss the
+mal) (Brown et al., 1960)), semantically drifted
+resultsandobservationsin(§8). Weconcludewith
+senses (e.g fetches is a synonym of excuses) and
+discussionsonrelatedwork(§9)andfuturedirec-
+non-standard orthography (Rayson et al., 2007).
+tions(§10).
+Additionally,thereisadomaindifferencesincethe
+Shakespeareanplaysentencesarefromadramatic 2 Dataset
+screenplay whereas the parallel modern English
+Our dataset is a collection of line-by-line mod-
+sentences are meant to be simplified explanation
+ern paraphrases for 16 of Shakespeare’s 36 plays
+forhigh-schoolstudents.
+(Antony & Cleopatra, As You Like It, Comedy of
+Prior works in this field leverage a language
+Errors,Hamlet,HenryV etc)fromtheeducational
+model for the target style, achieving transforma-
+site Sparknotes3. This dataset was compiled by
+tion either using phrase tables (Xu et al., 2012),
+Xu et al. (2014; 2012) and is freely available on
+or by inserting relevant adjectives and adverbs
+github.4 14playscovering18,395sentencesform
+(Saha Roy et al., 2015). Such works have lim-
+the training data split. We kept 1218 sentences
+ited scope in the type of transformations that can
+fromtheplayTwelfthNight asvalidationdataset.
+be achieved. Moreover, statistical and rule MT
+The last play, Romeo and Juliet, comprising of
+based systems do not provide a direct mecha-
+1462sentences,formsthetestset.
+nism to a) share word representation information
+between source and target sides b) incorporating
+2.1 Examples
+constraints between words into word representa-
+Table 1 shows some parallel pairs from the test
+tions in end-to-end fashion. Neural sequence-to-
+split of our data, along with the corresponding
+sequencemodels,ontheotherhand,providesuch
+target outputs from some of our models. Copy
+flexibility.
+and SimpleS2S refer to our best performing atten-
+Ourmaincontributionsareasfollows:
+tional S2S models with and without a Copy com-
+• Weuseasentencelevelsequencetosequence ponent respectively. Stat refers to the best sta-
+neuralmodelwithapointernetworkcompo- tisticalmachinetranslationbaselineusingoff-the-
+nent to enable direct copying of words from shelf GIZA++ aligner and MOSES. We can see
+input. We demonstrate that this method per- through many of the examples how direct copy-
+forms much better than prior phrase transla- ingfromthesourcesidehelpstheCopygenerates
+2https://en.wikipedia.org/wiki/Early_ 3www.sparknotes.com
+Modern_English 4http://tinyurl.com/ycdd3v6h
+11
+betteroutputsthantheSimpleS2S.Theapproaches For some input sequence x, E (x) is given as
+enc
+aredescribedingreaterdetailin(§3)and(§7). (E (x ),E (x ),...).
+enc 1 enc 2
+2.2 Analysis 4.1 Pretrainingofembeddings
+Table 2 shows some statistics from the training Learning token embeddings from scratch in an
+split of the dataset. In general, the Original side end-to-end fashion along with the model greatly
+haslongersentencesandalargervocabulary. The increases the number of parameters. To mitigate
+slightly higher entropy of the Original side’s fre- this, we consider pretraining of the token embed-
+quency distribution indicates that the frequencies dings. Wepretrainourembeddingsonalltraining
+are more spread out over words. Intuitively, the sentences. We also experiment with adding ad-
+large number of shared word types indicates that ditional data from PTB (Marcus et al., 1993) for
+sharing the representation between Original and better learning of embeddings. Additionally we
+Modernsidescouldprovidesomebenefit. leverageadictionarymappingtokensfromShake-
+speareanEnglishtomodernEnglish.
+3 MethodOverview We consider four distinct strategies to train the
+embeddings. In the cases where we use exter-
+OverallarchitectureofthesystemisshowninFig- nal text data, we first train the embeddings us-
+ure 1. We use a bidirectional LSTM to encode ing both the external data and training data, and
+the input modern English sentence. Our decoder then for the same number of iterations on train-
+side model is a mixture model of RNN module ingdataalone,toensureadaptation. Notethatwe
+amd pointer network module. The two individ- donotdirectlyuseoff-the-shelfpretrainedembed-
+ual modules share the attentions weights over en- dingssuchasGlove(Penningtonetal.,2014)and
+coder states, although it is not necessary to do so. Word2Vec(Mikolovetal.,2013)sinceweneedto
+ThedecoderRNNpredictsprobabilitydistribution learn embeddings for novel word forms (and also
+of next word over the vocabulary, while pointer different word senses for extant word forms) on
+modelpredictsprobabilitydistributionoverwords theOriginalside.
+ininput. Thetwoprobabilitiesundergoaweighted
+4.1.1 Plain
+addition, the weights themselves computed based
+on previous decoder hidden state and the encoder This method is the simplest pre-training method.
+outputs. Here,wedonotuseanyadditionaldata,andtrain
+Letx,ybethesomeinput-outputsentencepair wordembeddingsaretrainedontheunionofMod-
+in the dataset. Both input x as well as output y ernandOriginalsentences.
+are sequence of tokens. x = x x ...x , where
+1 2 Tenc
+4.1.2 PlainExt
+T representsthelengthoftheinputsequencex.
+enc
+Similarly, y = y y ...y . Each of x , y is a In this method, we add all the sentences from the
+1 2 T i j
+dec
+tokenfromthevocabulary. externaltextsource(PTB)inadditiontosentences
+intrainingsplitofourdata.
+4 Tokenembeddings
+4.1.3 Retro
+Each token in vocabulary is represented by a M We leverage a dictionary L of approximate Orig-
+dimensionalembeddingvector. LetvocabularyV inal → Modern word pairs (Xu et al., 2012; Xu,
+betheunionofmodernEnglishandShakepearean 2014), crawled from shakespeare-words.
+vocabularies i.e. V = V ∪ V . com, a source distinct from Sparknotes. We ex-
+shakespeare modern
+E and E represent the embedding matri- plicitly add the two 2nd persons and their corre-
+enc dec
+ces used by encoder and decoder respectively ( sponding forms (thy, thou, thyself etc) which are
+E ,E ∈ R|V|×M ). We consider union of veryfrequentbutnotpresentinL. Thefinaldictio-
+enc dec
+the vocabularies for both input and output em- nary we use has 1524 pairs. Faruqui et al (2014)
+beddings because many of the tokens are com- proposed a retrofitting method to update a set of
+mon in two vocabularies, and in the best per- wordembeddingstoincorporatepairwisesimilar-
+formingsettingweshareembeddingsbetweenen- ityconstraints. Givenasetofembeddingsp ∈ P,
+i
+coder and decoder models. Let E (t), repre- avocabularyV,andasetCofpairwiseconstraints
+enc
+sent encoder side embeddings of some token t. (i,j) between words, retrofitting tries to learn a
+12
+Figure1: Depictionofouroverallarchitecture(showingdecoderstep3). Attentionweightsarecomputed
+using previousdecoder hiddenstate h , encoderrepresentations, and sentinelvector. Attention weights
+2
+aresharedbydecoderRNNandpointermodels. Thefinalprobabilitydistributionovervocabularycomes
+fromboththedecoderRNNandthepointernetwork. Similarformulationisusedoveralldecodersteps
+new set of embeddings q ∈ Q to minimize the (FIXED)andtrainable(VAR)embeddings,andob-
+i
+followingobjective: serve that keeping embeddings fixed leads to bet-
+terperformance.
+i=|V| 5 MethodDescription
+f(Q)=δ (cid:88) (p −q )2+ω (cid:88) (q −q )2 (1)
+i i i j
+i=1 (i,j)∈C Inthissectionwegivedetailsofthevariousmod-
+ulesintheproposedneuralmodel.
+Weusetheiroff-the-shelfimplementation5 toen-
+codethedictionaryconstraintsintoourpretrained
+5.1 Encodermodel
+embeddings, setting C = L and using suggested −−−−−−→ ←−−−−−−
+Let LSTM and LSTM represent the for-
+default hyperparameters for δ, ω and number of enc enc
+−→
+ward and reverse encoder. henc represent hidden
+iterations. t
+−→
+stateofencodermodelatstept(henc ∈ RH). The
+t
+4.1.4 RetroExt followingequationsdescribethemodel:
+ThismethodissimilartoRetro,exceptthatweuse
+sentencesfromtheexternaldata(PTB)inaddition
+totrainingsentences.
+h−e−n→c =−→ 0,h←en−−c =−→
+0 (2)
+0 |x|
+WeuseNonetorepresentthesettingswherewe h−e−n→c =− L− S− T− M−−→ (henc,E (x )) (3)
+t enc t−1 enc t
+donotpretraintheembeddings. h←en−−c =← LS−− T− M−−− (henc,E (x )) (4)
+t enc t+1 enc t
+4.2 Fixedembeddings he tnc =h−e t−n→c+h←e tn−−c (5)
+Fine-tuning pre-trained embeddings for a given
+Weuseadditiontocombinetheforwardandback-
+taskmayleadtooverfitting,especiallyinscenarios
+ward encoder states, rather than concatenation
+with small amount of supervised data for the task
+which is standardly used, since it doesn’t add ex-
+(Madhyasthaetal.,2015). Thisisbecauseembed-
+tra parameters, which is important in a low-data
+dings for only a fraction of vocabulary items get
+scenariosuchasours.
+updated, leaving the embeddings unchanged for
+many vocabulary items. To avoid this, we con- 5.2 Attention
+sider fixed embeddings pretrained as per proce-
+Let hdec represent the hidden state of the decoder
+dures described earlier. While reporting results in t
+LSTM at step t. Let E (y ) represent the de-
+Section(§8),weseparatelyreportresultsforfixed dec t−1
+coder side embeddings of previous step output.
+5github.com/mfaruqui/retrofitting WeusespecialSTART symbolatt = 1.
+13
+We first compute a query vector, which is a 5.5 Outputprediction
+linear transformation of hdec. A sentinel vector
+t−1 Output probability of a token w at step t is
+s ∈ RH isconcatenatedwiththeencoderstatesto
+a weighted sum of probabilities from decoder
+createF
+att
+∈ R(Tenc+1)×H,whereT
+enc
+represents
+LSTMmodelandpointermodelgivenasfollows:
+the number of tokens in encoder input sequence
+x. Anormalizedattentionweightvectorαnorm is
+computed. The value g, which corresponds to at-
+P (w)=g×PLSTM(w)+(1−g)×PPTR(w) (16)
+t t t
+tention weight over sentinel vector, represents the
+weight given to the decoder RNN module while
+PPTR(w) takes a non-zero value only if w oc-
+t
+computingoutputprobabilties.
+curs in input sequence, otherwise it is 0. Forc-
+ingg = 0wouldcorrespondtonothavingaCopy
+q=hdec W W ∈RH×H (6) component, reducing the model to a plain atten-
+t−1 q q
+F =concat(henc ,s) F ∈R(Tenc+1)×H tional S2S model, which we refer to as a Sim-
+att 1..Tenc att
+(7) pleS2Smodel.
+H
+αi =(cid:88) (tanh(F a( tij t)q j))+b i αi,b i ∈R (8) 6 Lossfunctions
+j=1
+αnorm =softmax(α) αnorm ∈RTenc+1 Cross entropy loss is used to train the model. For
+(9)
+a data point (x,y) ∈ D and predicted probability
+β g= =α αn 1 n T, eo o2 nr r,.m m c. +.,T 1enc β g∈∈ RRTenc ( (1 10 1) ) d Vis ftr oi rbu eati co hns timP t e( sw te) po tv ∈er {th 1e ,.d .i .ff ,e Trent }w ,to hr ed ls ow ss∈
+is
+dec
+5.3 Pointermodel givenby
+As pointed out earlier, a pair of corresponding
+Original and Modern sentences have significant
+vocabulary overlap. Moreover, there are lot of −T (cid:88)dec logp(cid:0)P (y )(cid:1) (17)
+t t
+proper nouns and rare words which might not be
+t=1
+predicted by a sequence to sequence model. To
+Sentinel Loss (SL): Following from work by
+rectifythis,pointernetworkshavebeenusedtoen-
+(Merity et al., 2016), we consider additional sen-
+ablecopyingoftokensfrominputdirectly(Merity
+tinel loss. This loss function can be considered
+etal.,2016). Thepointermoduleprovideslocation
+as a form of supervised attention. Sentinel loss is
+basedattention,andoutputprobabilitydistribution
+givenasfollows:
+duetopointernetworkmodulecanbeexpressedas
+follows:
+P tPTR(w)= (cid:88) (βj) (12) −T (cid:88)dec log(g(t)+ (cid:88) (β j(t))) (18)
+xj=w t=1 xj=yt
+5.4 DecoderRNN
+We report the results demonstrating the impact
+Summation of encoder states weighed by corre-
+ofincludingthesentinellossfunction(+SL).
+sponding attention weights yields context vector.
+Outputprobabilitiesovervocabularyasperthede- 7 Experiments
+coderLSTMmodulearecomputedasfollows:
+Inthissectionwedescribetheexperimentalsetup
+andevaluationcriteriaused.
+Tenc
+c
+t
+= (cid:88) βihe inc (13)
+i=1 7.1 Preprocessing
+hdec =LSTM(hdec,[concat(E (y ),c )]) (14)
+t t−1 dec t−1 t We lowercase sentences and then use NLTK’s
+PLSTM =softmax(W [concat(hdec,c )]+bout) (15)
+t out t t PUNKT tokenizer to tokenize all sentences. The
+Duringtraining,wefeedthegroundtruthfory , Original side has certain characters like æwhich
+t−1
+whereas while making predictions on test data, are not extant in today’s language. We map these
+predicted output from previous step is used in- characters to the closest equivalent character(s)
+stead. usedtoday(e.gæ→ae)
+14
+7.2 BaselineMethods atureandevaluateshowmuchthetargetsidepara-
+phrases resemble the source side. Given a source
+7.2.1 As-it-is
+sentencesandatargetsideparaphrasecgenerated
+SincebothsourceandtargetsideareEnglish,just
+bythesystem,PINC(s,c)isdefinedas
+replicating the input on the target side is a valid
+andcompetitivebaseline,withaBLEUof21+.
+PINC(s,c)=1−
+1 n (cid:88)=N |Ngram(c,n)∩Ngram(s,n)|
+7.2.2 Dictionary N |Ngram(c,n)|
+n=1
+Xuetal. (2012)provideadictionarymappingbe- where Ngram(x,n) denotes the set of n-grams
+tweenlargenumberofShakespeareanandmodern of length n in sentence x, and N is the maxi-
+English words. We augment this dictionary with mum length of ngram considered. We set N =
+pairs corresponding to the 2nd person thou (thou, 4. Higher the PINC, greater the novelty of para-
+thy, thyself) since these common tokens were not phrases generated by the system. Note, however,
+present. that PINC does not measure fluency of generated
+Directly using this dictionary to perform word- paraphrases.
+by-word replacement is another admittable base-
+7.4 TrainingandParameters
+line. As was noted by Xu et al. (2012), this base-
+line actually performs worse than As-it-is. This Weuseaminibatch-sizeof32andtheADAM op-
+couldbeduetoitsperformingaggressivereplace- timizer (Kingma and Ba, 2014) with learning rate
+ment without regard for word context. Moreover, 0.001, momentum parameters 0.9 and 0.999, and
+a dictionary cannot easily capture one-to-many (cid:15) = 10−8. All our implementations are written in
+mappingsaswellaslong-rangedependencies6. PythonusingTensorflow1.1.0framework.
+For every model, we experimented with two
+7.2.3 Off-the-shelfSMT configurations of embedding and LSTM size -
+To train statistical machine translation (SMT) S (128-128), ME (192-192) and L (256-256).
+baselines, we use publicly available open-source Across models, we find that the ME configura-
+toolkit MOSES (Koehn et al., 2007), along with tion performs better in terms of highest valida-
+the GIZA++ word aligner (Och, 2003), as was tionBLEU.Wealsofindthatlargerconfigurations
+done in (Xu et al., 2012). For training the target- (384-384 & 512-512) fail to converge or perform
+side LM component, we use the lmplz toolkit verypoorly8. Here,wereportresultsonlyforthe
+withinMOSEStotraina4-gramLM.Wealsouse ME configuration for all the models. For all our
+MERT (Och, 2003), available as part of MOSES, models, we picked the best saved model over 15
+totuneonthevalidationset. epochswhichhasthehighestvalidationBLEU.
+Forfairnessofcomparison,itisnecessarytouse
+7.5 Decoding
+thepairwisedictionaryandPTBwhiletrainingthe
+SMT models as well - the most obvious way for At test-time we use greedy decoding to find the
+thisistousethedictionaryandPTBasadditional most likely target sentence9. We also experiment
+trainingdataforthealignmentcomponentandthe with a post-processing strategy which replaces
+target-side LM respectively. We experiment with UNKsinthetargetoutputwiththehighestaligned
+several SMT models, ablating for the use of both (maximum attention) source word. We find that
+PTB and dictionary. In 8, we only report the per- this gives a small jump in BLEU of about 0.1-0.2
+formanceofthebestoftheseapproaches. for all neural models 10. Our best model, for in-
+stance, gets a jump of 0.14 to reach a BLEU of
+7.3 Evaluation 31.26from31.12.
+OurprimaryevaluationmetricisBLEU (Papineni
+8 Results
+etal.,2002). WecomputeBLEU usingthefreely
+available and very widely used perl script7 from The results in Table 3 confirm most of our hy-
+theMOSESdecoder. pothesesabouttherightarchitectureforthistask.
+We also report PINC (Chen and Dolan, 2011),
+8Thisisexpectedgiventhesmallparalleldata
+whichoriginatesfromparaphraseevaluationliter- 9Empirically,weobservedthatbeamsearchdoesnotgive
+improvementsforourtask
+6thou-thyselfandyou-yourself 10Sinceeffectissmallanduniform, wereportBLEUbe-
+7http://tinyurl.com/yben45gm forepost-processinginTable3
+15
+• Copy component: We can observe from 8.1 QualitativeAnalysis
+Table 3 that the various Copy models each
+Figure 2 shows the attention matrices from our
+outperform their SimpleS2S counterparts by
+best Copy model (Copy.Yes.RetroExtFixed)
+atleast7-8BLEUpoints.
+and our best SimpleS2S model (Sim-
+pleS2S.Yes.Retrofixed) respectively for the
+• Retrofitting dictionary constraints: The
+same input test sentence. Without an explicit
+Retro configurations generally outperform
+Copy component, the SimpleS2S model cannot
+their corresponding Plain configura-
+predict the words saint and francis, and drifts off
+tions. For instance, our best configuration
+afterpredictingincorrectwordflute.
+Copy.Yes.RetroExtFixed gets a better BLEU
+than Copy.Yes.PlainExtFixed by a margin of
+Model Sh Init BLEU(PINC)
+atleast11.
+AS-IT-IS - - 21.13(0.0)
+DICTIONARY - - 17.00(26.64)
+• Sharing Embeddings: Sharing source and STAT - - 24.39(32.30)
+× NoneVar 11.66(85.61)
+target side embeddings benefits all the Retro × PlainVar 9.27(86.52)
+× PlainExtVar 8.73(87.17)
+configurations, although it slightly deterio-
+× RetroVar 10.57(85.06)
+rates performance (about 1 BLEU point) for SIMPLES2S ×
+X
+R Ne ot nr eo VE ax rtVar 1 10 1. .2 16 7( (8 83 4. .8 93 1)
+)
+someofthePlainconfigurations. X PlainVar 8.78(85.57)
+X PlainFixed 8.73(89.19)
+X PlainExtVar 8.59(86.04)
+• Fixing Embeddings: Fixed configura- X PlainExtFixed 8.59(89.16)
+X RetroVar 10.86(85.58)
+tions always perform better than corre-
+X RetroFixed 11.36(85.07)
+sponding Var ones (save some exceptions). X RetroExtVar 11.25(83.56)
+X RetroExtFixed 10.86(88.80)
+For instance, Copy.Yes.RetroExtFixed get a × NoneVar 18.44(83.68)
+× PlainVar 20.26(81.54)
+BLEU of 31.12 compared to 20.95 for
+× PlainExtVar 20.20(83.38)
+Copy.Yes.RetroExtVar. Due to fixing embed-
+COPY
+× RetroVar 21.25(81.18)
+× RetroExtVar 21.57(82.89)
+dings, the former has just half as many pa- X NoneVar 22.70(81.51)
+X PlainVar 19.27(83.87)
+rametersasthelatter(5.25Mvs9.40M) X PlainFixed 21.20(81.61)
+X PlainExtVar 20.76(83.17)
+X PlainExtFixed 19.32(82.38)
+• Effect of External Data: Pretrain-
+X RetroVar 22.71(81.12)
+ing with external data Ext works well X RetroFixed 28.86(80.53)
+X RetroExtVar 20.95(81.94)
+along with retrofitting Retro. For in- X RetroExtFixed 31.12(79.63)
+× NoneVar 17.88(83.70)
+stance, Copy.Yes.RetroExtFixed gets a × PlainVar 20.22(81.52)
+BLEU improvement of 2+ points over COPY+SL ×
+×
+P Rela trin oVEx artVar 2 20 1. .1 34 0( (8 83 1. .4 26 2)
+)
+Copy.Yes.RetroFixed × RetroExtVar 21.52(82.86)
+X NoneVar 22.72(81.41)
+X PlainVar 21.46(81.39)
+• Effect of Pretraining: For the Sim- X PlainFixed 23.76(81.68)
+X PlainExtVar 20.68(83.18)
+pleS2S models, pre-training adversely af-
+X PlainExtFixed 22.23(81.71)
+fects BLEU. However, for the Copy mod- X RetroVar 22.62(81.15)
+X RetroFixed 27.66(81.35)
+els, pre-training leads to improvement in X RetroExtVar 24.11(79.92)
+X RetroExtFixed 27.81(84.67)
+BLEU.ThesimplestpretrainedCopymodel,
+Copy.No.PlainVar has a BLEU score 1.8 Table 3: Test BLEU results. Sh denotes encoder-
+higherthanCopy.No.NoneVar. decoder embedding sharing (No=×,Yes=X) . Init
+denotesthemannerofinitializingembeddingvec-
+• PINC scores: All the neural models have
+tors. The -Fixed or -Var suffix indicates whether
+higher PINC scores than the statistical and
+embeddings are fixed or trainable. COPY and
+dictionary approaches, which indicate that
+SIMPLES2S denote presence/absence of Copy
+the target sentences produced differ more
+component. +SL denotessentinelloss.
+from the source sentences than those pro-
+ducedbytheseapproaches.
+Table 1 presents model outputs11 for some test
+• SentinelLoss: Addingthesentinellossdoes examples. In general, the Copy model outputs re-
+not have any significant effect, and ends up
+11Allneuraloutputsarelowercaseduetoourpreprocess-
+reducing BLEU by a point or two, as seen
+ing. Although this slightly affects BLEU, it helps prevent
+withtheCopy+SLconfigurations. tokenoccurrencesgettingsplitduetocapitalization.
+16
+network has been shown to achieve good perfor-
+mance on language modeling task (Merity et al.,
+2016).
+S2Sneuralmodels, firstproposedbySutskever
+etal.(2014),andenhancedwithaattentionmech-
+anism by Bahdanau et al. (2014), have yielded
+state-of-the-art results for machine translation
+(MT),,summarization(Rushetal.,2015),etc. In
+the context of MT, various settings such as multi-
+sourceMT(ZophandKnight,2016)andMTwith
+external information (Sennrich et al., 2016) have
+beenexplored. Distinctfromallofthese,ourwork
+attempts to solve a Modern English → Shake-
+spearean English style transformation task. Al-
+though closely related to both paraphrasing and
+MT, our task has some differentiating character-
+istics such as considerable source-target overlap
+in vocabulary and grammar (unlike MT), and dif-
+ferent source and target language (unlike para-
+Figure 2: Attention matrices from a Copy (top) phrasing). Gangal et al. (2017) have proposed a
+and a simple S2S (bottom) model respectively on neuralsequence-to-sequencesolutionforgenerat-
+the input sentence “Holy Saint Francis, this is a ing a portmanteau given two English root-words.
+drasticchange!”. < s >and< /s >arestartand Though their task also involves large overlap in
+stopcharacters. Darkercellsarehigher-valued. target and input, they do not employ any spe-
+cial copying mechanism. Unlike text simplifica-
+tionandsummarization,ourtaskdoesnotinvolve
+semblethegroundtruthmorecloselycomparedto shorteningcontentlength.
+SimpleS2S and Stat . In some cases, it faces is-
+sues with repetition (Examples 5 and 7) and flu-
+10 Conclusion
+ency(Example9).
+9 RelatedWork In this paper we have proposed to use a mix-
+ture model of pointer network and LSTM to
+Therehavebeensomepriorworkonstyleadapta-
+transform Modern English text to Shakespearean
+tion. Xuetal. (2012)usephrasetablebasedstatis-
+style English. We demonstrate the effectiveness
+ticalmachinetranslationtotransformtexttotarget
+of our proposed approaches over the baselines.
+style. On the other hand our method is an end-
+Our experiments reveal the utility of incorporat-
+to-end trainable neural network. Saha Roy et al
+ing input-copying mechanism, and using dictio-
+(2015) leverage different language models based
+nary constraints for problems with shared (but
+on geolocation and occupation to align a text to
+non-identical) source-target sides and sparse par-
+specific style. However, their work is limited to
+alleldata.
+addition of adjectives and adverbs. Our method
+We have demonstrated the transformation to
+can handle more generic transformations includ-
+Shakespearean style English only. Methods have
+ingadditionanddeletionofwords.
+to be explored toachieve other stylistic variations
+Pointernetworks(Vinyalsetal.,2015)allowthe
+corresponding to formality and politeness of text,
+useofinput-sidewordsdirectlyasoutputinaneu-
+usage of fancier words and expressions, etc. We
+ral S2S model, and have been used for tasks like
+releaseourcodepubliclytofosterfurtherresearch
+extractive summarization (See et al., 2017) (Zeng
+onstylistictransformationsontext. 12.
+et al., 2016) and question answering (Wang and
+Jiang, 2016). However, pointer networks cannot
+generate words not present in the input. A mix-
+12https://github.com/harsh19/Shakespearizing-Modern-
+turemodelofrecurrentneuralnetworkandpointer English
+17
+Acknowledgements Mitchell P Marcus, Mary Ann Marcinkiewicz, and
+BeatriceSantorini.1993. Buildingalargeannotated
+WethankTaylorBerg-Kirkpatrickandanonymous corpus of english: The penn treebank. Computa-
+reviewers for their comments. This research was tionallinguistics,19(2):313–330.
+supported in part by DARPA grant FA8750-12-2-
+StephenMerity,CaimingXiong,JamesBradbury,and
+0342fundedundertheDEFTprogram.
+Richard Socher. 2016. Pointer Sentinel Mixture
+Models. arXivpreprintarXiv:1609.07843.
+References Tomas Mikolov, Kai Chen, Greg Corrado, and Jef-
+frey Dean. 2013. Efficient estimation of word
+DzmitryBahdanau,KyunghyunCho,andYoshuaBen- representations in vector space. arXiv preprint
+gio. 2014. Neural machine translation by jointly arXiv:1301.3781.
+learningtoalignandtranslate. arXiv:1409.0473.
+Franz Josef Och. 2003. Minimum error rate training
+Roger Brown, Albert Gilman, et al. 1960. The pro- instatisticalmachinetranslation. InProceedingsof
+nounsofpowerandsolidarity. Article. the41stAnnualMeetingonAssociationforCompu-
+tational Linguistics-Volume 1, pages 160–167. As-
+sociationforComputationalLinguistics.
+David L Chen and William B Dolan. 2011. Collect-
+ing highly parallel data for paraphrase evaluation.
+KishorePapineni,SalimRoukos,ToddWard,andWei-
+In Proceedings of the 49th Annual Meeting of the
+JingZhu.2002. Bleu: amethodforautomaticeval-
+AssociationforComputationalLinguistics: Human
+uation of machine translation. In Proceedings of
+Language Technologies-Volume 1, pages 190–200.
+the 40th annual meeting on association for compu-
+AssociationforComputationalLinguistics.
+tationallinguistics,pages311–318.Associationfor
+ComputationalLinguistics.
+Manaal Faruqui, Jesse Dodge, Sujay K Jauhar, Chris
+Dyer, Eduard Hovy, and Noah A Smith. 2014.
+JeffreyPennington,RichardSocher,andChristopherD
+Retrofitting word vectors to semantic lexicons.
+Manning. 2014. Glove: Global Vectors for Word
+arXivpreprintarXiv:1411.4166.
+Representation. In EMNLP, volume 14, pages
+1532–1543.
+Varun Gangal, Harsh Jhamtani, Graham Neubig, Ed-
+uard Hovy, and Eric Nyberg. 2017. Charmanteau:
+Paul Rayson, Dawn Archer, Alistair Baron, Jonathan
+Character embedding models for portmanteau cre-
+Culpeper, and Nicholas Smith. 2007. Tagging the
+ation. InConferenceonEmpiricalMethodsinNat-
+Bard:EvaluatingtheaccuracyofamodernPOStag-
+ural Language Processing (EMNLP), Copenhagen,
+geronEarlyModernEnglishcorpora. Article.
+Denmark.
+Alexander M Rush, Sumit Chopra, and Jason We-
+Gaurush Hiranandani, Pranav Maneriker, and Harsh
+ston. 2015. A neural attention model for ab-
+Jhamtani.2017. Generatingappealingbrandnames.
+stractive sentence summarization. arXiv preprint
+arXivpreprintarXiv:1706.09335.
+arXiv:1509.00685.
+Diederik Kingma and Jimmy Ba. 2014. Adam: A
+Rishiraj Saha Roy, Aishwarya Padmakumar,
+method for stochastic optimization. arXiv preprint
+Guna Prasaad Jeganathan, and Ponnurangam
+arXiv:1412.6980.
+Kumaraguru. 2015. Automated Linguistic Per-
+sonalization of Targeted Marketing Messages
+Eliza Kitis. 1997. Adspart of our lives: linguistic Mining User-Generated Text on Social Media.
+awareness ofpowerful advertising. Word &Image, In 16th International Conference on Intelligent
+13(3):304–313. Text Processing and Computational Linguistics
+2015 (CICLing ’15), pages 203–224. Springer
+Philipp Koehn, Hieu Hoang, Alexandra Birch, Chris InternationalPublishing.
+Callison-Burch,MarcelloFederico,NicolaBertoldi,
+Brooke Cowan, Wade Shen, Christine Moran, H Andrew Schwartz, Johannes C Eichstaedt, Mar-
+Richard Zens, et al. 2007. Moses: Open source garetLKern,LukaszDziurzynski,StephanieMRa-
+toolkit for statistical machine translation. In Pro- mones,MeghaAgrawal,AchalShah,MichalKosin-
+ceedings of the 45th annual meeting of the ACL on ski, David Stillwell, Martin EP Seligman, et al.
+interactiveposteranddemonstrationsessions,pages 2013. Personality, gender, and age in the language
+177–180. Association for Computational Linguis- of social media: The open-vocabulary approach.
+tics. PloSone,8(9):e73791.
+Pranava Swaroop Madhyastha, Mohit Bansal, Kevin Abigail See, Peter J Liu, and Christopher D Man-
+Gimpel, and Karen Livescu. 2015. Mapping un- ning. 2017. Get To The Point: Summarization
+seenwordstotask-trainedembeddingspaces. arXiv with Pointer-Generator Networks. arXiv preprint
+preprintarXiv:1510.02387. arXiv:1704.04368.
+18
+Rico Sennrich, Barry Haddow, and Alexandra Birch.
+2016. Controlling politeness in neural machine
+translation via side constraints. In Proceedings of
+NAACL-HLT,pages35–40.
+Balaji Vasan Srinivasan, Rishiraj Saha Roy, Harsh
+Jhamtani, Natwar Modani, and Niyati Chhaya.
+2017. Corpus-based automatic text expansion. In
+CICLING.
+Ilya Sutskever, Oriol Vinyals, and Quoc V Le. 2014.
+Sequence to sequence learning with neural net-
+works. In Neural information processing systems,
+pages3104–3112.
+Oriol Vinyals, Meire Fortunato, and Navdeep Jaitly.
+2015. Pointernetworks. InAdvancesinNeuralIn-
+formationProcessingSystems,pages2692–2700.
+ShuohangWangandJingJiang.2016. Machinecom-
+prehension using match-lstm and answer pointer.
+arXivpreprintarXiv:1608.07905.
+WeiXu.2014. Data-drivenapproachesforparaphras-
+ing across language variations. Ph.D. thesis, New
+YorkUniversity.
+Wei Xu, Alan Ritter, William B Dolan, Ralph Grish-
+man, and Colin Cherry. 2012. Paraphrasing for
+style. In24thInternationalConferenceonCompu-
+tationalLinguistics,COLING2012.
+WenyuanZeng, WenjieLuo, SanjaFidler, andRaquel
+Urtasun.2016. EfficientSummarizationwithRead-
+Again and Copy Mechanism. arXiv preprint
+arXiv:1611.03382.
+Barret Zoph and Kevin Knight. 2016. Multi-
+source neural translation. arXiv preprint
+arXiv:1601.00710.
+19

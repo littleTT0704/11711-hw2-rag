@@ -1,0 +1,763 @@
+TheThirty-SixthAAAIConferenceonArtificialIntelligence(AAAI-22)
+Zero-Shot Audio Source Separation through Query-Based Learning
+from Weakly-Labeled Data
+KeChen1*,XingjianDu2*,BileiZhu2,ZejunMa2,TaylorBerg-Kirkpatrick1,ShlomoDubnov1
+1UniversityofCaliforniaSanDiego,CA,USA
+2BytedanceAILab,Shanghai,China
+{knutchen,sdubnov,tberg}@ucsd.edu,{duxingjian.real,zhubilei,mazejun}@bytedance.com
+Abstract visedtrainingdataislimited?Canlargeamountsofweakly-
+labeleddatabeusedtoincreasegeneralizationperformance?
+Deeplearningtechniquesforseparatingaudiointodifferent
+The first challenge is known as universal source separa-
+soundsourcesfaceseveralchallenges.Standardarchitectures
+tion,meaningthatweonlyneedasinglemodeltoseparate
+requiretrainingseparatemodelsfordifferenttypesofaudio
+asmanysourcesaspossible.Mostmodelsmentionedabove
+sources.Althoughsomeuniversalseparatorsemployasingle
+requiretrainingafullsetofmodelparametersforeachtar-
+modeltotargetmultiplesources,theyhavedifficultygener-
+alizingtounseensources.Inthispaper,weproposeathree- get type of audio source. As a result, training these mod-
+componentpipelinetotrainauniversalaudiosourcesepara- els is both time and memory intensive. There are several
+torfromalarge,butweakly-labeleddataset:AudioSet.First, heuristic frameworks (Samuel, Ganeshan, and Naradowsky
+we propose a transformer-based sound event detection sys- 2020) that leverage meta-learning to bypass this problem,
+temforprocessingweakly-labeledtrainingdata.Second,we buttheyhavedifficultygeneralizingtodiversetypesofau-
+devise a query-based audio separation model that leverages diosources.Inotherwords,theseframeworkssucceededin
+this data for model training. Third, we design a latent em-
+combiningseveralsourceseparatorsintoonemodel,butthe
+bedding processor to encode queries that specify audio tar-
+numberofsourcesisstilllimited.
+getsforseparation,allowingforzero-shotgeneralization.Our
+One approach to overcome this challenge is to train a
+approach uses a single model for source separation of mul-
+tiple sound types, and relies solely on weakly-labeled data modelwithanaudioseparationdatasetthatcontainsavery
+fortraining.Inaddition,theproposedaudioseparatorcanbe large variety of sound sources. The more sound sources a
+usedinazero-shotsetting,learningtoseparatetypesofau- model can see, the better it will generalize. However, the
+diosourcesthatwereneverseenintraining.Toevaluatethe scarcity of the supervised separation datasets makes this
+separation performance, we test our model on MUSDB18, process challenging. Most separation datasets contain only
+whiletrainingonthedisjointAudioSet.Wefurtherverifythe a few source types. For example, MUSDB18 (Rafii et al.
+zero-shotperformancebyconductinganotherexperimenton
+2017) and DSD100 (Liutkus et al. 2017) contain music
+audiosourcetypesthatareheld-outfromtraining.Themodel
+tracks of only four source types (vocal, drum, bass, and
+achievescomparableSource-to-DistortionRatio(SDR)per-
+other) with a total duration of 5-10 hours. MedleyDB (Bit-
+formancetocurrentsupervisedmodelsinbothcases.
+tner et al. 2014) contains 82 instrument classes but with a
+totaldurationofonly3hours.Thereexistssomelarge-scale
+Introduction datasetssuchasAudioSet(Gemmekeetal.2017)andFUSS
+(Wisdometal.2021),buttheycontainonlyweakly-labeled
+Audio source separation is a core task in the field of audio
+data.AudioSet,forexample,contains2.1million10-secau-
+processing using artificialintelligence. The goal is to sepa-
+dio samples with 527 sound events. However, only 5% of
+rateoneormoreindividualconstituentsourcesfromasingle
+recordingsinAudiosethavealocalizedeventlabel(Hershey
+recording of a mixed audio piece. Audio source separation
+et al. 2021). For the remaining 95% of recordings, the cor-
+canbeappliedinvariousdownstreamtaskssuchasaudioex-
+rectoccurrenceofeachlabeledsoundeventcanbeanywhere
+traction,audiotranscription,andmusicandspeechenhance-
+withinthe10-secsample.Inordertoleveragethislargeand
+ment. Although there are many successful backbone archi-
+diversesourceofweakly-labeleddata,wefirstneedtolocal-
+tectures (e.g. Wave-U-Net, TasNet, D3Net (Stoller, Ewert,
+izethesoundeventineachaudiosample,whichisreferred
+and Dixon 2018; Luo and Mesgarani 2018; Takahashi and
+asanaudiotaggingtask(Fonsecaetal.2018).
+Mitsufuji2020)),fundamentalchallengesandquestionsre-
+In this paper, as illustrated in Figure 1, we devise a
+main: How can the models be made to better generalize to
+pipeline1thatcomprisesofthreecomponents:atransformer-
+multiple,orevenunseen,typesofaudiosourceswhensuper-
+basedsoundeventdetectionsystemST-SEDforperforming
+time-localization in weakly-labeled training data, a query-
+*The first two authors have equal contribution, and this work
+based U-Net source separator to be trained from this data,
+wasperformedwhileKeCheninternedatBytedance.
+Copyright©2022,AssociationfortheAdvancementofArtificial
+Intelligence(www.aaai.org).Allrightsreserved. 1Theofficialcodeisavailableinhttps://git.io/JDWQ5
+4441
+RelatedWork
+SoundEventDetectionandLocalization
+Thesoundeventdetectiontaskistoclassifyoneormoretar-
+Two 10-sec audio samples with sound events
+get sound events in a given audio sample. The localization
+PANN Sound Event Detection task,ortheaudiotagging,furtherrequiresthemodeltoout-
+System other unseen put the specific time-range of events on the audio timeline.
+ST-SED
+source Currently,theconvolutionalneuralnetwork(CNN)(LeCun
+et al. 1999) is being widely used to detect sound events.
+ThePretrainedAudioNeuralNetworks(PANN)(Kongetal.
+Latent 2020a) and the PSLA (Gong, Chung, and Glass 2021b)
+Source
+achieve the current CNN-based SOTA for the sound event
+Processor detection, with their output featuremaps serving as an em-
+piricalprobabilitymapofeventswithintheaudiotimeline.
+Two 2-sec clips of event occurrences Forthetransformer-basedstructure,thelatestaudiospectro-
+Infer
+Train
+gram transformer (AST) (Gong, Chung, and Glass 2021a)
+re-purposes the visual transformer structure ViT (Dosovit-
+skiy et al. 2021) and DeiT (Touvron et al. 2021) to use
+Source Source Query the transformer’s class-token to predict the sound event. It
+Mixture Embedding Embedding Source
+#1 #2 Embedding achieves the best performance on the sound event detec-
+tion task in AudioSet. However, it cannot directly localize
+the events because it outputs only a class-token instead of
+Infer
+Audio Source Separator afeaturemap.Inthispaper,weproposeatransformer-based
+modelST-SEDtodetectandlocalizethesoundevent.More-
+over,weusetheST-SEDtoprocesstheweakly-labeleddata
+thatissentdownstreamintothefollowingseparator.
+UniversalSourceSeparation
+Figure1:Thearchitectureofourproposedzero-shotsepara-
+Universal source separation attempts to employ a single
+tionsystem.
+model to separate different types of sources. Currently, the
+query-basedmodelAQMSP(Lee,Choi,andLee2019)and
+and a latent source embedding processor that allows gen-
+the meta-learning model MetaTasNet (Samuel, Ganeshan,
+eralization to unseen types of audio sources. The ST-SED
+and Naradowsky 2020) can separate up to four sources
+can localize the correct occurrences of sound events from
+in MUSDB18 dataset in the music source separation task.
+weakly-labeled audio samples and encode them as latent
+SuDoRM-RF(Tzinis,Wang,andSmaragdis2020),theUni-
+source embeddings. The separator learns to separate out a
+ConvTasNet (Kavalerov et al. 2019), the PANN-based sep-
+target source from an audio mixture given a correspond-
+arator (Kong et al. 2020b), and MSI-DIS (Lin et al. 2021)
+ing target source embedding query, which is produced by
+extendtheuniversalsourceseparationtospeechseparation,
+the embedding processor. Further, the embedding proces-
+environmental source separation, speech enhancement and
+sorenableszero-shotgeneralizationbyformingqueriesfor
+music separation and synthesis tasks. However, most exist-
+newaudiosourcetypesthatwereunseenattrainingtime.In
+ing models require a separation dataset with clean sources
+theexperiment,wefindthatourmodelcanseparateunseen
+andmixturestotrain,andonlysupportalimitednumberof
+types of audio sources, including musical instruments and
+sources that are seen in the training set. An ideal universal
+held-outAudioSet’ssoundclasses,effectivelybyachieving
+source separator should separate as many sources as pos-
+the SDR performance on par with existing state-of-the-art
+sible even if they are unseen or not clearly defined in the
+(SOTA)models.Ourcontributionsarespecifiedasfollows:
+training.Inthispaper,basedonthearchitecturefrom(Kong
+• We propose a complete pipeline to leverage weakly- et al. 2020b), we move further in this direction by propos-
+labeled audio data in training audio source separation ingapipelinethatcanuseaudioeventsamplesfortraining
+systems. The results show that our utilization of these aseparatorthatgeneralizestodiverseandunseensources.
+dataiseffective.
+• We design a transformer-based sound event detection MethodologyandPipeline
+system ST-SED. It outperforms the SOTA for sound
+Inthissection,weintroducethreecomponentsofoursource
+eventdetectioninAudioSet,whileachievingastronglo-
+separation model. The sound event detection system is es-
+calizationperformanceontheweakly-labeleddata.
+tablishedtorefinetheweakly-labeleddatabeforeitisused
+• We employ a single latent source separator for multi- bytheseparationmodelfortraining.Aquery-basedsource
+ple types of audio sources, which saves training time separatorisdesignedtoseparateaudiointodifferentsources.
+andreducesthenumberofparameters.Moreover,weex- Then an embedding processor is proposed to connect the
+perimentally demonstrate that our approach can support abovetwocomponentsandallowsourmodeltoperformsep-
+zero-shotgeneralizationtounseentypesofsources. arationonunseentypesofaudiosources.
+4442
+...
+event #1 #2 #3 #4 source
+class
+prediction
+average iSTFT patch
+presence latent tokens map embedding
+reshape
+patch
+embed
+interpolate
+avg-pool
+linear +
+...... avg-pool token-semantic CNN embedding
+(1,1)(1,2) ... (1,t)(1,1)(1,2) ... (1,t) (1,1)(1,2) (1,t) layer
+(2,1)(2,2) ... (2,t)(2,1)(2,2) ... (2,t) (2,1)(2,2) (2,t)
+...... average
+... ...
+latent embedding
+(f,1)(f,2) ... (f,t) (f,1)(f,2) ... (f,t) (f,1)(f,2) (f,t) latent embedding event presence map event class
+log-mel spectrogram log-mel spectrogram stft-spec
+Figure 2: The network architecture of SED systems and the source separator. Left: PANN (Kong et al. 2020a); Middle: our
+proposedST-SED;Right:theU-Net-basedsourceseparator.AllCNNsarenamedas[2D-kernelsize×channelsize].
+SoundEventDetectionSystem ging task, which then will contribute also to the separation
+task. As mentioned in the related work, the audio spectro-
+InAudioset,eachdatumisa10-secaudiosamplewithmul-
+gramtransformer(AST)cannotbeappliedtoaudiotagging.
+tiplesoundevents.Theonlyaccessiblelabeliswhatsound
+Therefore, we refer to swin-transformer (Liu et al. 2021)
+events this sample contains (i.e., a multi-hot vector). How-
+in order to propose a swin token-semantic transformer for
+ever, we cannot get accurate start and end times for each
+soundeventdetection(ST-SED).InthemiddleofFigure2,
+soundeventinasample.Thisraisestheproblemofextract-
+a mel-spectrogram is cut into different patch tokens with a
+ingaclipfromasamplewhereonesoundeventmostlikely
+patch-embedCNNandsentintothetransformerinorder.We
+occurs(e.g.,a2-secaudioclip).Asshownintheupperpart
+make the time and frequency lengths of the patch equal as
+of Figure 1, a pipeline is depicted by using a sound event
+P ×P. Further, to better capture the relationship between
+detection(SED)systemtoprocesstheweakly-labeleddata.
+frequency bins of the same time frame, we first split the
+Thissystemisdesignedtolocalizea2-secaudioclipfroma
+mel-spectrogramintowindowsw ;w ;:::;w andthensplit
+10-secsample,whichwillserveasanaccuratesoundevent 1 2 n
+thepatchesineachwindow.TheorderoftokensQfollows
+occurrence.
+time→frequency→windowas:
+In this section, we will first briefly introduce an existing
+SOTA system: Pretrained Audio Neural Networks (PANN) Q={qw1;qw1;:::;qw1;qw1;qw1;:::;qw1;:::;qw1;
+1;1 1;2 1;t 2;1 2;2 2;t f;t
+(Left), which serves as the main model to compare in both
+sound event detection and localization experiments. Then q 1w ;2 1;q 1w ;2 2;:::;q 1w ;2 t;q 2w ;2 1;q 2w ;2 2;:::;q 2w ;2 t;:::;q fw ;2 t;
+we introduce our proposed system ST-SED (Middle) that qw3;:::;qw3;qw4;:::;qw4;:::;qwn}
+1;1 f;t 1;1 f;t f;t
+leadstobetterperformancethanPANN.
+Where t = T;f = F, n is the number of time windows,
+PretrainedAudioNeuralNetworks Asshownintheleft and qwk denoP tes the pP atch in the position shown by Figure
+of Figure 2, PANN contains VGG-like CNNs (Simonyan i;j
+2. The patch tokens pass through several network groups,
+and Zisserman 2015) to convert an audio mel-spectrogram
+eachofwhichcontainsseveraltransformer-encoderblocks.
+into a (T;C) featuremap, where T is the number of time
+Between every two groups, we apply a patch-merge layer
+frames and C is the number of sound event classes. The
+to reduce the number of tokens to construct a hierarchical
+model averages the featuremap over the time axis to ob-
+representation. Each transformer-encoder block is a swin-
+tain a final probability vector (1;C) and computes the bi-
+transformer block with the shifted window attention mod-
+narycross-entropylossbetweenitandthegroudtruthlabel.
+ule (Liu et al. 2021), a modified self-attention module to
+Since CNNs can capture the information in each time win-
+improve the training efficiency. As illustrated in Figure 2,
+dow,thefeaturemap(T;C)isempircallyregardedasapres-
+the shape of the patch tokens is reduced by 8 times from
+enceprobabilitymapofeachsoundeventateachtimeframe.
+(T × F;D)to( T × F ;8D)after4networkgroups.
+Whendeterminingthelatentsourceembeddingforthefol- P P 8P 8P
+We reshape the final block’s output to ( T ; F ;8D).
+lowingpipeline,thepenultimatelayer’soutput(T;L)canbe 8P 8P
+Then,weapplyatoken-semantic2D-CNN(Gaoetal.2021)
+usedtoobtainitsaveragedvector(1;L)asthelatentsource
+with kernel size (3; F ) and padding size (1;0) to inte-
+embedding. 8P
+grate all frequency bins, meanwhile map the channel size
+SwinToken-SemanticTransformerforSED Thetrans- 8D into the sound event classes C. The output ( T ;C) is
+8P
+former structure (Vaswani et al. 2017) and the token- regardedasafeaturemapwithintimeframesinacertainres-
+semanticmodule(Gaoetal.2021)havebeenwidelyusedin olution.Finally,weaveragethefeaturemapasthefinalvec-
+the image classification and segmentation task and achieve tor (1;C) and compute the binary cross-entropy loss with
+betterperformance.Inthispaper,weexpecttobringsimilar thegroundtruthlabel.Differentfromtraditionalvisualtrans-
+improvements to the sound event detection and audio tag- formers and AST, our proposed ST-SED does not use the
+4443
+...
+...
+...
+... ... ... ...
+raenil
+...
+niws
+remrofsnart gnigrem
+hctap
+niws
+remrofsnart gnigrem
+hctap
+niws
+remrofsnart gnigrem
+hctap
+niws
+remrofsnart
+skcolb
+NNC
+21
+...
+...
+... corporated by two embedding layers producing two fea-
+turemapsandaddedintotheaudiofeaturemapsbeforepass-
+ing through the next block. Therefore, the network will
+N clips of the target event
+learn the relationship between the source embedding and
+the mixture, and adjust its weights to adapt to the separa-
+Latent Embedding Processor tion of different sources. The output spectrogram of the fi-
+nal CNN block is converted into the separate waveform c0
+SED system
+byinverseSTFT(iSTFT).Supposethatwehaventraining
+triplets {(c1;c1;e1);(c2;c2;e2);:::;(cn;cn;en)}, we apply
+... Mixture Audio j j j j j j
+the Mean Absolute Error (MAE) to compute the loss be-
+average Separator tween separate waveforms C0 = {c10;c20;:::;cn0g and the
+targetsourceclipsC ={c1;c2;:::;cn}:
+j j j j
+n
+1 X
+Source Embedding Separation MAE(C j;C0)=
+n
+|ci
+j
+−ci0| (2)
+i=0
+Figure3:Themechanismtoseparateanaudiointoanygiven
+Combiningthesetwocomponentstogether,wecoulduti-
+source.WecollectN cleanclipsofthetargetevent.Thenwe
+lize more datasets (i.e. containing sufficient audio samples
+take the average of latent source embeddings as the query
+but without separation data) in the source separation task.
+embedding e . The separator receives the embedding then
+q Indeed, it also indicates that we no longer require clean
+performstheseparationonthegivenaudio.
+sources and mixtures for the source separation task (Kong
+class-token but the averaged final vector from the token- etal.2020b,2021)ifwesucceedinusingthesedatasetsto
+semantic layer to indicate the sound event. This makes the achieveagoodperformance.
+localization of sound events available in the output. In the
+practical scenario, we could use the featuremap ( T ;C) to Zero-shotLearningviaLatentSourceEmbeddings
+8P
+localizesoundevents.Andifweset8D = L,theaveraged Thethirdcomponent,theembeddingprocessor,servesasa
+vector (1;L) of the featuremap ( T ;L) can be used as the communicatorbetweentheSEDsystemandthesourcesep-
+8P
+latentsourceembeddinginlinewithPANN. arator. As shown in Figure 1, during the training, the func-
+tion of the latent source embedding processor is to obtain
+Query-basedSourceSeparator thelatentsourceembeddingeofgivenclipscfromtheSED
+system, and send the embedding into the separator. And in
+By SED systems, we can localize the most possible occur-
+the inference stage, we enable the processor to utilize this
+rence of a given sound event in an audio sample. Then, as
+modeltoseparatemoresourcesthatareunseenorundefined
+shownintheFigure1,supposethatwewanttolocalizethe
+inthetrainingset.
+sound event s in the sample x and another event s in
+1 1 2 Formally, suppose that we need to separate an audio
+x , we feed x ;x into the SED system to obtain two fea-
+2 1 2 x according to a query source s . In order to get the
+turemapsm ;m .Fromm ;m wecanfindthetimeframe q q
+1 2 1 2 latent source embedding e , we first need to collect N
+t ;t ofthemaximumprobabilityons ;s ,respectively.Fi- q
+1 2 1 2 clean clips of this source {c ;c ;:::;c }. Then we feed
+nally,wecouldgettwo2-secclipsc ;c asthemostpossible q1 q2 qN
+1 2 them into the SED system to obtain the latent embeddings
+occurrencesofs ;s byassigningt ;t ascenterframeson
+1 2 1 2 {e ;e ;:::;e }.Thee isobtainedbytakingtheaverage
+twoclips,respectively. q1 q2 qN q
+ofthem:
+Subsequently, we resend two clips c ;c into the SED
+1 2
+systemtoobtaintwosourceembeddingse ;e .Eachlatent N
+1 2 1 X
+sourceembedding(1;L)isincorporatedintothesourcesep- e
+q
+=
+N
+e
+qi
+(3)
+arationmodeltospecifywhichsourceneedstobeseparated. i=1
+Theincorporationmechanismwillbeintroducedindetailin
+Then, we use e as the query for the source s and sepa-
+thefollowingparagraphs. q q
+ratex intothetargettrackf(x ;e ).Avisualizationofthis
+After we collect c ;c ;e ;e , we mix two clips as c = q q q
+1 2 1 2 processisdepictedinFigure3.
+c +c withenergynormalization.Thenwesendtwotrain-
+1 2 The527classesofAudiosetarerangedfromambientnat-
+ingtriplets(c;c ;e );(c;c ;e )intotheseparatorf,respec-
+1 1 2 2 uralsoundstohumanactivitysounds.Mostofthemarenot
+tively.Welettheseparatortolearnthefollowingregression:
+clean sources as they contain other backgrounds and event
+f(c +c ;e )7→c ;j ∈{1;2}: (1) sounds. After training our model in Audioset, we find that
+1 2 j j
+the model is able to achieve a good performance on sep-
+AsshownintherightofFigure2,webaseonU-Net(Ron- arating unseen sources. According to (Wang et al. 2019),
+neberger, Fischer, and Brox 2015) to construct our source we declare that this follows a Class-Transductive Instance-
+separator,whichcontainsastackofdownsamplingandup- Inductive (CTII) setting of zero-shot learning (Wang et al.
+sampling CNNs. The mixture clip c is converted into the 2019) as we train the separation model by certain types of
+spectrogram by Short-time Fourier Transform (STFT). In sourcesanduseunseenqueriestoletthemodelseparateun-
+each CNN block, the latent source embedding e is in- seensources.
+j
+4444
+Model mAP ValidationSet:AudioSetEvaluationSet
+AudioSetBaseline(2017) 0.314 Metric-SDR:dB mixture clean silence
+DeepRes.(2019) 0.392 527-dPANN-SEP(2020b) 7.38 8.89 11.00
+PANN.(2020a) 0.434 2048-dPANN-SEP 9.42 13.96 15.89
+PSLA.(2021b) 0.443 2048-dST-SED-SEP 10.55 27.83 16.64
+AST.(single)w/o.pretrain(2021a) 0.368
+AST.(single)(2021a) 0.459 Table2:TheSDRperformanceofdifferentmodelswithdif-
+768-dST-SED 0.467 ferentsourceembeddingsinthevalidationset.
+768-dST-SEDw/o.pretrain 0.458
+We implement the ST-SED in PyTorch2, train it with
+2048-dST-SEDw/o.pretrain 0.459 a batch size of 128 and the AdamW optimizer ((cid:12) =0.9,
+1
+(cid:12) =0.999,eps=1e-8,decay=0.05)(KingmaandBa2015)in
+2
+Table1:ThemAPresultsinAudiosetevaluationset. 8NVIDIATeslaV-100GPUsinparallel.Weadoptawarm-
+up schedule by setting the learning rate as 0.05, 0.1, 0.2 in
+Experiment thefirstthreeepochs,thenthelearningrateishalvedevery
+tenepochsuntilitreturnsto0.05.
+Therearetwoexperimentalstagesforustotrainazero-shot
+audiosourceseparator.First,weneedtotrainaSEDsystem AudioSet Results Following the standard evaluation
+asthefirstcomponent.Then,wetrainanaudiosourcesep- pipeline, we use the mean average precision (mAP) to ver-
+aratorasthesecondcomponentbasedontheprocesseddata ify the classification performance on Audioset’s evaluation
+fromtheSEDsystem.Inthefollowingsubsections,wewill set.InTable1,wecomparetheST-SEDwithpreviousSO-
+introducetheexperimentsinthesetwostages. TAs including the latest PANN, PSLA, and AST. Among
+all models, PSLA, AST, and our 768-d ST-SED apply the
+SoundEventDetection ImageNet-pretrained models. Specifically, PSLA uses the
+Dataset and Training Details We choose AudioSet to pretrained EfficientNet (Tan and Le 2019); AST uses the
+trainoursoundeventdetectionsystemST-SED.Itisalarge- pretrained DeiT; and 768-d ST-SED uses the pretrained
+scalecollectionofover2million10-secaudiosamplesand swin-transformer in Swin-T/C24 setting3. We also provide
+labeled with sound events from a set of 527 labels. Fol- themAPresultofthe768-dST-SEDwithoutpretrainingfor
+lowing the same training pipeline with (Gong, Chung, and comparison. For the 2048-d ST-SED, we train it from zero
+Glass 2021a), we use AudioSet’s full-train set (2M sam- becausethereisnopretrainedmodel.FortheAST,wecom-
+ples) for training the ST-SED model and its evaluation set pareourmodelwithitssinglemodel’sreportinsteadofthe
+(22Ksamples)forevaluation.Tofurtherevaluatethelocal- ensemble one to ensure the fairness of the experiment. All
+ization performance, we use DESED test set (Serizel et al. ST-SEDs are converged around 30-40 epochs in about 20
+2020),whichcontains69210-secaudiosampleswithstrong hours’training.
+labels (time boundaries) of 2765 events in total. All la- FromTable1,wefindthatthe768-dpretrainedST-SED
+bels in DESED are the subset (10 classes) of AudioSet’s achievesanewmAPSOTAas0.467inAudioset.Moreover,
+soundeventclasses.Inthat,wecandirectlymapAudioSet’s our768-dand2048-dST-SEDswithoutpretrainingcanalso
+classesintoDESED’sclasses.Thereisnooverlapbetween achieve the pre-SOTA mAP as 0.458 and 0.459, while the
+AudioSet’s full-train set and DESED test set. And there is AST without pretraining could only achieve a low mAP as
+noneedtouseDESEDtrainingsetbecauseAudioSet’sfull- 0.368. This indicates that the ST-SED is not limited to the
+trainsetcontainsmoretrainingdata. pretraining parameters of the computer vision model, and
+canbeusedmoreflexiblyinaudiotasks.
+Forthepre-processingofaudio,allsamplesareconverted
+tomonoas1channelby32kHzsamplingrate.Tocompute DESED Results We conduct an experiment on DESED
+STFTsandmel-spectrograms,weuse1024windowsizeand test set to evaluate the localization performance of PANN
+320 hop size. As a result, each frame is 320 = 0:01 sec. andthe2048-dST-SED.WedonotincludeASTandPSLA
+32000
+Thenumberofmel-frequencybinsisF = 64.Each10-sec since AST does not directly support the event localization
+sample constructs 1000 time frames and we pad them with and the PSLA’s code is not published. We use the event-
+24 zero-frames (T = 1024). The shape of the output fea- based F1-score on each class as the evaluation metric, im-
+turemapis(1024;527)(C = 527).Thepatchsizeis4×4 plementedbyaPythonlibrarypsds eval4.
+and the time window is 256 frames in length. We propose The F1-scores on all 10 classes in DESED by two mod-
+twosettingsfortheST-SEDwithalatentdimensionsizeL els are shown in Table 3. We find that the 2048-d ST-SED
+of768or2048.Weadoptthe768-dmodeltomakeuseofthe achieves better F1-scores on 8 classes and a better aver-
+swin-transformerImageNet-pretrainedmodelforachieving age F1-score than PANN. A large increment is on the Fry-
+a potential best result. And we adopt the 2048-d model in ingclassasincreasingtheF1-scoreby40.92.However,we
+the following separation experiment because it shares the
+consistentlatentdimensionsizewithPANN’s.Weset4net- 2https://pytorch.org/
+work groups in the ST-SED, containing 2,2,6, and 2 swin- 3https://github.com/microsoft/Swin-Transformer
+transformerblocksrespectively. 4https://github.com/audioanalytic/psds eval
+4445
+Model Alarm Blender Cat Dishes Dog Shaver Frying Water Speech Cleaner Average
+PANN 34.33 42.35 36.31 17.60 35.82 23.81 9.30 30.58 69.68 51.01 35.08
+ST-SED 44.66 52.23 69.98 27.35 49.93 43.90 50.22 42.76 45.11 41.55 46.77
+Table3:TheF1-scoreresultsoneachclassoftwomodelsinDESEDtestset.
+also notice that the F1-scores on Speech class and Cleaner StandardSOTAModel
+classaredroppedwhenusingST-SED,indicatingthatthere MedianSDR vocal drum bass other
+arestillsomeimprovementsforabetterlocalizationperfor-
+WaveNet(2019) 3.25 4.22 3.21 2.25
+mance.
+WK(2014) 3.76 4.00 2.94 2.43
+From the above experiments, we can conclude that the
+ST-SEDachievesthebestsoundeventdetectionresultsand RGT1(2018) 3.85 3.44 2.70 2.63
+thesuperiorresultsonlocalizationperformanceinAudioSet SpecUNet(2018) 5.74 4.66 3.67 3.40
+and DESED. These results are sufficient for us to use the MMDLSTM(2018) 6.60 6.41 5.16 4.15
+2048-dST-SEDmodeltoconductthefollowingseparation
+OpenUnmix(2019) 6.32 5.73 5.23 4.02
+experiments.ItisbettertoevaluatetheST-SEDondatasets.
+Duetothepagelimit,weleavetheseasfuturework. Demucs(2019) 6.21 6.50 6.21 3.80
+Query-basedModelw/.MUSDB18Training
+AudioSourceSeparation MedianSDR vocal drum bass other
+AQMSP(2019) 4.90 4.34 3.09 3.16
+DatasetandTrainingDetails Wetrainouraudiosepara-
+tor in AudioSet full-train set, validate it in Audioset eval- Meta-TasNet(2020) 6.40 5.91 5.58 4.19
+uation set, and evaluate it in MUSDB18 test set as fol-
+Zero-shotModelw/o.MUSDB18Training
+lowing the 6th community-based Signal Separation Eval-
+MedianSDR vocal drum bass other
+uation Campaign (SiSEC 2018). MUSDB18 contains 150
+songswithatotaldurationof3.5hoursindifferentgenres. 527-dPANN-SEP 4.16 0.95 -0.86 -2.65
+Eachsongprovidesamixturetrackandfouroriginalstems: 2048-dPANN-SEP 6.06 5.00 3.38 2.86
+vocal, drum, bass, and other. All SOTAs are trained with
+2048-dST-SED-SEP 6.15 5.44 3.80 3.05
+MUSDB18trainingset(100songs)andevaluatedinitstest
+set (50 songs). Different from these SOTAs, we train our
+Table 4: The SDR performance in MUSDB18 test set. All
+modelonlywithAudiosetfull-trainsetotherthanMUSDB
+modelsarecategorizedintothreeslots.
+anddirectlyevaluateitinMUSDB18testset.
+SinceAudiosetisnotanaturalseparationdataset(i.e.,no
+Evaluation Metrics We use source-to-distortion ratio
+mixturedata),toconstructthetrainingsetandthevalidation
+(SDR) as the metric to evaluate our separator. For the val-
+set, during each training step, we sample two classes from
+idationset,wecomputethreeSDRmetricsbetweenthepre-
+527classesandrandomlytakeeachsamplex ;x fromtwo
+1 2 dictionandthegroundtruthindifferentseparationtargets:
+classes in the full-train set. We implement a balanced sam-
+plerthatallclasseswillbesampledequallyduringthewhole • mixture-SDR’starget:f(c 1+c 2;e j)7→c j
+training. During the validation stage, we follow the same • clean-SDR’starget:f(c ;e )7→c
+j j j
+samplingparadigmtoconstruct5096audiopairsfromAu- • silence-SDR’starget:f(c ;e )7→0
+:j j
+dioset evaluation set and fix these pairs. By setting a fixed
+Wherethesymbol¬jdenotesanyclipwhichdoesnotshare
+randomseed,allmodelswillfacethesametrainingdataand
+the same class with the j-th clip. In our setting, ¬1 = 2
+thevalidationdata.
+and ¬2 = 1. The clean SDR is to verify if the model can
+For the model design, our SED system has two choices:
+maintain the clean source given the self latent source em-
+PANN or ST-SED. And the separator we apply comprises
+bedding.ThesilenceSDRistoverifyifthemodelcansep-
+6 encoder blocks and 6 decoder blocks. In encoder blocks,
+aratenothingifthereisnotargetsourceinthegivenaudio.
+the numbers of channels are namely 32, 64, 128, 256, 512,
+Thesehelpusunderstandifthemodelcanbegeneralizedto
+1024. In decoder blocks, they are reversed (i.e., from 1024
+moregeneralseparationscenariosonlybyusingthemixture
+to 32). There is a final convolution kernel that converts 32
+training.Forthetesting,weonlycomputethemixtureSDR
+channelsintotheoutputaudiochannel.Batchnormalization
+betweeneachstemandeachoriginalsonginMUSDB18test
+(Ioffe and Szegedy 2015) and ReLU non-linearity (Agarap
+set. Each song is divided into 1-sec clips. The song’s SDR
+2018)areusedineachblock.Thefinaloutputisaspectro-
+is the median SDR over all clips. And the final SDR is the
+gram,whichcanbeconvertedintothefinalseparateaudioc0
+medianSDRoverallsongs.
+byiSTFT.Similarly,weimplementourseparatorinPyTorch
+and train it with the Adam optimizer ((cid:12) =0.9, (cid:12) =0.999, The Choice of Source Embeddings We choose three
+1 2
+eps=1e-8, decay=0), the learning rate 0.001 and the batch source embeddings for our separator: (1) the 527-d pres-
+sizeof64in8NVIDIATeslaV-100GPUsinparallel. ence probability vector from PANN, referring to (Kong
+4446
+Class Conversation Whisper Clap Cat Orchestra Aircraft Engine Pour Scratch Creak
+Mixture-SDR 9.08 8.04 9.67 9.49 9.18 8.47 8.31 7.92 8.42 6.56
+Clean-SDR 17.44 10.50 17.78 15.01 10.06 13.09 14.85 14.28 15.52 13.79
+Silence-SDR 14.05 13.86 14.45 17.63 12.08 11.97 11.56 12.76 13.95 13.61
+Table5:TheSDRperformanceofthe2048-dST-SED-SEPinthezero-shotverificationexperiment.
+etal.2020b);(2)the2048-dlatentembeddingfromPANN’s searchedinthefuture.
+penultimatelayer;and(3)the2048-dlatentembeddingfrom In summary, the most novel and surprising observation
+ST-SED.Thishelpstoverifyifthelatentsourceembedding is that our proposed audio separator succeeds in separating
+canperformabetterrepresentationforseparation,andifthe 4 sources in MUSDB18 test set without any of its training
+embeddingfromST-SEDisbetterthanthatfromPANN. data butonly Audioset.The modelperforms asa zero-shot
+In the training and validation stage, we get each latent separator by using any latent source embedding collected
+source embedding directly from each 2-sec clip according fromaccessibledata,toseparatoranysourceitfaces.
+to the pipeline in Figure 1. After picking the best model in
+thevalidationset,wefollowFigure3togetthequerysource Zero-ShotVerification
+embeddings in MUSDB18. Specifically, we collect all sep- In this section, we conduct another experiment to separate
+arate tracks in the highlight version of MUSDB10 training sources that are held-out from training. We first select 10
+set (30 secs in each song, 100 songs in total) and take the soundclassesinAudioset.Thenduringthetraining,were-
+averageoftheirembeddingsoneachsourceasfourqueries: movealldataofthese10classes.Themodelonlylearnshow
+vocal,drum,bass,andother. to separate clips mixed by the left 517 classes. During the
+evaluation, we construct 1000 (100×10) mixture samples
+SeparationResults Table2showstheSDRsoftwomod-
+in Audioset evaluation set whose constituents only belong
+els in the validation set. We could clearly figure out that
+tothese10classes.ThenwecalculatethemixtureSDR,the
+when using the 2048-d latent source embedding, PANN
+cleanSDR,andthesilenceSDRofthem.
+achieves better performance in increasing three types of
+Table 5 shows the results by the 2048-d ST-SED model.
+SDR by 2-4 dB than that of 527-d model. A potential rea-
+We can find that the model can still separate the held-out
+sonisthattheextracapacityofthe2048-dembeddingspace
+sources well by achieving the average mixture SDR, clean
+helped the model better capture the feature of the sound
+SDR,andsilenceSDRas8.52dB,14.23dB,and13.59dB
+comparing to the 527-d probability embedding. In that, the
+(calcucated under 10 classes). The detailed SDR distribu-
+modelcanreceivemorediscriminativeembeddingsandper-
+tion of these 1000 samples is depicted in the open source
+formamoreaccurateseparation.
+repository.Theintrinsicreasonforthisgoodperformanceis
+Thenwepickthebestmodelsof527-dPANN-SEP,2048-
+that the SED system captures many features of 517 sound
+d PANN-SEP, 2048-d ST-SED-SEP and evaluate them in
+classes in its latent space. And it generalizes to regions of
+MUSDB18.AsshowninTable4,therearethreecategories
+theembeddingspaceitneversawduringtraining,whichthe
+ofmodels:(1)StandardModel:thesemodelscanonlysep-
+unseen10classesliein.Finally,theseparatorutilizesthese
+arateonesource,inthattheyneedtotrain4modelstosep-
+featuresintheembeddingtoseparatethetargetsource.The
+arate each source in MUSDB18. (2) Query-based Model:
+zero-shotsettingofourmodelisessentiallybuiltbyasolid
+these models can separate four sources in one model. Both
+featureextractionmechanismandalatentsourceseparator.
+models in (1) and (2) require the training data in MUSDB
+trainingsetandcannotgeneralizetoseparateothersources.
+ConclusionandFutureWork
+And (3) Zero-shot Model: our proposed models can sepa-
+ratefoursourcesinonemodelwithoutanyMUSDB18train- In this paper, we propose a zero-shot audio source sep-
+ingdata.Additionally,theycanevenseparatemoresources. arator that can utilize weakly-labeled data to train, tar-
+Specifically,forourproposed2048-dST-SEDmodel,were- get different sources to separate, and support more unseen
+peatthetrainingthreetimeswithdifferentrandomseeds. sources.WetrainourmodelinAudiosetwhileevaluatingit
+From Table 4 our proposed model 2048-d ST-SED-SEP in MUSDB18 test set. The experimental results show that
+outperforms PANN-SEP models in all SDRs (6.15, 5.44, ourmodeloutperformsthequery-basedSOTAs,meanwhile
+3.80, 3.05). The deviation of SDR performance on four achievesacompatibleresultwithstandardsupervisedmod-
+stems are ±0:22, ±0:32, ±0:23, and ±0:20. The SDRs in els.Wefurtherverifyourmodelinacompletezero-shotset-
+vocal, drum, and bass are compatible with standard and tingtoproveitsgeneralizationability.Withourmodel,more
+query-based SOTAs. However, we observe a relatively low weakly-labeledaudiodatacanbetrainedforthesourcesep-
+SDR in the ”other” source. One possible reason is that the arationproblem.Andmoresourcescanbeseparatedviaone
+”other”embeddingwecalculateforMUSDB18isnotgen- model. In future work, since audio embeddings have been
+eralbecauseitdenotesdifferentinstrumentsandtimbresin widely used in other audio tasks such as music recommen-
+different tracks. Another possible reason is that the separa- dation(Chenetal.2021)andmusicgeneration(2019;2020;
+tionqualityisrelatedtotherandomcombinationoftraining 2021;2020;2020),weexpecttousetheseaudioembeddings
+data, and different orders may cause differences on some as source queries to see if they can capture different audio
+specifictypesofsounds.Thesesub-topicscanbefurtherre- featuresandleadtobetterseparationperformance.
+4447
+References Gemmeke, J. F.; Ellis, D. P. W.; Freedman, D.; Jansen, A.;
+Agarap, A. F. 2018. Deep Learning using Rectified Linear Lawrence, W.; Moore, R. C.; Plakal, M.; and Ritter, M.
+Units(ReLU). arXiv:1803.08375. 2017. Audio Set: An ontology and human-labeled dataset
+for audio events. In International Conference on Acous-
+Bittner, R. M.; Salamon, J.; Tierney, M.; Mauch, M.; Can-
+tics,SpeechandSignalProcessing,ICASSP2017,776–780.
+nam, C.; and Bello, J. P. 2014. MedleyDB: A Multitrack
+IEEE.
+Dataset for Annotation-Intensive MIR Research. In Pro-
+ceedings of the 15th International Society for Music Infor- Gong, Y.; Chung, Y.-A.; and Glass, J. 2021a. AST: Audio
+mationRetrievalConference,ISMIR2014,155–160. Spectrogram Transformer. In 22nd Annual Conference of
+theInternationalSpeechCommunicationAssociation,Inter-
+Chen, K. 2021. Controllable Monophonic Music Genera-
+tion Via Latent Variable Disentanglement. Master Thesis
+speech2021.ISCA.
+Archive. Gong, Y.; Chung, Y.-A.; and Glass, J. 2021b. PSLA: Im-
+Chen, K.; Liang, B.; Ma, X.; and Gu, M. 2021. Learning proving Audio Tagging with Pretraining, Sampling, Label-
+Audio Embeddings with User Listening Data for Content- ing, and Aggregation. IEEE ACM Trans. Audio Speech
+BasedMusicRecommendation.InInternationalConference Lang.Process.TASLP2021.
+onAcoustics,SpeechandSignalProcessing,ICASSP2021, Hershey, S.; Ellis, D. P. W.; Fonseca, E.; Jansen, A.; Liu,
+3015–3019.IEEE. C.; Moore, R. C.; and Plakal, M. 2021. The Benefit of
+Chen, K.; Wang, C.; Berg-Kirkpatrick, T.; and Dubnov, S. Temporally-StrongLabelsinAudioEventClassification. In
+2020. MusicSketchNet:ControllableMusicGenerationvia International Conference on Acoustics, Speech and Signal
+Factorized Representations of Pitch and Rhythm. In Pro- Processing,ICASSP2021,366–370.IEEE.
+ceedings of the 21th International Society for Music Infor- Ioffe,S.;andSzegedy, C.2015. BatchNormalization: Ac-
+mationRetrievalConference,ISMIR2020,77–84. celeratingDeepNetworkTrainingbyReducingInternalCo-
+Chen,K.;Xia,G.;andDubnov,S.2020.ContinuousMelody variate Shift. In Proceedings of the 32nd International
+Generation via Disentangled Short-Term Representations Conference on Machine Learning, ICML 2015, volume 37
+and Structural Conditions. In IEEE 14th International ofJMLRWorkshopandConferenceProceedings,448–456.
+Conference on Semantic Computing, ICSC 2020, 128–135. JMLR.org.
+IEEE.
+Kavalerov,I.;Wisdom,S.;Erdogan,H.;Patton,B.;Wilson,
+Chen,K.;Zhang,W.;Dubnov,S.;Xia,G.;andLi,W.2019. K.W.;Roux,J.L.;andHershey,J.R.2019.UniversalSound
+The Effect of Explicit Structure Encoding of Deep Neural Separation. InWorkshoponApplicationsofSignalProcess-
+NetworksforSymbolicMusicGeneration. InInternational ingtoAudioandAcoustics,WASPAA2019,175–179.IEEE.
+WorkshoponMultilayerMusicRepresentationandProcess-
+Kingma, D. P.; and Ba, J. 2015. Adam: A Method for
+ing,MMRP2019.IEEE.
+Stochastic Optimization. In 3rd International Conference
+De´fossez,A.;Usunier,N.;Bottou,L.;andBach,F.R.2019. onLearningRepresentations,ICLR2015.
+Demucs:DeepExtractorforMusicSourceswithextraunla-
+Kong, Q.; Cao, Y.; Iqbal, T.; Wang, Y.; Wang, W.; and
+beleddataremixed. arXiv:1909.01174.
+Plumbley, M. D. 2020a. PANNs: Large-Scale Pretrained
+Dong, H.; Chen, K.; McAuley, J. J.; and Berg-Kirkpatrick,
+Audio Neural Networks for Audio Pattern Recognition.
+T.2020. MusPy:AToolkitforSymbolicMusicGeneration.
+IEEE ACM Trans. Audio Speech Lang. Process. TASLP
+In Proceedings of the 21th International Society for Music
+2020,28:2880–2894.
+InformationRetrievalConference,ISMIR2020,101–108.
+Kong,Q.;Liu,H.;Du,X.;Chen,L.;Xia,R.;andWang,Y.
+Dosovitskiy, A.; Beyer, L.; Kolesnikov, A.; Weissenborn,
+2021. Speechenhancementwithweaklylabelleddatafrom
+D.; Zhai, X.; Unterthiner, T.; Dehghani, M.; Minderer, M.;
+AudioSet. arXiv:2102.09971.
+Heigold,G.;Gelly,S.;Uszkoreit,J.;andHoulsby,N.2021.
+Kong, Q.; Wang, Y.; Song, X.; Cao, Y.; Wang, W.; and
+An Image is Worth 16x16 Words: Transformers for Image
+Plumbley,M.D.2020b.SourceSeparationwithWeaklyLa-
+Recognition at Scale. In 9th International Conference on
+belledData:anApproachtoComputationalAuditoryScene
+LearningRepresentations,ICLR2021.OpenReview.net.
+Analysis. InInternationalConferenceonAcoustics,Speech
+Fonseca,E.;Plakal,M.;Font,F.;Ellis,D.P.W.;Favory,X.;
+andSignalProcessing,ICASSP2020,101–105.IEEE.
+Pons, J.; and Serra, X. 2018. General-purpose Tagging of
+Freesound Audio with AudioSet Labels: Task Description, LeCun,Y.;Haffner,P.;Bottou,L.;andBengio,Y.1999.Ob-
+Dataset,andBaseline. arXiv:1807.09902. ject Recognition with Gradient-Based Learning. In Shape,
+ContourandGroupinginComputerVision,volume1681of
+Ford, L.; Tang, H.; Grondin, F.; and Glass, J. R. 2019. A
+LectureNotesinComputerScience,319.Springer.
+Deep Residual Network for Large-Scale Acoustic Scene
+Analysis. In 20th Annual Conference of the Inter- Lee,J.H.;Choi,H.;andLee,K.2019. AudioQuery-based
+national Speech Communication Association, Interspeech Music Source Separation. In Proceedings of the 20th In-
+2019,2568–2572.ISCA. ternationalSocietyforMusicInformationRetrievalConfer-
+Gao,W.;Wan,F.;Pan,X.;Peng,Z.;Tian,Q.;Han,Z.;Zhou,
+ence,ISMIR2019,878–885.
+B.;andYe,Q.2021.TS-CAM:TokenSemanticCoupledAt- Lin, L.; Xia, G.; Kong, Q.; and Jiang, J. 2021. A unified
+tentionMapforWeaklySupervisedObjectLocalization. In model for zero-shot music source separation, transcription
+PremierInternationalComputerVisionEvent,ICCV2021. and synthesis. In Proceedings of the 22nd International
+4448
+SocietyforMusicInformationRetrievalConference,ISMIR Sto¨ter, F.; Uhlich, S.; Liutkus, A.; and Mitsufuji, Y. 2019.
+2021,381–388. Open-Unmix - A Reference Implementation for Music
+Liu, J.; and Yang, Y. 2018. Denoising Auto-Encoder with SourceSeparation. J.OpenSourceSoftw.,4(41):1667.
+Recurrent Skip Connections and Residual Regression for Takahashi,N.;Goswami,N.;andMitsufuji,Y.2018. Mm-
+MusicSourceSeparation. In17thInternationalConference denselstm: An Efficient Combination of Convolutional and
+onMachineLearningandApplications,ICMLA2018,773– RecurrentNeuralNetworksforAudioSourceSeparation.In
+778.IEEE. 16th International Workshop on Acoustic Signal Enhance-
+ment,IWAENC2018,106–110.IEEE.
+Liu,Z.;Lin,Y.;Cao,Y.;Hu,H.;Wei,Y.;Zhang,Z.;Lin,S.;
+and Guo, B. 2021. Swin Transformer: Hierarchical Vision Takahashi,N.;andMitsufuji,Y.2020. D3Net:Denselycon-
+TransformerusingShiftedWindows. arXiv:2103.14030. nected multidilated DenseNet for music source separation.
+arXiv:2010.01733.
+Liutkus,A.;Sto¨ter,F.-R.;Rafii,Z.;Kitamura,D.;Rivet,B.;
+Ito, N.; Ono, N.; and Fontecave, J. 2017. The 2016 Signal Tan,M.;andLe,Q.V.2019.EfficientNet:RethinkingModel
+SeparationEvaluationCampaign. InLatentVariableAnal- ScalingforConvolutionalNeuralNetworks. InProceedings
+ysisandSignalSeparation-12thInternationalConference, ofthe36thInternationalConferenceonMachineLearning,
+LVA/ICA2015,323–332.SpringerInternationalPublishing. ICML2019,volume97ofProceedingsofMachineLearning
+Research,6105–6114.PMLR.
+Llu´ıs, F.; Pons, J.; and Serra, X. 2019. End-to-End Music
+SourceSeparation:IsitPossibleintheWaveformDomain? Touvron,H.;Cord,M.;Douze,M.;Massa,F.;Sablayrolles,
+In 20th Annual Conference of the International Speech A.;andJe´gou,H.2021. Trainingdata-efficientimagetrans-
+CommunicationAssociation,Interspeech2019,4619–4623. formers & distillation through attention. In Proceedings
+ISCA. ofthe38thInternationalConferenceonMachineLearning,
+ICML2021,volume139ofProceedingsofMachineLearn-
+Luo, Y.; and Mesgarani, N. 2018. TaSNet: Time-Domain
+ingResearch,10347–10357.PMLR.
+Audio Separation Network for Real-Time, Single-Channel
+Speech Separation. In International Conference on Acous- Tzinis,E.;Wang,Z.;andSmaragdis,P.2020.SudoRM-RF:
+tics,SpeechandSignalProcessing,ICASSP2018,696–700. Efficient Networks for Universal Audio Source Separation.
+IEEE. In 30th International Workshop on Machine Learning for
+SignalProcessing,MLSP2020,1–6.IEEE.
+Rafii,Z.;Liutkus,A.;Sto¨ter,F.-R.;Mimilakis,S.I.;andBit-
+tner,R.2017. TheMUSDB18corpusformusicseparation. Vaswani, A.; Shazeer, N.; Parmar, N.; Uszkoreit, J.; Jones,
+https://sigsep.github.io/datasets/musdb.html. L.;Gomez,A.N.;Kaiser,L.;andPolosukhin,I.2017. At-
+tentionisAllyouNeed. InAdvancesinNeuralInformation
+Roma, G.; Green, O.; and Tremblay, P. A. 2018. Improv-
+ProcessingSystems30:AnnualConferenceonNeuralInfor-
+ing Single-Network Single-Channel Separation of Musical
+mationProcessingSystems2017,5998–6008.
+AudiowithConvolutionalLayers. InLatentVariableAnal-
+ysisandSignalSeparation-14thInternationalConference, Wang, W.; Zheng, V. W.; Yu, H.; and Miao, C. 2019. A
+LVA/ICA2018,volume10891ofLectureNotesinComputer Survey of Zero-Shot Learning: Settings, Methods, and Ap-
+Science,306–315.Springer. plications. ACMTrans.Intell.Syst.Technol.,10(2).
+Weninger,F.;Hershey,J.R.;Roux,J.L.;andSchuller,B.W.
+Ronneberger, O.; Fischer, P.; and Brox, T. 2015. U-Net:
+2014. Discriminatively trained recurrent neural networks
+Convolutional Networks for Biomedical Image Segmenta-
+forsingle-channelspeechseparation. In2014GlobalCon-
+tion. InMedicalImageComputingandComputer-Assisted
+ference on Signal and Information Processing, GlobalSIP
+Intervention,MICCAI2015,volume9351ofLectureNotes
+2014,577–581.IEEE.
+inComputerScience,234–241.Springer.
+Wisdom, S.; Erdogan, H.; Ellis, D. P. W.; Serizel, R.; Tur-
+Samuel,D.;Ganeshan,A.;andNaradowsky,J.2020. Meta-
+pault, N.; Fonseca, E.; Salamon, J.; Seetharaman, P.; and
+LearningExtractorsforMusicSourceSeparation. InInter-
+Hershey, J. R. 2021. What’s all the Fuss about Free Uni-
+national Conference on Acoustics, Speech and Signal Pro-
+versalSoundSeparationData? InInternationalConference
+cessing,ICASSP2020,816–820.IEEE.
+onAcoustics,SpeechandSignalProcessing,ICASSP2021,
+Serizel, R.; Turpault, N.; Shah, A. P.; and Salamon, J.
+186–190.IEEE.
+2020. Sound Event Detection in Synthetic Domestic Envi-
+ronments.InInternationalConferenceonAcoustics,Speech
+andSignalProcessing,ICASSP2020,86–90.IEEE.
+Simonyan,K.;andZisserman,A.2015. VeryDeepConvo-
+lutional Networks for Large-Scale Image Recognition. In
+3rdInternationalConferenceonLearningRepresentations,
+ICLR2015.
+Stoller,D.;Ewert,S.;andDixon,S.2018. Wave-U-Net:A
+Multi-Scale Neural Network for End-to-End Audio Source
+Separation. InProceedingsofthe19thInternationalSociety
+for Music Information Retrieval Conference, ISMIR 2018,
+334–340.
+4449

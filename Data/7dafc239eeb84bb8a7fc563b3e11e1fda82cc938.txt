@@ -1,0 +1,509 @@
+ProceedingsoftheTwenty-NinthInternationalJointConferenceonArtificialIntelligence(IJCAI-20)
+Generalized Zero-Shot Text Classification for ICD Coding
+CongzhengSong1, ShanghangZhang2(cid:3), NajmehSadoughi3, PengtaoXie3 and EricXing3
+1CornellUniversity
+2UniversityofCalifornia,Berkeley
+3PetuumInc.
+cs2296@cornell.edu,shz@eecs.berkeley.edu,fnajmeh.sadoughi,pengtao.xie,eric.xingg@petuum.com
+Abstract toperformfine-grainedmulti-labelclassificationonbothseen
+codes(codeswithlabeleddata)andunseen(zero-shot)codes
+The International Classification of Diseases (ICD) atthesametime.AutomaticICDcodingforbothseenandun-
+is a list of classification codes for the diagnoses. seencodesfitsintothegeneralizedzero-shotlearning(GZSL)
+Automatic ICD coding is a multi-label text classi- paradigm [Chao et al., 2016], where test examples are from
+fication problem with noisy clinical document in- both seen and unseen classes and we classify them into the
+puts and long-tailed label distribution, making it jointlabelingspaceofbothtypesofclasses.
+difficultfor fine-grainedclassificationon bothfre- ModernautomaticICDcodingmodels[Mullenbachetal.,
+quent and zero-shot codes at the same time, i.e. 2018; Rios and Kavuluru, 2018] can accurately classify fre-
+generalized zero-shot ICD coding. In this paper, quentICDcodeswhileperformingpoorlyonzero-shotcodes.
+we propose a latent feature generation framework Toresolvethisdiscrepancy, weproposetogeneratethesyn-
+to improve the prediction on unseen codes with- thetic latent features for zero-shot codes and fine-tune the
+outcompromisingtheperformanceonseencodes. classification model with these generated features. The offi-
+Our framework generates semantically meaning- cialICDguidelinesprovideeachcodeashorttextdescription
+ful features for zero-shot codes by exploiting ICD andahierarchicaltreestructureonalltheICDcodes[ICD-9
+code hierarchical structure and reconstructing the Guidelines,2011]. Togeneratesemanticallymeaningfulfea-
+code-relevant keywords with a novel cycle archi- tures,weexploitthosedomainknowledgeaboutICDcodes.
+tecture. To the best of our knowledge, this is the WeproposeAGM-HT,anAdversarialGenerativeModelcon-
+first adversarial generative model for generalized ditioned on code descriptions with Hierarchical Tree struc-
+zero-shotlearningonmulti-labeltextclassification. turetogeneratesyntheticfeatures. AsillustratedinFigure1,
+Extensive experiments demonstrate the effective- AGM-HTconsistsofageneratortosynthesizecode-specific
+ness of our approach. On the public MIMIC-III latentfeaturesbasedontheICDcodedescriptions,andadis-
+dataset, our methods improve the F1 score from criminatortodecidehowrealisticthegeneratedfeaturesare.
+nearly 0 to 20:91% for the zero-shot codes, and Toguaranteethesemanticconsistencybetweenthegenerated
+increasetheAUCscoreby3%(absoluteimprove- andrealfeatures,AGM-HTreconstructsthekeywordsinthe
+ment)frompreviousstateoftheart. Codeisavail- inputdocumentsthatarerelevanttotheconditionedcodes.To
+ableathttps://github.com/csong27/gzsl text. furtherfacilitatethefeaturesynthesisofzero-shotcodes,we
+takeadvantageofthehierarchicalstructureoftheICDcodes
+1 Introduction and encourage the zero-shot codes to generate similar fea-
+tureswiththeirnearestsiblingcode. Thegeneratedfeatures
+Inhealthcarefacilities,clinicalrecordsareclassifiedintoaset
+are utilized to fine-tune the ICD coding models and achieve
+of International Classification of Diseases (ICD) codes that
+moreaccuratepredictionsforzero-shotcodes.
+categorize diagnoses. ICD codes are used for a wide range
+ofpurposesincludingbilling, reimbursement, andretrieving Our contributions: 1) To the best of our knowledge, we
+of diagnostic information. Automatic ICD coding [Stanfill propose the first adversarial generative model for the gen-
+et al., 2010] is in great demand as manual coding can be eralized zero-shot learning on multi-label text classification.
+labor-intensive and error-prone. ICD coding is a multi-label AGM-HT generates latent features conditioned on the code
+textclassificationtaskwithalong-tailedclasslabeldistribu- descriptions and fine-tunes the zero-shot ICD code assign-
+tionandnoisydocumentinputs. MajorityofICDcodesonly mentclassifierstoachievehigheraccuracy. 2)AGM-HTex-
+have a few or no labeled data due to the rareness of the dis- ploitsthehierarchicalstructureofICDcodestogeneratese-
+ease.InthemedicaldatasetMIMICIII[Johnsonetal.,2016], mantically meaningful features for zero-shot codes without
+among17,000uniqueICD-9codes, morethan50%ofthem anylabeleddata. 3)AGM-HThasanovelpseudocyclegen-
+never occur in the training data. It is extremely challenging erationarchitecturetoguaranteethesemanticconsistencybe-
+tween the synthetic and real features by reconstructing the
+(cid:3)ShanghangZhangaccomplishesthisworkatPetuumInc. relevant keywords in input documents. 4) Extensive exper-
+4018
+ProceedingsoftheTwenty-NinthInternationalJointConferenceonArtificialIntelligence(IJCAI-20)
+relationshipbetweeninputandcodedescriptions. [Zhanget
+al., 2019a] introduced a two-phase framework for zero-shot
+textclassification. Aninputisfirstdeterminedasfromaseen
+or an unseen classes before the final classification. This ap-
+proachdoesnotdirectlyapplytoICDcodingaseachinputis
+labeledwithasetofcodeswhichcanincludebothseenand
+unseen codes, thus it is not possible to determine if the data
+isfromaseenoranunseenclass.
+3 Method
+Figure1:OverviewofAGM-HT.Thegeneratorsynthesizesfeatures
+foranICDcodeandthediscriminatordecideshowrealisticthesyn- ThetaskofautomaticICDcodingistoassignICDcodesto
+theticfeaturesare. Forazero-shotICDcode,thediscriminatordis- patient’sclinicalnotes. Weformulatetheproblemasamulti-
+tinguishesbetweenthegeneratedfeaturesandtherealfeaturesfrom labeltextclassificationproblem. LetLbethesetofallICD
+thedataofitsnearestsiblingintheICDhierarchy. Thegenerated codes and L = jLj, given an input text, the goal is to pre-
+features are further used to reconstruct the keywords in the input
+dict y 2 f0;1g for all l 2 L. Each ICD code l has a short
+documentstopreservesemantics. l
+textdescription. Forexample,thedescriptionforICD-9code
+403.11is“Hypertensivechronickidneydisease,benign,with
+iments demonstrate the effectiveness of our approach. On chronic kidney disease stage V or end stage renal disease.”
+MIMIC-III dataset, our methods improve the F1 score from There is also a known hierarchical tree structure on all the
+nearly0to20:91%forthezero-shotcodesandAUCscoreby ICDcodes:foranoderepresentinganICDcode,thechildren
+3%(absoluteimprovement)frompreviousstateofthearts. ofthisnoderepresentthesubtypesofthisICDcode.
+We focus on the generalized zero-shot ICD coding prob-
+2 RelatedWork
+lem: accuratelypredictingcodel whichisneverassignedto
+AutomatedICDcoding. Severalapproachesexploreauto- any training text (i.e. y l = 0), without sacrificing the per-
+maticassigningICDcodesonclinicaltextdata[Stanfilletal., formance on seen codes. We assume a pretrained model as
+2010].[Mullenbachetal.,2018]proposedtoextractper-code a feature extractor that performs ICD coding by extracting
+textual features with attention mechanism for ICD assign- label-wise feature f l and predicting y l by (cid:27)(g l> (cid:1)f l), where
+ments. [Shietal.,2017]exploredcharacterbasedshort-term (cid:27) is the sigmoid function and g l is the binary classifier for
+memory (LSTM) with attention and [Xie and Xing, 2018] codel. Forthezero-shotcodes,g l isnevertrainedonf l with
+appliedtreeLSTMwithICDhierarchyinformationforICD y l = 1andthusatinferencetime, thepretrainedfeatureex-
+coding. Mostexistingworkseitherfocusedonpredictingthe tractorhardlyeverassignszero-shotcodes.
+most common ICD code or did not utilize the ICD hierar- Figure 1 shows an overview of the generation frame-
+chystructure. [RiosandKavuluru,2018]proposedtoutilize work. We propose to use generative adversarial networks
+ICDhierarchyinformationforimprovingtheperformanceon (GAN)[Goodfellowetal.,2014]togeneratef~ withy = 1
+l l
+therareandzero-shotcodes. Themodelhardlyassignsrare by conditioning on code l. The generator G tries to gener-
+codesinitsfinalpredictionasweshowinSection4,making ate the fake feature f~given an ICD code description. The
+itimpracticaltodeployinrealapplications. discriminatorDtriestodistinguishbetweenf~andreallatent
+Feature generation for GZSL. The idea of using genera- feature f from the feature extractor model. After the GAN
+tivemodelsforGZSListogeneratelatentfeaturesforunseen istrained,weuseGtosynthesizef~ l andfine-tunethebinary
+classesusinggenerativeadversarialnetworks(GANs)[Good- classifier g with f~ for a given zero-shot code l. Since the
+l l
+fellowetal.,2014]andtrainaclassifieronthegeneratedand binarycodeclassifiersareindependentlyfine-tunedforzero-
+real features for both seen and unseen classes. [Xian et al., shotcodes,theperformanceontheseencodesisnotaffected,
+2018] proposed using conditional GANs to generate visual achievingthegoalofGZSL.
+featuresgiventhesemanticfeatureforzero-shotclasses. [Fe-
+3.1 FeatureExtractor
+lixetal.,2018]addedacycle-consistentlossongeneratorto
+ensurethegeneratedfeaturescapturestheclasssemanticsby The pretrained feature extractor model is zero-shot attentive
+using linear regression to map visual features back to class graph recurrent neural networks (ZAGRNN) modified from
+semanticfeatures. [Nietal., 2019]furtherimprovedthese- zero-shot attentive graph convolution neural networks (ZA-
+mantics preserving using dual GANs formulation instead of GCNN), which is the only previous work that is tailored
+a linear model. Previous works focused on vision domain towards solving zero-shot ICD coding [Rios and Kavuluru,
+wherethefeaturesareextractedfromwell-traineddeepmod- 2018]. Weimprovetheoriginalimplementationbyreplacing
+els on large-scale image dataset. We introduce the first fea- the GCNN with GRNN and adopting the label-distribution-
+turegenerationframeworktailoredforzero-shotICDcoding aware margin loss [Cao et al., 2019] for training. Figure 2
+byexploitingexistingmedicalknowledgefromlimiteddata. shows the architecture of the ZAGRNN. At a high-level,
+givenaninputx,ZAGRNNextractslabel-wisefeaturef and
+Zero-shottextclassification. [PushpandSrivastava,2017] l
+performsbinarypredictiononf foreachICDcodel.
+exploredzero-shottextclassificationbylearningrelationship l
+between text and weakly labeled tags on large corpus. The Label-wise feature extraction. Given an input clinical
+idea is similar to [Rios and Kavuluru, 2018] in learning the documentxcontainingnwords,werepresentitwithamatrix
+4019
+ProceedingsoftheTwenty-NinthInternationalJointConferenceonArtificialIntelligence(IJCAI-20)
+2019],wherewesubtractthelogitvaluebeforesigmoidfunc-
+tionbyalabel-dependentmargin(cid:1) :
+l
+y^m =(cid:27)(g>(cid:1)f (cid:0)1(y =1)(cid:1) ) (5)
+l l l l l
+wherefunction1((cid:1))outputs1ify = 1and(cid:1) = C and
+1 l n1=4
+l
+n is the number of training data labeled with l and C is a
+l
+constant. TheLDAMlossisthus: L =L (y;y^m).
+LDAM BCE
+Figure 2: ZAGRNN as the feature extractor. ZAGRNN extracts 3.2 Zero-shotLatentFeatureGeneration
+label-wise features and constructs embedding for each ICD code
+Forazero-shotcodel,thecodelabely foranytrainingdata
+using GRNN. ZAGRNN makes a binary prediction for each code l
+based on the dot product between graph label embedding and the exampleisy l =0andthebinaryclassifierg lforcodeassign-
+labelspecificfeature. mentisnevertrainedwithdataexampleswithy l = 1dueto
+thedearthofsuchdata. Previousworkshavesuccessfullyap-
+pliedGANsforGZSLinthevisiondomain[Xianetal.,2018;
+X = [w 1;w 2;:::;w n] where w i 2 Rd is the word embed- Felix et al., 2018]. We propose to use GANs to improve
+dingvectorforthei-thword. EachICDcodel hasatextual zero-shotICDcodingbygeneratingpseudodatainthelatent
+description.Torepresentl,weconstructanembeddingvector feature space for zero-shot codes and fine-tuning the code-
+v l byaveragingtheembeddingsofwordsinthedescription. assignmentbinaryclassifiersusingthegeneratedfeatures.
+The word embedding is shared between input and label Morespecifically,weusetheWassersteinGAN[Arjovsky
+descriptions for sharing learned knowledge. Adjacent word et al., 2017] with gradient penalty (WGAN-GP) [Gulrajani
+embeddings are combined using a one-dimension convolu- et al., 2017] to generate code-specific latent features condi-
+tional neural network (CNN) to get the n-gram text features tioned on the textual description of each code. To condi-
+H = conv(X) 2 RN(cid:2)dc. Thenthelabel-wiseattentionfea- tion on the code description, we use a label encoder func-
+turea l 2Rdforlabelliscomputedby: tion C : L 7! C that maps the code description to a low-
+dimension vector c. We denote c = C(l). The generator,
+s l =softmax(tanh(H (cid:1)W a>+b a)(cid:1)v l); a l =s> l (cid:1)H (1) G : Z(cid:2)C 7! F, takes in a randl om Gaussian noise vector
+where s is the attention scores for all rows in H and a is z 2Zandanencodingvectorc2Cofacodedescriptionto
+l l
+the attended output of H for label l. Intuitively, a l extracts generatealatentfeaturef~ l = G(z;c)forthiscode. Thedis-
+the most relevant information in H about the code l by us- criminatororcritic,D :F(cid:2)C7!R,takesinalatentfeature
+ingattention. EachinputthenhasintotalLattentionfeature vector f (either generated by WGAN-GP or extracted from
+vectorsforeachICDcode. realdataexamples)andtheencodedlabelvectorctoproduce
+a real-valued score D(f;c) representing how realistic f is.
+Multi-labelclassification. Foreachcodel,thebinarypre-
+TheWGAN-GPlossis:
+dictiony^ isgeneratedby:
+l
+L =E [D(f;c))](cid:0)E [D(f~;c))]+
+f
+l
+=recti(cid:12)er(W o(cid:1)a l+b o); y^
+l
+=(cid:27)(g l>(cid:1)f l) (2) WGAN (f;c)(cid:24)P Sf;c (f~;c)(cid:24)P Sf~;c
+(cid:21)(cid:1)E [(jjrD(f^;c))jj (cid:0)1)2] (6)
+We use graph gated recurrent neural networks (GRNN) [Li (f^;c)(cid:24)Pf^;c 2
+S
+et al., 2015] to encode the classifier g . Let V(l) denote the
+set of adjacent codes of l from the ICDl tree hierarchy and t where((cid:1);c) (cid:24) P S(cid:1);c isthejointdistributionoflatentfeatures
+bethenumberoftimeswepropagatethegraph,theclassifier
+andencodedlabelvectorsfromthesetofseencodelabelsS,
+g =gtiscomputedby:
+f^=(cid:11)(cid:1)f+(1(cid:0)(cid:11))(cid:1)f~with(cid:11)(cid:24)U(0;1)and(cid:21)isthegradient
+l l
+penaltycoefficient.WGAN-GPcanbelearnedbysolvingthe
+1 minimaxproblem: min max L .
+ht = (cid:6) gt(cid:0)1; gt =GRU(ht;gt(cid:0)1) (3) G D WGAN
+l jV(l)j j2V(l) j l l l
+Label encoder. The function C is an ICD-code encoder
+where g0 = v and GRU is gated recurrent units [Chung et that maps a code description to an embedding vector. For
+l l acodel,wefirstuseaLSTM[HochreiterandSchmidhuber,
+al., 2014]. The weights of the binary code classifier is tied
+1997]toencodethesequenceofM wordsinthedescription
+withthegraphencodedlabelembeddingg sothatthelearned
+l into a sequence of hidden states [e ;e ;:::;e ]. We then
+knowledge can also benefit zero-shot codes since label em- 1 2 M
+performadimension-wisemax-poolingoverthehiddenstate
+beddingiscomputedfromasharedword. Thelossfunction
+sequencetogetafixed-sizedencodingvectore . Finally,we
+fortrainingismulti-labelbinarycross-entropy: l
+obtaintheeventualembeddingc = e jjg ofcodel bycon-
+l l l
+XL catenating e l with g l which is the embedding of l produced
+L (y;y^)=(cid:0) [y log(y^)+(1(cid:0)y )log(1(cid:0)y^)] (4) by the graph encoding network. c contains both the latent
+BCE l l l l l
+semanticsofthedescription(ine )aswellastheICDhierar-
+l=1 l
+chyinformation(ing ).
+l
+As mentioned above, the distribution of ICD codes is ex-
+tremelylong-tailed. Tocounterthelabelimbalanceissue,we Keywords reconstruction loss. To ensure the generated
+adopt label-distribution-aware margin (LDAM) [Cao et al., feature vector f~ captures the semantic meaning of code l,
+l
+4020
+ProceedingsoftheTwenty-NinthInternationalJointConferenceonArtificialIntelligence(IJCAI-20)
+we encourage f~ to reconstruct the keywords extracted from approximately58,000hospitaladmissionsof47,000patients
+l
+theclinicalnotesassociatedwithcodel. whostayedintheICUoftheBethIsraelDeaconessMedical
+For each input text x labeled with code l, we extract the Center between 2001 and 2012. Each admission record has
+label-specifickeywordsetK = fw ;w ;:::;w gastheset a discharge summary that includes medical history, diagno-
+l 1 2 k
+ofmostsimilarwordsinxtol, wherethesimilarityismea- sisoutcomes,surgicalprocedures,dischargeinstructions,etc.
+suredbycosinesimilaritybetweenwordembeddinginxand Eachadmissionrecordisassignedwithasetofmostrelevant
+label embedding v . Let Q be a projection matrix, K be the ICD-9codesbymedicalcoders. Thedatasetispreprocessed
+l
+setofallkeywordsfromallinputsand(cid:25)((cid:1);(cid:1))denotetheco- asin[Mullenbachetal.,2018]. Ourgoalistoaccuratelypre-
+sinesimilarityfunction,thelossforreconstructingkeywords dicttheICDcodesgiventhedischargesummary.
+giventhegeneratedfeatureisasfollowing: Wesplitthedatasetfortraining,validation,andtestingby
+L
+KEY
+=(cid:0)logP(K ljf~ l)(cid:25)(cid:0) X (cid:25)(w k;v l)(cid:1)logP(w kjf~ l) p tra at ii ne in nt gI ,D 3. ,2I 8n 0to fota rl vw ale idh aa tv ioe n4 a6 n,1 d5 37 ,2d 8i 5sc fh oa rrg tee sts iu nm g.m Ta hr eie res afo rer
+wk2Kl 6916uniqueICD-9diagnosiscodesinMIMIC-IIIand6090
+=(cid:0)
+X
+(cid:25)(w k;v l)(cid:1)log
+Pex ep x(w p(k> w(cid:1) >Q (cid:1)f Q~ l)
+f~)
+(7)
+o trf ait nh ie nm gwex hi is let i un sit nh ge ct ora di en sin thg as te ht a. veW me ou rs ee tha all nt 5he dac to ad ee xs af mo -r
+wk2Kl
+w2K
+l plesfor evaluation. Thereare 96outof 1,646and85 outof
+1,630uniquecodesarezero-shotcodesinvalidationandtest
+Discriminatingzero-shotcodesusingICDhierarchy. In set,respectively.
+thecurrentWGAN-GPframework, thediscriminatorcannot
+ICD-9 code information. We extract the ninth version of
+betrainedonzero-shotcodesduetothelackofrealpositive
+theICDcodedescriptionsandhierarchyfromtheCDCweb-
+features. Inordertoincludezero-shotcodesduringtraining,
+site [ICD-9 Guidelines, 2011]. In addition to the official
+we utilize the ICD hierarchy and use fsib, the latent feature
+description, weextendthedescriptionswithmedicalknowl-
+extractedfromrealdataofthenearestsiblinglsib ofazero-
+edge, including synonyms and clinical information, crawled
+shotcodel,fortrainingthediscriminator. Thenearestsibling
+fromonlineresources[ICD-9Data,2006].
+codeistheclosestcodetolthathasthesameimmediatepar-
+ent. Thisformulationwouldencouragethegeneratedfeature Baseline methods. We compare our method with ZA-
+f~to be close to the real latent features of the siblings of l GRNN modified from previous state of the art approaches
+and thus f~can better preserving the ICD hierarchy. More on zero-shot ICD coding [Rios and Kavuluru, 2018] as de-
+formally,letcsib = C(lsib),weproposethefollowingmodi- scribedinSection3.1,meta-embeddingforlong-tailedprob-
+ficationtoL fortrainingzero-shotcodes: lem [Liu et al., 2019] and WGAN-GP with classification
+WGAN
+loss L [Xian et al., 2018] and with cycle-consistent loss
+CLS
+L WGAN-Z =E c(cid:24)P Uc[(cid:25)(c;csib)(cid:1)D(fsib;c)](cid:0) L CYC [Felixetal.,2018]thatwereappliedtoGZSLclassifi-
+E [(cid:25)(c;csib)(cid:1)D(f~;c)]+ cationincomputervisiondomain. Wealsoexperimentwith
+(f~;c)(cid:24)Pf~;c the recent popular Transformer architecture [Vaswani et al.,
+U
+(cid:21)(cid:1)E [(jjrD(f^;c)jj (cid:0)1)2] (8) 2017]asthefeatureextractor.
+(f^;c)(cid:24)Pf^;c 2
+U Training details. For the ZAGRNN model, we use 100
+where c (cid:24) P Uc is the distribution of encoded label vectors convolutionfilterswithafiltersizeof5. Weuse200dimen-
+for the set of zero-shot codes U and ((cid:1);c) (cid:24) P U(cid:1);c is defined sionalwordvectorspretrainedonPubMedcorpus[Zhanget
+similarlyasinEquation6. Thelosstermisweightedbythe al.,2019b]. Wedropoutwordembeddinglayerwithrate0.5.
+cosinesimilarity(cid:25)(c;csib)topreventgeneratingexactnearest We set C = 2 in L . We use ADAM [Kingma and Ba,
+LDAM
+sibling feature for the zero-shot code l. After adding zero- 2015] for optimization with batch size 8 and learning rate
+shotcodestotraining,ourfulllearningobjectivebecomes: 0.001. ThefinalfeaturesizeandGRNNhiddenlayersizeare
+bothsetto400. WetraintheZAGRNNmodelfor40epochs.
+minmaxL +L +(cid:12)(cid:1)L (9)
+WGAN WGAN-Z KEY
+G D ForWGAN-GPbasedmethods,thereallatentfeaturesare
+extracted from the final layer in the ZAGRNN model. Only
+where(cid:12) isthebalancingcoefficientforkeywordreconstruc-
+featuresf forwhichy =1arecollectedfortraining.Weuse
+tionloss. l l
+a single-layer fully-connected network with hidden size 800
+Fine-tuning on generated features. After WGAN-GP is forbothgeneratoranddiscriminator. Wesetgradientpenalty
+trained,wefine-tunethepretrainedclassifierg lfrombaseline coefficient(cid:21)=10. Forthecode-descriptionencoderLSTM,
+model with generated features for a given zero-shot code l. we set the hidden size to 200. We train the discriminator 5
+Weusethegeneratortosynthesizeasetoff~ l andlabelthem iterations per each generator training iteration. We optimize
+withy l = 1andcollectthesetoff l fromtrainingdatawith the WGAN-GP with ADAM [Kingma and Ba, 2015] with
+y l = 0usingbaselinemodelasfeatureextractor. Wefinally mini-batch size 128 and learning rate 0.0001. We train all
+fine-tune g l on this set of labeled feature vectors to get the variants of WGAN-GP for 60 epochs. We set the weight of
+finalbinaryclassifierforagivenzero-shotcodel. L to0.01andL ;L to0.1. ForL ,wepredictthe
+CLS CYC KEY KEY
+top30mostrelevantkeywordsgiventhegeneratedfeatures.
+4 Experiments
+Afterthegeneratorsaretrained,wesynthesize256features
+Dataset. Weevaluate ourapproach usingthe publicmedi- foreachzero-shotcodelandfine-tunetheclassifierg using
+l
+caldatasetMIMIC-III[Johnsonetal.,2016],whichcontains ADAM and set the learning rate to 0.00001 and the batch
+4021
+ProceedingsoftheTwenty-NinthInternationalJointConferenceonArtificialIntelligence(IJCAI-20)
+Micro Macro
+Method Pre Rec F1 AUC Pre Rec F1 AUC
+ZAGCNN[RiosandKavuluru,2018] 58.29 44.64 50.56 96.59 30.00 24.65 27.06 94.00
+ZAGCNNw.Transformer 61.47 33.93 43.73 96.36 20.63 15.24 17.53 93.36
+ZAGRNN(ours) 58.06 44.94 50.66 96.67 30.91 25.57 27.99 94.03
+ZAGRNN+L LDAM(ours) 56.06 47.14 51.22 96.70 31.72 28.06 29.78 94.08
+Table1:ResultsonseencodesusingbaselinefeatureextractordescribedinSection3.1
+Micro Macro
+Method Pre Rec F1 AUC Pre Rec F1 AUC
+ZAGRNN 0.00 0.00 0.00 89.05 0.00 0.00 0.00 90.89
+ZAGRNN+L LDAM 0.00 0.00 0.00 90.78 0.00 0.00 0.00 91.91
+ZAGRNN+Meta[Liuetal.,2019] 46.70 0.89 1.74 90.08 3.88 0.95 1.52 91.88
+L WGAN[Xianetal.,2018] 23.92 17.63 20.30 91.94 17.30 17.38 17.34 92.26
+L WGAN+L CLS [Xianetal.,2018] 23.57 16.55 19.44 91.71 18.39 16.81 17.56 92.32
+L WGAN+L CYC[Felixetal.,2018] 23.97 17.93 20.51 91.88 17.86 17.83 17.84 92.27
+L WGAN-Z+L CLS 22.49 17.40 19.62 91.80 16.56 17.26 16.90 92.16
+L WGAN-Z+L CYC 21.44 17.24 19.11 91.90 16.05 17.06 16.54 92.25
+L WGAN+L KEY(Ours) 23.26 18.24 20.45 91.73 17.09 18.38 17.71 92.21
+L WGAN-Z(Ours) 22.18 19.03 20.48 91.79 16.87 18.84 17.80 92.28
+L WGAN-Z+L KEY(Ours) 22.54 19.51 20.91 92.18 17.70 19.15 18.39 92.34
+Table2:Zero-shot(Unseen)ICDcodingresults.Scoresareaveragedover10runsondifferentseeds.
+sizeto128.Wefine-tuneonallzero-shotcodesandselectthe Resultsonzero-shotcodes. Table2summarizestheresults
+bestperformingmodelonvalidationsetandevaluatethefinal for zero-shot codes. For the baseline ZAGRNN and meta-
+resultonthetestset. embeddingmodels,theAUConzero-shotcodesismuchbet-
+ter than random guessing. L improves the AUC scores
+Evaluation metrics. We report both the micro and macro LDAM
+and meta-embedding can achieve slightly better F1 scores.
+precision, recall, F1andAUCscoresonthezero-shotcodes
+However, since these methods never train the binary classi-
+for all methods. Micro metrics aggregate the contributions
+fiers for zero-shot codes on positive examples, both micro
+of all codes to compute the average score while macro met-
+and macro recall and F1 scores are close to zero. In other
+ricscomputethemetricindependentlyforeachcodeandthen
+words, these models almost never assign zero-shot codes at
+taketheaverage. Allscoresareaveragedover10runsusing
+inferencetime. ForWGAN-GPbasedmethods, allthemet-
+differentrandomseeds.
+ricsimprovefromZAGRNNandmeta-embeddingexceptfor
+Results on seen codes. Table 1 shows the results of ZA- microprecision. Thisisduetothefactthatthebinaryzero-
+GRNN models on all the seen codes. With ZAGRNN, al- shot classifiers are fine-tuned on positive generated features
+mostallmetricsslightlyincreasedfromZAGCNNexceptfor whichdrasticallyincreasesthechanceofthemodelsassign-
+micro precision. With L loss, our final feature extrac- ingzero-shotcodes.
+LDAM
+torcanimprovemoresignificantlyfromZAGCNNespecially
+for macro metrics and achieve better precision recall trade- Ablation studies. We next examine the detailed perfor-
+off. The p-value from Student’s t-test for comparing micro mance of each component of AGM-HT as shown in Ta-
+F1 scores between LDAM and baseline is 10(cid:0)8, indicating ble 2. Adding L CLS hurts the micro metrics, which might
+theimprovementofusingLDAMissignificant. Nonetheless, becounter-intuitiveatfirst. However,sincetheL CLS iscom-
+these modifications are not enough to get reasonable perfor- putedbasedonthepretrainedclassifiers,whicharenotwell-
+mance zero-shot codes due to the lack of positive example generalized on infrequent codes, adding the loss might pro-
+for zero-shot codes during training. Results of Transformer videbadgradientsignalforthegenerator.AddingL CYC;L KEY
+as feature extractor is shown in the second row of the table. and L WGAN-Z improves L WGAN and achieves comparable per-
+Due to the O(‘2) memory of Transformer for inputs with ‘ formances in terms of both micro and macro metrics. At a
+words,wecanonlytrainasmallTransformermodelonlong closerlook,L WGAN-Zimprovestherecallmost,whichmatches
+clinicalnotes,insteadofalargemodel[Devlinetal.,2018], the intuition that learning with the sibling codes enables the
+yieldingworseperformancethanCNNfeatureextractor. model to generate more diverse latent features. The perfor-
+Note that fine-tuning the zero-shot code classifiers with mance drops when combing L WGAN-Z with L CLS and L CYC.
+meta-embeddingorWGAN-GPwillnotaffecttheclassifica- We suspect this might be due to a conflict during optimiza-
+tion for seen codes since the code assignment classifiers are
+tionasthegeneratortriestosynthesizef~closetothesibling
+independentlyfine-tuned. code lsib and simultaneously maps f~back to the exact code
+4022
+ProceedingsoftheTwenty-NinthInternationalJointConferenceonArtificialIntelligence(IJCAI-20)
+Code Description KeywordsfromL WGAN KeywordsfromL WGAN-Z
+V10.62 Personalhistoryofmyeloidleukemia AICD, inferoposterior, cardiogenic, leukemia, Zinc, myelogenous, CML,
+leukemia,silent metastases
+E860.3 Accidentalpoisoningbyisopropylalco- apneic,pulses,choking,substance,frac- intoxicated, alcoholic, AST, EEG, al-
+hol tures coholism
+956.3 Injurytoperonealnerve vault, injury, pedestrian, orthopedics, injuries, neurosurgery, injury,
+TSICU TSICU,coma
+851.05 Cortexcontus-deepcoma contusion, injury, trauma, neuro- brain,head,contusion,neurosurgery,
+surgery,head intracranial
+772.2 Subarachnoid hemorrhage of fetus or subarachnoid, SAH, neurosurgical, subarachnoid,hemorrhages, SAH,
+newborn screening newborn,pregnancy
+Table3:KeywordsfoundbygeneratedfeaturesusingL WGANandL WGAN-Zforzero-shotICD-9codes.Boldwordsarethemostrelatedonesto
+theICD-9codedescription.
+T-SNEvisualizationofgeneratedfeatures. WeplottheT-
+SNEprojectionofthegeneratedfeaturesforzero-shotcodes
+with L and L respectively in Figure 3. Dots with
+WGAN WGAN-Z
+lighter color represent the projections of generated features
+and those with darker color correspond to the real features
+from the nearest sibling codes. Features generated for zero-
+shotcodesusingL areclosertotherealfeaturesfrom
+WGAN-Z
+thenearestsiblingcodes. ThisshowsL learnstogen-
+WGAN-Z
+eratelatentfeaturesthatbetterpreservetheICDhierarchy.
+Keywords reconstruction from generated features. We
+(a)L nextqualitativelyevaluatethegeneratedfeaturesbyexamin-
+WGAN
+ing their reconstructed keywords. We first train a keyword
+predictorusingL onthereallatentfeaturesandtheirkey-
+KEY
+wordsextractedfromtrainingdata. Thenwefeedthegener-
+atedfeaturesfromzero-shotcodesintothekeywordpredictor
+togetthereconstructedkeywords.
+Table 3 shows some examples of the top predicted key-
+words for zero-shot codes. Although the keyword predictor
+isnevertrainedonzero-shotcodefeatures,thegeneratedfea-
+tures are able to find relevant words that are semantically
+close to the code descriptions. In addition, features gen-
+erated with L can find more relevant keywords than
+WGAN-Z
+L . Forinstance,forzero-shotcodeV10.62,thetoppre-
+(b)L WGAN
+WGAN-Z
+dicted keywords from L include leukemia, myeloge-
+WGAN-Z
+nous, CML (Chronic myelogenous leukemia) which are all
+Figure3:T-SNEofgeneratedfeaturesforzero-shotcodesusing(a)
+L WGAN and (b) L WGAN-Z. Lighter color dots are projections of gen- related to myeloid leukemia, a type of cancer of the blood
+erated features and darker color dots are of real features from the andbonemarrow.
+nearestsiblingcodes. Featuresgeneratedforzero-shotcodesusing
+L WGAN-Zareclosertotherealfeaturesfromthenearestsiblingcodes. 5 Conclusion
+We proposed the first feature generation framework, AGM-
+semantic space of l. Using L KEY resolves the conflict as it HT, for generalized zero-shot multi-label classification. We
+captures more generic semantics from the words instead of incorporatedtheICDtreehierarchystructureandacyclere-
+from the exact code descriptions. Our final model that uses construction architecture to latent feature generation mod-
+the combination of L WGAN-Z and L KEY achieves the best per- els that significantly improved zero-shot ICD coding with-
+formanceonbothmicroandmacroF1andAUCscore. outcompromisingtheperformanceonseencodes. Extensive
+We also conduct Student’s t-test on performance scores experimentsdemonstratethesuperiorperformanceofAGM-
+from the 10 runs for demonstrating the significance of our HT on public datasets for both seen and unseen codes. We
+finalmodel(L +L )comparedtotheadoptedL also qualitatively demonstrated the generated features from
+WGAN-Z KEY CLS
+andL . Thep-valuesare0.01%and1.39%,indicatingthe our framework can better preserve the class semantics and
+CYC
+improvementofourfinalmodelissignificant. theICDhierarchycomparedtoexistingmethods.
+4023
+ProceedingsoftheTwenty-NinthInternationalJointConferenceonArtificialIntelligence(IJCAI-20)
+References [Liuetal.,2019] ZiweiLiu,ZhongqiMiao,XiaohangZhan,
+JiayunWang,BoqingGong,andStellaXYu. Large-scale
+[Arjovskyetal.,2017] Martin Arjovsky, Soumith Chintala,
+long-tailedrecognitioninanopenworld. InCVPR,2019.
+and Le´on Bottou. Wasserstein gan. arXiv preprint
+arXiv:1701.07875,2017. [Mullenbachetal.,2018] James Mullenbach, Sarah Wiegr-
+effe, Jon Duke, Jimeng Sun, and Jacob Eisenstein. Ex-
+[Caoetal.,2019] Kaidi Cao, Colin Wei, Adrien Gaidon, plainable prediction of medical codes from clinical text.
+Nikos Arechiga, and Tengyu Ma. Learning imbalanced InNAACL,2018.
+datasets with label-distribution-aware margin loss. In
+[Nietal.,2019] Jian Ni, Shanghang Zhang, and Haiyong
+NeurIPS,2019.
+Xie. Dual adversarial semantics-consistent network for
+[Chaoetal.,2016] Wei-LunChao,SoravitChangpinyo,Bo- generalizedzero-shotlearning. InNeurIPS,2019.
+qingGong,andFeiSha. Anempiricalstudyandanalysis
+[PushpandSrivastava,2017] Pushpankar Kumar Pushp and
+ofgeneralizedzero-shotlearningforobjectrecognitionin
+Muktabh Mayank Srivastava. Train once, test anywhere:
+thewild. InECCV,2016.
+Zero-shot learning for text classification. arXiv preprint
+[Chungetal.,2014] Junyoung Chung, Caglar Gulcehre, arXiv:1712.05972,2017.
+KyungHyunCho, andYoshuaBengio. Empiricalevalua- [RiosandKavuluru,2018] Anthony Rios and Ramakanth
+tionofgatedrecurrentneuralnetworksonsequencemod-
+Kavuluru. Few-shotandzero-shotmulti-labellearningfor
+eling. arXivpreprintarXiv:1412.3555,2014. structuredlabelspaces. InEMNLP,2018.
+[Devlinetal.,2018] Jacob Devlin, Ming-Wei Chang, Ken- [Shietal.,2017] Haoran Shi, Pengtao Xie, Zhiting Hu,
+ton Lee, and Kristina Toutanova. Bert: Pre-training of MingZhang,andEricPXing.Towardsautomatedicdcod-
+deep bidirectional transformers for language understand- ingusingdeeplearning.arXivpreprintarXiv:1711.04075,
+ing. arXivpreprintarXiv:1810.04805,2018. 2017.
+[Felixetal.,2018] RafaelFelix,VijayBGKumar,IanReid, [Stanfilletal.,2010] Mary H Stanfill, Margaret Williams,
+andGustavoCarneiro. Multi-modalcycle-consistentgen- SusanHFenton,RobertAJenders,andWilliamRHersh.
+eralizedzero-shotlearning. InECCV,2018. A systematic literature review of automated clinical cod-
+ingandclassificationsystems. JAMIA,2010.
+[Goodfellowetal.,2014] Ian Goodfellow, Jean Pouget-
+Abadie, Mehdi Mirza, Bing Xu, David Warde-Farley, [Vaswanietal.,2017] AshishVaswani,NoamShazeer,Niki
+SherjilOzair,AaronCourville,andYoshuaBengio. Gen- Parmar, Jakob Uszkoreit, Llion Jones, Aidan N Gomez,
+erativeadversarialnets. InNeurIPS,2014. Łukasz Kaiser, and Illia Polosukhin. Attention is all you
+need. InNeurIPS,2017.
+[Gulrajanietal.,2017] Ishaan Gulrajani, Faruk Ahmed,
+[Xianetal.,2018] Yongqin Xian, Tobias Lorenz, Bernt
+Martin Arjovsky, Vincent Dumoulin, and Aaron C
+Schiele, and Zeynep Akata. Feature generating networks
+Courville. Improved training of wasserstein gans. In
+NeurIPS,2017. forzero-shotlearning. InCVPR,2018.
+[XieandXing,2018] Pengtao Xie and Eric Xing. A neural
+[HochreiterandSchmidhuber,1997] Sepp Hochreiter and
+architectureforautomatedicdcoding. InACL,2018.
+Ju¨rgen Schmidhuber. Long short-term memory. Neural
+computation,1997. [Zhangetal.,2019a] Jingqing Zhang, Piyawat Lertvit-
+tayakumjorn, and Yike Guo. Integrating semantic
+[ICD-9Data,2006] The web’s free icd-9-cm medical cod-
+knowledgetotacklezero-shottextclassification. InACL,
+ingreference. http://www.icd9data.com,2006. Accessed:
+2019.
+2019-06-01.
+[Zhangetal.,2019b] Yijia Zhang, Qingyu Chen, Zhihao
+[ICD-9Guidelines,2011] International classification of dis-
+Yang, Hongfei Lin, and Zhiyong Lu. Biowordvec, im-
+eases,ninth revision, clinical modification (ICD-9-CM).
+provingbiomedicalwordembeddingswithsubwordinfor-
+https://www.cdc.gov/nchs/icd/icd9cm.htm, 2011. Ac- mationandmesh. Scientificdata,2019.
+cessed: 2019-06-01.
+[Johnsonetal.,2016] Alistair EW Johnson, Tom J Pollard,
+LuShen,HLehmanLi-wei,MenglingFeng,Mohammad
+Ghassemi, Benjamin Moody, Peter Szolovits, Leo An-
+thony Celi, and Roger G Mark. Mimic-iii, a freely ac-
+cessiblecriticalcaredatabase. Scientificdata,2016.
+[KingmaandBa,2015] Diederik P Kingma and Jimmy Ba.
+Adam: A method for stochastic optimization. In ICLR,
+2015.
+[Lietal.,2015] Yujia Li, Daniel Tarlow, Marc
+Brockschmidt,andRichardZemel. Gatedgraphsequence
+neuralnetworks. arXivpreprintarXiv:1511.05493,2015.
+4024

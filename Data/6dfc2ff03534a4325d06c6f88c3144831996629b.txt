@@ -1,0 +1,2324 @@
+VCR
+Visual Commonsense Reasoning
+From Recognition to Cognition: Visual Commonsense Reasoning
+RowanZellers♠ YonatanBisk♠ AliFarhadi♠♥ YejinChoi♠♥
+♠PaulG.AllenSchoolofComputerScience&Engineering,UniversityofWashington
+♥AllenInstituteforArtificialIntelligence
+visualcommonsense.com
+Why is [person4 ] pointing at [person1 ]?
+a) He is telling [person3 ] that [person1 ] ordered the pancakes.
+b) He just told a joke.
+c) He is feeling accusatory towards [person1 ].
+d) He is giving [person1 ] directions.
+a) [person1 ] has the pancakes in front of him.
+beI cc ah uo ss ee
+…
+a) b c)) [[ [ pp p ee e rr r ss s oo o nn n 24 3 ]] ]
+a
+i is s
+re
+t l oa sok mkin ii lng ing ge a v se t
+l
+ir t gy h ho e tn lp ye .a’s n co ard ke er s a an nd d a bs ok te hd s f ho er ac nla dri fication.
+d) [person3 ] is delivering food to the table, and she might not
+know whose order is whose.
+How did [person2 ] get the money that’s in front of her?
+a) [person2 ] is selling things on the street.
+b) [person2 ] earned this money playing music.
+c) She may work jobs for the mafia.
+d) She won money playing poker.
+beI cc ah uo ss ee
+…
+b) a b)
+)
+S [ph ee ris
+s
+op nla 2y in g g ]u ii sta ar pfo rr
+o
+fm eso sn ie oy n.
+al musician in an orchestra.
+c) [person2 ] and [person1 ]are both holding instruments,
+and were probably busking for that money.
+d) [person1 ] is putting money in [person2 ]’s tip jar, while
+she plays music.
+Figure 1: : Given an image, a list of regions, and a question, a model must answer the question and provide a ratio-
+VCR
+nale explaining why its answer is right. Our questions challenge computer vision systems to go beyond recognition-level
+understanding,towardsahigher-ordercognitiveandcommonsenseunderstandingoftheworlddepictedbytheimage.
+Abstract that while humans find easy (over 90% accuracy),
+VCR
+state-of-the-artvisionmodelsstruggle(∼45%).
+Visual understanding goes well beyond object recogni-
+tion.Withoneglanceatanimage,wecaneffortlesslyimag- To move towards cognition-level understanding, we
+inetheworldbeyondthepixels: forinstance,wecaninfer present a new reasoning engine, Recognition to Cogni-
+people’s actions, goals, and mental states. While this task tionNetworks(R2C),thatmodelsthenecessarylayeredin-
+is easy for humans, it is tremendously difficult for today’s ferences for grounding, contextualization, and reasoning.
+vision systems, requiring higher-order cognition and com- R2C helps narrow the gap between humans and machines
+monsensereasoningabouttheworld.Weformalizethistask
+(∼65%);still,thechallengeisfarfromsolved,andwepro-
+as Visual Commonsense Reasoning. Given a challenging videanalysisthatsuggestsavenuesforfuturework.
+questionaboutanimage,amachinemustanswercorrectly
+1.Introduction
+andthenprovidearationalejustifyingitsanswer.
+Next, we introduce a new dataset, , consisting of Withoneglanceatanimage, wecanimmediatelyinfer
+VCR
+290kmultiplechoiceQAproblemsderivedfrom110kmovie whatishappeninginthescenebeyondwhatisvisuallyob-
+scenes. Thekeyrecipeforgeneratingnon-trivialandhigh- vious. Forexample,inthetopimageofFigure1,notonly
+quality problems at scale is Adversarial Matching, a new doweseeseveralobjects(people,plates,andcups),wecan
+approachtotransformrichannotationsintomultiplechoice alsoreasonabouttheentiresituation: threepeoplearedin-
+questions with minimal bias. Experimental results show ing together, they have already ordered their food before
+1
+9102
+raM
+62
+]VC.sc[
+2v03801.1181:viXra
+the photo has been taken, [person3 ] is serving and humanandmachinedifficulty: wewanttheproblemstobe
+noteatingwiththem,andwhat [person1 ] orderedare hardformachineswhileeasyforhumans.
+thepancakesandbacon(asopposedtothecheesecake),be- Narrowingthegapbetweenrecognition-andcognition-
+cause [person4 ] is pointing to [person1 ] while levelimageunderstandingrequiresgroundingthemeaning
+of the natural language passage in the visual data, under-
+lookingattheserver, [person3 ].
+standingtheanswerinthecontextofthequestion,andrea-
+Visual understanding requires seamless integration be-
+soning over the shared and grounded understanding of the
+tweenrecognitionandcognition: beyondrecognition-level
+question, the answer, the rationale and the image. In this
+perception (e.g., detecting objects and their attributes),
+paper we introduce a new model, Recognition to Cogni-
+onemustperformcognition-levelreasoning(e.g.,inferring
+tionNetworks(R2C).Ourmodelperformsthreeinference
+the likely intents, goals, and social dynamics of people)
+steps. First, it grounds the meaning of a natural language
+[13]. State-of-the-art vision systems can reliably perform
+passagewithrespecttotheimageregions(objects)thatare
+recognition-level image understanding, but struggle with
+directlyreferredto.Itthencontextualizesthemeaningofan
+complexinferences,likethoseinFigure1. Wearguethatas
+answerwithrespecttothequestionthatwasasked,aswell
+thefieldhasmadesignificantprogressonrecognition-level
+astheglobalobjectsnotmentioned. Finally,itreasonsover
+building blocks, such as object detection, pose estimation,
+thissharedrepresentationtoarriveatananswer.
+andsegmentation,nowistherighttimetotacklecognition-
+Experiments on show that R2C greatly outper-
+levelreasoningatscale. VCR
+forms state-of-the-art visual question-answering systems:
+Asacriticalsteptowardcompletevisualunderstanding,
+obtaining65%accuracyatquestionanswering,67%atan-
+we present the task of Visual Commonsense Reasoning.
+swerjustification,and44%atstagedansweringandjustifi-
+Givenanimage,amachinemustansweraquestionthatre-
+cation.Still,thetaskanddatasetisfarfromsolved:humans
+quiresathoroughunderstandingofthevisualworldevoked
+score roughly 90% on each. We provide detailed insights
+bytheimage. Moreover,themachinemustprovidearatio-
+andanablationstudytopointtoavenuesforfutureresearch.
+nalejustifyingwhythatansweristrue,referringtothede-
+Insum,ourmajorcontributionsarefourfold: (1)wefor-
+tails of the scene, as well as background knowledge about
+malize a new task, Visual Commonsense Reasoning, and
+howtheworldworks. Thesequestions,answers,andratio-
+(2)presentalarge-scalemultiple-choiceQAdataset, ,
+nalesareexpressedusingamixtureofrichnaturallanguage VCR
+(3)thatisautomaticallyassignedusingAdversarialMatch-
+aswellasexplicitreferencestoimageregions. Tosupport
+ing,anewalgorithmforrobustmultiple-choicedatasetcre-
+clean-cut evaluation, all our tasks are framed as multiple
+ation. (4) We also propose a new model, R2C, that aims
+choiceQA.
+tomimicthelayeredinferencesfromrecognitiontocogni-
+Our new dataset for this task, , is the first of its
+VCR
+tion;thisalsoestablishesbaselineperformanceonournew
+kindandislarge-scale—290kpairsofquestions,answers,
+challenge. Thedatasetisavailabletodownload,alongwith
+and rationales, over 110k unique movie scenes. A crucial
+codeforourmodel,atvisualcommonsense.com.
+challenge in constructing a dataset of this complexity at
+thisscale ishow toavoid annotationartifacts. A recurring
+2.TaskOverview
+challengeinmostrecentQAdatasetshasbeenthathuman-
+writtenanswerscontainunexpectedbutdistinctbiasesthat
+Wepresent ,anewtaskthatchallengesvisionsys-
+VCR
+modelscaneasilyexploit. Oftenthesebiasesaresopromi-
+tems to holistically and cognitively understand the con-
+nent so that models can select the right answers without
+tent of an image. For instance, in Figure 1, we need
+evenlookingatthequestions[28,61,72].
+to understand the activities ([person3 ] is delivering
+Thus, we present Adversarial Matching, a novel QA
+food), the roles of people ([person1 ] is a customer
+assignmentalgorithmthatallowsforrobustmultiple-choice
+who previously ordered food), the mental states of people
+datasetcreationatscale.Thekeyideaistorecycleeachcor-
+rectanswerforaquestionexactlythreetimes—asaneg- ([person1 ] wantstoeat),andthelikelyeventsbefore
+ative answer for three other questions. Each answer thus andafterthescene([person3 ] willservethepancakes
+has the same probability (25%) of being correct: this re- next). Ourtaskcoversthesecategoriesandmore: adistri-
+solves the issue of answer-only biases, and disincentivizes butionoftheinferencesrequiredisinFigure2.
+machines from always selecting the most generic answer. Visualunderstandingrequiresnotonlyansweringques-
+Weformulatetheanswerrecyclingproblemasaconstrained tionscorrectly,butdoingsofortherightreasons. Wethus
+optimization based on the relevance and entailment scores require a model to give a rationale that explains why its
+between each candidate negative answer and the gold an- answer is true. Our questions, answers, and rationales are
+swer, as measured by state-of-the-art natural language in- writteninamixtureofrichnaturallanguageaswellasde-
+ferencemodels[10,57,15]. Aneatfeatureofourrecycling tection tags, like ‘[person2 ]’: this helps to provide
+algorithm is a knob that can control the tradeoff between anunambiguouslinkbetweenthetextualdescriptionofan
+2
+Hypothetical Why is [person11] wearing
+5% sunglasses inside? In this paper, we evaluate models in terms of accuracy
+Role Scene What are [person1] and anduseN=4responses. Baselineaccuracyoneachsubtask
+7% [person2] doing?
+5% Explanation isthen25%(1/N). Intheholisticsetting(Q→AR),baseline
+WhatA wctiilvl i[typerson6] do after
+Mental Explanation unpaTcekminpgo trhael groceries? accuracyis6.25%(1/N2)astherearetwosubtasks.
+8% 38% WhatM ise [n pta el rson3] thinking while
+Role
+[perSscoenn5e] shakes his hand?
+Temporal WhatH iysp [optheertsicoanl1]’s relation to 3.DataCollection
+13% [person4]?
+In this section, we describe how we collect the ques-
+Where is [person1] now?
+Activity tions,correctanswersandcorrectrationalesfor .Our
+VCR
+24% What would happen if
+[person3] fell asleep? key insight – towards collecting commonsense visual rea-
+soningproblemsatscale–istocarefullyselectinteresting
+Figure 2: Overview of the types of inference required by situations. We thus extract still images from movie clips.
+questions in VCR. Of note, 38% of the questions are ex- The images from these clips describe complex situations
+planatory‘why’or‘how’questions,24%involvecognition- thathumanscandecipherwithoutadditionalcontext:forin-
+level activities, and 13% require temporal reasoning (i.e.,
+stance,inFigure1,weknowthat [person3 ] willserve
+whatmightcomenext). Thesecategoriesarenotmutually
+[person1 ] pancakes,whereasamachinemightnotun-
+exclusive;ananswermightrequireseveralhopsofdifferent
+derstandthisunlessitseestheentireclip.
+typesofinferences(seeappendixSecA).
+Interesting and Diverse Situations To ensure diver-
+sity,wemakenolimitingassumptionsaboutthepredefined
+object(‘themanontheleftinthewhiteshirt’)andthecor- setofactions. Ratherthansearchingforpredefinedlabels,
+respondingimageregion. which can introduce search engine bias [76, 16, 20], we
+To make evaluation straightforward, we frame our ul- collect images from movie scenes. The underlying scenes
+timate task – of staged answering and justification – in a come from the Large Scale Movie Description Challenge
+multiple-choice setting. Given a question along with four [67] and YouTube movie clips.2 To avoid simple images,
+answer choices, a model must first select the right answer. wetrainandapplyan‘interestingnessfilter’(e.g. acloseup
+If its answer was correct, then it is provided four rationale ofasyringeinFigure3).3
+choices (that could purportedly justify its correct answer), Wecenterourtaskaroundchallengingquestionsrequir-
+anditmustselectthecorrectrationale. WecallthisQ→AR ing cognition-level reasoning. To make these cognition-
+as for the model prediction to be correct requires both the level questions simple to ask, and to avoid the clunkiness
+chosenanswerandthenthechosenrationaletobecorrect.
+ofreferringexpressions, ’slanguageintegratesobject
+VCR
+Our task can be decomposed into two multiple-choice
+tags([person2 ])andexplicitlyexcludesreferringex-
+sub-tasks,thatcorrespondtoanswering(Q→A)andjustifi-
+pressions(‘thewomanontheright.’) Theseobjecttagsare
+cation(QA→R)respectively:
+detectedfromMask-RCNN[29,24],andtheimagesarefil-
+Definition VCR subtask. A single example of a teredsoastohaveatleastthreehigh-confidencetags.
+VCRsubtaskconsistsofanimageI,and:
+Crowdsourcing Quality Annotations Workers on
+• Asequenceoofobjectdetections. Eachobjectdetec-
+Amazon Mechanical Turk were given an image with de-
+tion o consists of a bounding box b, a segmentation
+i tections,alongwithadditionalcontextintheformofvideo
+maskm1,andaclasslabel(cid:96) ∈L.
+i captions.4 They then ask one to three questions about the
+• Aqueryq,posedusingamixofnaturallanguageand
+image;foreachquestion,theyprovideareasonableanswer
+pointing. Eachwordq inthequeryiseitherawordin
+i andarationale. Toensuretop-tierwork,weusedasystem
+avocabularyV,orisatagreferringtoanobjectino. ofqualitychecksandpaidourworkerswell.5
+• AsetofNresponses,whereeachresponser(i)iswrit-
+Theresultisanunderlyingdatasetwithhighagreement
+teninthesamemannerasthequery: withnaturallan-
+anddiversityofreasoning.Ourdatasetcontainsamyriadof
+guageandpointing. Exactlyoneresponseiscorrect.
+interestingcommonsensephenomena(Figure2)andagreat
+Themodelchoosesasingle(best)response.
+diversityintermsofuniqueexamples(SuppSectionA);al-
+Inquestion-answering(Q→A),thequeryisthequestionand mosteveryanswerandrationaleisunique.
+the responses are answer choices. In answer justification
+(QA→R),thequeryistheconcatenatedquestionandcorrect 2Namely,FandangoMovieClips:youtube.com/user/movieclips.
+answer,whiletheresponsesarerationalechoices. 3Weannotatedimagesfor‘interestingness’andtrainedaclassifierus-
+ingCNNfeaturesanddetectionstatistics,detailsintheappendix,SecB.
+1The task is agnostic to the representation of the mask, but it could 4Thisadditionalclip-levelcontexthelpsworkersaskandanswerabout
+bethoughtofasalistofpolygonsp,witheachpolygonconsistingofa whatwillhappennext.
+sequenceof2dverticesinsidetheboxpj={xt,yt} t. 5Moredetailsintheappendix,SecB.
+3
+LSMDC Shot+Object Interestingness Crowd workers ask
+Detection Filter and answer
+questions
+Question: What is [person1] doing?
+t-1 Someone lifts up the adrenaline needle. Answer: [person1] is injecting a needle into (likely)
+someone on the floor.
+t He looks down at her.
+[person1] has a needle in his hand and is
+Rationale:
+t+1 She sits up with the needle in her chest. aggressively lowering it, in a stabbing motion.
+Figure3: Anoverviewoftheconstructionof .Usingastate-of-the-artobjectdetector[29,24],weidentifytheobjects
+VCR
+ineachimage. Themostinterestingimagesarepassedtocrowdworkers,alongwithscene-levelcontextintheformofscene
+descriptions (MovieClips) and video captions (LSMDC, [67]). The crowd workers use a combination of natural language
+anddetectiontagstoaskandanswerchallengingvisualquestions,alsoprovidingarationalejustifyingtheiranswer.
+Why are [person1] and
+4.AdversarialMatching [person3] holding their q 1 a 1 They are about to
+kiss.
+foreheads together?
+We cast VCR as a four-way multiple choice task, to Why do [person1] and q a [person1] and
+avoid the evaluation difficulties of language generation or [person3] have their 2 2 [person3] are
+hands clasped? praying.
+captioning tasks where current metrics often prefer incor-
+Why are [person6],
+rect machine-written text over correct human-written text [person8] and [person14] q 3 a 3 They are a family
+visiting the flea
+[49]. However, it is not obvious how to obtain high- standing in close proximity? market.
+qualityincorrectchoices,orcounterfactuals,atscale.While Why are [person1] and qq a They are discussing
+pastworkhasaskedhumanstowriteseveralcounterfactual [pers to ogn e2 t] h eg ra ?thered <<<<llllaaaatttteeeexxxxiiiitttt sssshhhhaaaa1111____bbbbaaaasssseeee66664444====""""llll4444zzzzvvvv00008888aaaaCCCCggggffffAAAAPPPPAAAAEEEEoooo22229999aaaa////DDDD++++ooooAAAA5555MMMMFFFFMMMM===="""">>>>AAAAAAAAAAAADDDDBBBBHHHHiiiiccccddddVVVVIIII7777bbbbxxxxNNNNBBBBEEEEFFFF4444ffffjjjj4444TTTTjjjj5555UUUUBBBBJJJJcccc8888JJJJCCCCQQQQhhhhTTTTWWWWHHHHYYYYooooUUUU6666CCCCJJJJIIIIkkkkQQQQYYYYRRRRJJJJEEEEwwwwiiii2222ZZZZYYYY1111ttttxxxx6666ffffVVVV999966669999PPPPWWWWbbbbnnnnkkkkjjjjggggnnnn1111////kkkkTTTTttttNNNNBBBBRRRRIIIIVVVVrrrr++++BBBBwwwwXXXX////hhhhbbbbVVVVzzzzBBBBWWWWeeeeTTTTkkkkVVVVbbbb77777777TTTTffffPPPPnnnnZZZZmmmm00000000MMMMppppxxxxHHHHPPPP9999uuuuBBBBTTTTdddduuuu3333rrrrqqqq9999ttttXXXX0000nnnnvvvvHHHHvvvvvvvv////ooooOOOOHHHH7777ZZZZ1111HHHHnnnn5555wwwwttttSSSSWWWWJJJJPPPPWWWWmmmm3333ppppJJJJAAAAWWWWHHHHWWWWuuuuXXXXYYYYYYYY8888UUUUaaaaTTTTwwwwppppCCCCMMMMKKKKnnnnGGGG44443333TTTT2222ddddqqqqkkkk////PPPPkkkkVVVVyyyyyyyyuuuuYYYYffffeeeeVVVV7777gggg0000EEEECCCCWWWWqqqq4444mmmmSSSSwwwwJJJJ4444aaaattttdddduuuuDDDD1111OOOOqqqqxxxxmmmmxxxxtttt////VVVVZZZZ8888XXXXoooo99991111RRRRuuuuxxxxNNNN333344445555VVVVEEEEmmmmyyyyCCCCppppQQQQUUUUffffUUUUccccjjjjTTTTaaaaaaaaffff0000ZZZZjjjjKKKK0000ssssDDDDeeeeYYYYssssNNNNTTTTjjjjXXXXTTTT++++KKKKCCCChhhhxxxxUUUUQQQQKKKK6666llllxxxxEEEEQQQQ5555KKKKhhhhwwwwXXXXIIIIGGGGWWWWTTTTYYYY9999zzzzAAAAHHHHgggg22225555YYYYrrrrUUUUppppffffRRRRMMMM88888888MMMM44444444mmmmllllvvvvzzzzJJJJOOOOVVVVqqqqxxxx////3333ppppUUUUYYYYNNNNyyyyyyyyOOOOmmmm9999ppppggggKKKKdddduuuuXXXXbbbbcccckkkk////6666ffffrrrrllllzzzzxxxx5555NNNNaaaaxxxxUUUUXXXXppppSSSSMMMMuuuubbbbxxxxKKKKNNNNCCCCllll1111xxxxDDDDZZZZaaaa9999iiiiEEEEaaaaKKKK0000LLLLJJJJeeeeuuuu4444BBBBSSSSFFFFKKKK++++1111kkkkhhhhOOOOggggUUUUCCCCyyyy77771111YYYYjjjjiiiiyyyykkkk1111KKKK7777JJJJnnnnjjjjZZZZ9999UUUUEEEErrrrRRRRssssMMMMhhhhllllBBBBMMMMVVVVXXXXyyyyvvvvMMMMkkkkSSSSaaaaqqqqccccuuuummmmmmmm22224444JJJJiiiiRRRRZZZZ9999llllPPPPJJJJssssyyyyaaaabbbbmmmmuuuuaaaa7777JJJJLLLL0000WWWWzzzzBBBBJJJJuuuuppppkkkkiiiittttnnnnTTTTGGGGkkkk7777ttttrrrrEEEEBBBB++++iiiinnnnRRRRffffjjjjOOOOdddd++++55559999ggggQQQQRRRRssss6666UUUUUUUU1111AAAAMMMMooooMMMMnnnnCCCC++++qqqq++++gggg7777DDDD0000CCCC9999EEEEssssjjjj7777++++TTTTddddBBBB77772222XXXX3333ddddTTTTTTTT7777ssssddddvvvvbbbbffff1111JJJJuuuuxxxxLLLLZZZZ6666IIIIpppp++++KKKK5555SSSSMMMMSSSSeeee2222BBBBeeeeHHHH4444kkkkjjjj0000hhhhBBBBSSSSnnnn4444oooovvvv4444KKKKrrrr4444FFFFllll8888HHHH33334444EEEEffffwwww88888888oooo0000aaaaNNNNUUUU++++jjjj0000VVVVDDDDggggllll9999////AAAAccccccccZZZZ////kkkkwwww====<<<<////llllaaaatttteeeexxxxiiiitttt>>>> 44 4 a new law .
+choicesforeachcorrectanswer[75,46],thisprocessisex-
+pensive. Moreover,ithasthepotentialofintroducinganno- Figure 4: Overview of Adversarial Matching. Incorrect
+tationartifacts:subtlepatternsthatarebythemselveshighly choicesareobtainedviamaximum-weightbipartitematch-
+predictiveofthe‘correct’or‘incorrect’label[72,28,61]. ing between queries and responses; the weights are scores
+from state-of-the-art natural language inference models.
+In this work, we propose Adversarial Matching: a new
+Assigned responses are highly relevant to the query, while
+methodthatallowsforany‘languagegeneration’datasetto
+theydifferinmeaningversusthecorrectresponses.
+beturnedintoamultiplechoicetest,whilerequiringmini-
+malhumaninvolvement.AnoverviewisshowninFigure4.
+Ourkeyinsightisthattheproblemofobtaininggoodcoun-
+evance.7 To obtain multiple counterfactuals, we perform
+terfactualscanbebrokenupintotwosubtasks: thecounter-
+severalbipartitematchings. Toensurethatthenegativesare
+factuals must be as relevant as possible to the context (so
+diverse,duringeachiterationwereplacethesimilarityterm
+thattheyappealtomachines), whiletheycannotbeoverly
+withthemaximumsimilaritybetweenacandidateresponse
+similar to the correct response (so that they don’t become
+r andallresponsescurrentlyassignedtoq.
+j i
+correct answers incidentally). We balance between these
+Ensuringdatasetintegrity Toguaranteethatthereis
+twoobjectivestocreateadatasetthatischallengingforma-
+no question/answer overlap between the training and test
+chines,yeteasyforhumans.
+sets,wesplitourfulldataset(bymovie)into11folds. We
+Formally, our procedure requires two models: one to
+match the answers and rationales invidually for each fold.
+computetherelevancebetweenaqueryandaresponse,P ,
+rel Twofoldsarepulledasideforvalidationandtesting.
+andanothertocomputethesimilaritybetweentworesponse
+choices, P sim. Here,weemploystate-of-the-artmodelsfor 5.RecognitiontoCognitionNetworks
+NaturalLanguageInference: BERT[15]andESIM+ELMo
+[10, 57], respectively.6 Then, given dataset examples We introduce Recognition to Cognition Net-
+(q,r) ,weobtainacounterfactualforeachq byper- works (R2C), a new model for visual commonsense
+i i 1≤i≤N i
+formingmaximum-weightbipartitematching[55,40]ona reasoning. Toperformwellonthistaskrequiresadeepun-
+weightmatrixW∈RN×N,givenby derstandingoflanguage, vision, andtheworld. Forexam-
+ple,inFigure5,answering‘Whyis[person4 ]pointing
+W =log(P (q,r ))+λlog(1−P (r,r )). (1)
+i,j rel i j sim i j at [person1 ]?’ requires multiple inference steps.
+First, we ground the meaning of the query and each
+Here,λ>0controlsthetradeoffbetweensimilarityandrel-
+response, which involves referring to the image for the
+6WefinetunePrel(BERT),ontheannotateddata(takingstepstoavoid 7We tuned this hyperparameter by asking crowd workers to answer
+dataleakage),whereasPsim (ESIM+ELMo)istrainedonentailmentand multiple-choice questions at several thresholds, and chose the value for
+paraphrasedata-detailsinappendixSecC. whichhumanperformanceisabove90%-detailsinappendixSecC.
+4
+… …
+Grounding Contextualization Reasoning
+Image
+I
++ CNN
+LSTM1 LSTM2 LSTM3
+He
+Why is ... f
+<<<<llllaaaatttteeeexxxxiiiitttt
+sssshhhhaaaa1111____bbbbaaaasssseeee66664444====""""uuuu3333RRRRJJJJBBBBnnnnmmmmggggmmmmYYYYppppFFFFttttaaaa8888nnnnbbbbffffiiii2222666666665555UUUUQQQQ0000oooo===="""">>>>AAAAAAAAAAAADDDDGGGGXXXXiiiiccccddddVVVVLLLLNNNNbbbbttttNNNNAAAAEEEENNNN6666YYYYvvvv2222LLLL++++UUUUjjjjhhhhyyyyssssYYYYggggqqqqppppQQQQhhhhFFFFddddooooVVVVEEEEuuuuVVVVXXXXAAAAggggQQQQuuuuiiiiSSSSIIIIRRRRWWWWiiiikkkkMMMM00003333ooooyyyyddddVVVVXXXXaaaa99997777uuuu4444YYYYGGGGiiiiwwww////AAAAaaaa////AAAASSSS3333CCCCFFFFGGGGyyyyffffEEEEllllRRRRMMMMHHHH3333ooooVVVVNNNNaaaaiiiiSSSScccc0000JJJJFFFFWWWW++++++++00003333vvvvzzzzsssszzzzSSSSSSSSGGGGFFFFppppTTTTDDDD88881111ffffEEEEuuuuXXXXLLLLxxxx0000++++ccccrrrrWWWWVVVVffff////aaaa9999RRRRssss3333bbbb3333WWWW3333bbbb7777++++xxxxuuuujjjjQQQQcccchhhh1111xxxxLLLLbbbbYYYY4444TTTTssssCCCChhhhFFFFjjjjkkkkMMMMSSSSJJJJPPPPGGGG4444MMMMAAAAggggqqqqkkkkXXXXiiiiUUUUzzzzJJJJ8888uuuu9999UUUUffffvvvv0000FFFFiiiihhhh88889999eeee0000KKKKHHHHCCCCssssIIIIMMMMttttFFFFKKKKjjjjiiiiQQQQooooyyyybbbbddddnnnnXXXXQQQQSSSS0000wwwwwwwwJJJJ++++rrrrEEEECCCCmmmmiiiiVVVVppppddddVVVVIIII////++++AAAAttttNNNN////bbbbbbbbqqqqiiii999911116666dddd9999LLLLtttthhhhYYYYNNNNwwwwJJJJccccEEEEmmmmiiiiBBBBrrrrQQQQYYYY44440000ccccTTTTrrrrYYYY7777vvvv++++OOOOpppp5555qqqqXXXXCCCCnnnnLLLLggggEEEEaaaa0000ddddRRRRWWWWNNNNCCCC4444AAAAkkkkOOOOCCCCSSSS6666zzzz9999uuuuLLLLRRRRYYYYAAAAJJJJ9999DDDDhhhhiiiiMMMMHHHHcccc1111BBBBooooxxxx9999XXXXqqqqPPPP3333WWWWwwww44445555hhhhppppkkkkGGGGrrrrjjjjTTTTkkkk7777BBBBiiiivvvv3333XXXXoooowwwwJJJJllll7777UUUUIIIIllllzzzznnnnJJJJZZZZqqqqVVVV3333XXXXLLLLccccnnnn////6666UUUUYYYYllllppppffffvvvvjjjjSSSSuuuuRRRRFFFFSSSSZZZZjjjjzzzzssss0000RRRRppppKKKKQQQQPPPPSSSSwwwwbbbbIIII5555wwwwVVVVQQQQYYYY5555CCCCQQQQXXXXDDDDggggAAAA3333wwwwttttUUUUaaaa8888BBBBkkkkYYYY4444OOOORRRRaaaa2222MMMMqqqqiiiiSSSSkkkknnnnCCCC6666PPPPeeeettttnnnn1111QQQQccccJJJJGGGG8888zzzzmmmmYYYYFFFFiiiiJJJJvvvvhhhhppppmmmmzzzzUUUUoooorrrrffffjjjjQQQQbbbbssssMMMM5555IIIIYYYY0000mmmmNNNN6666oooo8888aaaa7777OOOOJJJJaaaarrrr9999LLLLIIII9999eeeeCCCCaaaaYYYYOOOObbbbKKKKRRRRKKKKtttt5555wwwwSSSSJJJJPPPPTTTTffffxxxxMMMM3333TTTTTTTTMMMMvvvvjjjjCCCCddddeeee5555llllggggQQQQZZZZIIIImmmm////ttttVVVVDDDDCCCCZZZZTTTTccccFFFFppppXXXXzzzzeeee33337777vvvvlllluuuuIIIIaaaaHHHH33338888mmmm2222CCCC4444NNNN3333gggg8888iiiiFFFF444499997777BBBB00008888aaaaTTTTZZZZjjjjiiii99991111llll99991111iiiiffffRRRReeeewwwwRRRROOOO2222DDDDPPPP2222SSSSEEEEbbbbMMMMssss4444++++ssssssss////ssssCCCC////vvvvqqqqffffffffKKKK++++eeeedddd++++9999HHHH2222eeeemmmmXXXXqqqqffffxxxxuuuuccccNNNNaaaa4444vvvv33338888AAAA0000ssssccccBBBBttttEEEE====<<<<////llllaaaatttteeeexxxxiiiitttt>>>>✓(q,r(i))
+objects is
+o telling
+Why is [person4] ... ...
+LSTM1 LSTM2 LSTM3
+Query Why is [person4 ]
+q pointing at [person1 ]? LSTM1 LSTM2 LSTM3 He He is telling ...
+is
+Resp ro (in )se H [pe
+e
+is
+r
+ste ol nlin 1g [ p ]e r os rdo en r3
+e d p
+a]
+n
+t ch aa kt
+e s.
+BERT
+He is telling ...
+te .l .l .ing [person4] is pointing .. .. ..
+<<<<llllaaaatttteeeexxxxiiiitttt sssshhhhaaaa1111____bbbbaaaasssseeee66664444====""""RRRRBBBBVVVVppppooooIIIIEEEENNNNaaaaAAAAXXXXRRRRuuuuPPPPkkkkCCCC////////7777DDDDaaaallllffffNNNNjjjjKKKKAAAA===="""">>>>AAAAAAAAAAAADDDDCCCCHHHHiiiiccccddddVVVVLLLLNNNNjjjjttttMMMMwwwwEEEEHHHHbbbbDDDD3333xxxxLLLL++++uuuussssCCCCNNNNSSSS0000SSSSFFFFttttHHHHCCCCooookkkkhhhhUUUUSSSSccccFFFFssssBBBBBBBByyyy6666IIIIRRRRaaaaLLLLssssSSSSmmmm2222ppppJJJJuuuu44440000ttttWWWWrrrrHHHH0000XXXXggggCCCC222244443333yyyyBBBBLLLLwwwwEEEEVVVV7777hhhhxxxxQQQQllllxxxx5555CCCCwwww66668888CCCC222244443333BBBB9999KKKKyyyyIIII1111nnnn++++////MMMM2222vvvvZZZZyyyyYYYYttttttttHHHHIIIIccccxxxx777788887777wwwwYYYYWWWWLLLLllllyyyy5555ffff2222bbbbkkkkaaaaXXXXrrrrtttt++++4444++++aaaatttt7777uuuu7777tttt999988886666WWWWJJJJHHHHEEEEggggrrrrbbbbZZZZ0000nnnnIIIIJJJJDDDDrrrrXXXXIIIIccccssssGGGGKKKKNNNNxxxxwwwwUUUUhhhhmmmmFFFFTTTTjjjjUUUUbbbbpppp4444ssssddddIIIIffffffffUUUURRRRyyyyyyyyuuuubbbbvvvveeeeFFFFnnnngggg2222EEEECCCCWWWWqqqq5555mmmmSSSSwwwwJJJJ6666aaaaddddOOOO++++OOOOUUUUqqqquuuunnnnbbbbmmmmnnnn8888VVVVVVVVHHHH9999ooooddddppppTTTTDDDD++++ttttJJJJttttxxxxffff333344447777VVVVEEEE2222yyyyBBBBppppQQQQEEEE88880000ccccjjjjjjjjZZZZ7777ffffwwwwZZZZTTTTaaaa0000ssssDDDDeeeeYYYYssssNNNNTTTTgggg3333TTTTOOOOKKKKCCCCxxxxxxxxUUUUQQQQKKKK6666mmmmxxxxDDDDkkkkeeeellllwwwwwwwwLLLLkkkkAAAAjjjjIIIIcccceeeeppppiiiiDDDDQQQQTTTTeeeeuuuu1111uuuuXXXXXXXX0000QQQQPPPPPPPPTTTTKKKKOOOOZZZZJJJJXXXX9999yyyyjjjjttttbbbbssssvvvvxxxx4444VVVVGGGGLLLLeeeeqqqq0000FFFFssssaaaa4444LLLLnnnnbbbb1111KKKK3333IIII////++++mmmmGGGGJJJJcccc++++eeeejjjjiiiiuuuuVVVVFFFFyyyyVVVVjjjjLLLLssss8888SSSSzzzzUUUUooooddddssssYYYY1111WWWWvvvvYYYYiiiimmmmiiiillllCCCCyyyyXXXXnnnnooooAAAAkkkkppppSSSSvvvvNNNNZZZZJJJJzzzzIIIIJJJJDDDDssssOOOO9999bbbbKKKKYYYYkkkkrrrrNNNNiiiiuuuuyyyynnnn1111kkkk8888qqqqCCCCVVVVqqqq2222mmmmYYYYyyyyggggmmmmCCCCtttt55550000mmmmYYYYJJJJttttVVVVOOOOnnnn7777TTTTaaaaccccEEEE5555IIIIssss++++8888nnnnkkkkWWWWZZZZttttNNNNTTTTffffttttddddkkkktttt4444IIIIZZZZggggmmmm3333UUUU6666TTTTWWWWLLLLhhhhhhhhSSSSdddd22227777iiiillll++++iiiinnnnRRRRffffjjjjaaaadddd++++5555NNNNggggQQQQRRRRssss6666VVVVEEEE1111AAAAssssooooMMMMnnnnNNNNRRRRVVVVcccc4444ddddhhhh6666BBBBcccciiii2222RRRRzzzz////NNNNhhhhjjjjssss99995555////1111kkkk7777eeeePPPPeeeewwwwffffPPPPmmmm88883333YYYYEEEEffffffffEEEEffffbbbbEEEEnnnnEEEEvvvvFFFFEEEEHHHHIIIIhhhhXXXX4444llllAAAAMMMMhhhhBBBBSSSSnnnn4444oooovvvv4444KKKKrrrr4444FFFFnnnn4444PPPPvvvvwwwwYYYY////gggg55555555llllpppp0000GGGGllll88887777ooooiiiiWWWWBBBBLLLL////++++AAAAkkkk5555PPPPAAAAAAAAEEEE====<<<<////llllaaaatttteeeexxxxiiiitttt>>>>
+Figure 5: High-level overview of our model, R2C. We break the challenge of Visual Commonsense Reasoning into three
+components: groundingthequeryandresponse,contextualizingtheresponsewithinthecontextofthequeryandtheentire
+image,andperformingadditionalreasoningstepsontopofthisrichrepresentation.
+two people. Second, we contextualize the meaning of the followingequation:
+query, response, and image together. This step includes (cid:88)
+α =softmax(rWq ) qˆ = α q . (2)
+resolvingthereferent‘he,’ andwhyonemightbepointing i,j i j i i,j j
+j
+j
+in a diner. Third, we reason about the interplay of rele-
+vant image regions, the query, and the response. In this To contextualize ananswer with theimage, including im-
+example, the model must determine the social dynamics plicitly relevant objects that have not been picked up from
+the grounding stage, we perform another bilinear attention
+between [person1 ] and [person4 ]. We for-
+betweentheresponserandeachobjecto’simagefeatures.
+mulate our model as three high-level stages: grounding,
+Lettheresultoftheobjectattentionbeoˆ .
+contextualization, and reasoning, and use standard neural i
+Reasoning Last,weallowthemodeltoreasonoverthe
+buildingblockstoimplementeachcomponent.
+response, attended query and objects. We accomplish this
+In more detail, recall that a model is given an image, a
+using a bidirectional LSTM that is given as context qˆ , r,
+set of objects o, a query q, and a set of responses r(i) (of i i
+andoˆ foreachpositioni. Forbettergradientflowthrough
+which exactly one is correct). The query q and response i
+the network, we concatenate the output of the reasoning
+choicesr(i)areallexpressedintermsofamixtureofnatural
+LSTMalongwiththequestionandanswerrepresentations
+languageandpointingtoimageregions: notation-wise,we
+foreachtimestep:theresultingsequenceismax-pooledand
+willrepresenttheobjecttaggedbyawordwaso .Ifwisn’t
+w
+passed through a multilayer perceptron, which predicts a
+adetectiontag,o referstotheentireimageboundary. Our
+w
+logitforthequery-responsecompatibility.
+modelwillthenconsidereachresponser separately,using
+Neuralarchitectureandtrainingdetails Forourim-
+thefollowingthreecomponents:
+age features, we use ResNet50 [30]. To obtain strong rep-
+Grounding The grounding module will learn a joint
+resentations for language, we used BERT representations
+image-language representation for each token in a se-
+[15]. BERTisappliedovertheentirequestionandanswer
+quence. Because both the query and the response contain
+choice,andweextractafeaturevectorfromthesecond-to-
+amixtureoftagsandnaturallanguagewords,weapplythe
+lastlayerforeachword. WetrainR2Cbyminimizingthe
+same grounding module for each (allowing it to share pa-
+multi-class cross entropy between the prediction for each
+rameters). At the core of our grounding module is a bidi- responser(i),andthegoldlabel. Seetheappendix(SecE)
+rectional LSTM [34] which at each position is passed as fordetailedtraininginformationandhyperparameters.8
+inputawordrepresentationforw,aswellasvisualfeatures
+i
+for o wi. We use a CNN to learn object-level features: the 6.Results
+visualrepresentationforeachregionoisRoi-Alignedfrom
+itsboundingregion[63,29]. Toadditionallyencodeinfor- In this section, we evaluate the performance of various
+mationabouttheobject’sclasslabel(cid:96) o, weprojectanem- models on VCR. Recall that our main evaluation mode is
+bedding of (cid:96) (along with the object’s visual features) into thestagedsetting(Q→AR). Here,amodelmustchoosethe
+o
+asharedhiddenrepresentation. LettheoutputoftheLSTM rightanswerforaquestion(givenfouranswerchoices),and
+overallpositionsber,fortheresponseandqforthequery. thenchoosetherightrationaleforthatquestionandanswer
+(given four rationale choices). If it gets either the answer
+Contextualization Givenagroundedrepresentationof
+ortherationalewrong,theentirepredictionwillbewrong.
+the query and response, we use attention mechanisms to
+This holistic task decomposes into two sub-tasks wherein
+contextualizethesesentenceswithrespecttoeachotherand
+wecantrainindividualmodels:questionanswering(Q→A)
+the image context. For each position i in the response, we
+willdefinetheattendedqueryrepresentationasqˆ iusingthe 8Ourcodeisalsoavailableonlineatvisualcommonsense.com.
+5
+Q→A QA→R Q→AR Model Q→ A QA→R Q→ AR
+Model Val Test Val Test Val Test
+R2C 63.8 67.2 43.1
+Chance 25.0 25.0 25.0 25.0 6.2 6.2
+Noquery 48.3 43.5 21.5
+BERT 53.8 53.9 64.1 64.5 34.8 35.0 Noreasoningmodule 63.6 65.7 42.2
+BERT(responseonly) 27.6 27.7 26.3 26.2 7.6 7.3 Novisionrepresentation 53.1 63.2 33.8
+ESIM+ELMo 45.8 45.9 55.0 55.1 25.3 25.6
+GloVerepresentations 46.4 38.3 18.3
+LSTM+ELMo 28.1 28.3 28.7 28.5 8.3 8.4
+Table 2: Ablations for R2C, over the validation set. ‘No
+RevisitedVQA[38] 39.4 40.5 34.0 33.7 13.5 13.8
+query’ tests the importance of integrating the query dur-
+BottomUpTopDown[4] 42.8 44.1 25.1 25.1 10.7 11.0
+MLB[42] 45.5 46.2 36.1 36.8 17.0 17.2
+ingcontextualization;removingthisreducesQ→ARperfor-
+MUTAN[6] 44.4 45.5 32.0 32.2 14.6 14.6 manceby20%. In‘noreasoning’,theLSTMinthereason-
+ingstageisremoved;thishurtsperformancebyroughly1%.
+R2C 63.8 65.1 67.2 67.3 43.1 44.0
+Removing the visual features during grounding, or using
+Human 91.0 93.0 85.0 GloVe embeddings rather than BERT, lowers performance
+significantly,by10%and25%respectively.
+Table 1: Experimental results on . VQA mod-
+VCR
+els struggle on both question-answering (Q → A) as
+well as answer justification (Q → AR), possibly due d. LSTM+ELMo: Here an LSTM with ELMo embed-
+dingsisusedtoscoreresponsesr(i).
+to the complex language and diversity of examples in
+VQA Baselines Additionally we compare our ap-
+the dataset. While language-only models perform well,
+our model R2C obtains a significant performance boost. proach to models developed on the VQA dataset [5]. All
+modelsusethesamevisualbackboneasR2C(ResNet50)
+Still, all models underperform human accuracy at this
+aswellastextrepresentations(GloVe;[56])thatmatchthe
+task. For more up-to-date results, see the leaderboard at
+visualcommonsense.com/leaderboard. originalimplementations.
+e. RevisitedVQA[38]: Thismodeltakesasinputaquery,
+response, and image features for the entire image, and
+as wellas answer justification(QA→R). Thus, inaddition passestheresultthroughamultilayerperceptron,whichhas
+to reporting combined Q→AR performance, we will also toclassify‘yes’or‘no’.10
+reportQ→AandQA→R. f. Bottom-up and Top-down attention (BottomUpTop-
+Tasksetup Amodelispresentedwithaquery q, and Down)[4]: Thismodelattendsoverregionproposalsgiven
+four response choices r(i). Like our model, we train the byanobjectdetector. Toadaptto ,wepassthismodel
+VCR
+baselinesusingmulti-classcrossentropybetweenthesetof objectregionsreferencedbythequeryandresponse.
+responses and the label. Each model is trained separately g. Multimodal Low-rank Bilinear Attention (MLB)
+forquestionansweringandanswerjustification.9 [42]: ThismodelusesHadamardproductstomergethevi-
+sionandlanguagerepresentationsgivenbyaqueryandeach
+6.1.Baselines
+regionintheimage.
+WecompareourR2Ctoseveralstronglanguageandvi- h. MultimodalTuckerFusion(MUTAN)[6]: Thismodel
+sionbaselines. expressesjointvision-languagecontextintermsofatensor
+decomposition,allowingformoreexpressivity.
+Text-only baselines We evaluate the level of visual
+We note that BottomUpTopDown, MLB, and MUTAN
+reasoning needed for the dataset by also evaluating purely
+text-only models. For each model, we represent q and r(i) alltreatVQAasamultilabelclassificationoverthetop1000
+answers[4,50]. Because ishighlydiverse(SuppA),
+as streams of tokens, with the detection tags replaced by VCR
+theobjectname(e.g. chair5→chair). Tominimizethe for these models we represent each response r(i) using a
+GRU [11].11 The output logit for response i is given by
+discrepancybetweenourtaskandpretrainedmodels,were-
+the dot product between the final hidden state of the GRU
+placepersondetectiontagswithgender-neutralnames.
+encodingr(i),andthefinalrepresentationfromthemodel.
+a. BERT[15]:BERTisarecentlyreleasedNLPmodelthat
+Humanperformance Weaskedfivedifferentworkers
+achievesstate-of-the-artperformanceonmanyNLPtasks.
+on Amazon Mechanical Turk to answer 200 dataset ques-
+b. BERT(responseonly)WeusethesameBERTmodel,
+tionsfromthetestset. Adifferentsetoffiveworkerswere
+however, during fine-tuning and testing the model is only
+giventheresponsechoicesr(i). askedtochooserationalesforthosequestionsandanswers.
+c. ESIM+ELMo [10]: ESIM is another high perform- Predictionswerecombinedusingamajorityvote.
+ingmodelforsentence-pairclassificationtasks,particularly 10ForVQA,themodelistrainedbysamplingpositiveornegativean-
+whenusedwithELMoembeddings[57]. swersforagivenquestion;forourdataset,wesimplyusetheresultofthe
+perceptron(forresponser(i))asthei-thlogit.
+9Wefollowthestandardtrain,valandtestsplits. 11TomatchtheotherGRUsusedin[4,42,6]whichencodeq.
+6
+ylnOtxeT
+AQV
+Whyis [person1 ] pointingagunat b)isrightbecause...
+[person2 ]? a)[person1 ]ischasing[person1 ]and
+a)[person1 ]wantstokill[person2 ].(1%) [person3 ] becausetheyjustrobbedabank.
+(33%)
+b)[person1 ]and[person3 ]arerob-
+b)Robberswillsometimesholdtheirgunintheair
+bingthebankand[person2 ]isthebank togeteveryone’sattention.(5%)
+manager.(71%)
+c)Thevaultinthebackgroundissimilartoa
+c)[person2 ]hasdonesomethingtoupset bankvault. [person3 ]iswaitingbythevault
+[person1 ].(18%) forsomeonetoopenit.(49%)
+d)Because[person2 ]is[person1 ]’s d)Aroomwithbarredwindowsandacounterusu-
+allyresemblesabank.(11%)
+daughter. [person1 ]wantstoprotect
+[person2 ].(8%)
+Whatwould [person1 ] doifshecaught d)isrightbecause...
+[person2 ] and[person3 ] whispering? a)Whenstudentsaretalkinginclassthey’re
+supposedtobelistening-theteacherseparates
+a)[person1 ]wouldlooktoherleft.(7%)
+them.(64%)
+b)Shewouldplaywith[book1 ].(7%) b)Planeseatsareverycrampedandnarrow,andit
+c)Shewouldlookconcernedandaskwhatwas requirescooperationfromyourseatmatestohelp
+funny.(39%) getthrough.(15%)
+c)It’snotunusualforpeopletowanttogetthe
+d)Shewouldswitchtheirseats.(45%)
+closestseatstoastage.(14%)
+d)That’soneoftheonlyvisibleseatsIcansee
+that’sstillopen,theplaneismostlyfull.(6%)
+What’sgoingtohappennext? d)isrightbecause...
+a)Theyaretherightagetobefatherandsonand
+a)[person2 ]isgoingtowalkupandpunch
+[person5 ]ishugging[person3 ]likethey
+[person4 ]intheface.(10%) arehisson.(1%)
+b)Someoneisgoingtoread[person4 ]abed- b)Itlookslike[person4 ]isshowingthe
+timestory.(15%) phototo[person2 ],and[person2 ]will
+c)[person2 ]isgoingtofalldown.(5%) wanttobepolite.(31%)
+d)[person2 ]isgoingtosayhowcute
+c)[person2 ]issmirkingandlookingdownat
+[person4 ]’schildrenare.(68%) [person4 ].(6%)
+d)Youcansee[person4 ]smilingandfacing
+thecribanddecorintheroom(60%)
+Whycan’t [person3 ] gointhehouse b)isrightbecause...
+with [person1 ] and [person2 ]? a)[person1 ]isgoingawaybyhimself.(60%)
+a)Shedoesnotwanttobethere.(12%) b)[dog1 ]issmallenoughtocarry.
+[person3 ]appearstoownhim.(33%)
+b)[person3 ]has[dog1 ]withher.(14%)
+c)If[dog1 ]wasinthehouse,hewouldlikely
+c)Sheneedsthelight.(45%)
+knockover[pottedplant6 ]andlikely
+d)Sheistoofreakedout(26%) scratch[couch1 ].(4%)
+d)[person1 ]lookslikehemayhavelead
+[person2 ]intotheroomtosee[dog1 ].(1%)
+Figure6:QualitativeexamplesfromR2C.Correctpredictionsare highlightedinblue. Incorrectpredictionsare inred with
+thecorrectchoicesbolded. Formorepredictions,seeseevisualcommonsense.com/explore.
+6.2.ResultsandAblations long) text spans. Our model, R2C obtains an additional
+WepresentourresultsinTable1.Ofnote,standardVQA boost over BERT by 9% accuracy, reaching a final perfor-
+models struggle on our task. The best model, in terms of mance of 44%. Still, this figure is nowhere near human
+Q→ARaccuracy,isMLB,with17.2%accuracy. Deeptext- performance: 85%onthestagedtask,sothereissignificant
+onlymodelsperformmuchbetter:mostnotably,BERT[15] headroomremaining.
+obtains35.0%accuracy. Onepossiblejustificationforthis Ablations Weevaluatedourmodelunderseveralabla-
+gapinperformanceisabottleneckingeffect: whereasVQA tions to determine which components are most important.
+modelsareoftenbuiltaroundmultilabelclassificationofthe Removing the query representation (and query-response
+top1000answers, requiresreasoningovertwo(often contextualization entirely) results in a drop of 21.6% ac-
+VCR
+7
+curacy points in terms of Q → AR performance. Interest- the space of commonsense inferences is often limited by
+ingly, this setting allows it to leverage its image represen- theunderlyingdatasetchosen(synthetic[79]orCOCO[58]
+tation more heavily: the text based response-only models scenes). Inourwork,weaskcommonsensequestionsinthe
+(BERT response only, and LSTM+ELMo) perform barely contextofrichimagesfrommovies.
+better than chance. Taking the reasoning module lowers Explainability AImodelsareoftenright,butforques-
+performance by 1.9%, which suggests that it is beneficial, tionable or vague reasons [7]. This has motivated work in
+but not critical for performance. The model suffers most having models provide explanations for their behavior, in
+whenusingGloVerepresentationsinsteadofBERT:aloss the form of a natural language sentence [31, 9, 41] or an
+of 24%. This suggests that strong textual representations attentionmap[32,35,37]. Ourrationalescombinethebest
+arecrucialto VCRperformance. of both of these approaches, as they involve both natural
+Qualitativeresults Last,wepresentqualitativeexam- languagetextaswellasreferencestoimageregions. Addi-
+plesinFigure6. R2Cworkswellformanyimages: forin- tionally,whileitishardtoevaluatethequalityofgenerated
+stance,inthefirstrow,itcorrectlyinfersthatabankrobbery modelexplanations,choosingtherightrationalein is
+VCR
+is happening. Moreover, it picks the right rationale: even amultiplechoicetask,makingevaluationstraightforward.
+thoughalloftheoptionshavesomethingtodowith‘banks’ Commonsense Reasoning Our task unifies work in-
+and ‘robbery,’ only c) makes sense. Similarly, analyzing volvingreasoningaboutcommonsensephenomena,suchas
+the examples for which R2C chooses the right answer but physics [54, 84], social interactions [2, 77, 12, 27], proce-
+the wrong rationale allows us to gain more insight into its dureunderstanding[91,3]andpredictingwhatmighthap-
+understandingoftheworld. Inthethirdrow,themodelin- pennextinavideo[74,17,92,78,18,64,85].
+correctlybelievesthereisacribwhileassigninglessproba- AdversarialDatasets Pastworkhasproposedtheidea
+bilitymassonthecorrectrationale-that [person2 ] is of creating adversarial datasets, whether by balancing the
+beingshownaphotoof [person4 ]’schildren,whichis datasetwithrespecttopriors[25,28,62]orswitchingthem
+why [person2 ] mightsayhowcutetheyare. at test time [1]. Most relevant to our dataset construc-
+tionmethodologyistheideaofAdversarialFiltering[89].13
+7.RelatedWork Correct answers are human-written, while wrong answers
+arechosenfromapoolofmachine-generatedtextthatisfur-
+Question Answering Visual Question Answering [5] thervalidatedbyhumans. However,thecorrectandwrong
+was one of the first large-scale datasets that framed visual answerscomefromfundamentallydifferentsources,which
+understanding as a QA task, with questions about COCO raisestheconcernthatmodelscancheatbyperformingau-
+images [49] typically answered with a short phrase. This thorshipidentificationratherthanreasoningovertheimage.
+lineofworkalsoincludes‘pointing’questions[45,93]and In contrast, in Adversarial Matching, the wrong choices
+templated questions with open ended answers [86]. Re- comefromtheexactsamedistributionastherightchoices,
+cent datasets also focus on knowledge-base style content andnohumanvalidationisneeded.
+[80, 83]. On the other hand, the answers in are en-
+VCR
+tiresentences,andtheknowledgerequiredbyourdatasetis 8.Conclusion
+largelybackgroundknowledgeabouthowtheworldworks.
+Recent work also includes movie or TV-clip based QA Inthispaper,weintroducedVisualCommonsenseRea-
+[75, 51, 46]. In these settings, a model is given a video soning, along with a large dataset VCR for the task that
+clip, often alongside additional language context such as wasbuiltusingAdversarialMatching. WepresentedR2C,
+subtitles, a movie script, or a plot summary.12 In contrast, amodelforthistask,butthechallenge–ofcognition-level
+features no extra language context besides the ques- visualundertanding–isfarfromsolved.
+VCR
+tion. Moreover, the use of explicit detection tags means Acknowledgements
+thatthereisnoneedtoperformpersonidentification[66]or WethanktheMechanicalTurkworkersfordoingsuchanoutstanding
+linkagewithsubtitles. job with dataset creation - this dataset and paper would not exist with-
+outthem. ThanksalsotoMichaelSchmitzforhelpingwiththedataset
+Anorthogonallineofworkhasbeenonreferringexpres-
+splitandJenDumasforlegaladvice.ThisworkwassupportedbytheNa-
+sions: askingtowhatimageregionanaturallanguagesen- tionalScienceFoundationthroughaGraduateResearchFellowship(DGE-
+1256082)andNSFgrants(IIS-1524371,1637479,165205,1703166),the
+tencerefersto[60,52,65,87,88,59,36,33]. Weexplicitly
+DARPACwCprogramthroughARO(W911NF-15-1-0543), theIARPA
+avoidreferringexpression-stylequestionsbyusingindexed DIVA program through D17PC00343, the Sloan Research Foundation
+throughaSloanFellowship,theAllenInstituteforArtificialIntelligence,
+detectiontags(like [person1 ]). the NVIDIA Artificial Intelligence Lab, and gifts by Google and Face-
+Last, some work focuses on commonsense phenomena, book.Theviewsandconclusionscontainedhereinarethoseoftheauthors
+and should not be interpreted as representing endorsements of IARPA,
+such as ‘what if’ and ‘why’ questions [79, 58]. However, DOI/IBC,ortheU.S.Government.
+12As we find in Appendix D, including additional language context 13ThiswasusedtocreatetheSWAGdataset,amultiplechoiceNLPdataset
+tendstoboostmodelperformance. fornaturallanguageinference.
+8
+Appendix
+Train Val Test
+Abstract Numberofquestions 212,923 26,534 25,263
+Numberofanswersperquestion 4 4 4
+Numberofrationalesperquestion 4 4 4
+In our work we presented the new task of Visual Com-
+monsense Reasoning and introduced a large-scale dataset Numberofimages 80,418 9,929 9,557
+for the task, , along with Adversarial Matching, the Numberofmoviescovered 1,945 244 189
+VCR
+machinerythatmadethedatasetconstructionpossible. We Averagequestionlength 6.61 6.63 6.58
+alsopresentedR2C,anewmodelforthetask.Inthesupple- Averageanswerlength 7.54 7.65 7.55
+mental material, we provide the following items that shed Averagerationalelength 16.16 16.19 16.07
+furtherinsightonthesecontributions: Average#ofobjectsmentioned 1.84 1.85 1.82
+• Additionaldatasetanalysis(SectionA)
+Table 3: High level dataset statistics, split by fold (train,
+• More information about dataset creation (Section B) validation, andtest). Notethatweheldoutonefoldinthe
+andAdversarialMatching(SectionC) datasetforblindevaluationatalaterdate;thisfoldisblind
+• Anextendeddiscussiononlanguagepriors(SectionD) toustopreservetheintegrityoftheheld-outdata. Accord-
+• Modelhyperparametersused(SectionE) ingly,thestatisticsofthatfoldarenotrepresentedhere.
+• Additional VQA Baseline Results, with BERT embed-
+1.00
+dings(SectionF)
+• Adatasheetfor VCR(SectionG) 0.75
+• AvisualizationofR2C’spredictions(SectionH)
+0.50
+For more examples, and to obtain the dataset and code,
+checkoutvisualcommonsense.com. VQA MovieQA
+0.25
+TVQA VCR Answers
+V7W VCR Rationales
+0.00
+0.00 0.25 0.50 0.75 1.00
+A.DatasetAnalysis Fraction of cumulative examples
+Figure 7: CDF of dataset examples ordered by frequency
+In this section, we continue our high-level analysis of
+in question-answering datasets [5, 93, 75, 46]. To obtain
+.
+VCR thisplot,wesampled10,000answersfromeachdataset(or
+rationales, for ‘ rationales’). We consider two exam-
+VCR
+A.1.Languagecomplexityanddiversity
+plestobethesameiftheyexactlymatch,aftertokenization,
+lemmatization, and removal of stopwords. Where many
+Howchallengingisthelanguagein ?Weshowsev-
+VCR
+datasets in this space are light-tailed, our dataset shows
+eral statistics in Table 3. Of note, unlike many question-
+greatdiversity(e.g. almosteveryrationaleisunique.)
+answeringdatasetswhereintheanswerisasingleword,our
+answersaveragetomorethan7.5words. Therationalesare
+evenlonger,averagingatmorethan16words.
+A.3.Moviescovered
+Anadditionalinformativestatisticisthecountsofunique
+Our dataset also covers a broad range of movies - over
+answersandrationalesinthedataset,whichweplotinFig-
+2000inall,mostlyviaMovieClips(Figure9). Wenotethat
+ure 7. As shown, almost every answer and rationale is
+sincewesplitthedatasetbymovie, thevalidationandtest
+unique.
+setscoveracompletelydisjointsetofmovies,whichforces
+amodeltogeneralize. Foreachmovieimage,workersask
+A.2.Objectscovered
+2.6questionsonaverage(Figure10),thoughtheexactnum-
+On average, there are roughly two objects mentioned bervaries-bydesign,workersaskmorequestionsformore
+over a question, answer, and rationale. Most of these ob- interestingimages.
+jects are people (Figure 8), though other types of COCO
+A.4.Inferencetypes
+objectsarecommontoo[49]. Objectssuchas‘chair,’‘tie,’
+and‘cup’areoftendetected,however,theseobjectsvaryin It is challenging to accurately categorize commonsense
+terms of scene importance: even though more ties exist in and cognition-level phenomena in the dataset. One ap-
+thedatathancars,workersrefertocarsmoreintheirques- proachthatwepresentedinFigure2istocategorizeques-
+tions, answers, and rationales. Some objects, such as hair tions by type: to estimate this over the entire training set,
+driersandsnowboards,arerarelydetected. weusedaseveralpatterns,whichweshowinTable4. Still,
+9
+FDC
+selpmaxE
+person
+Type Freq. Patterns chair
+tie
+cup
+Explanation 38% why,howcome,howdoes bottle
+book
+Activity 24% doing,looking,event,playing,preparing car
+diningtable
+Temporal 13% happened,before,after,earlier,later,next wineglass
+pottedplant
+Mental 8% feeling,thinking,saying,love,upset,angry handbag
+bowl
+Role 7% relation,occupation,strangers,married tv
+cellphone
+Scene 5% where,time,near horse
+vase
+Hypothetical 5% if,would,could,chance,might,may couch
+backpack
+bench
+umbrella
+Table4: Someoftherulesweusedtodeterminethetypeof bed
+clock
+eachquestion. Anyquestioncontainingawordfromoneof laptop
+truck
+the above groups (such as ‘why’) was determined to be of trafficlight
+sportsball
+thattype(‘explanation’). bicycle
+remote
+suitcase
+sink
+dog
+boat
+wenotethatautomaticcategorizationoftheinferencetypes bird
+refrigerator
+requiredforthistaskishard. Thisisinpartbecauseasin- knife
+spoon
+glequestionmightrequiremultipletypesofreasoning: for motorcycle
+teddybear
+example,‘Whydoesperson1feelembarrassed?’ requires apple
+surfboard
+reasoningaboutperson1’smentalstate, aswellasrequir- oven
+cow
+inganexplanation.Forthisreason,wearguethatthisbreak- fork
+cake
+downunderestimatesthetaskdifficulty. keyboard
+bus
+airplane
+baseballbat
+B.DatasetCreationDetails orange
+toilet
+toothbrush
+skateboard
+In this section, we elaborate more on how we collected baseballglove
+microwave
+VCR,andaboutourcrowdsourcingprocess. mo tru as ie
+n
+pizza
+B.1.Shotdetectionpipeline banana
+sheep
+firehydrant
+sandwich
+The images in VCR are extracted from video clips stopsign
+cat
+from LSMDC [67] and MovieClips. These clips vary in elephant
+parkingmeter
+length from a few seconds (LSMDC) to several minutes donut
+frisbee
+(MovieClips). Thus,toobtainmorestillimagesfromthese tennisracket
+scissors
+clips, we performed shot detection. Our pipeline is as fol- kite
+skis
+lows: hotdog
+zebra
+• Weiteratethroughavideoclipataspeedofoneframe broccoli
+giraffe
+persecond. carrot n total
+toaster
+• Duringeachiteration,wealsoperformshotdetection: snowbob ae ra dr n referenced
+if we detect a mean difference of 30 pixels in HSV hairdrier
+0 1 2 3 4 5 6 7
+space,thenweregisterashotboundary. 10 10 10 10 10 10 10 10
+Object counts n
+• Afterashotboundaryisfound,weapplyMask-RCNN Figure8: DistributionofthereferencedCOCO[49]objects
+[29,24]onthemiddleframefortheshot,andsavethe in .Wecountanobjectasbeing‘referenced’if, fora
+VCR
+resultingimageanddetectioninformation. given question, answer, and rationale, that object is men-
+We used a threshold of 0.7 for Mask-RCNN, and the tionedexplicitly. Notethatwedonotdouble-countobjects
+best detection/segmentation model available for us at the here-if person5ismentionedinthequestionandthean-
+time: X-101-64x4d-FPN14, which obtains 42.4 box mAP swer,wecountitonce. Thischartsuggeststhatourdataset
+onCOCO,and37.5maskmAP. ismostlyhuman-centric,withsomecategoriesbeingrefer-
+encedmorethanothers(carsarementionedmorethanties,
+B.2.InterestingnessFilter
+eventhoughcarsappearlessoften).
+Recall that we use an ‘interestingness filter’ to ensure
+thattheimagesinourdatasetarehighquality. First,every
+Mask RCNN. However, we also found that many images
+image had to have at least two people in it, as detected by
+withtwoormorepeoplewerestillnotveryinteresting. The
+14AvailableviatheDetectronModelZoo. two main failure cases here are when there are one or two
+10
+H HTa ahr rer ry y LH H P PoH o a ro oa dw rH Ht trr t t T y r e ea O aTy h r rr rP fH o re r P A Ay yo T a L o C n nt hPr Pto GTt d dr eu et o Ty s o Oe h r hr Nt T T e t hRir e tP P oto A n e C h h e e
+u
+A iF suo er n nG r e e r toi t rn s Lt
+t
+d d g A t yDi Ani R D Ded ee r e sC Dn fl T An i Pn gr ie e e rT dW d A T a dhT a eN d eA s rT a a D TG e Gh s h
+o
+en y ch s s nT a Kt ti h Tn M hD5 riTe et h he t
+T
+f
+d S Fo e i e e Ad
+C
+Kh n Fh T i eeC od aA h e T0 S oT Thl l Fi N ho B Tr r
+V
+Q tS o P O y y
+T
+nn T3e R
+s
+lP n ih TA t A heA DN T0 T o OT hCn h nT H T T ie Vch BD Mhp rPT edy BM RhHP r4o a ry In
+s
+iI0 l hT hh s eu
+a
+a
+h
+T f H Hr e m
+ee
+hW T h sd a u cd kh :nT
+nt
+Oh e eh a h e i yh T LH eh fao eD a 0 A oe T c re e
+i
+Ao r
+e
+eaeP ii h oDa rn La
+e
+N B et iMS
+w
+e neh m mj e TC th M m el Oe ae c h Ce a a iEa a
+n
+re Dtw h k G luu r rv H MAo r j or h GRap t lm CD n e a Se tT Rn Ir ik eg t Geu r yPY2
+g
+e eC
+a
+h M Lae we d h
+H
+t te So
+H
+el l s
+h
+Tt n gL Bhi lit Jrs c aS oSPBs b d ef P 2J lo Ti ll lp O rD F hB r ELy El ill eo Fn Tt s o gnG hM ecr Id aa e
+2 A
+e1 on fo on n tFt eeyT
+W
+TF in e e rme e eD i O B ui eru T du Bt pi eaL ohR O d so eru A
+u
+aC Wr LG e -e o rAS
+il
+:an BuC s Be eW n DR hpo i u Wan o r rkS M hom &S S ai rBo o ee vR a iB Iir vum mr
+0
+a
+ouw w f tt D ssT y tbj r s r ua A nh oo J C Tf no L rgm s tc h gi rY ro a co Ke hd ep ao ol P pT pJ ina r g O ra ha a TC rg nsG cr a A Iv gn C R ee ys Kt d d ii np rZ eaihP eoOf d e eli u
+a
+rT dtr i elee e
+0
+nn O dt V p p aT a 2o l acc n nr lS Sl iLeu ih T r GttO es S lkbe oie
+hh
+s se e e b ai e tr Mr TRuuI e te s
+G
+ih en
+r
+my lMa B pP heoe Ta om A Sg le eo b l mZ o tn t G BO y hs a rC
+H
+a Te ae ec a B H na r soG r ln Soo en tSn iU yU lf Y sya on rs rs
+1
+io ru h M ea ti i SB dM T hI N c 7d dA es nE i be Go fG
+s
+eOl s o Ah nnO te
+e
+An a e l Sls o eAi nR gm fe n T 'e hd d eG hn
+yT
+C
+sma t o bo n y u ly vk aA or W rh DfP ee eo l o lG a Ar
+t
+rD D pD cer l srA n s h l rLO ed l m oce st
+D
+s G GT Teis bi ah
+i
+wle Pk eei f Bnn c i aA a D u eY D T S
+H
+y
+o
+yy no
+y
+ho A y go g o Te D n Tt So u m Ae
+k
+T
+M
+f
+R
+Rt e nr k BMsn d u r ggy ep h Ss itr n oe e Td d oe re Md T Ct h sd i rn
+t
+na N Tn
+D
+hc o CD eoP rs lt Ao oo LiB f r IOp oJ eg m oWi I e nFl Wi te u Ra vrp S GcO T T ri ls h An C eidi p t s i iSi h t od
+r
+P ll eFn er n
+ne
+M u Ke end h yl et nl wyt ff eg lBl m etr
+R
+e tt e anu h P it lB ol d Jbg n u iln
+h
+xu t e ooG A s s s pr r t e Clv i l kH E aO G i iP SB hB s
+r
+Pgv S ey du hy
+e
+o oe aMO a ek ua m iSh rt e i rl o et ie n H F
+m
+cQ a
+e
+gy Ohn i aol e n rb im
+O
+hF i r os s I B m U Hd n aA FWli i S Pe- - S
+g
+T ag u T s f CWW 'oa ae on eu
+b
+e e r i Me ae od re o ra Sa sG iteg OG rs n G li ek kk e P i la ca eS Bs iA f ot t tS a o C e si S e F n s f iu eV ee BC Bfm en E dn cm m ni nK e a n ld M eM s l Sa e elebe d r uet d cpu fa f nBF tog NLo da wt gl HG ln
+Ri
+i oa a WH c tfa B SD d ni eTT
+D
+Bt l ef u A mu r p Sat FRnu o a ka t2 td Cn am o au2 F T h O vr c ma h ena os u hca o a Hd
+f
+pcDt ka efcJ II r n u wt itc dL syl
+c
+G luh sJ r us T kKr r teAt r a d gt M du ghga M co dua a fu pM M V rs ao T OO qlai il mog la r a oFsn e k ef L ts ai ieu iuw ibn Weid ho ln n hl iLt i ill U D TtF i rn trr m eZ r tTCTS Ceo at re a a aa n sora rt a0 teq ho ooe osLu aa r te eu 0 rtu rot n on n vin o s uSno en l w dtt e
+L
+an itea ca Oi c af c hh ts eu p aa e es a os yco lc r
+K
+ha ohp ou er hh y ft et rt eeoo a eMo em r ue ean etu eMm ttg e u rhp e ii uigu phiini mr
+ii
+od ir ae o Ot ewn ii i ilo lo iwi Uoi i oi tf tt rJ B rn n ino nna an n ddd deu oe nnoi on1 eu aeo on oor ao in gna eo n dga nel e trg 1 nr hnt 54 r c cn ncn es n pc pg sed en udc u pu is nec ec pc ci va a ee i cb c kk ll i cl k ss ac ck ll t r er eae r re eee aee ore aeo P rrrr t ar r fte rtt rt
+r
+r uh r m e l t eiit ti t la tti ii th
+i
+tc st Iti iww w wii Ae ee o e een e ggu n2 1 aeea dne e e 2nd pde eao n ed e2a d ene eee nda d no de na n dn eh h peop o82 a e ppn do d ah on e ge2 1 dn 3o 2 eo
+f
+eo9 4nh0 h IIsxs ss sc s ssys sy y syk ssy s ys ss s y ss yl s ss ss s ss ysy s s sk k ks s zl y ss yy y vsl ll r rrr r rrr rrr rr rrr ttt tt fttf t tt ll l lli i L MS oM viD eCC lips F V p w t r p ( b d t 2 ‘ p o
+n
+t t i
+a
+o
+th a
+h h n
+he F n le e l e 0 r f
+u
+ni h s lC -a u
+i r
+eo eg i123 r o t 0
+m
+o
+.7spa k eg O
+D
+ye t e000 dr tu R p w0 2i n se000 r . mr ru i
+b
+Wmr w u ui000 l y
+h
+te m o kn ce r ene T h000 0 e. it or rote poea dm or t
+r
+i
+oi ib h
+d
+ld fi e1 ra l ng t n msT
+rd
+ue1e a ee
+o
+uera ai e k0 ge lihn e gt t t1 n alfg sit
+t
+ed: w fie efl de s hi ui
+t
+hga tg e rd e os tn hr tr oca as)
+s
+te
+e
+osiN is tl bg ew1 t , ,g n n2 te e sw a
+i
+tte
+wj
+bdfu hg g g. n c
+c
+cbwo ehds sa6 ri uem at
+o
+re ’ e ee ct er oi, up e4 e
+o
+inh to cd rl rt
+t
+lm lat drb b5 .. wrsw
+e
+ethn dh to o na eiue h. cae b fo T (T dph cd sd air atts eyL tN m yr
+p
+ee ste shd hh n2 t et So ot
+d
+ks
+ii
+oe no oo ei h ae Ma r mnd st ef us e;M na tft eN i g
+t
+vmpea t dt ro e
+d
+ti aeyu t aq e ah th chn ev e Do v ,m n h
+gr
+est s o ru e ir nec ee eh a o k dab ei
+n
+eae C de l si dr w s se ra ll le be giaas eer e v
+t
+tR
+n
+womt 3 paa
+i
+ol e eto g a ln [e
+o
+pnl ni iqwf Crn ar
+t
+a6y eo a m’ d i 7q n
+t
+trg
+geu lpn st s7 egu N on h o 0n pae ei o ae
+i
+ri ]d e a
+c
+es i wggn %ms n Nsu s er gl t n
+e
+sot iiie t ati at om
+n
+ieo ia vw psfie si ai e tt s sn o [
+pp
+sa ts n tw se hr i egr rs b i 2 e4 eok e d ,n rlng e s cce wb ea reoe 9 es ne et wds s c is s ese )r ctr a,aa rd t ek as p i o m si ik i ee e
+i
+it lp s. n 2
+r
+cn dno n te l
+n
+sd i le g
+e
+ip le a hy o y4 og
+e
+igf c g i nen r r oLr n ne t tn ] bais . ec gq h
+e
+iia , nbr u p‘
+S
+na
+t
+nmsti nu cc i5 l i aa .y em a ul s nn Ml tni to ee ily d el aim Tt
+e
+o
+ng c otl sos au w rge dy Dl tt
+h
+set d ng ena l g a ahr ei i .od dia sgog e n e
+C
+fiasr
+t
+,e sr tm eta, ssne Wt n
+d
+la ik a w
+,
+we
+r
+dtii
+t
+nns ns ai ei ofin
+u
+ee ro f6
+e
+gm un ik ho te
+s fi
+rr y d soa e t an mgs
+u
+ehs t
+iu
+rs er ra
+l
+(a a nt t’
+tl
+asa ak lg sn g i hbt ht t t tf
+g t
+tn n ne h hh e
+e
+ey e oo .o t
+e
+ee ad g d d o
+d
+d
+de e ae s- r
+r
+rr r tt
+0 5000 10000 15000 20000 25000 30000 thus should go to more workers), just okay, or especially
+Number of images
+boring (and hard to ask even one good question for). We
+Figure9: Distributionofmoviesinthe trainingsetby
+VCR
+used this to train a deeper model for this task. The model
+numberofimages.BluebarsaremoviesfromLSMDC(46k
+uses a ResNet 50 backbone over the entire image [30] as
+images);redareMovieClips(33kimages).TheMovieClips
+wellasamultilayerperceptronovertheobjectcounts. The
+images are spread over a wider range of movies: due to
+entire model is trained end-to-end: 2048 dimensional fea-
+spacerestrictions,mostareunder‘otherMovieClips.’
+turesfromResnetareconcatenatedwitha512dimensional
+projetion of the object counts, and used to predict the la-
+11
+deksa snoitseuq n htiw segami fo rebmuN
+a)Boringimage.
+b)Interestingimage.
+Figure12: Screenshotofourannotationinterface. Workers
+Figure 11: Two example images that come from the raw
+aregivenanimage,aswellascontextfromthevideo(here,
+video pipeline. Image a) is flagged by our initial filter as
+captionsfromLSMDC[67]),andareaskedtowriteoneto
+‘boring’,becausethereareonlytwopeoplewithoutanyad-
+three questions, answers, and rationales. For each answer,
+ditionalobjects,whereasimageb)isflaggedasbeinginter-
+they must mark it as likely, possible, or unlikely. Workers
+estingduetothenumberofpeopleandobjectsdetected.
+alsoselectwhethertheimagewasespeciallyinterestingor
+boring,asthisallowsustotrainadeepmodelforpredicting
+imageinterestingness.
+bels.15 We used this model to select the most interesting
+40k images from Movieclips, which finished off the anno-
+tationprocess.
+“drained”bythehighqualityrequired.
+B.3.Crowdsourcingqualitydata Automated quality checks We added several auto-
+matedcheckstothecrowdsourcingUItoensurehighqual-
+As mentioned in the paper, crowdsourcing data at the
+ity. The workers had to write at least four words for the
+quality and scale of is challenging. We used several
+VCR question, three for the answer, and five for the rationale.
+bestpracticesforcrowdsourcing,whichweelaborateonin
+Additionally, the workers had to explicitly refer to at least
+thissection.
+one detection on average per question, answer, and ratio-
+WeusedAmazonMechanicalTurkforourcrowdsourc- naletriplet. Thiswasautomaticallydetectedtoensurethat
+ing. A screenshot of our interface is given in Figure 12. theworkerswerereferringtothedetectiontagsintheirsub-
+Given an image, workers asked questions, answered them, missions.
+andprovidedarationaleexplainingwhytheiranswermight
+We also noticed early on was that sometimes workers
+becorrect. Theseareallwritteninamixtureofnaturallan-
+would write detailed stories that were only loosely con-
+guagetext,aswellasreferringtodetectionregions. Inour
+nectedwiththesemanticcontentoftheimage. Tofixthis,
+annotation UI, workers refer to the regions by writing the
+workers also had to self-report whether their answer was
+tagnumber.16
+likely(above75%probability),possible(25-75%probabil-
+Workerscouldaskanywherebetweenonetothreeques-
+ity),orunlikely(below25%probability).Wefoundthatthis
+tionsperHIT.Wepaidtheworkersproportionallyat$0.22
+helpeddeterworkersfromcomingupwithconsistentlyun-
+per triplet. According to workers, this resulted in $8–
+likelyanswersforeachimage. Thelikelihoodratingswere
+25/hr. This proved necessary as workers reported feeling
+neverusedforthetask,sincewefoundtheyweren’tneces-
+sarytoobtainhighhumanagreement.
+15Inadditiontopredictinginterestingness,themodelalsopredictsthe
+numberofquestionsaworkerasks, butweneverendedupusingthese Instructions Like for any crowdsourcing task, we
+predictions. found wording the instructions carefully to be crucial. We
+16Notethatthisdiffersabitfromtheformatinthepaper:weoriginally
+encouraged workers to ask about higher-level actions, ver-
+hadworkerswriteoutthefulltag,like[person5],butthisisoftenlong
+suslower-levelones(suchas‘Whatisperson1wearing?’),
+andtheworkerswouldsometimesforgetthebrackets.Thus,thetagformat
+hereisjustasinglenumber,like5. aswellastonotaskquestionsandanswersthatwereoverly
+12
+generic (and thus could apply to many images). Workers nales. Since we must perform Adversarial Matching once
+wereencouragedtoanswerreasonablyinawaythatwasnot for the answers, as well as for the rationales, this would
+overly unlikely or unreasonable. To this end, we provided naivelyinvolve22matchingsonafoldsizeofroughly26k.
+theworkerswithhigh-qualityexamplequestions,answers, We found that the major computational bottleneck wasn’t
+andrationales. the bipartite matching17, but rather the computation of all-
+Qualification exam Since we were picky about the pairssimilarityandrelevancebetween∼26kexamples.
+typesofquestionsasked,andtheformatoftheanswersand There is one additional potential problem: we want the
+rationales, workers had to pass a qualification task to dou- datasetexamplestorequirealotofcomplexcommonsense
+ble check that they understood the format. The qualifica- reasoning,ratherthansimpleattributeidentification. How-
+tiontestincludedamixofmultiple-choicegradedanswers ever,iftheresponseandthequerydisagreeintermsofgen-
+as well as a short written section, which was to provide a der pronouns, then many of the dataset examples can be
+single question, answer, and rationale for an image. The reducedtogenderidentification.
+writtenanswerwascheckedmanuallybythefirstauthorof Weaddressbothoftheseproblemsbydividingeachfold
+thispaper. into‘buckets’of3kexamplesformatching. Wedividethe
+Work verification In addition to the initial qualifica- examplesupintermsofthepronounsintheresponse:ifthe
+tion exam, we also periodically monitored the annotation response contains a female or male pronoun, then we put
+quality. Every48hours,thefirstauthorofthispaperwould the exampleinto a‘female’ or ‘male’bucket, respectively,
+reviewworkandprovideaggregatefeedbacktoensurethat otherwise the response goes into the ‘neutral’ bucket. To
+workerswereaskinggoodquestions,answeringthemwell, further divide the dataset examples, we also put different
+andstructuringtherationalesintherightway. Becausethis questiontypesindifferentbucketsforthequestionanswer-
+took significant time, we then selected several outstanding ingtask(e.g. who,what,etc.). Fortheanswerjustification
+workersandpaidthemtodothisjobforus:throughasepa- task,weclusterthequestionsandanswersusingtheiraver-
+ratesetofHITs,theseoutstandingworkerswerepaid$0.40 ageGloVeembeddings[56].
+to provide detailed feedback on a submission that another Relevance model details Recall that our relevance
+workermade. RoughlyoneinfiftyHITswereannotatedin model P is trained to predict the probability that a re-
+rel
+this way to give extra feedback. Throughout this process, sponse r is valid for a query q. We used BERT for this
+workers whose submission quality dropped were dequali- task[15],asitachievesstate-of-the-artresultsacrossmany
+fiedfromtheHITs. two-sentenceinferencetasks. Eachinputlookslikethefol-
+lowing,wherethequeryandresponseareconcatenatedwith
+C.AdversarialMatchingDetails
+aseparatorinbetween:
+[CLS] what is casey doing ? [SEP] casey is
+Thereareafewmoredetailsthatwefoundusefulwhen
+getting out of car . [SEP]
+performingtheAdversarialMatchingtocreate ,which
+VCR
+Notethatintheaboveexample,objecttagsarereplaced
+wediscussinthissection.
+withtheclassname(car3→car). Persontagsarereplaced
+AligningDetections Inpractice,mostresponsesinour
+withgenderneutralnames(person1→casey)[19].
+datasetarenotrelevanttomostqueries,duetothediversity
+Wefine-tuneBERTbytreatingitasatwo-wayclassifi-
+of responses in our dataset and the range of detection tags
+cation problem. With probability 25% for a query, BERT
+(person1,etc.).
+is given that query’s actual response, otherwise it is given
+Tofixthis,foreachqueryq (withassociatedobjectlist
+i
+a random response (where the detections were remapped).
+o and response r) we turn each candidate r into a tem-
+i i j
+Then, themodelmustpredictwhetheritwasgiventheac-
+plate,andusearulebasedsystemtoprobabilisticallyremap
+tualresponseornot. Weusedalearningrateof2·10−5,the
+its detection tags to match the objects in o. With some
+i
+Adam optimizer [44], a batch size of 32, and 3 epochs of
+probability, a tag in r is replaced with a tag in q and r.
+j i i fine-tuning.18
+Otherwise,itisreplacedwitharandomtagfromo.
+i
+Due to computational limitations, we used BERT-Base
+We note that our approach isn’t perfect. The remap-
+as the architecture rather than BERT-Large - the latter is
+ping system often produces responses that violate pred-
+icate/argument structure, such as ‘person1 is kissing significantly slower.19 Already, P rel has an immense com-
+putational requirement as it must compute all-pairs simi-
+person1.’ However,ourapproachdoesnotneedtobeper-
+fect: because the detections for response r j are remapped 17Weusethehttps://github.com/gatagat/lapimplementation.
+uniquely for each query q i, with some probability, there 18WenotethatduringtheAdversarialMatchingprocess,foreitherQues-
+should be at least some remappings of r that make sense, tionAnsweringorAnswerJustification,thedatasetisbrokenupinto11
+i
+andthequestionrelevancemodelP shouldselectthem. folds.Foreachfold,BERTisfine-tunedontheotherfolds,notonthefinal
+rel datasetsplits.
+Semantic categories Recall that we use 11 folds for 19Also,BERT-Largerequiresmuchmorememory,enoughsothatit’s
+the dataset of around 290k questions, answers, and ratio- hardertofine-tuneduetothesmallerfeasiblebatchsize.
+13
+Q A
+larityfortheentiredataset,overbucketsof3000examples. 1.0
+Thus,weoptedtousealargerbucketsizeratherthanamore
+expensivemodel. 0.8
+Similaritymodeldetails Whilewewanttheresponses
+to be highly relevant to the query, we also want to avoid 0.6
+cases where two responses might be conflated by humans
+- particularly when one is the correct response. This con- 0.4
+flation might occur for several reasons: possibly, two re-
+Relevance Model
+sponsesareparaphrasesofoneanother,oroneresponseen- 0.2
+Worker
+tailsanother. Welumpbothunderthe‘similarity’umbrella
+as mentioned in the paper and introduce a model, P , to 0.0
+sim
+2 1 0
+predicttheprobabilityofthisoccurring-broadlyspeaking, 10 10 10
+thattworesponsesr andr havethesamemeaning.
+i j
+We used ESIM+ELMo for this task [10, 57], as it still QA R
+doesquitewellontwo-sentencenaturallanguageinference 1.0
+tasks (although not as well as BERT), and can be made
+muchmoreefficient.Attesttime,themodelmakesthesim- 0.8
+ilaritypredictionwhengiventwotokensequences.20
+WetrainedthismodelonfreelyavailableNLPcorpora. 0.6
+We used the SNLI formalism [8], in which two sentences
+arean‘entailment’ifthefirstentailsthesecond,‘contradic- 0.4
+tion’ifthefirstiscontradictedbythesecond,and‘neutral’
+Relevance Model
+otherwise. We combined data from SNLI and MultiNLI 0.2
+Worker
+[82] as training data. Additionally, we found that even af-
+0.0
+tertrainingonthesecorpora,themodelwouldstrugglewith
+3 2 1
+paraphrases,sowealsotranslatedSNLIsentencesfromEn- 10 10 10
+glishtoGermanandbackusingtheNematusmachinetrans-
+lation system [81, 73]. These sentences served as extra
+paraphrase data and were assigned the ‘entailment’ label.
+Figure 13: Tuning the λ hyperparameter. Workers were
+WealsousedrandomlysampledsentencepairsfromSNLI
+askedtosolve100datasetexamplesfromthevalidationset,
+asadditional‘neutral’trainingdata. WeheldouttheSNLI
+asgivenbyAdversarialMatchingforeachconsideredvalue
+validationsettodeterminewhentostoptraining. Weused
+ofλ. Weusedtheseresultstopickreasonablevaluesforthe
+standardhyperparametersforESIM+ELMoasgivenbythe
+hyperparametersuchthatthetaskwasdifficultfortheques-
+AllenNLPlibrary[22].
+tionrelevancemodelP ,whilesimpleforhumanworkers.
+Given the trained model P , we defined the similarity rel
+nli Wechoseλ=0.1forQ→ Aandλ=0.01forQA→R.
+model as the maximum entailment probability for either
+wayoforderingthetworesponses:
+(cid:110) (cid:111)
+P (r,r )=max P (ent|r,r ),P (ent|r ,r) , (3)
+sim i j nli i j nli j i
+where‘ent’referstothe‘entailment’label. Ifoneresponse
+of N, we only have to compute 2N ELMo representations
+entailstheother,weflagthemassimilar,evenifthereverse
+ratherthanN2.
+entailment is not true, because such a response is likely to
+beafalsepositiveasadistractor.
+The benefit of using ESIM+ELMo for this task is that
+it can be made more efficient for the task of all-pairs sen-
+Validatingthe λparameter Recallthatourhyperpa-
+tence similarity. While much of the ESIM architecture in-
+rameterλtradesoffbetweenmachineandhumandifficulty
+volvescomputingattentionbetweenthetwotextsequences,
+forourfinaldataset.Weshedmoreinsightonhowwechose
+everything before the first attention can be precomputed.
+theexactvalueforλinFigure13. Wetriedseveraldifferent
+This provides a large speedup, particularly as computing
+valuesofλandchoseλ = 0.1forQ → Aandλ = 0.01for
+theELMorepresentationsisexpensive.Now,forafoldsize
+QA → R, as at these thresholds human performance was
+20Again,withobjecttagsreplacedwiththeclassname,andpersontags roughly 90%. For an easier dataset for both humans and
+replacedbygenderneutralnames. machines,wewouldincreasethehyperparameter.
+14
+ycarucca
+ycarucca
+Dataset # Chance A Q+A S+Q+A
+train
+D. Language Priors and Annotation Artifacts
+TVQA[46] 122,039 20.0 45.0 47.4 70.6♠
+Discussion
+MovieQA[75] 9,848 20.0 33.8 35.4 36.3♣
+PororoQA[43]♥ 7,530 20.0 43.1 47.4
+There has been much research in the last few years in
+understandingwhat‘priors’datasetshave.21 Broadlyspeak- TGIFQA[39]♦ 73,179 20.0 45.8 72.5
+ing,howwelldomodelsdoon VCR,aswellasothervisual VCRQ→A
+212,923
+25.0 27.6 53.8
+questionansweringtasks,withoutvision? QA→R 25.0 26.3 64.1
+VCR
+To be more general, we will consider problems where
+small Q→A 25.0 25.5 39.9
+amodelisgivenaquestionandanswerchoices, andpicks VCR 9,848
+small QA→R 25.0 25.3 50.9
+exactlyoneanswer.Theanswerchoicesaretheoutputsthat VCR
+themodelisdecidingbetween(liketheresponsesin VCR) Table 5: Text-only results on the validation sets of vision
+and the question is the shared input that is common to all datasets, using BERT-Base. # shows the number of
+train
+answer choices (the query, image, and detected objects in training examples. A corresponds to only seeing the an-
+VCR).Withthisterminology,wecancategorizeunwanted swer;inQ+Athemodelalsoseesthequestion;inS+Q+A
+datasetpriorsinthefollowingways: themodelalsoseessubtitlesfromthevideoclip. Thesere-
+• Answer Priors: A model can select a correct answer sultssuggestthatmanymultiplechoiceQAdatasetssuffer
+withoutevenlookingatthequestion. Manytext-only fromannotationartifacts,whileAdversarialMatchinghelps
+datasets contain these priors. For instance, the Roc- produce a dataset with minimial biases; moreover, pro-
+Stories dataset [53] (in which a model must classify viding extra text-only information (like subtitles) greatly
+endingstoastoryascorrectorincorrect),amodelcan boostsperformance. Moreinfo:
+obtain 75% accuracy by looking at stylistic features
+♠: Stateoftheart.
+(suchaswordchoiceandpunctuation)intheendings.
+• Non-Visual Priors: A model can select a correct an- ♣: Only45%(879/1958)ofthequestionsintheMovieQAvali-
+dationsethavetimestamps,whichareneededtoextractclip-
+swer using only non-visual elements of the question.
+levelsubtitles,sofortheother55%,wedon’tuseanysubtitle
+One example is VQA 1.0 [5]: given a question like
+information.
+‘What color is the fire hydrant?’ a model will clas-
+sify some answers higher than others (red). This was
+♥: Noofficialtrain/val/testsplitisavailable,sowesplitthedata
+bymovie,using20%ofdataforvalidationandtherestfor
+addressed in VQA 2.0 [26], however, some answers
+training.
+will still be more likely than others (VQA’s answers
+are open-ended, and an answer to ‘What color is the ♦: Thereseemtobeissueswiththepubliclyreleasedtrain-test
+firehydrant?’ mustbeacolor). split of TGIFQA (namely, a model with high accuracy on
+a held-out part of the training set doesn’t generalize to the
+These priors can either arise from biases in the world
+providedtestset)sowere-splitthemultiple-choicedataour-
+(fire hydrants are usually red), or, they can come from an-
+selvesbyGIFandholdout20%forvalidation.
+notationartifacts[28]:patternsthatarisewhenpeoplewrite
+class-conditionedanswers.Sometimesthesebiasesaresub-
+liminal: when asked to write a correct or incorrect story withsubtitles;MovieQA[75],withvideosfrommoviesand
+ending, the correct endings tend to be longer [72]. Other questionsobtainedfromhigher-levelplotsummaries;Poro-
+casesaremoreobvious: workersoftenusepatternssuchas roQA [43], with cartoon videos; and TGIFQA [39], with
+negationtowritesentencesthatcontradictasentence[28].22
+templated questions from the TGIF dataset [47]. We note
+To what extent do vision datasets suffer from annota- that these all differ from our proposed in terms of
+VCR
+tionartifacts,versusworldpriors? Wenarrowourfocusto subject matter, questions asked, number of answers (each
+multiple-choice question answering datasets, in which for oftheabovehas5answerspossible,whilewehave4)and
+humanstraditionallywritecorrectandincorrectanswersto format; our focus here is to investigate how difficult these
+a question (thus, potentially introducing the annotation ar- datasets are for text-only models.23 Our point of compari-
+tifacts). In Table 5 we consider several of these datasets: sonis ,sinceouruseofAdversarialMatchingmeans
+VCR
+TVQA [46], containing video clips from TV shows, along thathumansneverwriteincorrectanswers.
+21Thislineofworkiscomplementarytoothernotionsofdatasetbias, WetacklethisproblembyrunningBERT-Baseonthese
+likeunderstandingwhatphenomenadatasetscoverordon’t[76],partic- models[15]: givenonlytheanswer(A),theanswerandthe
+ularly how that relates to how marginalized groups are represented and question(Q+A),oradditionallanguagecontextintheform
+portrayed[71,90,69,68]. ofsubtitles(S+Q+A),howwelldoesBERTdo?Ourresults
+22For instance, the SNLI dataset contains pairs of sentences with la-
+inTable5helpsupportourhypothesisregardingannotation
+belssuchas‘entailed’or‘contradiction’[8].Forasentencelike‘Askate-
+boarderisdoingtricks’workersoftenwrite‘Nobodyisdoingtricks’which
+isacontradiction.Theresultisthattheword‘nobody’ishighlypredictive 23Itshouldbenotedthatallofthesedatasetswerereleasedbeforethe
+ofawordbeingacontradiction. existenceofstrongtext-onlybaselinessuchasBERT.
+15
+artifacts:whereasaccuracyon ,onlygiventheending, E.Modeldetails
+VCR
+is 27% for Q → A and 26% for Q → A, versus a 25%
+Inthissection,wediscussimplementationdetailsforour
+random baseline. Other models, where humans write the
+model,R2C.
+incorrectanswers,haveanswer-onlyaccuraciesfrom33.8%
+BERTrepresentations Asmentionedinthepaper,we
+(MovieQA)to45.8%(TGIFQA),overa20%baseline.
+usedBERTtorepresenttext[15]. Wewantedtoprovidea
+There is also some non-visual bias for all datasets con-
+faircomparisonbetweenourmodelandBERT,soweused
+sidered: from 35.4% when given the question and the an-
+BERT-Baseforeach. WetriedtomakeouruseofBERTto
+swers(MovieQA)to72.5%(TGIFQA).Whiletheseresults
+beassimpleaspossible,matchingouruseofitasabaseline.
+suggestthatMovieQAisincrediblydifficultwithoutseeing
+Given a query q and response choice r(i), we merge both
+thevideoclip, therearetwothingstoconsiderhere. First,
+intoasinglesequencetogivetoBERT.Oneexamplemight
+MovieQAisroughly20xsmallerthanourdataset,with9.8k
+looklikethefollowing:
+examplesintraining. Thus,wealsotriedtrainingBERTon
+[CLS] why is riley riding motorcycle while
+‘ small’:taking9.8kexamplesatrandomfromourtrain-
+VCR
+wearing a hospital gown ? [SEP] she had to leave
+ing set. Performance is roughly 14% worse, to the point
+the hospital in a hurry . [SEP]
+of being roughly comparable to MovieQA.24 Second, of-
+Note that in the above example, we replaced per-
+tentimestheexamplesinMovieQAhavesimilarstructure,
+son tags with gender neutral names [19] (person3→
+whichmighthelptoalleviatestylisticpriors,forexample:
+riley) and replaced object detections by their class name
+“WhohasfollowedBoyletoEamon’sapartment?” An- (motorcycle1→motorcycle), tominimizedomainshift
+swers: betweenBERT’spretraineddata(WikipediaandtheBook-
+1. ThommoandhisIRAsquad. Corpus[94])and VCR.
+2. DarrenandhisIREsquad. Each token in the sequence corresponds to a different
+3. Garyandhisallies. transformer unit in BERT. We can then use the later lay-
+4. QuinnandhisIRAsquad. ers in BERT to extract contextualized representations for
+theeachtokeninthequery(everythingfromwhyto?) and
+5. Jimmyandhisfriends.
+theresponse(sheto.).26 Notethatthisgivesusadifferent
+Ontheotherhand,ourdatasetexamplestendtobehighly
+representationforeachresponsechoicei.
+diverse in terms of syntax as well as high-level meaning,
+We extract frozen BERT representations from the
+due to the similarity penalty. We hypothesize that this is
+second-to-last layer of the Transformer.27 Intuitively, this
+why some language priors creep into , particularly in
+VCR makes sense as the representations that that layer are used
+theQA→Rsetting: givenfourverydistinctrationalesthat
+forbothofBERT’spretrainingtasks: nextsentencepredic-
+ostensibly justify why an answer is true, some will likely
+tion (the unit corresponding to the [CLS] token at the last
+serveasbetterjustificationsthanothers.
+layerLattendstoallunitsatlayerL−1),aswellasmasked
+Furthermore,providingadditionallanguageinformation language modeling (the unit for a word at layer L looks at
+(such as subtitles) to a model tends to boost performance itshiddenstateatthepreviouslayerL−1,andusesthatto
+considerably. When given access to subtitles in TVQA,25 attend to all other units as well). The experiments in [15]
+BERTscores70.6%,whichtothebestofourknowledgeis suggest that this works well, though not as well as fine-
+anewstate-of-the-artonTVQA. tuning BERT end-to-end or concatenating multiple layers
+Inconclusion,datasetcreationishighlydifficult,partic- of activations.28 The tradeoff, however, is that precomput-
+ularlyastherearemanywaysthatunwantedbiascancreep ing BERT representations lets us substantially reduce the
+in during the dataset creation process. One such bias of runtime of R2C and allows us to focus on learning more
+this form includes annotation artifacts, which our analysis powerfulvisionrepresentations.
+suggests is prevalent amongst multiple-choice VQA tasks ModelHyperparameters Amoredetaileddiscussion
+whereinhumanswritethewrongendings.Ouranalysisalso ofthehyperparametersusedforR2Cisasfollows.Wetried
+suggests Adversarial Matching can help minimize this ef-
+fect,evenwhentherearestrongnaturalbiasesintheunder- 26The only slight difference is that, due to the WordPiece encoding
+scheme,rarewords(likechortled)arebrokenupintosubwordunits(cho
+lyingtextualdata.
+##rt ##led). Inthiscase,werepresentthatwordastheaverageofthe
+BERTactivationsofitssubwords.
+27SincethedomainthatBERTwaspretrainedon(Wikipediaandthe
+24Assuminganequalchanceofchoosingeachincorrectending,there- BookCorpus[94])isstillquitedifferentfromourdomain,wefine-tuned
+sultsforBERTonanimaginary4-answerversionofTVQAandMovieQA BERTonthetextofVCR(usingthemaskedlanguagemodelingobjec-
+wouldbe54.5%and42.2%,respectively. tive,aswellasnextsentenceprediction)foroneepochtoaccountforthe
+25Weprependthesubtitlesthatarealignedtothevideocliptothebegin- domainshift,andthenextractedtherepresentations.
+ningofthequestion,withaspecialtoken(;)inbetween. Wetrimtokens 28Thissuggests,however,thatifwealsofine-tunedBERTalongwith
+fromthesubtitleswhenthetotalsequencelengthisabove128tokens. therestofthemodelparameters,theresultsofR2Cwouldbehigher.
+16
+Q→A QA→R Q→AR
+tosticktosimplesettings(andwhenpossible,usedsimilar Model GloVe BERT GloVe BERT GloVe BERT
+configurationsforthebaselines,particularlywithrespectto
+R2C 46.4 63.8 38.3 67.2 18.3 43.1
+learningratesandhiddenstatesizes).
+Revisited 39.4 57.5 34.0 63.5 13.5 36.8
+BottomUp 42.8 62.3 25.1 63.0 10.7 39.6
+MLB 45.5 61.8 36.1 65.4 17.0 40.6
+MUTAN 44.4 61.0 32.0 64.4 14.1 39.3
+• Ourprojectionofimagefeaturesmapsa2176dimen- Table 6: VQA baselines evaluated with GloVe or BERT,
+sional hidden size (2048 from ResNet50 and 128 di- evaluatedonthe evaluationsetwithR2Cascompari-
+VCR
+mensional class embeddings) to a 512 dimensional son. WhileBERThelpstheperformanceofthesebaselines,
+vector. ourmodelstillperformsthebestineverysetting.
+• Our grounding LSTM is a single-layer bidirectional
+LSTM with a 1280-dimensional input size (768 from
+F.VQAbaselineswithBERT
+BERTand512fromimagefeatures)anduses256di-
+mensionalhiddenstates.
+We present additional results where baselines for VQA
+• Our reasoning LSTM is a two-layer bidirectional
+[5]areaugmentedwithBERTembeddingsinTable6. We
+LSTM with a 1536-dimensional input size (512 from
+didn’t include these results in the main paper, because to
+image features, and 256 for each direction in the at-
+the best of our knowledge prior work hasn’t used contex-
+tended, groundedqueryandthegroundedanswer). It
+tualized representations for VQA. (Contextualized repre-
+alsouses256-dimensionalhiddenstates.
+sentationsmightbeoverkill,particularlyasVQAquestions
+• The representation from the reasoning LSTM,
+are short and often simple). From the results, we find that
+groundedanswer,andattendedquestionismaxpooled
+whileBERTalsohelpsthebaselines,ourmodelR2Cben-
+and projected to a 1024-dimensional vector. That
+efits even more, with a 2.5% overall boost in the holistic
+vectorisusedtopredicttheithlogit.
+Q→ ARsetting.
+• For all LSTMs, we initialized the hidden-hidden
+weights using orthogonal initialization [70], and ap- G. Datasheet
+VCR
+pliedrecurrentdropouttotheLSTMinputwithp =
+drop
+0.3[21]. Adatasheetisalistofquestionsthataccompanydatasets
+• The Resnet50 backbone was pretrained on Imagenet thatarereleased,inpartsothatpeoplethinkhardaboutthe
+phenomenaintheirdata[23]. Inthissection,weprovidea
+[14, 30]. The parameters in the first three blocks
+datasheetfor .
+of ResNet were frozen. The final block (after the VCR
+RoiAlign is applied) is fine-tuned by our model. We
+G.1.MotivationforDatasetCreation
+were worried, however, that the these representations
+would drift and so we added an auxiliary loss to the Why was the dataset created? The dataset was cre-
+model inspired by [48]: the 2048-dimensional repre- ated to study the new task of Visual Commonsense Rea-
+sentation of each object (without class embeddings) soning: essentially, to have models answer challenging
+hadtobepredictiveofthatobject’slabel(viaalinear cognition-levelquestionsaboutimagesandalsotochoosea
+projectiontothelabelspaceandasoftmax). rationalejustifyingeachanswer.
+• Oftentimes,therearealotofobjectsintheimagethat Hasthedatasetbeenusedalready? Yes, atthetime
+are not referred to by the query or response set. We of writing, several groups have submitted models to our
+filteredtheobjectsconsideredbythemodeltoinclude leaderboardatvisualcommonsense.com/leaderboard.
+onlytheobjectsmentionedinthequeryandresponses. Whofundedthedataset?? VCRwasfundedviaava-
+We also passed in the entire image as an ‘object’ that rietyofsources;thebiggestsponsorwastheIARPADIVA
+the model could attend to in the object contextualiza- programthroughD17PC00343.29
+tionlayer.
+G.2.DatasetComposition
+• We optimized R2C using Adam [44], with a learning
+rate of 2·10−4 and weight decay of 10−4. Our batch What are the instances? Each instance contains an
+size was 96. We clipped the gradients to have a total image, a sequence of object regions and classes, a query,
+L normofatmost1.0. Weloweredthelearningrate andalistofresponsechoices. Exactlyoneresponseiscor-
+2
+byafactorof2whenwenoticedaplateau(validation rect. There are two sub-tasks to the dataset: in Question
+accuracynotincreasingfortwoepochsinarow).Each
+29However, the views and conclusions contained herein are those of
+modelwastrainedfor20epochs, whichtookroughly
+the authors and should not be interpreted as representing endorsements
+20hoursover3NVIDIATitanXGPUs. ofIARPA,DOI/IBC,ortheU.S.Government.
+17
+Answering(Q→A)thequeryisaquestionandtheresponse beyond still photographs, there are also different types of
+choices are answers. In Answer Justification (QA→R) the inferencesthatwedidn’tcoverinourwork.
+queryisaquestionandthecorrectanswer;theresponsesare If the dataset is a sample, then what is the popula-
+rationalesthatjustifywhysomeonewouldconcludethatthe tion? The population is that of movie images that were
+answeristrue. Boththequeryandtherationalerefertothe deemed interesting by our interestingness filter (having at
+objectsusingdetectiontagslikeperson1. leastthreeobjectdetections,ofwhichatleasttwoarepeo-
+How many instances are there? There are 212,923 ple).
+trainingquestions,26,534validationquestions,and25,263
+questions. Each is associated with a four answer choices, G.4.DataPreprocessing
+and each question+correct answer is associated with four
+What preprocessing was done? The line between
+rationalechoices.
+datapreprocessinganddatasetcollectionisblurryfor .
+VCR
+Whatdatadoeseachinstanceconsistof? Theimage
+After obtaining crowdsourced questions, answers, and ra-
+from each instance comes from a movie, while the object
+tionales,weappliedAdversarialMatching,turningrawdata
+detectorwastrainedtodetectobjectsintheCOCOdataset
+into a multiple choice task. We also tokenized the text
+[49]. Workers ask challenging high-level questions cover-
+spans.
+ing a wide variety of cognition-level phenomena. Then,
+Was the raw data saved in addition to the cleaned
+workers provide a rationale: one to several sentences ex-
+data? Yes - the raw data is the correct answers (and as
+plaining how they came at their decision. The rationale
+suchisasubsetofthe‘cleaned’data).
+pointstodetailsintheimage,aswellasbackgroundknowl-
+Does this dataset collection/preprocessing procedure
+edge about how the world works. Each instance contains
+achieve the initial motivation? At this point, we think
+one correct answer and three incorrect counterfactual an-
+so. Our dataset is challenging for existing VQA systems,
+swers, along with one correct rationale and three incorrect
+buteasyforhumans.
+rationales.
+Doesthedatarelyonexternalresources? No,every-
+G.5.DatasetDistribution
+thingisincluded.
+Are there recommended data splits or evaluation How is the dataset distributed? VCR is freely avail-
+measures? We release the training and validation sets, ableforresearchuseatvisualcommonsense.com.
+as well as the test set without labels. For the test set, re-
+G.6.LegalandEthicalConsiderations
+searchers can submit their predictions to a public leader-
+board. Evaluation is fairly straightforward as our task is
+Were workers told what the dataset would be used
+multiple choice, but we will also release an evaluation
+foranddidtheyconsent? Yes-theinstructionssaidthat
+script.
+workersanswerswouldbeusedinadataset. Wetriedtobe
+asupfrontaspossibletoworkers.Workersalsoconsentedto
+G.3.DataCollectionProcess
+havetheirresponsesusedinthiswaythroughtheAmazon
+Howwasthedatacollected? Weusedmovieimages, MechanicalTurkParticipationAgreement.
+withobjectsdetectedusingMaskRCNN[24,29]. Wecol- Ifitrelatestopeople,couldthisdatasetexposepeople
+lected the questions, answers, and rationales on Amazon to harm or legal action? No - the questions, answers,
+MechanicalTurk. and responses don’t contain personal info about the crowd
+Whowasinvolvedinthecollectionprocessandwhat workers.
+weretheirroles? We(theauthors)didseveralroundsof
+If it relates to people, does it unfairly advantage or
+pilot studies, and collected data at scale on Amazon Me-
+disadvantageaparticularsocialgroup? Unfortunately,
+chanicalTurk. Inthetask,workersonAmazonMechanical
+movie data is highly biased against women and minorities
+Turk could ask anywhere between one to three questions.
+[71, 69]. Our data, deriving from movies as well as from
+For each question, they had to provide an answer, indicate worker elicitations [68], is no different. For these reasons,
+its likelihood on an ordinal scale, and provide a rationale
+werecommendthatusersdonotdeploymodelstrainedon
+justifyingwhytheiransweristrue.Workerswerepaidat22
+intherealworld.
+VCR
+centsperquestion,answer,andrationale.
+Over what time frame was the data collected? Au-
+H.Additionalqualitativeresults
+gusttoOctober2018.
+Doesthedatasetcontainallpossibleinstances? No. In this section, we present additional qualitative results
+Visual Commonsense Inference is very broad, and we fo- from R2C. Our use of attention mechanisms allow us to
+cusedonalimitedsetof(interesting)phenomena. Beyond better gain insight into how the model arrives at its deci-
+lookingatdifferenttypesofmovies,orlookingattheworld sions. In particular, the model uses the answer to attend
+18
+overthequestion,anditusestheanswertoattendoverrel-
+evant objects in the image. Looking at the attention maps
+helptovisualizewhichitemsinthequestionareimportant
+(usually,themodelfocusesonthesecondhalfoftheques-
+tion,like‘coveringhisface’inFigure14),aswellaswhich
+objectsareimportant(usually,theobjectsreferredtobythe
+answerareassignedthemostweight).
+19
+Why is [person1] covering his face ? [person1] [person4]
+He
+is
+trying 1.0
+to
+3% protect
+himself
+from
+[person1]
+.
+0.8
+He
+is
+protecting
+60% himself
+against
+the 0.6
+heat
+.
+[person4]
+has
+just 0.4
+struck
+3% him
+with
+an
+object
+.
+0.2
+[person1]
+is
+afraid
+that
+32% he
+will 0.0
+be
+seen
+.
+Figure14: Anexamplefromthe Q → Atask. Eachsuper-rowisaresponsechoice(fourintotal). Thefirstsuper-column
+is the question: Here, ‘Why is [person1] covering his face?’ and the second super-column represents the relevant
+objectsintheimagethatR2Cattendsto.Accordingly,eachblockisaheatmapoftheattentionbetweeneachresponsechoice
+andthequery,aswellaseachresponsechoiceandtheobjects. Thefinalpredictionisgivenbythebargraphontheleft: The
+modelis60%confidentthattherightanswerisb.,whichiscorrect.
+20
+Why is [person1] covering his face ? He is protecting himself against the heat . [person1]
+He
+is
+wearing
+0% a
+protective
+vest 1.0
+.
+The
+building
+is
+on
+fire
+71% and
+he
+is
+0.8
+vulnerable
+to
+it
+.
+He
+is
+staring
+at
+the
+waiter 0.6
+who
+is
+slightly
+out
+of
+frame
+.
+the
+27% waiter
+has 0.4
+a
+cart
+with
+a
+pan
+of
+food
+that
+'
+s 0.2
+on
+fire
+.
+He
+is
+outside
+where
+the
+0% s cu an n 0.0
+get
+in
+his
+eyes
+.
+Figure15: Anexamplefromthe QA → Rtask. Eachsuper-rowisaresponsechoice(fourintotal). Thefirstsuper-column
+is the query, and the second super-column holds the relevant objects (here just a single person, as no other objects were
+mentionedbythequeryorresponses). Eachblockisaheatmapoftheattentionbetweeneachresponsechoiceandthequery,
+aswellastheattentionbetweeneachresponsechoiceandtheobjects. Thefinalpredictionisgivenbythebargraphonthe
+left: Themodelis71%confidentthattherightrationaleisb.,whichiscorrect.
+21
+What is [person13] doing ? [person3] [person4] [person13]
+[person13]
+seems
+7% to 1.0
+be
+dancing
+.
+[person4]
+is 0.8
+running
+towards
+the
+0% other
+end
+of 0.6
+the
+ship
+.
+[person3]
+is 0.4
+telling
+5% [person13]
+a
+story
+.
+0.2
+[person13]
+is
+trying
+to
+86% go
+down
+0.0
+to
+sit
+.
+Figure16: Anexamplefromthe Q → Atask. Eachsuper-rowisaresponsechoice(fourintotal). Thefirstsuper-column
+is the question: Here, ‘What is [person13] doing?’ and the second super-column represents the relevant objects in the
+image that R2C attends to. Accordingly, each block is a heatmap of the attention between each response choice and the
+query,aswellaseachresponsechoiceandtheobjects. Thefinalpredictionisgivenbythebargraphontheleft: Themodel
+is86%confidentthattherightanswerisd.,whichiscorrect.
+22
+What is [person13] doing ? [person13] is trying to go down to sit . [person12][person13]
+There
+is
+an
+empty
+3% seat 1.0
+that
+[person13]
+can
+sit
+.
+[person12]
+is
+bending
+at 0.8
+the
+waist
+86%
+to
+sit
+in
+a
+chair
+.
+0.6
+[person13]
+is
+standing
+up
+and
+not
+2% sitting
+down
+at
+the 0.4
+dinner
+table
+.
+[person13]
+walks
+from
+an
+opened 0.2
+door
+and
+is
+clearly
+7% walking
+towards
+some
+chairs
+,
+0.0
+presumably
+where
+someone
+sits
+.
+Figure17: Anexamplefromthe QA → Rtask. Eachsuper-rowisaresponsechoice(fourintotal). Thefirstsuper-column
+isthequery,andthesecondsuper-columnholdstherelevantobjects. Eachblockisaheatmapoftheattentionbetweeneach
+responsechoiceandthequery,aswellastheattentionbetweeneachresponsechoiceandtheobjects. Thefinalpredictionis
+givenbythebargraphontheleft: Themodelis86%confidentthattherightrationaleisb.,whichisincorrect-thecorrect
+choiceisa.
+23
+Why is [person2] here on this deck ? [person2] [person7]
+[person2]
+was
+caught 1.0
+committing
+29% a
+crime
+on
+a
+ship 0.8
+.
+[person2]
+is
+the
+26% capta oin f 0.6
+the
+ship
+.
+[person2]
+is 0.4
+10% looking
+for
+someone
+.
+[person2]
+is 0.2
+[person7]
+child
+who
+33% is
+also
+on 0.0
+the
+ship
+.
+Figure18: Anexamplefromthe Q → Atask. Eachsuper-rowisaresponsechoice(fourintotal). Thefirstsuper-column
+is the question: Here, ‘Why is [person2] here on this deck?’ and the second super-column represents the relevant
+objectsintheimagethatR2Cattendsto.Accordingly,eachblockisaheatmapoftheattentionbetweeneachresponsechoice
+andthequery,aswellaseachresponsechoiceandtheobjects. Thefinalpredictionisgivenbythebargraphontheleft: The
+modelis33%confidentthattherightanswerisd.,whichisincorrect-thecorrectansweriscorrectanswerisc.
+24
+Why is [person2]here on this deck ? [person2] is looking for someone . [person1][person2][person3][person4][person5][person6][person7][person8][person9[]person10]
+He
+is
+peering
+over
+everyone
+'
+s
+head
+appea an rd s 1.0
+0% to
+be
+searching
+for
+someone
+,
+while
+wearing
+a
+life
+jacket
+.
+[person2]
+is
+scanning
+the 0.8
+area
+,
+which
+is
+filled
+with
+people
+,
+so
+he
+'
+s
+looking
+for
+a
+person
+.
+there 0.6
+appears
+to
+have
+been
+0% a
+disaster
+of
+some
+kind
+,
+people
+are
+cold
+and
+wet
+,
+after 0.4
+disasters
+most
+people
+try
+to
+find
+their
+friends
+and
+family
+,
+or
+loved
+ones
+.
+[per wso on u2 ld] 0.2
+not
+be
+here
+normally
+98% ,
+and
+he
+is
+addressing
+[person10]
+.
+[person10]
+is
+walking
+and
+looking
+around 0.0
+the
+0% building
+he
+appears
+to
+be
+searching
+for
+someone
+.
+Figure19: Anexamplefromthe QA → Rtask. Eachsuper-rowisaresponsechoice(fourintotal). Thefirstsuper-column
+isthequery,andthesecondsuper-columnholdstherelevantobjects. Eachblockisaheatmapoftheattentionbetweeneach
+responsechoiceandthequery,aswellastheattentionbetweeneachresponsechoiceandtheobjects. Thefinalpredictionis
+givenbythebargraphontheleft: Themodelis98%confidentthattherightrationaleisc.,whichiscorrect.
+25
+References [12] Ching-YaoChuang,JiamanLi,AntonioTorralba,andSanja
+Fidler. Learningtoactproperly: Predictingandexplaining
+[1] AishwaryaAgrawal,DhruvBatra,DeviParikh,andAnirud- affordancesfromimages. InCVPR,2018. 8
+dhaKembhavi. Dontjustassume; lookandanswer: Over- [13] Ernest Davis and Gary Marcus. Commonsense reasoning
+coming priors for visual question answering. In Proceed- andcommonsenseknowledgeinartificialintelligence.Com-
+ingsoftheIEEEConferenceonComputerVisionandPattern mun.ACM,58:92–103,2015. 2
+Recognition,pages4971–4980,2018. 8 [14] Jia Deng, Wei Dong, Richard Socher, Li-Jia Li, Kai Li,
+[2] Alexandre Alahi, Kratarth Goel, Vignesh Ramanathan, and Li Fei-Fei. Imagenet: A large-scale hierarchical im-
+AlexandreRobicquet, LiFei-Fei, andSilvioSavarese. So- agedatabase. InComputerVisionandPatternRecognition,
+cial lstm: Human trajectory prediction in crowded spaces. 2009. CVPR 2009. IEEE Conference on, pages 248–255.
+InProceedingsoftheIEEEConferenceonComputerVision Ieee,2009. 17
+andPatternRecognition,pages961–971,2016. 8 [15] Jacob Devlin, Ming-Wei Chang, Kenton Lee, and Kristina
+[3] Jean-BaptisteAlayrac,PiotrBojanowski,NishantAgrawal, Toutanova. Bert: Pre-training of deep bidirectional
+JosefSivic, IvanLaptev, andSimonLacoste-Julien. Unsu- transformers for language understanding. arXiv preprint
+pervisedlearningfromnarratedinstructionvideos. InPro- arXiv:1810.04805,2018. 2,4,5,6,7,13,15,16
+ceedings of the IEEE Conference on Computer Vision and [16] Jacob Devlin, Saurabh Gupta, Ross B. Girshick, Mar-
+PatternRecognition,pages4575–4583,2016. 8 garet Mitchell, and C. Lawrence Zitnick. Exploring near-
+est neighbor approaches for image captioning. CoRR,
+[4] Peter Anderson, Xiaodong He, Chris Buehler, Damien
+abs/1505.04467,2015. 3
+Teney, Mark Johnson, Stephen Gould, and Lei Zhang.
+[17] Kiana Ehsani, Hessam Bagherinezhad, Joseph Redmon,
+Bottom-upandtop-downattentionforimagecaptioningand
+Roozbeh Mottaghi, and Ali Farhadi. Who let the dogs
+visualquestionanswering. InCVPR,2018. 6
+out? modelingdogbehaviorfromvisualdata. InTheIEEE
+[5] Stanislaw Antol, Aishwarya Agrawal, Jiasen Lu, Margaret
+Conference on Computer Vision and Pattern Recognition
+Mitchell,DhruvBatra,CLawrenceZitnick,andDeviParikh.
+(CVPR),June2018. 8
+Vqa:Visualquestionanswering.InProceedingsoftheIEEE
+[18] Panna Felsen, Pulkit Agrawal, and Jitendra Malik. What
+international conference on computer vision, pages 2425–
+willhappennext?forecastingplayermovesinsportsvideos.
+2433,2015. 6,8,9,15,17
+InProceedingsoftheIEEEConferenceonComputerVision
+[6] HediBen-younes,RemiCadene,MatthieuCord,andNico- andPatternRecognition,pages3342–3351,2017. 8
+lasThome. MUTAN:MultimodalTuckerFusionforVisual [19] Andrew Flowers. The Most Common Unisex Names In
+QuestionAnswering. InTheIEEEInternationalConference America:IsYoursOneOfThem?,June2015. 13,16
+onComputerVision(ICCV),Oct2017. 6 [20] DavidF.Fouhey,WeichengKuo,AlexeiA.Efros,andJiten-
+[7] OrBiranandCourtenayCotton. Explanationandjustifica- draMalik. Fromlifestylevlogstoeverydayinteractions. In
+tioninmachinelearning: Asurvey. InIJCAI-17Workshop CVPR,2018. 3
+onExplainableAI(XAI),page8,2017. 8 [21] YarinGalandZoubinGhahramani.Atheoreticallygrounded
+application of dropout in recurrent neural networks. In
+[8] Samuel R. Bowman, Gabor Angeli, Christopher Potts, and
+Advances in neural information processing systems, pages
+ChristopherD.Manning.Alargeannotatedcorpusforlearn-
+1019–1027,2016. 17
+ingnaturallanguageinference. InProceedingsofthe2015
+[22] Matt Gardner, Joel Grus, Mark Neumann, Oyvind Tafjord,
+ConferenceonEmpiricalMethodsinNaturalLanguagePro-
+Pradeep Dasigi, Nelson F. Liu, Matthew Peters, Michael
+cessing,EMNLP2015,Lisbon,Portugal,September17-21,
+Schmitz, and Luke S. Zettlemoyer. Allennlp: A deep se-
+2015,pages632–642,2015. 14,15
+manticnaturallanguageprocessingplatform. 2017. 14
+[9] ArjunChandrasekaran,VirajPrabhu,DeshrajYadav,Prithvi-
+[23] Timnit Gebru, Jamie Morgenstern, Briana Vecchione, Jen-
+jitChattopadhyay,andDeviParikh. Doexplanationsmake
+nifer Wortman Vaughan, Hanna Wallach, Hal Daumee´ III,
+vqamodelsmorepredictabletoahuman? InProceedingsof
+andKateCrawford. Datasheetsfordatasets. arXivpreprint
+the2018ConferenceonEmpiricalMethodsinNaturalLan-
+arXiv:1803.09010,2018. 17
+guageProcessing,pages1036–1042,2018. 8
+[24] Ross Girshick, Ilija Radosavovic, Georgia Gkioxari, Piotr
+[10] QianChen,XiaodanZhu,Zhen-HuaLing,SiWei,HuiJiang, Dolla´r, and Kaiming He. Detectron. https://github.
+andDianaInkpen. Enhancedlstmfornaturallanguagein- com/facebookresearch/detectron,2018. 3,4,10,11,
+ference. InProceedingsofthe55thAnnualMeetingofthe 18
+AssociationforComputationalLinguistics(Volume1: Long [25] YashGoyal,TejasKhot,DouglasSummers-Stay,DhruvBa-
+Papers),volume1,pages1657–1668,2017. 2,4,6,14 tra,andDeviParikh. Makingthevinvqamatter: Elevating
+[11] Kyunghyun Cho, Bart van Merrienboer, Caglar Gulcehre, the role of image understanding in visual question answer-
+Dzmitry Bahdanau, Fethi Bougares, Holger Schwenk, and ing. InCVPR,volume1,page9,2017. 8
+YoshuaBengio. Learningphraserepresentationsusingrnn [26] YashGoyal,TejasKhot,DouglasSummers-Stay,DhruvBa-
+encoder–decoderforstatisticalmachinetranslation. InPro- tra, and Devi Parikh. Making the V in VQA matter: Ele-
+ceedings of the 2014 Conference on Empirical Methods in vating the role of image understanding in Visual Question
+NaturalLanguageProcessing(EMNLP),pages1724–1734, Answering. InConferenceonComputerVisionandPattern
+2014. 6 Recognition(CVPR),2017. 15
+26
+[27] Agrim Gupta, Justin Johnson, Li Fei-Fei, Silvio Savarese, [41] Jinkyu Kim, Anna Rohrbach, Trevor Darrell, John Canny,
+andAlexandreAlahi.Socialgan:Sociallyacceptabletrajec- andZeynepAkata. Textualexplanationsforself-drivingve-
+tories with generative adversarial networks. In The IEEE hicles. In 15th European Conference on Computer Vision,
+Conference on Computer Vision and Pattern Recognition pages577–593.Springer,2018. 8
+(CVPR),June2018. 8 [42] Jin-HwaKim, KyoungWoonOn, WoosangLim, Jeonghee
+[28] SuchinGururangan,SwabhaSwayamdipta,OmerLevy,Roy Kim, Jung-Woo Ha, and Byoung-Tak Zhang. Hadamard
+Schwartz,SamuelR.Bowman,andNoahA.Smith.Annota- Product for Low-rank Bilinear Pooling. In The 5th Inter-
+tionartifactsinnaturallanguageinferencedata. InProc.of nationalConferenceonLearningRepresentations,2017. 6
+NAACL,2018. 2,4,8,15 [43] KKim,CNan,MOHeo,SHChoi,andBTZhang.Pororoqa:
+[29] Kaiming He, Georgia Gkioxari, Piotr Dolla´r, and Ross B. Cartoonvideoseriesdatasetforstoryunderstanding.InPro-
+Girshick. Maskr-cnn. 2017IEEEInternationalConference ceedingsofNIPS2016WorkshoponLargeScaleComputer
+onComputerVision(ICCV),pages2980–2988,2017. 3,4, VisionSystem,2016. 15
+5,10,11,18 [44] Diederik P. Kingma and Jimmy Ba. Adam: A method for
+[30] KaimingHe,XiangyuZhang,ShaoqingRen,andJianSun. stochasticoptimization. CoRR,abs/1412.6980,2014. 13,17
+Deep residual learning for image recognition. In Proceed- [45] Ranjay Krishna, Yuke Zhu, Oliver Groth, Justin Johnson,
+ingsoftheIEEEconferenceoncomputervisionandpattern KenjiHata,JoshuaKravitz,StephanieChen,YannisKalan-
+recognition,pages770–778,2016. 5,11,17 tidis, Li-Jia Li, David A Shamma, et al. Visual genome:
+[31] LisaAnneHendricks,ZeynepAkata,MarcusRohrbach,Jeff Connectinglanguageandvisionusingcrowdsourceddense
+Donahue,BerntSchiele,andTrevorDarrell. Generatingvi- image annotations. International Journal of Computer Vi-
+sualexplanations. InEuropeanConferenceonComputerVi- sion,123(1):32–73,2017. 8
+sion,pages3–19.Springer,2016. 8 [46] Jie Lei, Licheng Yu, Mohit Bansal, and Tamara L Berg.
+[32] Lisa Anne Hendricks, Ronghang Hu, Trevor Darrell, and Tvqa: Localized, compositional video question answering.
+Zeynep Akata. Grounding visual explanations. European InEMNLP,2018. 4,8,9,15
+ConferenceonComputerVision(ECCV),2018. 8 [47] Yuncheng Li, Yale Song, Liangliang Cao, Joel Tetreault,
+[33] Lisa Anne Hendricks, Oliver Wang, Eli Shechtman, Josef Larry Goldberg, Alejandro Jaimes, and Jiebo Luo. Tgif:
+Sivic, Trevor Darrell, and Bryan Russell. Localizing mo- Anewdatasetandbenchmarkonanimatedgifdescription.
+mentsinvideowithnaturallanguage. InProceedingsofthe InProceedingsoftheIEEEConferenceonComputerVision
+IEEEInternationalConferenceonComputerVision(ICCV), andPatternRecognition,pages4641–4650,2016. 15
+2017. 8 [48] ZhizhongLiandDerekHoiem.Learningwithoutforgetting.
+[34] SeppHochreiterandJu¨rgenSchmidhuber. Longshort-term IEEETransactionsonPatternAnalysisandMachineIntelli-
+memory. NeuralComput.,9(8):1735–1780,Nov.1997. 5 gence,2017. 17
+[35] Ronghang Hu, Jacob Andreas, Trevor Darrell, and Kate [49] Tsung-YiLin,MichaelMaire,SergeBelongie,JamesHays,
+Saenko. Explainable neural computation via stack neural PietroPerona,DevaRamanan,PiotrDolla´r,andCLawrence
+modulenetworks. InProceedingsoftheEuropeanConfer- Zitnick. Microsoft coco: Common objects in context. In
+enceonComputerVision(ECCV),pages53–69,2018. 8 European conference on computer vision, pages 740–755.
+[36] Ronghang Hu, Marcus Rohrbach, Jacob Andreas, Trevor Springer,2014. 4,8,9,10,18
+Darrell, and Kate Saenko. Modeling relationships in ref- [50] Xiao Lin and Devi Parikh. Leveraging visual question an-
+erential expressions with compositional modular networks. sweringforimage-captionranking.InEuropeanConference
+InComputerVisionandPatternRecognition(CVPR),2017 onComputerVision,pages261–277.Springer,2016. 6
+IEEEConferenceon,pages4418–4427.IEEE,2017. 8 [51] Tegan Maharaj, Nicolas Ballas, Anna Rohrbach, Aaron C
+[37] Dong Huk Park, Lisa Anne Hendricks, Zeynep Akata, Courville,andChristopherJosephPal. Adatasetandexplo-
+Anna Rohrbach, Bernt Schiele, Trevor Darrell, and Mar- ration of models for understanding video data through fill-
+cus Rohrbach. Multimodal explanations: Justifying deci- in-the-blank question-answering. In Computer Vision and
+sionsandpointingtotheevidence. InTheIEEEConference PatternRecognition(CVPR),2017. 8
+onComputerVisionandPatternRecognition(CVPR),June [52] Junhua Mao, Jonathan Huang, Alexander Toshev, Oana
+2018. 8 Camburu, Alan L Yuille, and Kevin Murphy. Generation
+[38] Allan Jabri, Armand Joulin, and Laurens van der Maaten. andcomprehensionofunambiguousobjectdescriptions. In
+Revisitingvisualquestionansweringbaselines.InEuropean ProceedingsoftheIEEEconferenceoncomputervisionand
+conference on computer vision, pages 727–739. Springer, patternrecognition,pages11–20,2016. 8
+2016. 6 [53] Nasrin Mostafazadeh, Nathanael Chambers, Xiaodong He,
+[39] YunseokJang,YaleSong,YoungjaeYu,YoungjinKim,and Devi Parikh, Dhruv Batra, Lucy Vanderwende, Pushmeet
+GunheeKim. Tgif-qa:Towardspatio-temporalreasoningin Kohli,andJamesAllen.Acorpusandevaluationframework
+visual question answering. In IEEE Conference on Com- for deeper understanding of commonsense stories. arXiv
+puter Vision and Pattern Recognition (CVPR 2017). Hon- preprintarXiv:1604.01696,2016. 15
+olulu,Hawaii,pages2680–8,2017. 15 [54] RoozbehMottaghi, MohammadRastegari, AbhinavGupta,
+[40] Roy Jonker and Anton Volgenant. A shortest augmenting and Ali Farhadi. what happens if... learning to predict the
+pathalgorithmfordenseandsparselinearassignmentprob- effectofforcesinimages. InEuropeanConferenceonCom-
+lems. Computing,38(4):325–340,1987. 4 puterVision,pages269–285.Springer,2016. 8
+27
+[55] James Munkres. Algorithms for the assignment and trans- [68] RachelRudinger,ChandlerMay,andBenjaminVanDurme.
+portationproblems. Journalofthesocietyforindustrialand Socialbiasinelicitednaturallanguageinferences. InPro-
+appliedmathematics,5(1):32–38,1957. 4 ceedings of the First ACL Workshop on Ethics in Natural
+[56] Jeffrey Pennington, Richard Socher, and Christopher Man- LanguageProcessing,pages74–79,2017. 15,18
+ning. Glove: Global vectors for word representation. In [69] MaartenSap,MarcellaCindyPrasettio,AriHoltzman,Han-
+Proceedingsofthe2014conferenceonempiricalmethodsin nahRashkin,andYejinChoi. Connotationframesofpower
+natural language processing (EMNLP), pages 1532–1543, andagencyinmodernfilms.InProceedingsofthe2017Con-
+2014. 6,13 ferenceonEmpiricalMethodsinNaturalLanguageProcess-
+[57] Matthew Peters, Mark Neumann, Mohit Iyyer, Matt Gard- ing,pages2329–2334,2017. 15,18
+ner,ChristopherClark,KentonLee,andLukeZettlemoyer. [70] AndrewMSaxe, JamesLMcClelland, andSuryaGanguli.
+Deep contextualized word representations. In Proceedings Exactsolutionstothenonlineardynamicsoflearningindeep
+of the 2018 Conference of the North American Chapter of linear neural networks. arXiv preprint arXiv:1312.6120,
+theAssociationforComputationalLinguistics:HumanLan- 2013. 17
+guage Technologies, Volume 1 (Long Papers), volume 1,
+[71] AlexandraSchofieldandLeoMehr. Gender-distinguishing
+pages2227–2237,2018. 2,4,6,14
+featuresinfilmdialogue. InProceedingsoftheFifthWork-
+[58] HamedPirsiavash,CarlVondrick,andAntonioTorralba. In- shoponComputationalLinguisticsforLiterature,pages32–
+ferringthewhyinimages. arXivpreprintarXiv:1406.5472,
+39,2016. 15,18
+2014. 8
+[72] Roy Schwartz, Maarten Sap, Ioannis Konstas, Li Zilles,
+[59] BryanAPlummer,ArunMallya,ChristopherMCervantes, YejinChoi,andNoahA.Smith. Theeffectofdifferentwrit-
+Julia Hockenmaier, and Svetlana Lazebnik. Phrase local-
+ingtasksonlinguisticstyle: AcasestudyoftheROCstory
+izationandvisualrelationshipdetectionwithcomprehensive
+clozetask. InProc.ofCoNLL,2017. 2,4,15
+image-languagecues. InProc.ICCV,2017. 8
+[73] Rico Sennrich, Orhan Firat, Kyunghyun Cho, Alexandra
+[60] Bryan A Plummer, Liwei Wang, Chris M Cervantes,
+Birch, Barry Haddow, Julian Hitschler, Marcin Junczys-
+Juan C Caicedo, Julia Hockenmaier, and Svetlana Lazeb-
+Dowmunt, Samuel La¨ubli, Antonio Valerio Miceli Barone,
+nik. Flickr30k entities: Collecting region-to-phrase corre-
+Jozef Mokry, and Maria Nadejde. Nematus: a toolkit for
+spondences for richer image-to-sentence models. In Pro-
+neural machine translation. In Proceedings of the Soft-
+ceedingsoftheIEEEinternationalconferenceoncomputer
+ware Demonstrations of the 15th Conference of the Euro-
+vision,pages2641–2649,2015. 8
+peanChapteroftheAssociationforComputationalLinguis-
+[61] AdamPoliak, JasonNaradowsky, AparajitaHaldar, Rachel
+tics,pages65–68,Valencia,Spain,April2017.Association
+Rudinger,andBenjaminVanDurme.HypothesisOnlyBase-
+forComputationalLinguistics. 14
+linesinNaturalLanguageInference.arXiv:1805.01042[cs],
+[74] Krishna Kumar Singh, Kayvon Fatahalian, and Alexei A
+May2018. arXiv:1805.01042. 2,4
+Efros. Krishnacam: Using a longitudinal, single-person,
+[62] Sainandan Ramakrishnan, Aishwarya Agrawal, and Stefan
+egocentricdatasetforsceneunderstandingtasks.InApplica-
+Lee.Overcominglanguagepriorsinvisualquestionanswer-
+tionsofComputerVision(WACV),2016IEEEWinterCon-
+ing with adversarial regularization. In Advances in Neural
+ferenceon,pages1–9.IEEE,2016. 8
+InformationProcessingSystems,2018. 8
+[75] Makarand Tapaswi, Yukun Zhu, Rainer Stiefelhagen,
+[63] Shaoqing Ren, Kaiming He, Ross Girshick, and Jian Sun.
+Antonio Torralba, Raquel Urtasun, and Sanja Fidler.
+Fasterr-cnn: Towardsreal-timeobjectdetectionwithregion
+Movieqa:Understandingstoriesinmoviesthroughquestion-
+proposalnetworks. InAdvancesinneuralinformationpro-
+answering. In Proceedings of the IEEE conference on
+cessingsystems,pages91–99,2015. 5
+computervisionandpatternrecognition,pages4631–4640,
+[64] NicholasRhinehartandKrisMKitani. First-personactivity
+2016. 4,8,9,15
+forecasting with online inverse reinforcement learning. In
+ProceedingsoftheIEEEInternationalConferenceonCom- [76] Antonio Torralba and Alexei A Efros. Unbiased look at
+puterVision,pages3696–3705,2017. 8 dataset bias. In Computer Vision and Pattern Recogni-
+tion(CVPR),2011IEEEConferenceon,pages1521–1528.
+[65] Anna Rohrbach, Marcus Rohrbach, Ronghang Hu, Trevor
+IEEE,2011. 3,15
+Darrell,andBerntSchiele. Groundingoftextualphrasesin
+imagesbyreconstruction. InEuropeanConferenceonCom- [77] Paul Vicol, Makarand Tapaswi, Lluis Castrejon, and Sanja
+puterVision,pages817–834.Springer,2016. 8 Fidler. Moviegraphs:Towardsunderstandinghuman-centric
+[66] AnnaRohrbach,MarcusRohrbach,SiyuTang,SeongJoon situations from videos. In IEEE Conference on Computer
+Oh, and Bernt Schiele. Generating descriptions with VisionandPatternRecognition(CVPR),2018. 8
+grounded and co-referenced people. In Proceedings IEEE [78] CarlVondrick,HamedPirsiavash,andAntonioTorralba.An-
+Conference on Computer Vision and Pattern Recognition ticipating visual representations from unlabeled video. In
+(CVPR)2017,Piscataway,NJ,USA,July2017.IEEE. 8 Proceedings of the IEEE Conference on Computer Vision
+[67] Anna Rohrbach, Atousa Torabi, Marcus Rohrbach, Niket andPatternRecognition,pages98–106,2016. 8
+Tandon,ChristopherPal,HugoLarochelle,AaronCourville, [79] MishaWagner,HectorBasevi,RakshithShetty,WenbinLi,
+andBerntSchiele.MovieDescription.InternationalJournal MateuszMalinowski,MarioFritz,andAlesLeonardis. An-
+ofComputerVision,123(1):94–120,May2017. 3,4,10,11, sweringvisualwhat-ifquestions: Fromactionstopredicted
+12 scenedescriptions.InVisualLearningandEmbodiedAgents
+28
+inSimulationEnvironmentsWorkshopatEuropeanConfer- InternationalConferenceonComputerVision,pages4498–
+enceonComputerVision,2018. 8 4506,2015. 8
+[80] PengWang,QiWu,ChunhuaShen,AntonvandenHengel, [93] YukeZhu,OliverGroth,MichaelBernstein,andLiFei-Fei.
+andAnthonyR.Dick. Fvqa: Fact-basedvisualquestionan- Visual7W: Grounded Question Answering in Images. In
+swering.IEEEtransactionsonpatternanalysisandmachine IEEE Conference on Computer Vision and Pattern Recog-
+intelligence,2017. 8 nition,2016. 8,9
+[81] John Wieting, Jonathan Mallinson, and Kevin Gimpel. [94] Yukun Zhu, Ryan Kiros, Richard Zemel, Ruslan Salakhut-
+Learning paraphrastic sentence embeddings from back- dinov, RaquelUrtasun, AntonioTorralba, andSanjaFidler.
+translatedbitext. InProceedingsofthe2017Conferenceon Aligning books and movies: Towards story-like visual ex-
+EmpiricalMethodsinNaturalLanguageProcessing,pages planationsbywatchingmoviesandreadingbooks. InarXiv
+274–285,2017. 14 preprintarXiv:1506.06724,2015. 16
+[82] Adina Williams, Nikita Nangia, and Samuel Bowman. A
+broad-coveragechallengecorpusforsentenceunderstanding
+throughinference.InProceedingsofthe2018Conferenceof
+theNorthAmericanChapteroftheAssociationforComputa-
+tionalLinguistics: HumanLanguageTechnologies, Volume
+1(LongPapers),pages1112–1122.AssociationforCompu-
+tationalLinguistics,2018. 14
+[83] QiWu, PengWang, ChunhuaShen, AnthonyR.Dick, and
+Anton van den Hengel. Ask me anything: Free-form vi-
+sualquestionansweringbasedonknowledgefromexternal
+sources. 2016 IEEE Conference on Computer Vision and
+PatternRecognition(CVPR),pages4622–4630,2016. 8
+[84] Tian Ye, Xiaolong Wang, James Davidson, and Abhinav
+Gupta. Interpretableintuitivephysicsmodel. InEuropean
+Conference on Computer Vision, pages 89–105. Springer,
+2018. 8
+[85] YuyaYoshikawa,JiaqingLin,andAkikazuTakeuchi. Stair
+actions: A video dataset of everyday home actions. arXiv
+preprintarXiv:1804.04326,2018. 8
+[86] Licheng Yu, Eunbyung Park, Alexander C. Berg, and
+Tamara L. Berg. Visual Madlibs: Fill in the blank Im-
+ageGenerationandQuestionAnswering. arXiv:1506.00278
+[cs],May2015. arXiv:1506.00278. 8
+[87] LichengYu,PatrickPoirson,ShanYang,AlexanderCBerg,
+andTamaraLBerg. Modelingcontextinreferringexpres-
+sions. InEuropeanConferenceonComputerVision, pages
+69–85.Springer,2016. 8
+[88] LichengYu,HaoTan,MohitBansal,andTamaraLBerg. A
+joint speakerlistener-reinforcer model for referring expres-
+sions. InComputerVisionandPatternRecognition(CVPR),
+volume2,2017. 8
+[89] RowanZellers,YonatanBisk,RoySchwartz,andYejinChoi.
+Swag: Alarge-scaleadversarialdatasetforgroundedcom-
+monsense inference. In Proceedings of the 2018 Confer-
+enceonEmpiricalMethodsinNaturalLanguageProcessing
+(EMNLP),2018. 8
+[90] Jieyu Zhao, Tianlu Wang, Mark Yatskar, Vicente Ordonez,
+andKai-WeiChang.Menalsolikeshopping:Reducinggen-
+derbiasamplificationusingcorpus-levelconstraints.InPro-
+ceedings of the 2017 Conference on Empirical Methods in
+NaturalLanguageProcessing,pages2979–2989,2017. 15
+[91] Luowei Zhou, Chenliang Xu, and Jason J. Corso. To-
+wards automatic learning of procedures from web instruc-
+tionalvideos. InAAAI,2018. 8
+[92] Yipin Zhou and Tamara L Berg. Temporal perception and
+predictioninego-centricvideo. InProceedingsoftheIEEE
+29

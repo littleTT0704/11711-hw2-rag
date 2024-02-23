@@ -1,0 +1,444 @@
+UNIVERSALPHONERECOGNITIONWITHAMULTILINGUALALLOPHONESYSTEM
+†XinjianLi †SiddharthDalmia †JunchengLi
+◦MatthewLee (cid:52)PatrickLittell (cid:3)JialiYao †AntoniosAnastasopoulos
+†DavidR.Mortensen †GrahamNeubig †AlanWBlack †FlorianMetze
+†CarnegieMellonUniversity;◦SILInternational;
+(cid:52)NationalResearchCouncilCanada;(cid:3)ByteDanceAILab
+xinjianl@cs.cmu.edu
+ABSTRACT ENGLISH MANDARINCHINESE
+peak speak ping bing
+Multilingualmodelscanimprovelanguageprocessing,particularly
+forlowresourcesituations,bysharingparametersacrosslanguages. ‘level’ ‘ice’
+Multilingualacousticmodels,however,generallyignorethediffer-
+/pik/ /spik/ /phiN/ /piN/
+encebetweenphonemes(soundsthatcansupportlexicalcontrastsin
+aparticular language)andtheircorrespondingphones(thesounds
+that are actually spoken, which are language independent). This [phik] [spik] [phiN] [piN]
+can lead to performance degradation when combining a variety of
+traininglanguages, asidenticallyannotatedphonemescanactually
+correspondtoseveraldifferentunderlyingphoneticrealizations. In Fig.1:Words,phonemes(slashes),andphones(squarebrackets).
+thiswork, weproposeajointmodelofbothlanguage-independent
+phone and language-dependent phoneme distributions. In mul-
+tilingual ASR experiments over 11 languages, we find that this
+model improves testing performance by 2% phoneme error rate thesetsofphonesthatcorrespondtoaparticularphoneme,arelan-
+absolute in low-resource conditions. Additionally, because we are guagespecific;distinctionsthatareimportantinsomelanguagesare
+explicitly modeling language-independent phones, we can build a notimportantinothers.
+(nearly-)universal phone recognizer that, when combined with the Mostmultilingualacousticmodelssimplyuseexistingphoneme
+PHOIBLE [1] large, manually curated database of phone invento- transcriptionsas-is,takingtheunionofthephonemesetstobeshared
+ries,canbecustomizedinto2,000languagedependentrecognizers. byalltraininglanguages[3,4,5,6,7].Theassumptionisreasonable
+Experiments on two low-resourced indigenous languages, Inukti- undersomecircumstancesasphonemenamesaretypicallyassoci-
+tut and Tusom, show that our recognizer achieves phone accuracy atedwiththeirmostcommonorleastmarkedallophone. However,
+improvements of more than 17%, moving a step closer to speech thisisobviouslyanover-simplisticview: inFigure1,forexample,
+recognitionforalllanguagesintheworld.1 thiswouldmeanthatalltraininginEnglishwouldassignthephones
+[p]and[ph]tophoneme/p/. Thisisdetrimentalifwewanttorec-
+Index Terms— multilingual speech recognition, universal
+ognize Mandarin Chinese, for instance, where the two phones are
+phonerecognition,phonology
+correspondingtotwodistinctivephonemes/p/and/ph/.
+In this paper, we propose a novel method for multilingual
+1. INTRODUCTION recognitionbasedonphoneticannotationtotacklethisproblem:Al-
+losaurus(allophonesystemofautomaticrecognitionforuniversal
+There is an increasing interest in building speech tools benefiting
+speech).Ourmethodincorporatesknowledgeofphonologyintothe
+low-resource languages, specifically multilingual models that can
+multilingualmodelthroughanallophonelayer,whichassociatesa
+improve low-resource recognition using rich resources available
+universal narrow phone set with the phonemes that appear in the
+in other languages like English and Mandarin. One standard tool
+transcriptionofeachlanguage. Ourmodelfirstcomputesthephone
+for recognition in low resource languages is multilingual acoustic
+distributionusingastandardASRencoder,thentheallophonelayer
+modeling [2]. Acoustic models are generally trained on parallel
+mapsthephonedistributionintothephonemedistributionforeach
+dataofspeechwaveformsandphonemetranscriptions. Importantly,
+language.Thismodelcanbetrainedend-to-endusingonlystandard
+phonemesareperceptualunitsofsoundthatcloselycorrelatewith,
+phonemic transcriptions and an allophone list created by phoneti-
+butdonotexactlycorrespondtotheactualsoundsthatarespoken,
+cians. Theallophonelayerisfirstinitializedwiththeallophonelist,
+phones. An example of this is shown in Figure 1, which demon-
+then is further optimized during the training process. We demon-
+strates two English words that share the same phoneme /p/, but
+stratethataccountingforthephoneme-phonemismatchinthisway
+differentintheactualphoneticrealizations[p]and[ph].Allophones,
+improves the accuracy of multilingual acoustic modeling by 2.0%
+phonemeerrorrateinlow-resourceconditions.
+1Awebdemoisavailableathttps://www.dictate.app,thepre-
+trained model will be released at https://github.com/xinjli/ Furthermore,thearchitecturesimultaneouslymakesitpossible
+allosaurus toperformuniversalphonerecognition. Previousapproachescan-
+0202
+beF
+62
+]LC.sc[
+1v00811.2002:viXra
+language-
+specific language 1 3. APPROACH
+phonemes langluoasgse ...
+language 1 language 1 3.1. Phone-PhonemeAnnotation
+langlousasge L
+language ... language ...
+ll ao ns gs lou sa sge L l lo as ns g lu oa ssge L
+allophone
+lalo ys es
+r
+S itu sp op wos ne pth he or ne ea mre e| iL nv| etr na ti on ri yng Qlan wgu ha icg hes c, aa nnd be eac eh asl ia lyng ou ba tg ae inL ei dh ba ys
+loss loss allophone layer i
+enumeratingthephonemesappearinginitsannotatedtrainingdata.
+allophone layer
+Most traditional multilingual approaches handle inventories at the
+phonemelevel,andcreateasharedphonemeinventoryQ bytak-
+sha
+encoder
+phs oh na ere md es
+encoder
+pla hsn opg neu eca i mfig c ee s-
+encoder
+u pn hiv oe nr es sal ingunionofthephonemesets:
+(cid:91)
+Q = Q . (1)
+Shared Phoneme Model Private Phoneme Model Allosaurus sha i
+1≤i≤|L|
+Fig.2: Traditionalapproachespredictphonemesdirectly,eitherfor
+In contrast, our method distinguishes phonemes from their
+alllanguages(left)orseparatelyforeachlanguage(middle).Onthe
+phone realizations. We have linguists annotate each phoneme
+contrary,ourapproach(right)predictsoverasharedphoneinventory, q ∈ Q withitscorrespondingallophonesetPi,whereeachphone
+thenmapsintolanguage-specificphonemeswithanallophonelayer. i q
+p ∈ Pi isarealizationofqinlanguageL . Mergingthesesetsfor
+q i
+alllanguages,weobtaintheuniversalphoneinventoryP .
+uni
+not perform phone recognition in a universal fashion as they de- P = (cid:91) (cid:91) Pi (2)
+uni q
+pend on language-specific phonemes, as illustrated with the previ-
+1≤i≤|L|q∈Qi
+ousexampleofEnglishnotdistinguishing/p/and/ph/asrequired
+inMandarin. Incontrast,becauseourapproachallowsrecognition
+Additionally,weobtainasignaturematrixSi ={0,1}|Qi|×|Puni|
+describingtheassociationofphoneandphonemesineachlanguage
+ofphonesdirectly,italreadyhaslearnedtomakethesefine-grained
+L : Suppose the phoneme q ∈ Q has the row index j where
+distinctions. Taking advantage of this fact, we incorporate a large i i
+1 ≤ j ≤ |Q | , phone p ∈ P has the column index k where
+phoneinventorydatabasecollectedbylinguists,PHOIBLE[1],and i uni
+1 ≤ k ≤ |P |,ifthepisarealizationofq,then(j,k)cellofthe
+demonstratethatourphonerecognizercanbecustomizedtorecog- uni
+Sihasavalueof1,otherwiseitisassigned0.
+nizeover2000languageswithoutanytrainingdatainthelanguages
+themselves. By evaluating the recognizer with completely unseen
+testinglanguages,wefoundthatourrecognizerachieves17%better 3.2. AllophoneLayer
+performanceabsolutecomparedwiththetraditionalapproach.
+AsmentionedinSection2,traditionalmultilingualmodelscanbedi-
+videdintotwogroups.Thefirstgroup,sharedphonememodels(Fig-
+ure2left),predictsphonemedistributionsoverthesharedphoneme
+inventoryQ . Thesecondgroup,privatephonememodels(Figure
+sha
+2middle),ontheotherhand,sharesacommonencoderbutcomputes
+2. RELATEDWORK
+distribution over private phoneme inventory Q for each language
+i
+L . Theseapproacheshandlephonemesdirectlywithnoconceptof
+i
+underlyingphones.
+WhilesomerecentworkinmultilingualASRfocusesonend-to-end
+Incontrastourproposedapproach,Allosaurus,(Figure2right),
+modelstodirectlypredictgraphemes[8,9], mostsystemsstillde-
+comprisesalanguageindependentencoderandphonepredictor,and
+pendonphoneticallyinspiredacousticmodels. Multilingualacous-
+a language dependent allophone layer and a loss function associ-
+tic models fall into two groups. The first group, shared phoneme
+atedwitheachlanguage.Theencoderfirstproducesthedistribution
+models, createsasharedphonemeinventoryofallphonemesfrom
+all training languages [3, 4, 5, 6, 7, 10]. The second group, pri-
+h ∈ R|Puni| over the universal phone inventory P uni, then the allo-
+vatephonememodels,treatsphonemesfromeachlanguageascom-
+phonelayertransformshintophonemedistributiongi ∈ R|Qi| of
+eachlanguage. Theallophonelayerusesatrainableallophonema-
+pletelydifferentclassesperformsphonemeclassificationseparately
+trixWi ∈ R|Qi|×|Puni| todescribeallophonesinthesimilarwayas
+foreachlanguage[11,2,12].However,thesetwogroupshavetheir
+Si. TheallophonematrixWi isfirstinitializedwithSi,andisal-
+ownrespectivedrawbacks: thefirstgroupfailstoconsiderthedis-
+lowedtobeoptimizedduringthetrainingprocess,butweaddanL2
+connect between the phonemes across languages while the second
+penaltytopenalizedivergencefromtheoriginalsignaturematrixSi.
+groupcompletelyignorescross-lingualphoneticassociationsandis
+Theallophonelayercomputesitslogitdistributiongibyfindingthe
+notapplicabletorecognitionofnewlanguages. Incontrast,ourap-
+mostlikelyallophonerealizationinP withmaxpooling.
+proach solves both of these problems by taking into account allo- uni
+phoneswithphone-phonememappings.
+gi =max({wi ·h ;1≤k≤|P |}), (3)
+j j,k k uni
+There have been some attempts to apply phone recognizers to
+wheregi ∈ Risthelogitofj-thphonemeingi forlanguageL ,
+lowresourcelanguages.Forexample,Englishrecognizershavebeen j i
+applied to align transcription corpora of an endangered language w ji ,k ∈ Risthe(j,k)celloftheallophonematrixWi,h k ∈ Ris
+[13], facilitate language documentation [14], identify languages thelogitofk-thphoneinh. Intuitively,ifthej-thphonemehasthe
+withlanguagemodels[15],andperformlinguisticannotation[16]. k-thphoneasanallophone, w ji ,k wouldbenear1, otherwisew ji ,k
+However, these approaches depend heavily on training data in the wouldbenear0. Therefore,thephonemelogitofg ji isdecidedby
+languageofinterestandtheirspecificphonemictranscriptions. Our thelargestallophonelogith .Thephonemedistributiongiisfurther
+k
+approach, on the other hand, abstracts away the dependency to fedintothelossfunction. Thismethodforphonemepredictioncan
+phonemesbyapplyingtheallophonetransformations. be used with any underlying multilingual ASR system. Here we
+Table1: Resultsofthreemodels’phonemeerrorrateperformanceon11languages. Thetop-halfshowstheresultstrainedwithalltraining
+datasets.Thebottom-halfshowsthelow-resourceresultsinwhichonly1kutterancesareusedfortrainingfromeachdataset.
+Amh Eng Ger Ita Jap Man Rus Spa Tag Tur Vie Average
+SharedPhonemePER 78.4 71.7 71.6 62.9 65.9 76.5 76.9 62.6 74.1 76.6 82.7 73.8
+PrivatePhonemePER 37.1 22.4 17.6 26.2 17.6 17.9 21.3 18.5 47.6 35.8 56.5 25.6
+AllosaurusPER 36.0 20.5 18.8 23.7 23.8 17.0 26.3 19.4 57.4 35.3 57.3 25.0
+SharedPhonemePER 80.4 73.3 74.3 72.2 77.1 83.0 83.2 72.8 84.8 84.4 84.5 78.4
+PrivatePhonemePER 55.4 50.6 41.9 31.6 36.8 37.0 47.9 36.7 62.3 54.5 73.6 43.8
+AllosaurusPER 54.8 47.0 41.5 37.4 40.5 33.4 45.0 35.9 70.1 53.6 72.5 41.8
+Table2: Trainingcorporaandsizeinutterancesforeachlanguage. covers most frequent phones in the world, we could expect that
+Modelsaretrainedandtestedwith12richresourcelanguages(top) P ≈P ∩P .
+i i uni
+and2lowresourceunseenlanguages(bottom).
+4. EXPERIMENTS
+Language Corpora Utt.
+English voxforge,Tedlium[17],Switchboard[18] 1148k 4.1. Settings
+Japanese JapaneseCSJ[19] 440k
+Aswe are interested in creating a largeuniversal phoneinventory,
+Mandarin Hkust[20],openSLR[21,22] 377k
+weselectaphoneticallydiversesetof11traininglanguagesassum-
+Tagalog IARPA-babel106b-v0.2g 93k
+marized on the top of Table 2. We include corpora from a vari-
+Turkish IARPA-babel105b-v0.4 82k
+etyofspeechdomainstomakeourmodelrobust(e.g.,readspeech,
+Vietnamese IARPA-babel107b-v0.7 79k
+sponatenuousspeech). 5%ofthedatasetisusedasthetestset,and
+German voxforge 40k
+Spanish LDC2002S25 32k the remaining data are used as the training set and the validation
+Amharic openSLR25[23] 10k set.Wealsoconsideralowresourcecondition,where1,000random
+Italian voxforge 10k utterancesareusedfromeachcorpustotrainthemodel. Asbase-
+Russian voxforge 8k lines, we compare with the previously-described shared phoneme
+and private phoneme models. All methods use the same encoder
+Inukitut private 1k
+andfeatures. Featuresarehigh-resolution40dimensionalMFCCs
+Tusom private 1k
+extractedwithKaldi[25]. Theencoderisa6-layerstackedbidirec-
+tionalLSTMwithhiddensizeof1024ineachlayer.Theregulariza-
+tionhyperparameterαissetto10.Phonemesfortraininglanguages
+areassignedusingthegrapheme-to-phonemetoolEpitran[26]. For
+specifically optimize the parameters by minimizing CTC loss [24]
+eachphonemeineachlanguage,phoneticians(mostlyauthorsofthis
+foralltraininglanguages,withtheadditionofregularizationofthe
+paper)createtheallophonemappings.2
+allophonelayercontrolledbyhyperparameterα.
+Weevaluateusingphonemeerrorrateforthetraininglanguages.
+L= (cid:88) (Li ctc+α(cid:13) (cid:13) (cid:13)Wi−Si(cid:13) (cid:13) (cid:13)2 ). (4) F dau tr at :her Im nuo kr ie t, utw ae ns del Te uct sot mwo . la Tn hg eu sa eg le as nn go ut agin esclu ad reed ini dn igth ee not ura sin li an ng -
+2
+1≤i≤|L| guageswithfewtrainingresources,representingarealisticscenario
+where our model is applied to entirely new languages, as may be
+3.3. UniversalPhoneRecognition donewhenASRisusedfordocumentationofendangeredlanguages.
+Thedatasetsofthesetwolanguagesaretranscribedwithphones,and
+Notonlydoestheallophonelayerabstractawayfromthelanguage-
+accordinglyweusephoneerrorrateratherthanthephonemeerror
+specificphonemes,whichcontributestotheimprovementinthemul-
+rate. WhileAllosaurusisabletopredictphonesinanaturalwayby
+tilingualacousticmodeling,themodelalsogivesusthecapabilityto
+decodingh,thetwobaselinescouldnotpredictphonesdirectly. In
+predictuniversalphonesthemselves.Thishasrarelybeenattempted
+thisunseenlanguageexperiment,weassumephonemespredictedby
+in previous work. By applying the greedy decoding strategy over
+thebaselinescorrespondtophonesofthesamename.
+thephonedistributionh,wecanobtainaphonesequenceinwhich
+allphonesP inthetraininglanguagesarecandidates.Whencom-
+uni
+binedwithalargetraininglanguagessets,ouruniversalinventoryis 4.2. MainResults
+expectedtocovermostcommonnarrowphonesappearinginmany
+Table 1 demonstrates the performance of the baseline models and
+languagesintheworld,whichweshowintheexperimentsection.
+Allosaurusevaluatedon11languages.Thetophalfofthetablesum-
+Furthermore, this recognition protocol can take into account
+marizestheperformancewhentrainedwiththefulltrainingset.The
+phone inventories that have already been created for many lan-
+resultssuggestsboththeprivatephonememodelandtheAllosaurus
+guages in the world by linguists. For example, PHOIBLE [1] is a
+modeloutperformsthesharedphonememodelsignificantly.There-
+database of phone inventories for more than 2000 languages and
+sultsofthesharedphonememodelcanbeexplainedbythedisagree-
+dialects, allowingourmodeltobeappliedtotheselanguageswith
+mentofphonemeassignmentsacrosslanguages.Incontrast,thepri-
+somedegreeofaccuracy. IfthephoneinventoryforlanguageL is
+i
+P i,wecanrestrictthedecodertoonlyproducephonesinP i∩P uni 2ThisworkhasbeenacceptedtoLREC2020anditsdatabaseisavailable
+by filtering out other phones. When the universal inventory P
+uni
+athttps://github.com/dmort27/allovera
+lluF
+woL
+Table3: Statisticsofthephonecoveragemean(standarddeviation) Table5:AnEnglishexamplefromswitchboardinwhichAllosaurus
+ofareas.PhonecoverageoflanguageL isdefinedas |Puni∩Pi| coulddistinguish[ph]and[p]forphoneme/p/
+i |Pi|
+Area #Language Shared Allosaurus Model Phones
+Africa 875 53%(13%) 84%(11%) Utterance thequebecpeoplethatthatspeakfrench
+America 659 52%(14%) 81%(13%) Annotation /ð @kw@bEkpip@l..spikfô EnÙ/
+Asia 377 46%(15%) 79%(13%) Allosaurus [ð @xob@k5 phiT o:l..spô Ikfô End]
+Pacific 152 59%(15%) 87%(12%)
+Europe 92 35%(9.5%) 69%(13%)
+Table6:AqualitativeexamplefromInuktitutdataset
+All 2155 52%(15%) 82%(13%)
+Model Phones
+Table4:Comparisonsofphoneerrorratesintwounseenlanguages GroundTruth [ilitsil:i]
+Allosaurus [elepö Il:e]
+Allosaurus+PHOIBLE [ilitil:i:]
+Inuktitut Tusom
+SharedPhonemePER 94.1 93.5
+BestPrivatePhonemePER 86.2 85.8
+annotatesthosetwowordswiththesamephoneme/p/, Allosaurus
+AllosaurusPER 84.1 77.3
+isabletopredictdifferentallophonesbyleveragingknowledgefrom
+Allosaurus+PHOIBLEPER 73.1 64.2
+other languages (e.g: Mandarin). We also note that Allosaurus is
+stillnotperfect:itfailstorecognizethesecond/p/in“people.”
+AdditionallywealsoinvestigateunseenlanguagesontheInuk-
+titutandTusomdatasets.TheresultsaresummarizedintheTable4.
+vate phoneme model handles this issue by using language specific
+Astheresultshow,thesharedphonememodelcanhardlyrecognize
+phonemelayers.Ourmodelalsocircumventsthisissuebyintroduc-
+anyphonemesinthesetwolanguages,withmorethan90.0%phone
+ingthelanguage-specificallophonelayers. Thebottomhalfofthe
+error rate on both datasets. Next, we try all 11 private phoneme
+Table1highlightstheresultswhenthetrainingsetofeachlanguage
+models from the training datasets and use the one with the lowest
+islimitedasmentionedabove. Unsurprisingly,limitingtheamount
+phonemeerrorrate. Unsurprisingly,thisalsocannotachievesatis-
+oftrainingdatahurtsaccuracyacrosstheboard. Whiletheprivate
+fyingresultsonbothdatasets,asnoneofour11languagesissimi-
+phonememodel andourmodel achievesimilar results whenusing
+lartoInuktitutandTusom; theybothhaveover85.0%phoneerror
+the full training set, our model outperforms the private phoneme
+rate. On the other hand, the proposed Allosaurus model achieves
+model by 2.0% when training data is limited. This suggests that
+84.1%phoneerrorrateonInuktitutand77.3%phoneerrorrateon
+our model is better at sharing parameters across languages by us-
+Tusom,asignificantdrop. WhencombinedwiththePHOIBLEin-
+ingpriorphoneticknowledgeinthiscase,likelyduetothefactthat
+ventory, the error rates are further improved to 73.1% and 64.2%
+theprivatephonememodelneedstolearneachphonemepredictor
+respectively, which shows 17% improvements on average over the
+fromscratch,whileourmodelalreadyhasphone-phonememapping
+shared phoneme baseline. Table 6 shows one qualitative example
+knowledgeseededbylinguisticallymotivatedannotations.
+from Inuktitut data. It suggests that simply applying Allosaurus
+couldcapturesomeaspectsofthetargetphonemes,butitstillmade
+4.3. UniversalPhoneRecognitionResults manyerrorsespeciallysubstitutionerrorsbetween[e]and[i]. The
+reason is Allosaurus has a much broader phone search space (187
+In addition to the improvements over low resource settings, our
+phones),itmightbedifficulttodistinguishsimilarphones(e.g:both
+model enables us to predict (nearly-)universal phone distributions.
+[e]and[i]arefrontvowels,but[e]isaclosevoweland[i]isaclose-
+Bymergingphoneinventoriesfromallofourlanguages,weobtain
+mid vowel). We find those substitution errors account for the ma-
+a shared inventory of 187 phones. First, we assess how close this
+jority of errors in the test sets. Those confusing phones, however,
+inventory gets to covering the languages registered in PHOIBLE.
+mightbesolvedwhencombinedwithanappropriateinventorysuch
+TheAllosauruscolumninTable3summarizesthephonecoverage
+asPHOIBLE.ThelastrowsuggeststhatAllosauruscouldfixthose
+ofourmodel,splitintodifferentgeographicareas.Thephonecover-
+substitutionerrorsas[e]doesnotexistinInuktitut’sinventory.
+ageineachcellrepresentsthemeanandstandarddeviationforeach
+category. Asthetablesuggests, ourmodelhasapromisingphone
+coverageoverallareasconsistently. Onaverage, ithas82%mean 5. CONCLUSION
+phone coverage and 12.8% standard deviation over all PHOIBLE
+languages. Furthermore,bycomparingourmodelwiththebaseline Inthiswork,weproposeAllosaurus,whichconsiderstherelation-
+model in which we merged all the phoneme inventories from the shipbetweenphonesandphonemesinmultilingualacousticmodel-
+corpusas-is,wesignificantlyimprovethephonecoverageby30%. ing. Itimproves significantly thephone recognition accuracy over
+Additionally, the standard deviation shows that our model covers unseenlanguagesby17%.
+phonesmoreconsistentlythanthebaselinemodel.
+Next,weactuallyevaluatethemodelwithrespecttoitsability 6. ACKNOWLEDGMENT
+to recognize phones. Table 5 shows a decoded English example.
+TheutterancecontainsthreeEnglishphonemes/p/inwordpeople ThisworkissupportedbyNSFawardsACI-1548562and1761548.
+and speak. The underlying allophones, however, are [ph] and [p] WewouldliketothankAlexisMichaud,StevenAbney,HilariaCruz
+asmentionedinSection1. WhiletheoriginalEnglishtrainingset andotherparticipantsoftheLTLDRworkshopfortheirfeedback.
+7. REFERENCES theAcousticalSocietyofAmerica,vol.134,no.3,pp.2235–
+2246,2013.
+[1] StevenMoranandDanielMcCloy,Eds., PHOIBLE2.0, Max
+[14] Alexis Michaud, Oliver Adams, Trevor Anthony Cohn, Gra-
+PlanckInstitutefortheScienceofHumanHistory,Jena,2019.
+hamNeubig,andSéverineGuillaume, “Integratingautomatic
+[2] Siddharth Dalmia, Ramon Sanabria, Florian Metze, and transcriptionintothelanguagedocumentationworkflow: Ex-
+Alan W Black, “Sequence-based multi-lingual low resource perimentswithnadataandthepersephonetoolkit,” 2018.
+speechrecognition,” in2018IEEEInternationalConference
+[15] Pavel Matejka, Petr Schwarz, Jan Cernocky`, and Pavel
+onAcoustics,SpeechandSignalProcessing(ICASSP).IEEE,
+Chytil, “Phonotacticlanguageidentificationusinghighqual-
+2018,pp.4909–4913.
+ityphonemerecognition,” inNinthEuropeanConferenceon
+[3] Hui Lin, Li Deng, Dong Yu, Yi-fan Gong, Alex Acero, and SpeechCommunicationandTechnology,2005.
+Chin-HuiLee, “Astudyonmultilingualacousticmodelingfor
+[16] Graham Neubig, Patrick Littell, Chian-Yu Chen, Jean Lee,
+largevocabularyasr,” in2009IEEEInternationalConference
+Zirui Li, Yu-Hsiang Lin, and Yuyan Zhang, “Towards a
+onAcoustics,SpeechandSignalProcessing.IEEE,2009,pp.
+general-purposelinguisticannotationbackend,”arXivpreprint
+4333–4336.
+arXiv:1812.05272,2018.
+[4] PaulS.Cohen,SatyanarayanaDharanipragada,JernejaZganec
+[17] Anthony Rousseau, Paul Deléglise, and Yannick Esteve,
+Gros, Michael Daniel Monkowski, Chalapathy Neti, Salim
+“TED-LIUM:anautomaticspeechrecognitiondedicatedcor-
+Roukos,andToddWard, “Towardsauniversalspeechrecog-
+pus.,” inLREC,2012,pp.125–129.
+nizerformultiplelanguages,” in1997IEEEWorkshoponAu-
+tomaticSpeechRecognitionandUnderstandingProceedings. [18] John J Godfrey, Edward C Holliman, and Jane McDaniel,
+IEEE,1997,pp.591–598. “SWITCHBOARD:Telephonespeechcorpusforresearchand
+development,” in Acoustics, Speech, and Signal Processing,
+[5] TanjaSchultzandAlexWaibel, “Language-independentand
+1992. ICASSP-92., 1992 IEEE International Conference on.
+language-adaptiveacousticmodelingforspeechrecognition,”
+IEEE,1992,vol.1,pp.517–520.
+SpeechCommunication,vol.35,no.1-2,pp.31–51,2001.
+[19] KikuoMaekawa, “Corpusofspontaneousjapanese:Itsdesign
+[6] TanjaSchultzandAlexWaibel, “Fastbootstrappingoflvcsr
+andevaluation,” inISCA&IEEEWorkshoponSpontaneous
+systems with multilingual phoneme sets,” in Fifth European
+SpeechProcessingandRecognition,2003.
+ConferenceonSpeechCommunicationandTechnology,1997.
+[20] Yi Liu, Pascale Fung, Yongsheng Yang, Christopher Cieri,
+[7] XinjianLi, SiddharthDalmia, DavidRMortensen, Juncheng
+ShudongHuang,andDavidGraff, “Hkust/mts: Averylarge
+Li, Alan W Black, and Florian Metze, “Towards zero-shot
+scalemandarintelephonespeechcorpus,” inChineseSpoken
+learning for automatic phonemic transcription,” in Thirty-
+LanguageProcessing,pp.724–735.Springer,2006.
+FourthAAAIConferenceonArtificialIntelligence,2020.
+[21] XingyuNaBenguWuHaoZhengHuiBu,JiayuDu, “Aishell-
+[8] Shinji Watanabe, Takaaki Hori, and John R Hershey, “Lan-
+1: An open-source mandarin speech corpus and a speech
+guage independent end-to-end architecture for joint language
+recognitionbaseline,” inOrientalCOCOSDA2017,2017,p.
+identification and speech recognition,” in 2017 IEEE Au-
+Submitted.
+tomatic Speech Recognition and Understanding Workshop
+(ASRU).IEEE,2017,pp.265–271. [22] ZhiyongZhangDongWang, XueweiZhang, “Thchs-30: A
+freechinesespeechcorpus,”2015.
+[9] ShubhamToshniwal,TaraNSainath,RonJWeiss,BoLi,Pe-
+droMoreno,EugeneWeinstein,andKanishkaRao, “Multilin- [23] Solomon Teferra Abate, Wolfgang Menzel, and Bairu Tafila,
+gual speech recognition with a single end-to-end model,” in “An amharic speech corpus for large vocabulary continuous
+2018IEEEInternationalConferenceonAcoustics,Speechand speechrecognition,” inINTERSPEECH-2005,2005.
+SignalProcessing(ICASSP).IEEE,2018,pp.4904–4908.
+[24] Alex Graves, Santiago Fernández, Faustino Gomez, and Jür-
+[10] Jessica AF Thompson, Marc Schönwiesner, Yoshua Bengio, genSchmidhuber, “Connectionisttemporalclassification: la-
+andDanielWillett, “Howtransferablearefeaturesinconvolu- bellingunsegmentedsequencedatawithrecurrentneuralnet-
+tionalneuralnetworkacousticmodelsacrosslanguages?,” in works,” in Proceedings of the 23rd international conference
+ICASSP2019-2019IEEEInternationalConferenceonAcous- onMachinelearning.ACM,2006,pp.369–376.
+tics,SpeechandSignalProcessing(ICASSP).IEEE,2019,pp.
+[25] Daniel Povey, Arnab Ghoshal, Gilles Boulianne, Lukas Bur-
+2827–2831.
+get,OndrejGlembek,NagendraGoel,MirkoHannemann,Petr
+[11] Jui-TingHuang,JinyuLi,DongYu,LiDeng,andYifanGong, Motlicek,YanminQian,PetrSchwarz,etal.,“Thekaldispeech
+“Cross-language knowledge transfer using multilingual deep recognition toolkit,” in IEEE 2011 workshop on automatic
+neuralnetworkwithsharedhiddenlayers,” in2013IEEEIn- speech recognition and understanding. IEEE Signal Process-
+ternationalConferenceonAcoustics,SpeechandSignalPro- ingSociety,2011,numberCONF.
+cessing.IEEE,2013,pp.7304–7308.
+[26] David R Mortensen, Siddharth Dalmia, and Patrick Littell,
+[12] Xinjian Li, Siddharth Dalmia, Alan W Black, and Florian “Epitran:PrecisionG2Pformanylanguages.,”inLREC,2018.
+Metze, “Multilingualspeechrecognitionwithcorpusrelated-
+nesssampling,”Proc.Interspeech2019,pp.2120–2124,2019.
+[13] ChristianDiCanio,HosungNam,DouglasHWhalen,HTimo-
+thyBunnell,JonathanDAmith,andReyCastilloGarcía, “Us-
+ingautomaticalignmenttoanalyzeendangeredlanguagedata:
+Testingtheviabilityofuntrainedalignment,” TheJournalof

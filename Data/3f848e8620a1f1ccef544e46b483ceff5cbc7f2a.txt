@@ -1,0 +1,776 @@
+Understanding Performance of Long-Document Ranking
+Models through Comprehensive Evaluation and Leaderboarding
+LeonidBoytsov TianyiLin∗ EricNyberg
+leo@boytsov.info FangweiGao∗ ehn@cs.cmu.edu
+BoschCenterforArtificial YutianZhao∗ CarnegieMellonUniversity
+Intelligence JeffreyHuang∗ Pittsburgh,USA
+Pittsburgh,USA
+CarnegieMellonUniversity
+Pittsburgh,USA
+ABSTRACT length,rankingoflongdocumentsinvolvesfirstsplittingdocu-
+We carry out a comprehensive evaluation of 13 recent models mentintopassagesandthencombiningpassage-levelrelevance
+forrankingoflongdocumentsusingtwopopularcollections(MS informationintoadocument-levelscore.Anumberofranking-
+MARCOdocumentsandRobust04).Ourmodelzooincludestwo through-aggregationapproacheshavebeenproposed[7,18,31,36],
+specializedTransformermodels(suchasLongformer)thatcanpro- buttheseevaluationshaveoneormoreshortcoming.Mostimpor-
+cesslongdocumentswithouttheneedtosplitthem.Alongtheway, tantly:
+wedocumentseveraldifficultiesregardingtrainingandcomparing • Relianceonsmall-scalequerycollectionssuchasRobust04
+suchmodels.Somewhatsurprisingly,wefindthesimpleFirstPbase- [55],Gov2[12],orClueWeb09/12[13,14].However,having
+line(truncatingdocumentstosatisfytheinput-sequenceconstraint asmallquerysetmakesitdifficulttobothtraineffective
+ofatypicalTransformermodel)tobequiteeffective.Weanalyzethe models[39]andevaluatethemaccurately[53][6].Itisnot
+distributionofrelevantpassages(insidedocuments)toexplainthis quiteclearhowsuchmodelsperforminabig-dataregime.
+phenomenon.Wefurtherarguethat,despitetheirwidespreaduse, • Evaluationssometimeslackkeyablationsorsuchablations
+Robust04andMSMARCOdocumentsarenotparticularlyuseful arenotappliedsystematically.Importantly,thereisoftenno
+forbenchmarkingoflong-documentmodels. comparisonwithspecializedTransformermodelssuchas
+LongformerandBigBird[4,62],whichwecollectivelycall
+CCSCONCEPTS LongPmodels,whichcandirectlyprocesslongdocuments
+•Informationsystems→Retrievalmodelsandranking. by“sparsifying”attention.
+• Furthermore,itisnotclearhowmuchlong-documentmodels
+KEYWORDS (includingthosethatemployLongformerandBigBird)can
+improveuponasimpleFirstPbaseline,whichtruncatesinput
+Neuralinformationretrieval,longdocumentranking
+tobeshorterthanabout512tokens.
+ACMReferenceFormat: • Authorsdonotdiscusstheirseedselectionstrategy:dothey
+LeonidBoytsov,TianyiLin,FangweiGao,YutianZhao,JeffreyHuang, reportperformanceforabest-seedscenarioanaverageover
+andEricNyberg.20XX.UnderstandingPerformanceofLong-Document multipleseeds?
+RankingModelsthroughComprehensiveEvaluationandLeaderboarding. • Last,butnotleastfewresearchers“stress-test”boththeir
+InProceedingsofACMConference(Conference’17).ACM,NewYork,NY,
+ownmodelsandbaselinesby,e.g.,tryingtoachievestrong
+USA,11pages.https://doi.org/XX.YYYY/ZZZZZZ.WWWWWW
+resultsonapublicleaderboardwithahiddenvalidationset.
+1 INTRODUCTION Tofillthegapwecarriedoutacomprehensiveevaluationof
+13 recent models for ranking of long documents and made the
+LargeTransformer[54]modelssuchasBERT[19]pre-trainedina
+keysoftwarecomponentspubliclyavailable.1Inthat,weaskthe
+self-supervisedmannerconsiderablyadvancedstate-of-the-artof
+followingresearchquestions:
+corenaturallanguageprocessing(NLP)[19,45]andinformation
+retrieval[41].However,duetoquadraticcostoftheself-attention— • RQ1 How much state-of-the-art long-document ranking
+akeyTransformercomponent—withrespecttoaninputsequence modelsoutperformtheFirstPbaselineandisthereroomfor
+furtherimprovement?
+∗WorkdonewhilestudyingatCarnegieMellonUniversity. • RQ2WhatifwesimplyapplyLongformer[4]?Domodels
+proposed by the IR communities fare well against LongP
+Permissiontomakedigitalorhardcopiesofallorpartofthisworkforpersonalor modelsLongformer[4]andBigBird[62]?
+classroomuseisgrantedwithoutfeeprovidedthatcopiesarenotmadeordistributed
+• RQ3 Can PARADE-Transformer models be improved by
+forprofitorcommercialadvantageandthatcopiesbearthisnoticeandthefullcitation
+onthefirstpage.CopyrightsforcomponentsofthisworkownedbyothersthanACM feedingqueryembeddingsintotheaggregatingTransformer?
+mustbehonored.Abstractingwithcreditispermitted.Tocopyotherwise,orrepublish,
+Notethatwedonotaimatthefullreplicabilityofpriorresults,but,
+topostonserversortoredistributetolists,requirespriorspecificpermissionand/ora
+fee.Requestpermissionsfrompermissions@acm.org. instead,focusonarelativeperformanceoflong-documentmodels
+Conference’17,July2017,Washington,DC,USA comparedtosimpleFirstPbaselines.
+©20XXAssociationforComputingMachinery.
+ACMISBN978-x-xxxx-xxxx-x/YY/MM...$15.00
+https://doi.org/XX.YYYY/ZZZZZZ.WWWWWW 1https://github.com/searchivarius/long_doc_rank_model_analysis
+2202
+luJ
+4
+]RI.sc[
+1v26210.7022:viXra
+Conference’17,July2017,Washington,DC,USA LeonidBoytsov,TianyiLin,FangweiGao,YutianZhao,JeffreyHuang,andEricNyberg
+Ourkeyfindingisthatrankingmodelscapableofprocessing combine a limited-span (i.e., a sliding window) attention with
+longdocuments,includingspecialized Transformerswithsparse someformofaselectiveglobalattention.Therearemanysuch
+attention[4,62],showlittleimprovementofencodingwholedocu- approachesproposed(see,e.g.,arecentsurvey[51])anditwould
+ments,comparedtorespectiveFirstPbaselines.In§3.3.3weargue beinfeasibletoevaluatethemall.Insteadweconsidertwopopular
+thatthisislikelyduetoapositionbiasofrelevantpassages.Thus, models:Longformer[4]andBig-Bird[62].
+weconcludethatRobust04andMSMARCO—whicharepossiblythe Withadocument-splittingapproach,onehastosplitdocuments
+mostcommonlyusedretrievaldatasetswithasubstantialnumber intoseveralchunks,processeachchunkseparately,andaggregate
+oflongdocuments—arenotparticularlyusefulforbenchmarking results,e.g.,bycomputingamaximumoraweightedprediction
+long-documentmodels. score[18,61].Withrespecttotrainingapproaches,theMaxPand
+Alongtheway,wedocumentseveraldifficultiesrelatedtocom- SumPmodelsbyDaiandCallan[18]assumethateachchunkina
+paringrankingmodelsusingdifferenttrainingsetsandinitialstart- relevantdocumentisrelevant.However,thisassumptionisprob-
+ingmodels: lematicasthedegreeofrelevancevariesfrompassagetopassage.
+• In particular, strong performance of Longformer can be Yilmazetal.[61]workaroundthisproblembytrainingaMaxP
+largely explained by better pre-training compared to the BERTmodelonshortdocumentsandzero-transferittolongdoc-
+originalBERTmodelratherthantoitsabilitytoeffectively uments.Inthisstudyweworkaroundthisproblembytraining
+encodelongdocuments. alldocument-splittingapproachesincludingMaxP[18]intheend-
+• WefindthattrainingaccuratePARADE-Transformermodels to-endfashion,i.e.,bypluggingaggregateddocument-levelscores
+witharandomlyinitializedaggregatorTransformer[54]can directlyintoalossfunction(analogoustotrainingofCEDR[36]
+be quite challenging and we were not able to train such andPARADE[31]models).
+modelstoagoodaccuracy.Incontrast, Becauseourprimaryfocusisaccuracyandweaimtounderstand
+thelimitsoflong-documentmodels,weexcludefromevaluation
+Lastly,ourmodificationofaPARADE-Transformer[31]resulted
+severalrecentmodels(e.g.,[23,64])thatachievebetterefficiency-
+inasmallbutmeaningfulimprovementontheMSMARCOdataset[1]
+effectivenesstrade-offsbypre-selectingcertaindocumentpartsand
+(see§3.3.2).Weusedinsightsobtainedfromourextensiveexper-
+feedingonlyselectedpartsintoaBERTranker.
+imentsaswellasourPARADE-Transformermodificationtosub-
+stantiallyimproveourpositionsontheMSMARCOleaderboard.
+2.2 RankingwithLong-DocumentModels
+2 METHODS Inthissection,wedescribelong-documentBERTmodelsinmore
+2.1 RelatedWork details.Weassumethataninputtextissplitintosmallchunksof
+textscalledtokens.AlthoughtokenscanbecompleteEnglishwords,
+NeuralRankingmodelshavebeenapopulartopicinrecentyears
+Transformermodelsusuallysplittextintosub-wordunits[58].
+[22],butthesuccessofearlyapproacheswascontroversial[32]. The length of a document𝑑—denoted as |𝑑|—is measured in
+Thischangedwithanintroductionofabi-directionalencoder-only
+thenumberoftokens.Becauseneuralnetworkscannotoperate
+TransformermodelBERT[19],whichwasasuccessorofGPT[45] directlyontext,asequenceoftokens𝑡 1𝑡 2...𝑡 𝑛isfirstconvertedto
+andELMO[43].BERTwashugelysuccessfulanditsresounding asequencesof𝑑-dimensionalembeddingvectors𝑤 1𝑤 2...𝑤 𝑛byan
+successcanbeattributedtoacombinationofthelargemodelsize
+embeddingnetwork.Theseembeddingsarecontext-independent,
+andmassivepre-trainingusingself-supervision.Anumberofdif-
+i.e.,eachtokenisalwaysmappedtothesamevector[15,38].
+ferentTransformermodelssuchasRoBERTA[34],ELECTRA[11],
+ForadetaileddescriptionofTransformermodels,pleaseseethe
+andERNIE[50]improveuponBERTusingdifferenttrainingstrate-
+annotatedTransformerguide[48]aswellastherecentsurveyby
+giesand/ordatasets.However,duetotheirarchitecturalsimilarities
+Linetal.[32],whichfocusesontheuseofBERT-stylemodelsfor
+we—followingLinetal[33]—collectivelycallthemasBERTmodels.
+rankingandretrieval.Forthispaper,itisnecessarytoknowonly
+NogueiraandChowerefirsttoapplyBERTtorankingoftext
+thefollowingbasicfacts:
+documents[41].Inthebig-dataregime—mostnotablyintheTREC
+• BERTisanencoder-onlymodel,whichconvertsasequence
+deeplearningtrack[16]—BERT-basedmodelsoutperformedprior
+neuralandnon-neuralapproachesbyalargemargin.Theywere
+oftokens𝑡 1𝑡 2...𝑡 𝑛toasequenceof𝑑-dimensionalvectors
+alsoquitesuccessfulforseveralsmall-scalequerycollectionsout-
+𝑤 1𝑤 2...𝑤 𝑛. These vectors—which are token representa-
+tionsfromthelastmodellayer—arecommonlyreferredto
+performingpreviousneuralandtraditionalapproaches[18,31,36].
+ascontextualizedtokenembeddings[43];
+Duetotheirunmatchedperformance,BERT-basedrankersarethe
+• BERToperatesonwordpieces[58]ratherthanoncomplete
+centerpieceofourstudy.
+words;
+TheTransformermodel[54]usesanattentionmechanism[2]
+• Thevocabularyincludestwospecialtokens:[CLS](anag-
+whereeachsequencepositioncanattendtoallthepositionsinthe
+gregator)and[SEP](aseparator);
+previouslayer.Becauseself-attentioncomplexityisquadraticwith
+• [CLS]isalwaysprependedtoeverytokensequenceandits
+respecttoasequencelength,directprocessingoflongdocumentsis
+embeddingisusedasasequencerepresentationforclassifi-
+notpractical.Thus,avastmajorityofexistingTransformermodels
+cationandrankingtasks.
+limittheinputlengthtobeatmost512(subword)tokens.
+Therearetwogeneralapproachestohandlinglongdocuments: A“vanilla”BERTranker(dubbedasmonoBERTbyLinetal.[32])
+localizationofattentionandsplittingdocumentsintochunkseach uses a single fully-connect layer 𝐹 as a prediction head, which
+ofwhichisprocessedseparately.Attention-localizationapproaches convertsthelast-layerrepresentationofthe[CLS]token(i.e.,a
+UnderstandingPerformanceofLong-DocumentRankingModelsthroughComprehensiveEvaluationandLeaderboarding Conference’17,July2017,Washington,DC,USA
+contextualizedembeddingof [CLS])intoascalar[41].Itmakes • processingeachsequencewithaBERTmodeltogenerate
+apredictionbasedonthefollowingsequenceoftokens:[CLS]𝑞 contextualizedembeddingsforregulartokensaswellasfor
+[SEP]𝑑[SEP],where𝑞isaqueryand𝑑isadocument. [CLS].
+Analternativeapproachistoaggregatecontextualizedembed- Theoutcomeofthisprocedureis𝑚[CLS]-vectors𝑐𝑙𝑠
+𝑖
+and𝑛con-
+dingsofregulartokensusingashallowneuralnetwork[7,30,36] textualizedvectors𝑤 1𝑤 2...𝑤 𝑛 (oneforeachdocumenttoken𝑡 𝑖)
+(possiblytogetherwiththecontextualizedembeddingof [CLS]).
+thatareaggregatedinamodel-specificways.
+ThiswasfirstproposedbyMacAvaneyetal.[36]whoalsofound
+MacAvaneyetal.[36]usecontextualizedembeddingsasadirect
+thatincorporating[CLS]improvesperformance.However,Boytsov
+replacementofcontext-freeembeddingsinthefollowingneural
+andKolterproposedashallowaggregatingnetworkthatdoesnot
+architectures:KNRM[59],PACRR[26],andDRMM[21].Toboost
+usetheoutputofthe[CLS]tokenandachievedthesameaccuracy
+performance,theyincorporate[CLS]vectorsinamodel-specific
+onMSMARCOdatasets[7].
+way.WecalltherespectivemodelsasCEDR-KNRM,CEDR-PACRR,
+ReplacingthestandardBERTmodelinthevanillaBERTranker
+andCEDR-DRMM.
+withaBERTvariantthat“natively”supportslongerdocuments
+TheyalsoproposedanextensionofthevanillaBERTrankerthat
+(e.g.,Big-Bird[62])is,perhaps,thesimplestwaytodealwithlong makesapredictionusingtheaverage[CLS]token:𝑚1 (cid:205)𝑚 𝑖=1𝑐𝑙𝑠 𝑖 by
+documents.WecollectivelycallthesemodelsasLongPmodels.For
+passingitthroughalinearprojectionlayer.Wecallthismethod
+atypicalBERTmodel,however,longdocumentsandqueriesneed
+AvgP.
+tobesplitortruncatedsothattheoverallnumberoftokensdoes
+TheNeuralModel1[7]usesthesamegreedypartitioningap-
+notexceed512.IntheFirstPmode,weprocessonlythefirstchunk
+proachasCEDR,butadifferentaggregatornetwork,whichdoesnot
+andignorethetruncatedtext.IntheSplitPmode,eachchunkispro- usetheembeddingsofthe[CLS]token.Thisnetworkisaneural
+cessedseparatelyandtheresultsareaggregated.Intheremaining
+parametrizationoftheclassicModel1[5,10].
+ofthissection,wediscusstheseapproachesindetail.
+Slidingwindowapproach. TheBERTMaxP/SumP[18]andPA-
+2.2.1 LongP models. In our work, we benchmark two popular RADE[31]modelsuseaslidingwindowapproach.Assume𝑤 is
+LongPmodels:Longformer[4]andBig-Bird[62].Inthat,weuse thesizeofhewindowand𝑠isthestride.Thentheprocessingcan
+thesameapproachtoscoredocumentsaswiththevanillaBERT
+besummarizedasfollowing:
+ranker,namely,concatenatingquerieswithdocumentsandmaking
+apredictionbasedonthecontextualizedembeddingofthe[CLS]
+• tokenizing,thedocument𝑑intosub-words𝑡 1𝑡 2...𝑡 𝑛;
+• splittingatokenizeddocument𝑑into𝑚possiblyoverlapping
+token[41].BothBig-BirdandLongformeruseacombinationof
+thelocal,“scattered”(ourterminology),andglobalattention.The chunks𝑑 𝑖 =𝑡 𝑖·𝑠𝑡 𝑖·𝑠+1...𝑡 𝑖·𝑠+𝑤−1:Trailingchunksmayhave
+fewerthan𝑤 tokens.
+localattentionutilizesaslidingwindowofaconstantlengthwhere
+each token attends to each other token within this window. In • generating𝑚tokensequences[CLS]𝑞[SEP]𝑑 𝑖 [SEP]by
+concatenatingthequerywithdocumentchunks;
+thecaseoftheglobalattention,certaintokenscanattendtoall
+• processingeachsequencewithaBERTmodeltogeneratea
+othertokensandvice-versa,InBig-Bird,onlyspecialtokenssuch
+last-layeroutputforeachsequence[CLS]token.
+as[CLS]canattendglobally.InLongformer,theuserhavetoselect
+suchtokensexplicitly.FollowingBeltagyetal.[4],whoapplied Theoutcomeofthisprocedureis𝑚[CLS]-vectors𝑐𝑙𝑠 𝑖,whichare
+thistechniquetoquestion-answering,we“place”globalattention subsequentlyaggregatedinamodel-specificways.NotethatPA-
+onlyonquerytokens.Unliketheglobalattention,thescattered RADEandMaxP/SumPmodelsdonotusecontextualizedembed-
+attentionislimitedtorestrictedsub-setsoftokens,butthesesubsets dingsofregulartokens.
+donotnecessarilyhavelocality.InBig-Birdthescatteredattention
+BERT MaxP/SumP. These models [18] use a linear layer 𝐹 to
+reliesonrandomtokens,whereasLongformerusesadilatedsliding-
+produce𝑚relevancescores𝐹(𝑐𝑙𝑠 𝑖).Thencompletedocumentscores
+windowattentionwithlayer-andhead-specificdilation. arecomputedasmax𝑚 𝑖=1𝐹(𝑐𝑙𝑠 𝑖)and(cid:205)𝑚 𝑖=1𝐹(𝑐𝑙𝑠 𝑖)fortheMaxPand
+2.2.2 SplitPmodels. SplitPmodelsdifferinpartitioningandag- SumPmodels,respectively.
+gregationapproaches.Documentscanbesplitintoeitherdisjoint
+PARADE. Thesemodels[31]canbedividedintotwogroups.The
+oroverlappingchunks.Inthefirstcase,documentsaresplitina
+firstgroupincludesPARADEaverage,PARADEmax,andPARADE
+greedyfashionsothateachdocumentchunkexceptpossiblythe
+attention,whichallusesimpleapproachestoproduceanaggregated
+lastoneisexactly512tokenslongafterbeingconcatenatedwitha
+representationof𝑚 [CLS]-vectors𝑐𝑙𝑠 𝑖.Tocomputearelevance
+(padded)queryandthreespecialtokens.Inthesecondcase,weuse
+scoretheseaggregatedrepresentationsarepassedthroughalinear
+aslidingwindowapproachwithawindowsizeandstridethatare
+layer𝐹.
+nottiedtothemaximumlengthofBERTinput.
+Inparticular,PARADEaverageandPARADEmaxcombine𝑐𝑙𝑠
+𝑖
+Greedypartitioningintodisjointchunks. CEDRmodels[36]and usingaveragingandtheelement-wisemaximumoperation,respec-
+theNeuralModel1[7]usethefirstmethod,whichinvolves: tively.togenerateaggregatedrepresentationof𝑚[CLS]tokens
+• tokenizingthedocument𝑑; 𝑐𝑙𝑠 𝑖.2ThePARADEattentionmodelusesalearnableattention[2]
+• greedilysplittingatokenizeddocument𝑑 into𝑚 disjoint
+chunks:𝑑 =𝑑 1𝑑 2...𝑑 𝑚; 2NotethatbothPARADEaverageandAvgPvanillarankerusethesameapproach
+• generating𝑚tokensequences[CLS]𝑞[SEP]𝑑 𝑖 [SEP]by toaggregatecontextualizedembeddingsof [CLS]tokens,buttheydifferintheir
+approachtoselectdocumentchunks.Inparticular,AvePusesnon-overlappingchunks
+concatenatingthequerywithdocumentchunks; whilePARADEaveragereliesontheslidingwindowapproach.
+Conference’17,July2017,Washington,DC,USA LeonidBoytsov,TianyiLin,FangweiGao,YutianZhao,JeffreyHuang,andEricNyberg
+Table1:Documentstatistics Table3:Numberofmodelparameters
+dataset #ofdocuments avg.#ofBERTtokens Modeltype #ofparameters
+MSMARCOv1 3.2M 1.4K Longformer 149M
+MSMARCOv2 12M 2K BigBird 127M
+Robust04 0.5M 0.6K PARADE-Transf-Pretr-L6 132M
+PARADE-Transf-Pretr-L4 128M
+PARADE-Transf-RAND-L2 121M
+allothers 110M
+Table2:Querystatistics
+Notes:L2,L4,L6denote#oflayers
+avg.#of avg.#of
+#ofqueries
+BERTtokens pos.judgements
+3 EXPERIMENTS
+MSMARCOv1
+3.1 Data
+MSMARCOtrain 352K 7 1
+InourexperimentsweusetwoMSMARCOcollections(v1andv2)
+MSMARCOdev 5193 7 1
+TRECDL2019 43 7 153.4 [3,16,17]aswellasRobust04[55].Documentandquerystatistics
+TRECDL2020 45 7.4 39.3 aresummarizedinTables1and2.
+Robust04 is a small collection of 0.5M documents that has a
+MSMARCOv2
+mixtureofnewsarticlesandgovernmentdocumentssomeofwhich
+TRECDL2021 57 9.8 143.9 arequitelong.Howeverithasonlyasmallnumberofqueries(250),
+Robust04 whichmakesitachallengingbenchmarkfortrainingmodelsina
+low-dataregime.Eachqueryhasatitleandadescription,which
+title 250 3.6 69.6
+representabriefinformationneedandamoreelaboraterequest
+description 250 18.7 69.6
+(oftenaproperEnglishprose),respectively.WeuseRobust04across-
+validationsettingswithfoldsestablishedbyHustonandCroft[27]
+andprovidedviaIR-datasets[37].
+vector𝐶tocomputeascalarweight𝑤
+𝑖
+ofeach𝑖asfollows: MSMARCOv1collectionsarecreatedfromtheMSMARCO
+readingcomprehensiondataset[3].Theycontainalargenumberof
+𝑤 1𝑤 2...𝑤 𝑚 =𝑠𝑜𝑓𝑡𝑚𝑎𝑥(𝐶·𝑐𝑙𝑠 1,𝐶·𝑐𝑙𝑠 2,...,𝐶·𝑐𝑙𝑠 𝑚) question-likequeriessampledfromtheBingsearchenginelog(with
+subsequentfiltering).Thislargequerysetisparticularlyusefulfor
+Theseweightsareusedtocomputetheaggregatedrepresentation testingmodelsinthebig-dataregime.Notethatqueriesarenot
+as(cid:205)𝑚 𝑖=1𝑤 𝑖𝑐𝑙𝑠
+𝑖
+necessarilyproperEnglishquestions,e.g.,“lymediseasesymptoms
+PARADETransformermodelscombine[CLS]-vectors𝑐𝑙𝑠 𝑖 with mood”,buttheyareanswerablebyashortpassageretrievedfrom
+anadditionalaggregatortransformermodel𝐴𝑔𝑔𝑟𝑒𝑔𝑇𝑟𝑎𝑛𝑠𝑓().The asetofabout3.6MWebdocuments[3].Document-levelrelevance
+inputoftheaggregatorTransformerissequenceof𝑐𝑙𝑠 𝑖 vectors labelsarecreatedbytransferringpassage-levelrelevancetooriginal
+prependedwithalearnablevector𝐶,whichplaysaroleofa[CLS] documentsfromwhichpassageswereextracted.However,docu-
+embeddingfor𝐴𝑔𝑔𝑟𝑒𝑔𝑇𝑟𝑎𝑛𝑠𝑓().Thelast-layerrepresentationof mentandpassagetextswerecollectedatdifferenttimes,which
+the first vector is passed through a linear layer 𝐹 to produce a resultedinsomecontentdivergence[16].Theresultingrelevance
+relevancescore: labelsare“sparse”(aboutonepositiveexampleperquery).Inaddi-
+tiontosparserelevancejudgements—separatedintotrainingand
+𝐹(𝐴𝑔𝑔𝑟𝑒𝑔𝑇𝑟𝑎𝑛𝑠𝑓(𝐶,𝑐𝑙𝑠 1,𝑐𝑙𝑠 2,...,𝑐𝑙𝑠 𝑚)[0]) (1) developmentssubsets—thereisasmallnumber(98)ofqueriesthat
+have“dense”judgementsprovidedbyNISTassessorsforTREC
+AnaggregatorTransformercanbeeitherpre-trainedorran- 2019and2020deeplearning(DL)tracks[16].
+domly initialized. In the case of a pre-trained transformer, we MSMARCOv2collectionswerecreatedforTREC2021DLtrack.
+completelydiscardtheembeddinglayer.Furthermore,ifthedi- Theyarean“upgraded”versionofMSMARCOv1thatemploya
+mensionalityof𝑐𝑙𝑠 𝑖 vectorsisdifferentfromthedimensionalityof subsetofsparserelevancejudgementsfromMSMARCOv1.Yet,
+inputembeddingsin𝐴𝑔𝑔𝑟𝑒𝑔𝑇𝑟𝑎𝑛𝑠𝑓,weproject𝑐𝑙𝑠 𝑖 usingalinear MSMARCOv2hasanimprovedalignmentbetweendocuments
+transformation. andrelatedpassagesaswellasquiteafewnewdocumentswithout
+WeproposeanovelmodificationofEq.1,which—inaddition respectiverelevancelabels.
+to𝑐𝑙𝑠 𝑖 feedscontextualizedrepresentationsofthequerytokens Unfortunately,modelstrainedonMSMARCOv2performmuch
+𝑞 1,𝑞 2,...into𝐴𝑔𝑔𝑟𝑒𝑔𝑇𝑟𝑎𝑛𝑠𝑓().Optionally,contextualizedquery worseonTREC2021queriescomparedtomodelstrainedonMS
+embeddingscanbeprojectedusingalinearlayer𝑃: MARCOv1.Thismayindicatethatmodelssomehowlearntodis-
+tinguishbetweenoriginalMSMARCOv1documentsandnewly
+𝐹(𝐴𝑔𝑔𝑟𝑒𝑔𝑇𝑟𝑎𝑛𝑠𝑓(𝐶,𝑃(𝑞 1),𝑃(𝑞 2),...,𝑐𝑙𝑠 1,𝑐𝑙𝑠 2,...,𝑐𝑙𝑠 𝑚)[0]) (2) addedones.Asaresult,thesemodelsarebiasedandtendtonot
+rankthesenewdocumentswellevenwhentheyareconsideredto
+berelevantbyNISTassessors.Forthisreason,weuseMSMARCO
+UnderstandingPerformanceofLong-DocumentRankingModelsthroughComprehensiveEvaluationandLeaderboarding Conference’17,July2017,Washington,DC,USA
+v2datainazero-shottransfermodewhererankingmodelstrained [42]andHuggingFaceTransformerslibrary[57].Theinstructions
+onMSMARCOv1areevaluatedonTRECDL2021queries. toreproduceourkeyresultsarepubliclyavailable.3FlexNeuART
+[9]allowedustousevirtuallyanyHuggingFaceTransformer[54]
+modelavailableintheonlinemodelrepository:Whenweusesuch
+3.2 Setup
+amodelforinitialization,wediscardallpredictionheads.Inpar-
+TrainingModels. Ourexperimentalsetupwaslargelydefined ticular,weusedBigBird[62]andtheElectra[11]modelprovided
+byourexperienceintrainingmodelsthatperformwellontheMS viaSentence-BERTlibrary[46]asvanillaBERTrankers.4Theba-
+MARCOleaderboardsandinTRECevaluations.Inoursetup,a sicvanillaBERTrankeraswellasCEDRmodelsarelargelyun-
+rankerisappliedtotheoutputofthefirst-stageretrievalmodel, modified implementations from the CEDR framework [36]. We
+alsoknownasacandidate-generator.Thus,therankeristrainedto re-implementedPARADEmodelsfromscratch:Thisallowedusto
+distinguishbetweenpositiveexamples(knownrelevantdocuments) use(almost)anypre-trainedmodelfromtheHuggingfacereposi-
+andhardnegativeexamples(documentsnotmarkedasrelevant) toryasanaggregatorTransformer.Specifically,wechoseaMiniLM
+sampledfromthesetoftop-𝑘candidatesreturnedbythecandidate [56]cross-encoderfromtheSentence-BERTlibrarywithfouror
+generator.Weused𝑘 =100forMSMARCOdatasetsand𝑘 =1000 sixlayers.ForrandomlyinitializedaggregatorTransformerwe—
+forRobust04.Dependingontheexperimentandthedatasetweuse somewhatsimilarto[31]—usealight-weightthree-layermodel
+differentcandidategenerators. withfourheads.Wehavehighconfidenceinthequalityofour
+One training epoch consists in iterating over all queries and re-implementation,becauseitwasbattle-testedontheMSMARCO
+samplingonepositiveandonenegativeexamplewithasubsequent leaderboard.
+computation of a pairwise margin loss. We used the batch size AllMSMARCOmodelsweretrainedfromscratch.Thenthese
+16andthelearningrates10−5and10−4forthemainTransformer modelswerefine-tunedonRobust04.Notethatexceptfortheaggre-
+layers(2·10−5)andallotherparameters,respectively(lossreduction gatingTransformerweuseabase,i.e.,a12-layerTransformer[54]
+typeissum).Furthermore,weusedtheAdamWoptimizer[35], model:Itismorepracticalthena24-layerBERT-largeandperforms
+weightdecay(10−7),andtwotypesofthelearningrateschedules. atparwithBERT-largeonMSMARCOandRobust04[24,31].In
+Inourmainexperimentsweusedaconstantlearningratewith ourownexperiments,weseethatlarge(24andmorelayers)model
+a20%linearwarm-up[40].However,whenwesimulatedtraining performmuchbetterontheMSMARCOPassagecollection,butwe
+inthe“leaderboarding”mode,wegeneratedthreesetsof“hard” werenotabletooutperform12-layermodelsontheMSMARCO
+negativeexamplesusingthreeprogressivelyimprovingcandidate Documentscollection.NotethatLongformer[4]andBigBird[62]
+generators.Then,wetrainedthemodelforoneepochoneachof alsohave12layers,butalargerembeddingmatrix.Hence,these
+thesesets.Inthefirsttwoepochsweemployedontheconstant modelsareabitlargercomparedtoBERTbase(seeTable3).
+learningratewithawarmup,butinthelastepochweswitchedto
+aone-cyclelineardecay/warm-upschedule(warm-upfor20%of 3.3 Results
+thesteps)[49]tomitigateoverfitting.OnMSMARCO,oneepoch
+OurmainexperimentalresultsareshowninTable4,whereanum-
+trainingtookfrom6hoursforBERTFirstPto24hoursforLong-
+beroflong-documentmodelsarecomparedtothreeFirstPbaselines.
+former.
+Thesebaselinesusethreedifferent“backbone”Transformermodels,
+Wehavelearnedthat—unlikeneuralretrievers—BERT-base[19]
+namely,BERT(base)[19],ELECTRA(base)[11],andLongformer
+rankersarerelativelyinsensitivetolearningrates,theirschedules,
+[4].ForallFirstPbaselines,thetotallengthofinput(queries,doc-
+andthechoiceoflossfunctions.Weweresometimesabletoachieve
+uments,andspecialtokens)islimitedto512tokens.TheLongP
+betterresultsusingmultiplenegativesperqueryandalistwise
+Longformerversion,aswellasotherlong-documentmodels,how-
+marginloss(orcross-entropy).However,thegainsweresmalland
+ever,usesthelongerinput(1431token).
+notconsistentcomparedtoasimplepairwisemarginlossusedin
+NotethatPARADEAttndenotesaPARADEAttentionmodel.
+ourwork(infact,usingalistwiselossfunctionsometimesleadto
+ThePARADETransf prefixdenotesPARADETransformermodels
+overfitting).Noteagainthatthisisdifferentfromneuralretrievers
+whereanaggregatorTransformercanbeeithertrainedfromscratch
+wheretrainingisdifficultwithoutusingalistwiselossand/orbatch-
+(Transf-RAND-L3)orinitializedwithapre-trainedmodel(Transf-
+negatives[20,29,44,60,63].
+PRETR-L6andTransf-PRETR-Q-L6).L3andL6denotethenumber
+Exceptforsomeoftheablationstudies,eachmodelwastrained
+ofaggregatinglayers(threeandsix,respectively).Transf-PRETR-L6
+usingthreeseeds.Tocomputestatisticalsignificance,weaveraged
+denotestheoriginalvariantofthePARADETransformermodel
+query-specificmetricvaluesovertheseseeds.Querieswerepadded
+withapre-trainedsix-layeraggregatorTransformer.Transf-PRETR-
+to32BERTtokens(longerqueriesweretruncated).Toenableeffi-
+Q-L6)denotesourmodificationofthismodeldescribedin§2.2.2.
+cienttrainingandevaluationofthelargenumberofmodels,doc-
+As we discuss in § 3.3.2 our reproduction generally matches
+umentsweretruncatedtohaveatmost1431BERTtokens.Thus,
+previouslyreportedresults.Overall,thediscussionofexperimental
+longdocumentweresplitintoatmostthreechunkscontaining
+resultsissplitintothreemainsubsections:keyobservations3.3.1,
+477documenttokens(eachconcatenatedwithupto32queryto-
+kensplusthreespecialtokens).Furtherincreaseininputlengthis
+virtuallyunhelpful(seethediscussiononp.9).
+All experiments were carried out using the FlexNeuART [9]
+3https://github.com/searchivarius/long_doc_rank_model_analysis/tree/main
+framework,whichemployedLuceneandNMSLIB[8]toprovidere- 4Longformerrequiresacustommodelwrapper,becauseweneedto“place”global
+trievalcapabilities.DeeplearningsupportwasprovidedviaPyTorch attentiononquerytokens.
+Conference’17,July2017,Washington,DC,USA LeonidBoytsov,TianyiLin,FangweiGao,YutianZhao,JeffreyHuang,andEricNyberg
+Table4:Modelrankingperformanceaveragedoverseeds(bestnumbersarebold).Statisticalsignificancenotationisexplained
+inthetablefootnote.
+Model MSMARCO TRECDL Robust04
+dev 2019 2020 2021 2019-2021 title description
+MRR NDCG@10 NDCG@20
+AvgP 0.389𝑎𝑏𝑐 0.659𝑎 0.596 𝑏𝑐 0.664 𝑐 0.642 𝑐 0.478 𝑏𝑐 0.531 𝑏𝑐
+FirstP(BERT) 0.394 𝑏𝑐 0.631 𝑐 0.598 𝑏𝑐 0.660 𝑐 0.632 𝑏𝑐 0.475 𝑏𝑐 0.527 𝑏𝑐
+FirstP(Longformer) 0.404𝑎𝑏𝑐 0.657𝑎 0.616 𝑐 0.654 𝑐 0.643 𝑐 0.483 𝑏𝑐 0.540 𝑐
+FirstP(ELECTRA) 0.417𝑎 𝑐 0.652 𝑐 0.642𝑎 0.686𝑎 0.662𝑎 𝑐 0.492𝑎 𝑐 0.552𝑎 𝑐
+MaxP 0.392 𝑏𝑐 0.648 𝑐 0.615 𝑐 0.665 𝑐 0.644𝑎 𝑐 0.488𝑎𝑏𝑐 0.544𝑎𝑏𝑐
+SumP 0.390 𝑏𝑐 0.642 𝑐 0.607 𝑐 0.662 𝑐 0.639 𝑏𝑐 0.486 𝑏𝑐 0.538 𝑏𝑐
+CEDR-DRMM 0.385𝑎𝑏𝑐 0.639 𝑐 0.592 𝑏𝑐 0.651 𝑏𝑐 0.629 𝑏𝑐 0.466 𝑏𝑐 0.533 𝑏𝑐
+CEDR-KNRM 0.379𝑎𝑏𝑐 0.637 𝑐 0.599 𝑏𝑐 0.651 𝑏𝑐 0.630 𝑏𝑐 0.483 𝑏𝑐 0.535 𝑏𝑐
+CEDR-PACRR 0.395 𝑏𝑐 0.640 𝑐 0.615𝑎 𝑐 0.667 𝑐 0.643𝑎 𝑐 0.496𝑎 𝑐 0.549𝑎 𝑐
+NeuralModel1 0.398 𝑏𝑐 0.660𝑎 0.620𝑎 𝑐 0.666 𝑐 0.650𝑎 𝑐 0.484 𝑏𝑐 0.537 𝑏𝑐
+PARADEAttn 0.416𝑎 𝑐 0.647 𝑐 0.626𝑎 0.677 𝑐 0.652𝑎 𝑐 0.503𝑎 𝑐 0.556𝑎 𝑐
+PARADEAttn(ELECTRA) 0.431𝑎𝑏 0.675𝑎𝑏 0.653𝑎 0.705𝑎𝑏 0.680𝑎𝑏 0.523𝑎𝑏 0.581𝑎𝑏
+PARADEAvg 0.392 𝑏𝑐 0.656𝑎 0.617 𝑐 0.660 𝑏𝑐 0.646𝑎 𝑐 0.483 𝑏𝑐 0.534 𝑏𝑐
+PARADEMax 0.405𝑎𝑏𝑐 0.652 𝑐 0.626𝑎 𝑐 0.680𝑎 𝑐 0.655𝑎 𝑐 0.489𝑎𝑏𝑐 0.548𝑎 𝑐
+PARADETransf-RAND-L3 0.344𝑎𝑏𝑐 0.591𝑎𝑏𝑐 0.531𝑎𝑏𝑐 0.547𝑎𝑏𝑐 0.555𝑎𝑏𝑐 0.379𝑎𝑏𝑐 0.411𝑎𝑏𝑐
+PARADETransf-PRETR-L6 0.406𝑎𝑏𝑐 0.658𝑎 0.618 𝑐 0.680𝑎 0.655𝑎 𝑐 0.510𝑎𝑏 0.560𝑎 𝑐
+PARADETransf-PRETR-Q-L6 0.408𝑎𝑏𝑐 0.651𝑎 𝑐 0.619𝑎 𝑐 0.673 𝑐 0.650𝑎 𝑐 0.498𝑎 𝑐 0.561𝑎 𝑐
+LongP(Longformer) 0.412𝑎 𝑐𝑑 0.676𝑎𝑏 𝑑 0.628𝑎 𝑐 0.693𝑎 𝑑 0.668𝑎𝑏 𝑑 0.500𝑎 𝑐𝑑 0.568𝑎 𝑑
+LongP(Big-Bird) 0.397 𝑏𝑐 0.655 𝑐 0.618 𝑐 0.675 𝑐 0.651𝑎 𝑐 0.452𝑎𝑏𝑐 0.477𝑎𝑏𝑐
+Superscriptsa,b,andcdenoteastatisticalsignificantdifference(atlevel0.05)withrespecttothefollowingbaselines:FirstP(BERT),
+PARADEAttn,andPARADEAttn(ELECTRA).ThesuperscriptddenotesadifferencebetweenLongPandFirstPvariantsofLongformer.
+reproducibilitynotes3.3.2,andthediscussionofthesurprisingef- • ThePARADEAttnmodelbasedonELECTRAoutperforms
+fectivenessofFirstPmodels(3.3.3).Thesearefollowedbyadditional Longformerbyanoticeablemarginonalldatasets.5
+ablations(3.3.4).
+3.3.2 Reproducibilitynotes. Wegenerallyreproducepriorart,in
+particular,experimentsbyLietal[31],whoinventedPARADE
+3.3.1 KeyObservations. AccordingtoTable4,thebestPARADE models.WematchoroutperformtheirTREC2019-2020resultsand
+modelsmatchorexceedaccuracyofothermodelsusedinoureval- slightlyunderperformonRobust04.Notethatoneshouldnotexpect
+uation.However,eventhetop-performinglong-documentmodels identicalresultsduetodifferencesintrainingregimesandcandidate
+areonlymodestlybetter(by5-6%)thenrespectiveFirstPbaselines, generators.Inparticular,inthecaseofRobust04Lietal[31]use
+whichanswersourRQ1. RM3(BM25withapseudo-relevancefeedback[28]),whichismore
+Inthat,formanyofthepreviouslyproposedlong-document effectivethanBM25[47](whichweuseonRobust04).Theyalso
+modelsthereisanevensmallergaininperformance,whichisnot trainedalltheirbestmodelsstartingfromELECTRA[11]whereas
+alwaysstatisticallysignificant.Forexample,forCEDR-PACRR[36] weuseditonlyinPARADEAttn(ELECTRA)andFirstP(ELECTRA)
+and Neural Model1 [7], the gains are statistically significant on models.
+combinedTRECDL(2019-2021)data,butnotontheMSMARCO AnothercomparisonpointisthepaperbyDaiandCallan[18]
+developmentset.In§3.3.3,wearguethatforMSMARCOdatathis whoreportedslightlylowerNDCG@20valuesforbothtitleand
+happensbecausethedistributionofrelevantpassagesisskewed descriptionqueriesfortheirMaxP model.Similartoourresults,
+greatlytowardsthebeginningofthedocument. theyfoundthedifferencebetweenMaxPandFirstPmodelstobesta-
+WithrespecttoRQ2,wecanseethattheLongPvariantofthe tisticallysignificant.Yet,theyreportedanoticeablyhigherrelative
+Longformermodelappearstohavearelativelystrongperformance, gain:7.7%vsour3.2%(onthedescriptionqueries).
+butsodoestheFirstPversionofLongformer.Thus,wethinkthat Furthermore,wehaddifficultytrainingPARADETransf-RAND-
+agoodperformanceofLongformercanbelargelyexplainedby L3model,whichusedarandomlyinitializedthree-layeraggrega-
+betterpre-trainingcomparedtotheoriginalBERTmodelrather torTransformernetwork.Toensureitwasnotundertrained,we
+thantoitsabilitytoeffectivelyencodelongdocuments.Indeed, trainedthismodelforseveralepochsuntilitstartedoverfitting.
+whencomparingFirstP variantsrepresentingtheoriginalBERT Nevertheless,Transf-RAND-L3modelwasstillabout10-20%worse
+model[19],theLongformer[4],andELECTRA[11],wecansee comparedtoFirstP.Incontrast,usingPARADETransf modelwith
+thatthereisquiteadifferenceintheirperformance.Inthat: apre-trainedaggregatingmodelproducedsomeofthestrongest
+models.
+• The FirstP (ELECTRA) baseline outstrips nearly all long- 5Longformerisalsotheslowestmodeltotrainandevaluate(about1.5xslowercom-
+documentmodelsthatusetheoriginalBERT; paredtoPARADEAttnmodel).
+UnderstandingPerformanceofLong-DocumentRankingModelsthroughComprehensiveEvaluationandLeaderboarding Conference’17,July2017,Washington,DC,USA
+Table 5: Performance of the best PARADE models in the
+“leaderboarding” mode averaged over seeds (best numbers
+arebold).Statisticalsignificancenotationisexplainedinthe
+tablefootnote.
+Model(ELECTRA-based) MSMARCO TRECDL2019-2021
+(dev) (combined)
+MRR NDCG@10
+PARADEAttn 0.458 0.678
+PARADETransf-pretr-L4 0.455 𝑐 0.678
+PARADETransf-pretr-Q-L4 0.459 𝑏 0.680
+Superscriptsa,b,andcdenoteastatisticalsignificantdifference(at
+level0.05)withrespecttoPARADEAttn,PARADETransf-pretr-L4,
+andPARADETransf-pretr-Q-L4,respectively. Figure 1: Distribution of relevant document lengths (in
+BERT tokens) on MS MARCO (v1) development set (doc.
+lengthiscappedat10Ktokens)
+Notethatwhenwere-usethethepre-trainedTransformermodel
+foraggregationpurposes,wediscardtheembeddinglayer.Thusa
+strongperformanceofsuchanaggregatorhaslittletodowiththe
+linguisticknowledgeacquiredbymodelduringthepre-trainedina
+Tosummarizeobservationsofthissubsection:
+self-supervisedfashion[52].
+Somewhatsimilarly,wewereunabletotrainstrongRobust04 • Mostimportantly,welearnedthatcomparingmodelsthat
+modelsfromscratch.Insteadwefine-tunedamodelthatwastrained havecloseperformancecanbequitedifficult,becausere-
+onMSMARCO.Forexample,wetrainedthePARADEAttnmodel sultscandependonthetrainingregimeandthechoiceofa
+inthreedifferentways(thisablationusedonlyoneseed): candidate-generator;
+• Achievinggoodresultsusingasmall-scalequerycollection
+(1) StartingfromtheoriginalBERTmodel[19]witharandomly
+(suchasRobust04)mayhingeonlarge-scalepre-training
+initializedpredictionhead;
+(2) Fine-tuningamodeltrainedonBM25pseudo-labels6[39]; usingeithersupervisedtrainingdatafromanothercollection,
+e.g.,MSMARCO,orpseudo-labeling;
+(3) Fine-tuninganMSMARCOmodel.
+• Training a model with a randomly-initialized aggregator
+Thefine-tunedMSMARCOmodelachievedtheMAPof0.31com-
+Transformercanbequitedifficult.Incontrast,re-usinga
+paredtoMAP0.284forthemodeltrainedfromrandomlyinitial-
+pre-trainedTransformedmodelwithadiscardedembedding
+izedhead,whichrepresentsa10%difference.Thisgapis,however,
+layercanproducemuchbetterresults.
+reducedbystartingfromamodel“pre-finetuned”onBM25pseudo-
+labels(MAP0.3).
+3.3.3 ASurprisingEffectivenessof FirstPbaselines:IsOurDataBi-
+Lastbutnotleast,itwasdifficulttoreproduceourownleader-
+ased? AswecouldseefrommainexperimentalresultinTable4,the
+boardingexperiments,whereweimprovedperformancebyreplac-
+full-documentmodelsonlymarginallyoutperformtherespective
+inganensembleofPARADETransf-PRETR-L𝑁 modelswiththe
+FirstPbaselines:TheBESTperformingLongPmodelsoutstripped
+ensembleofPARADETransf-PRETR-Q-L𝑁 models(𝑁 denotesthe
+respectiveFirstP baselinesbyonly4-6%.Asweshowin§3.3.4,
+numberofaggregatorTransformerlayers).Indeed,accordingto
+thisisnotduetotruncationofdocuments:Doublingthemaximum
+Table4,thereisnosubstantialdifferencebetweenPARADETransf-
+inputlengthdoesnotfurtherincreasetheaccuracyofthePARADE
+PRETR-L6andPARADETransf-PRETR-Q-L6.Bothmodelsareworse
+Attnmodel.Toshedlightonthisphenomenon,weplotthedistri-
+thanPARADEAttnandthedifferenceisstatisticallysignificant.At
+butionofrelevantdocumentlengths(Fig.1)andcompareitwith
+thesametime,PARADEAttnwaslessusefulforleaderboarding.
+thepositionsofthefirstrelevantpassageinadocument(Fig.2).
+Foramorerealisticreproductioninthe“leaderboarding”mode,
+BotharemeasuredinthenumberofBERTtokens.
+wegeneratedtrainingdatausingthreeprogressivelyimproving
+Asareminder,document-levelrelevancelabelsinMSMARCO
+first-stageretrievalsystems.WethentrainedthreeELECTRA-based
+v1arecreatedbytransferringpassage-levelrelevancetooriginal
+modelswithafour-layeraggregatorTransformer,whichwasour
+documentsfromwhichpassageswereextracted.However,thismap-
+best-performingconfigurationusingthisdata.Asaresult(seeTa-
+pingisnotprovidedandweattemptedtorecreateitautomatically.
+ble5),ourmodificationPARADETransf-PRETR-Q-L4outperformed
+Becausepassageanddocumentcollectionsweregatheredatdiffer-
+PARADETransf-PRETR-L4andthedifferencewasstatisticallysig-
+enttimes,documenttextsdivergedfromthetheiroriginalversions
+nificant.PARADETransf-PRETR-Q-L4alsomatchedPARADEAttn
+and,thus,exactmatchingofpassagestodocumentsisgenerally
+inperformance.ThisexperimentgaveapositiveanswertoRQ3.
+impossible.Inparticular,Hofstätteretal.[25]wereabletomatch
+AlthoughPARADETransf-PRETR-Q-L4 isonlyslightlybetter
+only32%ofthepassages.Wewereabletoobtainamuchmore
+thanPARADETransf-PRETR-L4,itsperformanceislessaffectedby
+representativematchingstatistics(forabout85%ofthepassages)
+achoiceofhyper-parameters(see§3.3.4).
+usingapproximatematching.
+6Wegeneratedpseudo-labelsbyrunning300KMSMARCOqueriesonRobust04 Specifically,weusedacombinationoffindingalongestcommon
+collection substring(threshold0.8)asaprimarymatchingoptionandalongest
+Conference’17,July2017,Washington,DC,USA LeonidBoytsov,TianyiLin,FangweiGao,YutianZhao,JeffreyHuang,andEricNyberg
+Table6:Distributionofstart/endpositionsofrelevantpas-
+sagesinsidedocuments(chunkssizeis477BERTtokens)
+developmentset
+inputchunk# FIRA(crowd-sourced)
+(estimated)
+start end start end
+1 85.9% 71.0% 83.8% 76.4%
+2 9.1% 14.9% 9.9% 15.3%
+3 2.6% 6.1% 2.3% 3.9%
+4 1.2% 3.0% 2.2% 2.2%
+5 0.6% 1.4% 0.7% 0.9%
+6 0.6% 1.2% 0.4% 0.5%
+6+ 0.1% 2.5% 0.7% 0.7%
+(a)Developmentset(estimatedpositions).Onlythefirst
+relevantpassageisconsidered.
+firstchunk.Wehypothesizethatsuchaskewmakesiteasyforthe
+FirstP modelstoaccuratelyrankdocuments.Intheremainingof
+thissub-sectionwetrytoanswerthefollowingquestions:
+• Whatisthesourceofbias?
+• Isthereroomforimprovementbyconsideringadditional
+relevantpassagesbeyondthefirstBERTchunks?
+PositionBiasofRelevantPassages. InthecaseofRobust04,un-
+fortunately,littleisknownabouttheinterfaceandannotationpro-
+cedureusedbyrelevanceassessors.Itisquitepossiblethatthey
+observedeithercompletedocumentsortheirstartingparts:Judg-
+ingcompletelongdocumentslikelyrequiredscrolling.Thus,we
+(b)TRECDL2019querysetandcrowd-sourcepositions conjecturethattheirperceptionoftherelevancewaslikelybiased
+(FIRAdata:Onlythefirstrelevantpassageisconsidered. towardsthebeginningofadocument.InthecaseoftheMSMARCO
+Allpositiverelevancegradesareincluded)
+devset,annotatorsjudgedeachdocumentpassageindependently.
+Then,passage-levelrelevancelabelsweretransferredtotheoriginal
+Figure 2: Distribution of ending positions (in # of BERT
+documents.
+tokens) of relevant passages inside documents on two MS
+Becauseannotatorsdidnotobservecompletedocumentstheir
+MARCOv1querysets.
+attention was not biased towards the document start. Likewise
+annotatorsoftheFIRAdataset(whichusesTRECDL2019queries)
+judgedrandomlyselecteddocumentsnippets,whichshouldhave
+commonsubsequence(threshold0.7)asafallbackoption.7Please
+preventedattentionbias.Furthermore,Hofstätteretal.[25]carried
+notethatfindingin-documentpassagematchesisprohibitedfor
+outadditionalexperimentstoconfirmthatthiswasthecase.We
+thepurposeofimprovingleaderboardperformance.However,we
+concludethattheMSMARCOdocumentcollectionhasacontent
+believeitisfairtousesuchstatisticsforthepurposeofthecurrent
+bias,buttheexactnatureofthisbiasisnotclear.Insummary,we
+posthocanalysis.
+wanttoemphasizethatbothRobust04andMSMARCO,which
+Wemanuallyinspectedasampleofmatchedpassagestoensure
+arepossiblythemostcommonlyusedretrievaldatasets,arenot
+thatthematchingprocedurewasreliable.Moreover,thedistribution
+particularlyusefulforbenchmarkinglong-documentmodels.
+ofpositionsofrelevantpassagesmatchesthatofarelatedFIRA
+dataset[25](seeTable6),wheresuchinformationwascollectedby ConsideringAdditionalRelevantPassages. Althoughplots(see
+crowdsourcing. Fig.1)providesomeexplanation,itisnotacompleteone.Foramore
+Wealsoobtainedpassage-documentmatchingdatafromthe accurateestimationofpotentialimprovementsfromusinglonger
+FIRAdataset[25],wherefine-grainedrelevanceinformationwas documentprefixes,weneedamoredetailedmatchingstatisticsas
+crowdsourcedforasmallsetofqueriesfromTRECDL2019.In wellasadditionalassumptionsonmodel’scapabilitiestorecognize
+bothcases,weplotthedistributionofendingpositionsofrelevant relevantpassages.Letusassumethatwhenarelevantpassagefully
+passages(seeFig.2aandFig.2b).Whenadocumentcontainsmul- fitsintothemaximumsupporteddocumentprefix(477),theaverage
+tiplerelevantpassages,weplotonlythefirstone.Comparedtothe accuracyscore,e.g.MRR,ismaxedoutat𝐶 1stp.Wealsoassume
+overalldistributionofrelevantdocumentlengths,whichhasalong thatthescoreiszerowhenthepassagestartsbeyondthetoken
+tail(seeFig.1),thefirst relevantpassageoccurstypicallyinthe number477.
+Basedonourassumptions,accordingtoTable6,aFirstPmodel
+7Thelongestcommonsubsequencereliesonasliding-windowapproachwherethe
+hasachanceto“score”fullyinabout71%ofthecasesontheMS
+lengthofthewindowis20%longerthanthelengthofthepassagewearetryingto
+match. MARCOv1developmentsetandin76%onTREC2019DLqueries.
+UnderstandingPerformanceofLong-DocumentRankingModelsthroughComprehensiveEvaluationandLeaderboarding Conference’17,July2017,Washington,DC,USA
+Table 7: Effect of Document Truncation on Accuracy (Ro- Truncationthreshold. Inourstudy,wetruncateallthedocuments
+bust04andPARADEAttn) tohaveatmost1431tokens,whichcorrespondtothreechunkseach
+containing477documenttokens,upto32querytokens,andthree
+#ofBERTchunks 1 2 3 4 5 6 specialtokens([CLS]andtwo[SEP]).Inpreliminaryexperiments,
+wewerenotabletoachieveanygainsonMSMARCObyconsider-
+MAP 0.278 0.302 0.314 0.317 0.320 0.317
+ingsixchunks.Here,weassestheeffectmoresystematicallyfor
+NDCG@20 0.478 0.501 0.509 0.509 0.511 0.510
+Robust04andPARADE-Attnmodel.Asinthemainexperiments,
+thismodelisfirsttrainedonMSMARCOandthenfine-tunedon
+Table8:PerformanceofPARADEmodelsfordifferentwin- Robust04.Whiledoingso,weusethesametruncationthreshold
+dowandstridesizesaveragedoverseeds(bestnumbersare duringbothtrainingandtestingsteps.AswecanseefromTable7,
+bold).Statisticalsignificancenotationisexplainedintheta- increasingthemaximuminputlengthbeyond1431tokens(three
+blefootnote. chunks),hasonlymarginaleffectonaccuracy(lessthan2%gainin
+MAPandonly0.3%gaininNDCG@10).
+Model MSMARCO TREC2019-2021
+Slidingwindowsize/stride. InTable8,wepresentresultsofsensi-
+(dev) (combined)
+MRR NDCG@10 tivityanalysisofthreePARADEmodelswithrespecttothesizeand
+window=35stride=25 strideoftheslidingwindowthatisusedbyPARADEtoaggregate
+PARADEAttn 0.399 𝑏 0.638 𝑏 query-documentinformation.Wecomparethreemodels:PARADE
+PARADETransf-PRETR-L6 0.368𝑎 𝑐 0.623𝑎 𝑐 AttentionandtwovariantsofthePARADETransformermodel.
+PARADETransf-PRETR-Q-L6 0.400 𝑏 0.639 𝑏 PARADETransf-PRETR-L6useasix-layeraggregatorTransformer,
+window=75stride=50 whichisintializaedwithaSentence-BERTMiniLMmodel[46,56].
+PARADEAttn 0.411 𝑏𝑐 0.651 𝑏 PARADETransf-PRETR-Q-L6isourmodificationthatadditionally
+PARADETransf-PRETR-L6 0.280𝑎 𝑐 0.494𝑎 𝑐 passesthequeryembeddingstotheaggregatingTransformer.We
+PARADETransf-PRETR-Q-L6 0.406𝑎𝑏 0.651 𝑏 runexperimentswiththreeseedsandshowtheaveragemetric
+window=150stride=50
+values.
+PARADEAttn 0.413 𝑏 0.656 𝑏𝑐
+First,wecanseethatperformanceofourmodificationPARADE
+PARADETransf-PRETR-L6 0.399𝑎 𝑐 0.639𝑎
+PARADETransf-PRETR-Q-L6 0.410 𝑏 0.645𝑎 Transf-PRETR-Q-L6isverystableforallparametervalueswhereas
+for some seeds the PARADE Transf-PRETR-L6 performs quite
+window=150stride=75
+PARADEAttn 0.413 𝑏 0.650 poorly.Furthermore,innearlyallthecases,ourmodificationPA-
+PARADETransf-PRETR-L6 0.406𝑎 𝑐 0.647 RADE Transf-PRETR-Q-L6 outperforms the original model PA-
+PARADETransf-PRETR-Q-L6 0.410 𝑏 0.655 RADETransf-PRETR-L6ofLietal[31]forMSMARCOdevelop-
+window=150stride=100 mentandTRECDLsetsalike.
+PARADEAttn 0.416 𝑏𝑐 0.652
+PARADETransf-PRETR-L6 0.406𝑎 0.655 4 CONCLUSION
+PARADETransf-PRETR-Q-L6 0.408𝑎 0.650
+Wecarryoutacomprehensiveevaluationofseveralrecentmodels
+window=300stride=200
+forrankingoflongdocuments.Ourfindingsshowasurprising
+PARADEAttn 0.406 0.649
+effectivenessoftheso-calledFirstP approaches,whichtruncate
+PARADETransf-PRETR-L6 0.404 0.644
+documentstosatisfytheinput-sequenceconstraintofatypical
+PARADETransf-PRETR-Q-L6 0.407 0.645
+Transformer model. Furthermore, we find that it is not easy to
+Superscriptsa,b,andcdenoteastatisticalsignificantdifference(at
+outperformFirstP modelsusingspecializedTransformermodels
+level0.05)withrespecttoPARADEAttn,PARADETransf-pretr-L6,
+(namelyLongformer[4]andBig-Bird[62],whichusesparsified
+andPARADETransf-pretr-Q-L6,respectively.
+attention to process long inputs efficiently. We analyze the dis-
+tributionofrelevantpassages(insidedocuments)toexplainthis
+phenomenon.Wemakethekeysoftwarecomponentspubliclyavail-
+Atthesametime,inabout10%ofthecasesthefirstrelevant
+able.8
+passagestartsinthesecondchunk,whichalsomeanstheyendin
+thesecondorthirdone(MSMARCOpassagesareshorterthan477
+ACKNOWLEDGMENTS
+tokens).Accordingtoourassumptions,theFirstPmodelshouldget
+azeroscoreforsuchdocuments.Incontrast,ourfull-document TheBoschGroupiscarbonneutral.Administration,manufacturing
+models(whichusesthreechunks)couldpotentiallyachievethe andresearchactivitiesnolongerleaveacarbonfootprint,which
+score1.1·𝐶 1stp,thus,outperformingFirstPby10%.Yet,theactual includesGPUclustersusedinexperiments.
+improvementsareonlyabout5%.
+Furthermore,asmanyas4-5%offirstrelevantpassagesendin REFERENCES
+chunks4-6.However,aswecanseefromTable7increasingthe [1] [n.d.].MSMARCOleaderboard. https://microsoft.github.io/msmarco/.
+prefixlengthbeyondthreechunksisnothelpfulonRobust04(we [2] DzmitryBahdanau,KyunghyunCho,andYoshuaBengio.2015.NeuralMachine
+TranslationbyJointlyLearningtoAlignandTranslate.In3rdInternational
+observethesameonMSMARCOwithNeuralModel1[7]).
+3.3.4 SensitivityAnalysis/Ablations. 8https://github.com/searchivarius/long_doc_rank_model_analysis
+Conference’17,July2017,Washington,DC,USA LeonidBoytsov,TianyiLin,FangweiGao,YutianZhao,JeffreyHuang,andEricNyberg
+ConferenceonLearningRepresentations,ICLR2015,YoshuaBengioandYann NoveltyandHARD.InTREC(NISTSpecialPublication,Vol.500-261).National
+LeCun(Eds.). InstituteofStandardsandTechnology(NIST).
+[3] PayalBajaj,DanielCampos,NickCraswell,LiDeng,JianfengGao,Xiaodong [29] VladimirKarpukhin,BarlasOguz,SewonMin,PatrickS.H.Lewis,LedellWu,
+Liu,RanganMajumder,AndrewMcNamara,BhaskarMitra,TriNguyen,etal. SergeyEdunov,DanqiChen,andWen-tauYih.2020.DensePassageRetrievalfor
+2016.MSMARCO:Ahumangeneratedmachinereadingcomprehensiondataset. Open-DomainQuestionAnswering.InEMNLP(1).AssociationforComputational
+arXivpreprintarXiv:1611.09268(2016). Linguistics,6769–6781.
+[4] IzBeltagy,MatthewE.Peters,andArmanCohan.2020.Longformer:TheLong- [30] OmarKhattabandMateiZaharia.2020.ColBERT:EfficientandEffectivePassage
+DocumentTransformer.CoRRabs/2004.05150(2020). SearchviaContextualizedLateInteractionoverBERT.InSIGIR.ACM,39–48.
+[5] AdamBergerandJohnLafferty.1999.Informationretrievalasstatisticaltrans- [31] CanjiaLi,AndrewYates,SeanMacAvaney,BenHe,andYingfeiSun.2020.PA-
+lation.InProceedingsofthe22ndannualinternationalACMSIGIRconferenceon RADE:PassageRepresentationAggregationforDocumentReranking. CoRR
+Researchanddevelopmentininformationretrieval.222–229. abs/2008.09093(2020).
+[6] LeonidBoytsov,AnnaBelova,andPeterWestfall.2013.Decidingonanadjust- [32] JimmyLin.2019.Theneuralhypeandcomparisonsagainstweakbaselines.In
+mentformultiplicityinIRexperiments.InSIGIR.403–412. https://doi.org/10. ACMSIGIRForum,Vol.52.ACMNewYork,NY,USA,40–51.
+1145/2484028.2484034 [33] JimmyLin,RodrigoNogueira,andAndrewYates.2021.PretrainedTransformers
+[7] LeonidBoytsovandZicoKolter.2021. ExploringClassicandNeuralLexical forTextRanking:BERTandBeyond.Morgan&ClaypoolPublishers.
+TranslationModelsforInformationRetrieval:Interpretability,Effectiveness,and [34] YinhanLiu,MyleOtt,NamanGoyal,JingfeiDu,MandarJoshi,DanqiChen,Omer
+EfficiencyBenefits.InECIR(1)(LectureNotesinComputerScience,Vol.12656). Levy,MikeLewis,LukeZettlemoyer,andVeselinStoyanov.2019.RoBERTa:A
+Springer,63–78. RobustlyOptimizedBERTPretrainingApproach.CoRRabs/1907.11692(2019).
+[8] LeonidBoytsovandBilegsaikhanNaidan.2013.Engineeringefficientandeffective [35] IlyaLoshchilovandFrankHutter.2017.Decoupledweightdecayregularization.
+non-metricspacelibrary.InInternationalConferenceonSimilaritySearchand arXivpreprintarXiv:1711.05101(2017).
+Applications.Springer,280–293. [36] SeanMacAvaney,AndrewYates,ArmanCohan,andNazliGoharian.2019.CEDR:
+[9] LeonidBoytsovandEricNyberg.2020. FlexibleretrievalwithNMSLIBand ContextualizedEmbeddingsforDocumentRanking.InSIGIR.ACM,1101–1104.
+FlexNeuART.InProceedingsofSecondWorkshopforNLPOpenSourceSoftware [37] SeanMacAvaney,AndrewYates,SergeyFeldman,DougDowney,ArmanCohan,
+(NLP-OSS).32–43. andNazliGoharian.2021.SimplifiedDataWranglingwithir-datasets.InSIGIR.
+[10] PeterF.Brown,StephenDellaPietra,VincentJ.DellaPietra,andRobertL.Mercer. [38] TomasMikolov,IlyaSutskever,KaiChen,GregoryS.Corrado,andJeffreyDean.
+1993.TheMathematicsofStatisticalMachineTranslation:ParameterEstimation. 2013.DistributedRepresentationsofWordsandPhrasesandtheirComposition-
+ComputationalLinguistics19,2(1993),263–311. ality.InNIPS.3111–3119.
+[11] KevinClark,Minh-ThangLuong,QuocV.Le,andChristopherD.Manning.2020. [39] IuriiMokrii,LeonidBoytsov,andPavelBraslavski.2021. ASystematicEvalu-
+ELECTRA:Pre-trainingTextEncodersasDiscriminatorsRatherThanGenerators. ationofTransferLearningandPseudo-LabelingwithBERT-BasedRankingMod-
+InICLR.OpenReview.net. els. AssociationforComputingMachinery,NewYork,NY,USA,2081–2085.
+[12] CharlesL.A.Clarke,NickCraswell,andIanSoboroff.2004.OverviewoftheTREC https://doi.org/10.1145/3404835.3463093
+2004TerabyteTrack.InTREC(NISTSpecialPublication,Vol.500-261).National [40] MariusMosbach,MaksymAndriushchenko,andDietrichKlakow.2020. On
+InstituteofStandardsandTechnology(NIST). theStabilityofFine-tuningBERT:Misconceptions,Explanations,andStrong
+[13] CharlesL.A.Clarke,NickCraswell,andIanSoboroff.2009. Overviewofthe Baselines.CoRRabs/2006.04884(2020).
+TREC2009WebTrack.InTREC(NISTSpecialPublication,Vol.500-278).National [41] RodrigoNogueiraandKyunghyunCho.2019.PassageRe-rankingwithBERT.
+InstituteofStandardsandTechnology(NIST). CoRRabs/1901.04085(2019).
+[14] KevynCollins-Thompson,PaulN.Bennett,FernandoDiaz,CharlieClarke,and [42] AdamPaszke,SamGross,FranciscoMassa,AdamLerer,JamesBradbury,Gregory
+EllenM.Voorhees.2013.TREC2013WebTrackOverview.InTREC(NISTSpecial Chanan,TrevorKilleen,ZemingLin,NataliaGimelshein,LucaAntiga,etal.
+Publication,Vol.500-302).NationalInstituteofStandardsandTechnology(NIST). 2019.Pytorch:Animperativestyle,high-performancedeeplearninglibrary.In
+[15] RonanCollobert,JasonWeston,LéonBottou,MichaelKarlen,KorayKavukcuoglu, Advancesinneuralinformationprocessingsystems.8026–8037.
+andPavelKuksa.2011. Naturallanguageprocessing(almost)fromscratch. J. [43] MatthewEPeters,MarkNeumann,MohitIyyer,MattGardner,Christopher
+Mach.Learn.Res.12(2011),2493–2537. Clark,KentonLee,andLukeZettlemoyer.2018. Deepcontextualizedword
+[16] NickCraswell,BhaskarMitra,EmineYilmaz,DanielCampos,andEllenM. representations.InProceedingsofNAACL-HLT.2227–2237.
+Voorhees. 2020. Overview of the TREC 2019 deep learning track. CoRR [44] YingqiQu,YuchenDing,JingLiu,KaiLiu,RuiyangRen,WayneXinZhao,Daxi-
+abs/2003.07820(2020). angDong,HuaWu,andHaifengWang.2021.RocketQA:AnOptimizedTraining
+[17] NickCraswell,BhaskarMitra,EmineYilmaz,DanielCampos,EllenM.Voorhees, ApproachtoDensePassageRetrievalforOpen-DomainQuestionAnswering.In
+andJimmyLin.2022.OverviewoftheTREC2021deeplearningtrack. NAACL-HLT.AssociationforComputationalLinguistics,5835–5847.
+[18] ZhuyunDaiandJamieCallan.2019. DeeperTextUnderstandingforIRwith [45] AlecRadford,KarthikNarasimhan,TimSalimans,andIlyaSutskever.2018.Im-
+ContextualNeuralLanguageModeling.InSIGIR.ACM,985–988. provinglanguageunderstandingwithunsupervisedlearning.Technicalreport,
+[19] JacobDevlin,Ming-WeiChang,KentonLee,andKristinaToutanova.2019.BERT: OpenAI(2018).
+Pre-trainingofDeepBidirectionalTransformersforLanguageUnderstanding. [46] NilsReimersandIrynaGurevych.2019.Sentence-BERT:SentenceEmbeddings
+(2019),4171–4186. usingSiameseBERT-Networks.InProceedingsofthe2019ConferenceonEmpirical
+[20] ThibaultFormal,CarlosLassance,BenjaminPiwowarski,andStéphaneClinchant. MethodsinNaturalLanguageProcessingandthe9thInternationalJointConference
+2021.SPLADEv2:SparseLexicalandExpansionModelforInformationRetrieval. onNaturalLanguageProcessing(EMNLP-IJCNLP).3982–3992.
+CoRRabs/2109.10086(2021). [47] StephenRobertson.2004.Understandinginversedocumentfrequency:ontheo-
+[21] JiafengGuo,YixingFan,QingyaoAi,andW.BruceCroft.2016.ADeepRelevance reticalargumentsforIDF.JournalofDocumentation60,5(2004),503–520.
+MatchingModelforAd-hocRetrieval.InCIKM.ACM,55–64. [48] AlexanderMRush.2018.Theannotatedtransformer.InProceedingsofworkshop
+[22] JiafengGuo,YixingFan,LiangPang,LiuYang,QingyaoAi,HamedZamani,Chen forNLPopensourcesoftware(NLP-OSS).52–60.
+Wu,WBruceCroft,andXueqiCheng.2019.Adeeplookintoneuralranking [49] LeslieN.Smith.2017.CyclicalLearningRatesforTrainingNeuralNetworks.In
+modelsforinformationretrieval.InformationProcessing&Management(2019), WACV.IEEEComputerSociety,464–472.
+102067. [50] YuSun,ShuohuanWang,Yu-KunLi,ShikunFeng,XuyiChen,HanZhang,Xin
+[23] SebastianHofstätter,BhaskarMitra,HamedZamani,NickCraswell,andAllan Tian,DanxiangZhu,HaoTian,andHuaWu.2019.ERNIE:EnhancedRepresen-
+Hanbury.2021. Intra-DocumentCascading:LearningtoSelectPassagesfor tationthroughKnowledgeIntegration.CoRRabs/1904.09223(2019).
+NeuralDocumentRanking.InSIGIR.ACM,1349–1358. [51] YiTay,MostafaDehghani,DaraBahri,andDonaldMetzler.2020. Efficient
+[24] SebastianHofstätter,MarkusZlabinger,andAllanHanbury.2020.Interpretable& Transformers:ASurvey.CoRRabs/2009.06732(2020).
+Time-Budget-ConstrainedContextualizationforRe-Ranking.InECAI(Frontiers [52] IanTenney,DipanjanDas,andElliePavlick.2019.BERTRediscoverstheClassical
+inArtificialIntelligenceandApplications,Vol.325).IOSPress,513–520. NLPPipeline.InACL(1).AssociationforComputationalLinguistics,4593–4601.
+[25] SebastianHofstätter,MarkusZlabinger,MeteSertkan,MichaelSchröder,and [53] JuliánUrbano,MónicaMarrero,andDiegoMartín.2013.Onthemeasurement
+AllanHanbury.2020.Fine-GrainedRelevanceAnnotationsforMulti-TaskDocu- oftestcollectionreliability.InSIGIR.393–402. https://doi.org/10.1145/2484028.
+mentRankingandQuestionAnswering.InCIKM.ACM,3031–3038. 2484038
+[26] KaiHui,AndrewYates,KlausBerberich,andGerarddeMelo.2018.Co-PACRR:A [54] AshishVaswani,NoamShazeer,NikiParmar,JakobUszkoreit,LlionJones,
+Context-AwareNeuralIRModelforAd-hocRetrieval.InWSDM.ACM,279–287. AidanNGomez,ŁukaszKaiser,andIlliaPolosukhin.2017. AttentionisAll
+[27] SamuelHustonandWBruceCroft.2014.Acomparisonofretrievalmodelsusing youNeed.InNIPS.5998–6008.
+termdependencies.InProceedingsofthe23rdACMInternationalConferenceon [55] EllenVoorhees.2004. OverviewoftheTREC2004RobustRetrievalTrack.In
+ConferenceonInformationandKnowledgeManagement.111–120. TREC.
+[28] NasreenAbdulJaleel,JamesAllan,W.BruceCroft,FernandoDiaz,LeahS.Larkey, [56] WenhuiWang,FuruWei,LiDong,HangboBao,NanYang,andMingZhou.
+XiaoyanLi,MarkD.Smucker,andCourtneyWade.2004.UMassatTREC2004: 2020.MiniLM:DeepSelf-AttentionDistillationforTask-AgnosticCompression
+ofPre-TrainedTransformers.(Feb.2020).arXiv:2002.10957[cs.CL]
+UnderstandingPerformanceofLong-DocumentRankingModelsthroughComprehensiveEvaluationandLeaderboarding Conference’17,July2017,Washington,DC,USA
+[57] ThomasWolf,LysandreDebut,VictorSanh,JulienChaumond,ClementDelangue, [60] LeeXiong,ChenyanXiong,YeLi,Kwok-FungTang,JialinLiu,PaulN.Bennett,
+AnthonyMoi,PierricCistac,TimRault,RémiLouf,MorganFuntowicz,Joe JunaidAhmed,andArnoldOverwijk.2021.ApproximateNearestNeighborNeg-
+Davison,SamShleifer,PatrickvonPlaten,ClaraMa,YacineJernite,JulienPlu, ativeContrastiveLearningforDenseTextRetrieval.InICLR.OpenReview.net.
+CanwenXu,TevenLeScao,SylvainGugger,MariamaDrame,QuentinLhoest, [61] ZeynepAkkalyoncuYilmaz,ShengjinWang,WeiYang,HaotianZhang,and
+andAlexanderM.Rush.2019. HuggingFace’sTransformers:State-of-the-art Jimmy Lin. 2019. Applying BERT to Document Retrieval with Birch. In
+NaturalLanguageProcessing.ArXivabs/1910.03771(2019). EMNLP/IJCNLP(3).AssociationforComputationalLinguistics,19–24.
+[58] YonghuiWu,MikeSchuster,ZhifengChen,QuocV.Le,MohammadNorouzi, [62] ManzilZaheer,GuruGuruganesh,KumarAvinavaDubey,JoshuaAinslie,Chris
+WolfgangMacherey,MaximKrikun,YuanCao,QinGao,KlausMacherey,Jeff Alberti,SantiagoOntañón,PhilipPham,AnirudhRavula,QifanWang,LiYang,
+Klingner,ApurvaShah,MelvinJohnson,XiaobingLiu,LukaszKaiser,Stephan andAmrAhmed.2020.BigBird:TransformersforLongerSequences.InNeurIPS.
+Gouws,YoshikiyoKato,TakuKudo,HidetoKazawa,KeithStevens,GeorgeKurian, [63] GeorgeZerveas,NavidRekabsaz,DanielCohen,andCarstenEickhoff.2021.
+NishantPatil,WeiWang,CliffYoung,JasonSmith,JasonRiesa,AlexRudnick, CODER:AnefficientframeworkforimprovingretrievalthroughCOntextualized
+OriolVinyals,GregCorrado,MacduffHughes,andJeffreyDean.2016.Google’s DocumentEmbeddingReranking.ArXivabs/2112.08766(2021).
+NeuralMachineTranslationSystem:BridgingtheGapbetweenHumanand [64] LixinZou,ShengqiangZhang,HengyiCai,DehongMa,SuqiCheng,Shuaiqiang
+MachineTranslation.CoRRabs/1609.08144(2016). Wang,DaitingShi,ZhicongCheng,andDaweiYin.2021.Pre-trainedLanguage
+[59] ChenyanXiong,ZhuyunDai,JamieCallan,ZhiyuanLiu,andRussellPower.2017. ModelbasedRankinginBaiduSearch.InKDD.ACM,4014–4022.
+End-to-EndNeuralAd-hocRankingwithKernelPooling.InSIGIR.ACM,55–64.

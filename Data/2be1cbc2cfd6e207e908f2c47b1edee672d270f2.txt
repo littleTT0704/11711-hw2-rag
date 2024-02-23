@@ -1,0 +1,846 @@
+Effective Convolutional Attention Network for Multi-label Clinical
+Document Classification
+YangLiu1,HuaCheng1,RussellKlopfer1,ThomasSchaaf1,MatthewR.Gormley2
+13MHealthInformationSystems,2CarnegieMellonUniversity
+tomdzh1@gmail.com, {hcheng, rklopfer, tschaaf}@mmm.com, mgormley@cs.cmu.edu
+Abstract codes. Alargenumberofmedicalencountersneed
+tobecodedforbillingpurposeseveryday. Profes-
+Multi-label document classification (MLDC)
+sionalclinicalcodersoftenuserule-basedorsimple
+problems can be challenging, especially for
+ML-basedsystemstoassignbillingcodes,butthe
+long documents with a large label set and a
+long-taildistributionoverlabels. Inthispaper, large code space (viz. the ICD-10 code system
+wepresentaneffectiveconvolutionalattention with over 90,000 codes) and long documents are
+network for the MLDC problem with a focus challengingforMLmodels. Inaddition,codingre-
+on medical code prediction from clinical doc- quiresextractingusefulinformationfromspecific
+uments. Our innovations are three-fold: (1)
+locations across the entire encounter to support
+we utilize a deep convolution-based encoder
+theassignedcodes. Consequently,effectivemod-
+with the squeeze-and-excitation networks and
+elswiththecapabilityofhandlingthesechallenges
+residual networks to aggregate the informa-
+tion across the document and learn meaning- willhaveanimmenseimpactinthemedicaldomain
+ful document representations that cover dif- byhelpingtoreducecodingcost,improvecoding
+ferent ranges of texts; (2) we explore multi- accuracyandincreasecustomersatisfaction.
+layerandsum-poolingattentiontoextractthe Deeplearningmethodshavebeendemonstrated
+most informative features from these multi-
+toproducethestate-of-the-artoutcomesonbench-
+scale representations; (3) we combine binary
+markMLDCandmedicalcodingtasks(Youetal.,
+cross entropy loss and focal loss to improve
+2019a;Mullenbachetal.,2018;Changetal.,2020),
+performance for rare labels. We focus our
+butdemandsremainformoreeffectiveandaccurate
+evaluationstudyonMIMIC-III,awidelyused
+dataset in the medical domain. Our models solutions. Inthispaper,weproposeEffectiveCAN,
+outperformpriorworkonmedicalcodingand an effective convolution attention network for
+achievenewstate-of-the-artresultsonmultiple MLDC.Ourmodelstrytostrikeacarefulbalance
+metrics. Wealsodemonstratethelanguagein- of simplicity and effective over-parameterization
+dependentnatureofourapproachbyapplying
+suchthatwecaneffectivelymodellongdocuments
+ittotwonon-Englishdatasets. Ourmodelout-
+and capture nuanced aspects of the whole docu-
+performs prior best model and a multilingual
+ment texts. Such a model is particularly useful
+Transformermodelbyasubstantialmargin.
+foraddressingthechallengesofautomaticmedical
+1 Introduction coding. Weevaluateourmodelsonthewidelyused
+MIMIC-IIIdataset(Johnsonetal.,2016),andattain
+Inmulti-labeldocumentclassification(MLDC),we
+haveasetoflabeleddata{X,Y},X ∈ RN×D and state-of-the-artresultsacrossmultiplecommonly
+Y ∈ RN×L,whereN isthenumberofdocuments, used metrics. We also demonstrate the language-
+independentnatureofourapproachbycodingon
+D isthefeaturedimensionsizeofeachdocument
+twonon-Englishdatasets. Ourmodeloutperforms
+and L is the total number of labels. The ith row
+of Y is a multi-hot vector representing the set of prior best model and a multilingual transformer
+modelbyasubstantialmargin.
+labelsassociatedwiththeith document. Thetask
+istolearnamappingbetweenXandYsothatthe
+2 RelatedWorks
+labelsofeachdocumentarepredictedcorrectly.
+MLDC has a great number of practical appli- Previous deep learning methods for MLDC in-
+cations, one of which is automatic medical cod- volvevariousneuralnetworkarchitecturestolearn
+ing, where a patient encounter containing multi- the semantic embeddings of the document texts.
+plerecordsareassignedwithappropriatemedical For example, XML-CNN proposed by Liu et al.
+(2017)employsa1-dimensionconvolutionalnet-
+workalongwithdynamicpoolingtolearnthetext
+representation. RNN-basedsequence-to-sequence
+models, such as SGM (Yang et al., 2018) and
+SU4MLC(Linetal.,2018)useanencodertoen-
+codetheinformationoftheinputtextandadecoder
+to generate the predicted labels. AttentionXML
+proposedbyYouetal.(2019a)leveragestheBiL-
+STMandlabel-awareattentiontocapturethemost
+relevanttextsforeachlabel. Asafollow-up,MAG-
+NET (Pal et al., 2020) incorporates graph neural
+networktocapturetheattentivedependencystruc-
+ture among the labels. More recently, transform-
+erssuchastheX-transformer(Changetal.,2020)
+havealsobeenintroduced. X-transformertackles
+MLDCinthreesteps: labelclustering,transformer
+classificationandlabelranking.
+There is a surge in neural network models em-
+Figure1: ThearchitectureofEffectiveCAN.
+ployedforautomaticmedicalcodinginthepastsev-
+eralyears. Inparticular,recentworkshaveutilized
+attentionmechanismtoimproveautomaticcoding attention component that selects the most impor-
+performance. Shietal.(2017)appliedLSTMsto tanttextfeaturesandgenerateslabel-specificrepre-
+produce represtations of the discharge summary sentationsforeachlabel,andanoutputlayerthat
+andusedattentiontopredictthetop50codes. Mul- producesthefinalpredictions.
+lenbachetal.(2018)proposedCAMLthatapplies
+The model structure is primarily designed for
+separateattentionforeachlabel,whichgenerates
+generating better predictions on multi-label clas-
+better label-specific representations for label pre-
+sification tasks from three aspects: (1) generat-
+diction. They also used the label descriptions to
+ingmeaningfulrepresentationsforinputtexts;(2)
+regularizethemodel(calledDL-CAML)inanat-
+selectinginformativefeaturesfromtextrepresen-
+tempttoimprovethepredictionofrarelabels. To
+tations for label prediction; (3) preventing over-
+improvetheclassificationperformance, Xieetal.
+confidenceonfrequentlabels. Firstly,inorderto
+(2019)usedthemulti-scaleconvolutionalattention
+obtainhigh-qualityrepresentationsofthedocument
+whileLiandYu(2020)employedmulti-filtercon-
+texts, we incorporate the squeeze-and-excitation
+volutiontolearntextpatternsofdifferentlengths.
+(SE) network and the residual network into the
+Furthermore,toincorporatetheinnerrelationship
+convolution-basedencoder. Theencoderconsists
+of the labels, HyperCore (Cao et al., 2020) inte-
+of multiple encoding blocks to enlarge the recep-
+gratedahyperbolicrepresentationlearningmethod
+tive field and capture text patterns with different
+and a graph convolutional network, and Lu et al.
+lengths. Secondly, instead of only using the last
+(2020)utilizedmulti-graphknowledgeaggregation.
+encoder layer output for attention, we extract all
+Vu et al. (2020) proposed to combine Bi-LSTM
+encodinglayeroutputsandapplytheattentionto
+andanextensionofstructuredself-attentionmech-
+select the most informative features for each la-
+anismforICDcodeprediction.
+bel. Finally,tocopewiththelong-taildistribution
+of the labels, we use a combination of the binary
+3 EffectiveCANModel
+crossentropylossandfocallosstomakethemodel
+performwellonbothfrequentandrarelabels.
+In this section, we introduce our EffectiveCAN
+model(Figure1),whichiscomposedoffourmajor
+3.1 InputLayer
+components: aninputlayerthattransformstheraw
+documenttextsintopretrainedwordembeddings, Ourmodeltakesawordsequenceastheinputand
+a deep convolution-based encoder that combines each word is transferred to a word embedding of
+theinformationofadjacentwordsandlearnsmean- sized . AssumingthedocumenthasN numberof
+e w
+ingful representations of the document texts, an words,theinputwillbeawordembeddingmatrix
+inputtoaggregatetheinformationofadjacentword
+embeddings. Suppose the convolutional filter ap-
+pliedontheinputmatrixX isW
+c
+∈ Rk×de×dconv,
+wherek isthefiltersize,d isthein-channelsize
+e
+(thesizeofinputembedding)andd istheout-
+conv
+channelsize(thesizeofoutputembedding). The
+1-dimensionalconvolutioniscomputedas
+c = W ∗x +b (1)
+i c i:i−k+1 c
+where*istheconvolutionoperatorandb thebias.
+Figure2: ThestructureofaRes-SEblockcontaininga c
+SEmoduleandaresidualmodule. The output convolutional features can be repre-
+sentedasC = [c 1,...,c Nw]withC ∈ RNw×dconv.
+TheSEnetworkthenusesatwo-stageprocess,
+X
+e
+= [x 1,...,x Nw] ∈ RNw×de.
+‘squeeze’and‘excitation’,tocomputethechannel-
+dependentcoefficientstoenhancetheconvolutional
+3.2 ConvolutionalEncoder
+features. In the ‘squeeze’ stage, each channel
+To transform the document into informative rep- is compressed into a single numeric value via
+resentations, the input word embeddings X first global average pooling: z = GAP(C). Here
+e c
+gothroughaconvolution-basedencoderthatcon- z
+c
+∈ Rdconv canbetreatedasachanneldescriptor
+sists of multiple residual squeeze-and-excitation that aggregates the global spatial information of
+convolutionalblocks(Res-SEblocks). EachRes- C. In the ‘excitation’ stage, the channel descrip-
+SE block, as shown in Figure 2, is composed of torgoesthroughadimensionality-reduction-layer
+twoparallelmodulesthatarereferredtoastheSE withreductionratiorfollowedbyadimensionality-
+moduleandtheresidualmodule. increasing-layerbacktothechanneldimensionof
+Inrecentyears,transformer-basedmodelswith C. Thereductionratiorisatunableparameterand
+self-attentionmoduleshaveshowntobeeffective we use r = 20 in our model. The excitation step
+intextclassificationtasks(Devlinetal.,2018;Liu canbewrittenas
+etal.,2019). However,forourapplicationsweuse
+aconvolutionalencoderinsteadofaself-attention s c = sigmoid(W fc2·relu(W fc1·z c+b fc1)+b fc2)
+onefortworeasons: (1)ICDcodepredictionsare (2)
+often associated with a span of texts in the input. where W
+fc1
+∈ Rdco rnv×dconv, b
+fc1
+∈ Rdco rnv ,
+Convolutionaloperationscaneffectivelyaggregate W
+fc2
+∈ Rdconv×dco rnv and b
+fc2
+∈ Rdconv are the
+theinformationoftextspansandoutputmeaning- weights and biases of the fully-connected linear
+fulrepresentationsfordownstreampredictions;(2) layers. Next,werescaletheconvolutionalfeature
+Clinicaldocumentsareusuallylong(i.e. MIMIC- C withs
+c
+by: X(cid:101) = scale(C,s c),wherescalede-
+IIIdocumenthaveanaverageof 1500words). A notesthechannel-wisemultiplicationbetweenC
+convolutional encoder is more time and space ef- ands .
+c
+ficientthanaself-attentionencoderformodeling Eventually,X(cid:101) isnormalizedandusedastheout-
+longdocuments. putoftheSEmodule. Inparticular,weemploythe
+layernormalization(Baetal.,2016)that’swidely
+3.2.1 SEModule
+used for stabilizing the hidden layer distribution
+TheSEmodulecontainsasqueeze-and-excitation andsmoothingthegradientsinNLPtasks(Devlin
+network(Huetal.,2018)followedbylayernormal- etal.,2018;Houetal.,2019).
+ization(Baetal.,2016). TheSEnetworkcanadap-
+3.2.2 ResidualModule
+tivelyadjusttheweightingofeachfeaturemapand
+refinetheconvolutionalfeatures. Hereweusethe In addition to the SE module, we also simultane-
+SEnetworktoenhancethelearningofdocument ouslytransforminputX andaddittotheSEmod-
+representationsforthedown-streampredictiontask. ule output as in the residual network (He et al.,
+The structure of the SE network in our model is 2016),whichreducesthegradientvanishingissue
+showninFigure3. Inthisnetwork,wefirstapplya in the deep encoder structure. In order to avoid
+standard1-dimensionalconvolutionallayeronthe dimension mismatch, we transform the input X
+where N is the number of Res-SE blocks.
+Res−SE
+The resulted V ∈ RN l×(cid:80) idi conv will be used for
+thefinalprediction.
+Whentheapplicationdomainhasalargelabel
+spacebutinsufficientdatapoints,amulti-layerat-
+tention model can be difficult to train, especially
+fordeepnetworks. Thereforewealsoexperiment
+with sum-pooling attention where we first trans-
+form each convolutional layer to have the same
+dimentionasthelastlayer,thensumallthelayers
+and apply attention to the summed output. The
+resultingV(cid:48) ∈ RN l×dl ca os nt v−layer isusedforthefinal
+prediction.
+Figure3: ThearchitectureoftheSEnetwork.
+3.4 OutputLayer
+intoX(cid:48) byusingafilter-size-1convolutionallayer. After obtaining the label specific representations,
+ThenweaddX(cid:48) withtheSEmoduleoutputX(cid:101). wecomputetheprobabilityforeachlabelbyusing
+Finally,weapplythegeluactivationfunctionto afullyconnectedlayerfollowedbyasum-pooling
+generatetheoutputoftheRes-SEblock: operationandasigmoidtransformation:
+H = gelu(X(cid:101) +X(cid:48)) (3) p = sigmoid(pooling(W ·VT +b )) (6)
+fc fc
+3.3 Attention whereW fc ∈ R(cid:80) idi conv×N l andb fc ∈ RN l. Here,
+Weusethelabel-wiseattention(Mullenbachetal., thejthvalueinpisthepredictedprobabilityforthe
+2018) to generate label specific representations jth labeltobepresentgiventhedocumenttexts.
+fromH. Sinceourconvolutionalencodercontains
+3.5 LossFunction
+multipleRes-SEblocksthatgeneratemulti-scale
+representationsofthedocumenttexts,weperform Binary cross entropy loss is widely used as the
+multi-layerattention,whichattendstooutputsof lossfunctionfortrainingMLDCmodels. Suppose
+all Res-SE blocks. In this way, each label is al- y is the ground truth label and p is the predicted
+lowed to select the most relevant features from a probability, then the binary cross entropy loss is
+richfeaturespaceextractedbytheencoder. Assum- L (p ) = −logp .
+BCE t t
+ing U ∈ RN l×d l represents the label embedding Totacklethelong-taildistributionofthelabels,
+matrix,whereN l isthenumberoflabelsandd l the wealsoapplythefocalloss(Linetal.,2017),which
+embeddingsizeofeachlabel. Toattendtotheith adds a weight term to the ordinary binary cross
+Res-SE layer output Hi ∈ RNw×di conv, U is first entropylosstodynamicallydown-weightstheloss
+mappedtoU(cid:48) ∈ RN l×di conv viaafilter-size-1con- assignedtowell-classifiedlabels. Thefocallossis
+volutionallayertoavoiddimensionmismatch. The
+L (p ) = −(1−p )γlogp (7)
+attentionweightsarethencomputedby FL t t t
+Ai = softmax(U(cid:48)·HiT ) (4) Hereγ isatunableparametertoadjustthestrength
+ofdown-weighting. Theweightterm(1−p )γ sup-
+Here,eachofthejth columnofAi ∈ RN l×Nw isa t
+pressesthelossfromwell-classifiedlabels(where
+weightvectormeasuringhowinformativethetext
+p ishigh)andbiasthemodeltowardslabelsthat
+representationsinH areforthejth label. Next,we t
+getwrongpredictions.
+generate the label specific representations: Vi =
+Inpractice,usingthefocallossfromthebegin-
+Ai·Hi,wherethejth columninVi ∈ RN l×di conv
+ningoftrainingisn’tideal,becauseittendstocor-
+isthelabelspecificrepresentationforthejth label,
+rectthemisclassifiedrarelabelswhilesacrificing
+generatedfromtheith Res-SElayeroutput.
+the performance on the frequent labels. Instead,
+We repeat the attention process for all Res-SE
+we first train our model with the ordinary binary
+layer outputs, then concatenate the label specific
+crossentropylosstoallowthemodeltolearngen-
+representations:
+eralfeaturesandperformwellonfrequencylabels.
+V = concat(V1,...,VNRes−SE) (5) Oncethemodelperformancesaturates,weswitch
+Dataset N train N val N test N w N l N l Dutchdataaremuchlongerwithanaverageof30
+MIMIC-III-full 47,724 1,632 3,372 1,485 8,922 15.9
+documentsorcloseto5,000tokensperencounter.
+MIMIC-III-50 8,067 1,574 1,730 1,530 50 5.7
+Dutch 2,511 313 313 4,958 144 5 TheICD-10codesystemiswidelyusedinEuro-
+French 22,540 2,836 2,827 1,660 940 11 peancountries,butnobenchmarkdatasetisavail-
+able for comparing coding methods – likely due
+Table 1: Data statistics. N : number of train-
+train to existing patient data protection regulations in
+ing instances, N : number of validation instances,
+val
+the EU. For U.S. English data, the restrictions
+N : number of test instances, N : average number
+test w
+ofwordsperinstance,N :numberoflabelsintotal,N : aresomewhatless,whichishowMIMIC-IIIwas
+l l
+averagenumberoflabelsperinstance. abletobeproduced–thoughstillatimmensede-
+identificationcost. Althoughthede-identification
+andreleaseoftheFrench/Dutchdatawasnotpos-
+tousethefocallossandfurtherfine-tunethemodel
+sible,webelieveourexperimentsandfindingsstill
+toimprovethepredictionsonrarelabels.
+benefit the research community because they (1)
+demonstratethatourmodelcangeneralizetoother
+4 Experiments
+languages and (2) are the first medical coding re-
+4.1 Datasets sultsreportedforFrenchorDutch.
+Weevaluatedourmodelonthewidelyusedmedi-
+4.2 PreprocessingandHyperparameters
+calbenchmarkdatasetMIMIC-III,aswellastwo
+We follow the preprocessing schema of (Mullen-
+medicaldatasetsinDutchandFrenchrespectively.
+bach et al., 2018) except that we keep numerical
+ThestatisticsofthedatasetsarelistedinTable1.
+valuesfromonetotenastheyarerelevantforcod-
+4.1.1 MIMIC-III ing. We utilize the word2vec CBOW method to
+TheMedicalInformationMartforIntensiveCare pretrain the word embeddings of size d e = 100
+III (MIMIC-III) is an open-access dataset com- and200onthepreprocessedtextsforMIMIC-III
+prisedofhospitalrecordsassociatedwithover4000 andthenon-Englishsetsrespectively. AllMIMIC
+patients. We focus on using the discharge sum- documentsaretruncatedtoamaximumsequence
+mariestopredicttheirtaggedInternationalClassifi- lengthw max=3,500,whereasboth2,500and3,500
+cationofDiseases9(ICD-9)codes. Weformulate sequencelengthwereusedforthenon-Englishsets.
+thistaskasaMLDCproblemfollowingpriorwork We found optimal hyperparameter settings us-
+(Shietal.,2017;Mullenbachetal.,2018). Intotal, ing the Ray Tune library (Liaw et al., 2018). We
+there are 52,722 discharge summaries and 8,922 optimized values for out-channel size d conv and
+unique ICD-9 codes. We follow the experiment filtersizek oftheconvolutionallayerineachSE
+settingsofMullenbachetal.(2018). Wefocuson module, dropoutprobabilityq aftertheinput em-
+theexperimentthatpredictsthefull8,922ICD-9 bedding layer, aswell as the power term γ in the
+codes(denotedasMIMIC-III-full)butalsopresent focallossfunction. Toreducethesearchspace,we
+the results on the top-50 ICD-9 codes (denoted set d1 conv = d2 conv, d3 conv = d4 conv and k1 = k2,
+as MIMIC-III-50). The data statistics of the two k3 = k4. Table 2 summarizes their optimal val-
+experimentsarelistedinTable1. uesfordifferentexperiments. WeusefourRes-SE
+blocksacrossallexperiments,andadopttheAdam
+4.1.2 DutchandFrenchDatasets
+optimizerwithaninitiallearningrateof0.00015.
+ManyEuropeanhospitalsareawareoftheadvan-
+4.3 EvaluationMetrics
+tages of automatic coding solutions that improve
+theaccuracyandefficiencyofmedicalcoding. To Thegoalofcomputerassistedcodingistohaveas
+evaluate how well our model adapts to coding littlehumaninterventionaspossible. Thismeans
+on non-English medical documents, we use two thatamodeltrainedforcodingshouldaimtopre-
+real-worlddatasets,oneinDutchandtheotherin dictthecorrectcodesfromthefullsetratherthan
+French. These datasets contain human assigned the top N codes, or give a ranked list of possible
+ICD-10codesforeachencounter. Inthesedatasets, codes. Theperformanceofamodelonthetop50
+theDischargeSummaryisnotdifferentiatedfrom codes is often reported in research papers. How-
+otherdocumentssoweconcatenatealldocuments ever,inreal-worldsettings,top-50metricsarein-
+in the encounter. Nonetheless, the French data sufficientformakinganaccurateassessmentofau-
+hassimilarencounterlengthtoMIMIC-III,butthe tomaticcodingbecauseexpensivehumanresources
+di ki q γ theaverageoffiverunswithdifferentrandomseeds
+conv
+Range 100-240 5-25 0.1-0.3 0.5-2
+forparameterinitialization. Wealsoinvestigatethe
+200,200, 13,13,
+MIMIC-III-full 0.3 1 interpretabilityofthemodel.
+240,240 9,9
+180,180, 11,11,
+MIMIC-III-50 0.3 0.5
+200,200 9,9 5.1 ResultsonMIMIC-III
+Dutchand 180,180, 11,11,
+0.3 0.5 Table3showstheresultsontheMIMIC-IIIdataset
+French 200,200 9,9
+usingthefullICD-9codes. Ourmodelachievedthe
+Table 2: The parameter values used in different tasks. strongestresultsacrossmultiplemetricscompared
+di , ki: the out-channel size and the kernel size of
+conv totheothersystems. Inparticular,ourmodelim-
+the SE convolutional layer in the ith Res-SE block, q:
+provesthestate-of-the-artMicroF1scoreaswellas
+thedropoutprobabilityaftertheinputembeddinglayer,
+rankingbasedprecisionscores. Table3alsoshows
+γ: thepowerterminthefocalloss.
+that the systems achieved very similar results on
+Micro AUC for all codes even when they differ
+arestillneededforthelargenumberofremaining significantly in other metrics. This suggests that
+codes. In MIMIC-III, top 50 codes cover only a MicroAUCisnotsensitiveenoughtodistinguish
+third of the codes per encounter, and in reality a differentsystemsandisthereforenotagoodmetric
+smallnumberoftopcodescanusuallybehandled forcomparingcodingmodels.
+byrule-basedsystemswithgreataccuracy. Table4showstheresultsforthetop-50-codepre-
+RankingbasedmetricslikeP@K,R@K,RP@K diction. Our model produced competitive results
+(Chalkidis et al., 2020), where K is often the av- withothertopmodels.
+erage number of labels per document, are rarely Aninterestingobservationisthatmulti-layerat-
+usedincodingbecausethereishighvariabilityin tentionyieldsbetterresultsonMIMIC-III-50but
+thenumberofcodesperencounter. InMIMIC-III, sum-poolingattentionperformsbetteronMIMIC-
+thenumberofcodesperencountervariesfromone III-full. Onepossibleexplanationisthatwhenthere
+to79,and43%oftheencountershavemorethan are sufficient training data for the labels, multi-
+the average 15 codes. Asking a human coder to layer attention with more parameters is able to
+alwaysreviewKcodesforeveryencounterwould learnbetterrepresentationsforeachlabel. Whereas
+cause a huge productivity drop because she will when the data is insufficient given the label size,
+stillhavetoreviewKcodeswhenthereisonlyone aggregating information over labels yields better
+code. Ontheotherhand,reducingthenumberof results.
+goldcodestoK(Chalkidisetal.,2019)willresult
+5.2 ResultsonDutchandFrench
+ininaccuratemeasures(especiallyforRecall)for
+alargepercentageofencounterswithmorethanK On the Dutch and French datasets, we establish
+codesandartificiallyinflatesystemperformance. twobaselines. ThefirstisMultiResCNN(Liand
+Yu, 2020), which is the best performing model
+Althoughmacrometricsareusefulforassessing
+onMIMIC-IIIthatispubliclyavailable. Thesec-
+performance on rare codes, they are less impor-
+ond is XLM-RoBERTa (Conneau et al., 2019), a
+tant in determining overall coding performance.
+multi-lingualtransformermodel.1 XLM-RoBERTa
+For these reasons, micro precision, recall and F1
+andrelatedmodelsachieveexcellentperformance
+over all codes best reflect improvements in cod-
+onwell-knownbenchmarkssuchasGLUE(Wang
+ingproductivitybecausetheydirectlymeasurethe
+etal.,2018),howevertheyarenotwellestablished
+accuracyandcoverageofthecodeassignmentby
+onthetaskoflong-document,multi-labelclassifi-
+models. However,priorworkdidnotreportpreci-
+cation. Table5presentsourresults.
+sionandrecallontheMIMICdata. Forcomparison
+Of the models we considered, only Effective-
+purposes,wereportF1andotherpreviouslyused
+CANcanbetrainedonthefulllabelset(i.e. 144
+metrics on both MIMIC-III and the non-English
+codes for Dutch, 940 codes for French): XLM-
+datasets,buttheemphasisshouldbeonMicroF1.
+RoBERTa and MultiResCNN run out of 16GB
+GPU memory. As such, we resort to comparison
+5 Results
+withthebaselinesononlythetop-50codes. XLM-
+To evaluate the effectiveness of our methods, we RoBERTa yields poor results for both Dutch and
+compareourmodelwiththeexistingstate-of-the-
+1WeusetheimplementationavailablefromHuggingFace
+art. The results shown below are generated from (Wolfetal.,2020).
+AUC F1 P@k
+Model
+Macro Micro Macro Micro 8 15
+CAML(Mullenbachetal.,2018) 0.895 0.986 0.088 0.539 0.709 0.561
+DR-CAML(Mullenbachetal.,2018) 0.897 0.985 0.086 0.529 0.690 0.548
+MSATT-KG(Xieetal.,2019) 0.910 0.992 0.090 0.553 0.728 0.581
+MultiResCNN(LiandYu,2020) 0.910 0.986 0.085 0.552 0.734 0.584
+HyperCore(Caoetal.,2020) 0.930 0.989 0.090 0.551 0.722 0.579
+LAAT(Vuetal.,2020) 0.919 0.988 0.099 0.575 0.738 0.591
+JointLAAT(Vuetal.,2020) 0.921 0.988 0.107 0.575 0.735 0.590
+EffectiveCAN(Multi-layerattention) 0.921 0.989 0.105 0.581 0.755 0.604
+EffectiveCAN(Sum-poolingattention) 0.915 0.988 0.106 0.589 0.758 0.606
+Table3: ResultsonMIMIC-III-full(i.e. allcodes)
+AUC F1 P@k
+Model
+Macro Micro Macro Micro 5
+C-LSTM-Att(Shietal.,2017) - 0.900 - 0.532 -
+CAML(Mullenbachetal.,2018) 0.875 0.909 0.532 0.614 0.609
+DR-CAML(Mullenbachetal.,2018) 0.884 0.916 0.576 0.633 0.618
+MSATT-KG(Xieetal.,2019) 0.914 0.936 0.638 0.684 0.644
+MultiResCNN(LiandYu,2020) 0.899 0.928 0.606 0.670 0.641
+HyperCore(Caoetal.,2020) 0.895 0.929 0.609 0.663 0.632
+LAAT(Vuetal.,2020) 0.925 0.946 0.666 0.715 0.675
+JointLAAT(Vuetal.,2020) 0.925 0.946 0.661 0.716 0.671
+EffectiveCAN(Multi-layerattention) 0.920 0.945 0.668 0.717 0.664
+EffectiveCAN(Sum-poolingattention) 0.915 0.938 0.644 0.702 0.656
+Table4: ResultsonMIMIC-III-50(i.e. top-50codesonly)
+French. Recallisparticularlylow,likelycausedby the micro-F1 on the dev set. Then we continued
+themodelonlyseeingthefirst512subwordsofa trainingusingthefocallossuntilitconverged.
+longencounterwiththousandsoftokens. To better understand which tail labels the fo-
+Our model with multi-layer attention substan- cal loss helps improve, we analyzed model per-
+tiallyoutperformstheothertwosystems. Itstrikes formancebasedonlabelfrequencyinthetestset.
+agoodbalancebetweenprecisionandrecall,andis Table7showsthatthefocallossimprovesthepre-
+abletohandlethefullcodesetswithoutdifficulties. diction of both frequent and rare labels, but the
+UnliketheobservationofLiandYu(2020)where improvementismorepronouncedforthelessfre-
+themaximumlengthdidn’tmakeanobviousdiffer- quentlabels.
+encetotheperformanceonMIMIC-III,wefound
+5.4 Discussion
+that training on longer sequences on Dutch and
+Frenchgivesanextraboosttoallmetrics. Thisis Inthissectionweanalyzethedifferencesbetween
+especiallytruefortheDutchwhichcontainslonger themodels. ComparedtoCAML,MultiResCNN
+encounter texts. The results show that Effective- yieldsbetterresultsbyenhancingtheencoderus-
+CANcanbeeasilyretrainedfornon-Englishdocu- ingthemulti-filterresidualconvolutionalnetwork,
+mentstoverygoodeffect. andHyperCoreimprovesthemacro-metricsbyin-
+corporatingthecorrelationswithinthelabels. Al-
+5.3 AnalysisofFocalLoss
+though both MSATT-KG and EffectiveCAN use
+Inthissection,wedescribeourexperimentsonthe multi-layerattention,wedifferinthewaysofag-
+MIMIC-III-fulldatasetforabetterunderstanding gregatingtheattentionresults. Ourmodelusesall
+ofthefocalloss. the attended values for the final label prediction
+To investigate how the moment of loss func- whereasMSATT-KGperformsextramax-pooling
+tionswitchimpactsmodelperformance,wetrained operationsbeforetheprediction. Themax-pooling
+modelswithfocallossactivatedatdifferenttraining operations,inouropinion,areunnecessaryandrisk
+epochandtheresultsaregiveninTable6. Itshows losing information. Our model produces notably
+that switching the loss function at a later stage betterresultsthanMSATT-KGonthefullcodeset.
+yieldsmorepronouncedimprovementinMacroF1. JointLAAT differs from EffectiveCAN in the
+WeobtainedthebestresultsbytrainingwithBCE encoder layer where it uses the BiLSTM to cap-
+lossfirstandsavingthebestmodelasmeasuredby turecontextualinformation,whereaswechooseto
+Dutch French
+Model
+#Labels Precision Recall F1 #Labels Precision Recall F1
+XLM-RoBERTa 50 0.725 0.289 0.413 50 0.606 0.426 0.500
+MultiResCNN 50 0.458 0.639 0.534 50 0.631 0.607 0.619
+EffectiveCAN 50 0.822 0.760 0.790 50 0.692 0.620 0.654
+EffectiveCAN(3,500) 50 0.873 0.777 0.822 50 0.705 0.636 0.669
+EffectiveCAN(3,500) 144 0.844 0.732 0.784 940 0.583 0.493 0.534
+Table5: ResultsonDutchandFrench
+Training F1 performing models on MIMIC-III, which is fun-
+Epoch Macro Micro
+damentallynotatopiccategorizationtask. Rather
+0 0.084 0.578
+4 0.094 0.581 medical coding requires fine-grained analysis of
+8 0.099 0.587 very narrow aspects of the document in order to
+11 0.106 0.588
+identifyappropriatecodes. Foranadditionalpoint
+Table6: Momentofthelossfunctionswith ofcomparison,weevaluatedEffectiveCANontwo
+topiccategorizationtasks(EUR-LexandWiki10-
+31K)andfounditoutperformsseveralstrongbase-
+Label F1w/oFocalLoss F1wFocalLoss
+Frequency Macro Micro Macro Micro linesandisonlylowerthanX-Transformer(Chang
+0-10 0.139 0.301 0.155 0.322 etal.,2020),alargepre-trainedtransformermodel,
+11-50 0.407 0.490 0.426 0.514
+byasmallmarginonmostmetrics. Detailedresults
+51-100 0.521 0.568 0.528 0.578
+101-200 0.578 0.626 0.606 0.646 arereportedinAppendixA.
+over200 0.698 0.751 0.699 0.753
+5.5 ModelInterpretability
+Table 7: Effect of focal loss by label frequency in the
+testset It is a requirement of medical coding that an au-
+tomatic coding system is able to extract text evi-
+dencetosupportthegeneratedbillingcodes. With
+usetheconvolution-basedmodelforcomputational the attention mechanism, we can extract the text
+and memory efficiency. To deal with rare labels, snippets that support the predicted codes. More
+priorworksoftenaddaseparatecomponentsuch specifically,byconductingthemulti-layerattention
+as a graph neural network or a hierarchical joint on the four Res-SE layer outputs, we obtain four
+learning module, which inevitably increases the attention weight matrices Ai∈{1,2,3,4} with each
+complexityandsizeofthemodel. Instead,weem- Ai ∈ RN l×Nw. Forthejth label,theassociatedat-
+ploythefocalloss, whichcanbeeasilymodified tentionweightsarethejth columnofeachmatrix,
+fromthebinarycrossentropyloss,toimprovethe thatisAi ∈ RNw. Next,togetthemostinfluential
+·j
+rare-labelpredictionwithoutsacrificingtheoverall textspanforthejth label,wefirstgetthetextposi-
+performance. Byrefiningtheentiremodelstructure tionk∗whichistheargmaxofallattentionweights:
+includingtheconvolutionalencoder,attentioncov-
+erageandtrainingobjective,webuildamodelthat k∗ = argmax{A1 ,A2 ,A3 ,A4 } (8)
+kj kj kj kj
+is simple and easy to scale, yet very effective for k
+themedicalcodingproblem. Themodelachieved We then select the most informative n-gram fea-
+thebestmicroF1resultsontheMIMIC-IIIdataset, turessurroundingthetextpositionk∗.
+evenwhencomparedwithmorecomplexmodels. Table 8 gives some examples of the extracted
+It is capable of not only generating accurate top textsnippetsforthepredictedICD-9codesinthe
+codes but also covering a large number of codes MIMIC-III-fullexperiments. Ourmodelisableto
+including rare codes, which is important for real extractthen-gramfeaturesthataresimilartothe
+worldapplicationsinthemedicaldomain. codedescriptions,e.g.,theextractedsnippet"Sys-
+Recentresults(Youetal.,2019b;Chalkidisetal., toliccongestiveheartfailure"for428.20. Moreim-
+2020)showthatRNN-basedandBERT-basedmod- portantly,ourmodeliscapableofselectingphrases
+elsperformedwellonthetopiccategorizationtasks withdifferentsyntacticformsbutsimilarsemantics
+ofEUR-LEX,AMAZON,WIKIPEDIAandRCV1. asthecodedescriptions,e.g.,theextractedsnippet
+However, it’s also clear that the best models on "percutaneoustracheostomytubeplacement" for
+these tasks are typically not the same as the best 934.1. It indicates that the model can learn inter-
+ICD-9code&Description Documenttexts
+...DuringhisICUstayheunderwentpercutaneoustracheostomy
+934.1:“Foreignbodyinmainbronchus”
+tubeplacementaswellas...
+...PrimaryDiagnosis:1.AnteriorSTelevationmyocardialinfarction.
+428.20:“Systolicheartfailure,unspecified”
+2.Systoliccongestiveheartfailure.3.Atrialfibrillation...
+...dexamethasoneoncedaily,toreducebrainswellingafterthe
+784.2:“Swelling,mass,orlumpinheadandneck”
+bleedingandkeppratwicedaily...
+...Patient likely had acute on chronic renal with chronic renal
+585.9:“Chronickidneydisease,unspecified”
+dysfunctionsecondaryto...
+Table8: Examplesofmodelinterpretability. Theextractedn-gramfeaturesarehighlightedinboldface.
+F1 furtherfacilitatesbetterpredictions. Itisalsopos-
+Model
+Macro Micro
+sible to completely remove the attention module,
+EffectiveCANwMulti-layerattention 0.105 0.581
+w/oresidualmodule 0.097 0.573 butsince(Mullenbachetal.,2018)hasshownthat
+w/oSEmodule 0.101 0.576 label-wiseattentionimprovesF1,thisexperiment
+onlyattendtothefirstRes-SElayer 0.093 0.572
+wasn’tdeemedinformative.
+onlyattendtothelastRes-SElayer 0.086 0.567
+w/ofocalloss 0.095 0.577 Comparedtotheoriginalmodel,theonewithout
+usingthefocallossproducesaslightlylowerresult
+Table 9: Ablation study of the multi-layer attention
+inthemicro-F1butalargereductioninthemacro-
+model
+F1. Thisverifiestheeffectivenessofthefocalloss
+intacklingthelong-taildistributionofthelabels.
+F1
+Model
+Macro Micro Forthesum-poolingattentionmodel,removing
+EffectiveCANwSum-poolingattention 0.106 0.589 the SE module results in the largest performance
+w/oresidualmodule 0.102 0.580
+drop. We have yet to find an explanation for this
+w/oSEmodule 0.076 0.506
+w/ofocalloss 0.101 0.575 differenceinthetwoattentionmodels.
+Table10: Ablationstudyofthesum-poolingattention
+7 Conclusions
+model
+In this paper, we proposed an effective convolu-
+tional attention network for MLDC, and showed
+pretablerepresentationsfromtheinputandcapture
+itseffectivenessformedicalcodingonlongdocu-
+theinformativeevidenceforeachcode.
+ments. Ourmodelfeaturesadeepandmorerefined
+6 AblationStudy convolutionalencoder,consistingofmultipleRes-
+SE blocks, to capture the multi-scale patterns of
+Weconductedablationstudiestoverifytheeffec- thedocumenttexts. Furthermore,weusethemulti-
+tivenessofeachmoduleinourmodel. Wecompare layerattentiontoadaptivelyselectthemostrelevant
+the results on MIMIC-III-full between the ordi- featuresforeachlabel. Weemploythefocalloss
+narymodelandtheonewithacomponentremoved. toimprovetherare-labelpredictionwithoutsacri-
+Theresultsforthemacro-andmicro-F1scoresare ficingtheoverallperformance. Ourmodelobtains
+listedinTable9. the state-of-the-art results across several metrics
+For the multi-layer attention model, removing onMIMIC-III,andcomparesfavorablywithother
+theresidualmodulecausesanotablereductionin systemsontwonon-Englishdatasets.
+both the macro- and micro-F1 scores, indicating
+theimportanceoftheresidualmoduleinthedeep
+convolutional encoder of our model. Meanwhile, References
+the model without the SE module also reports a
+JimmyLeiBa,JamieRyanKiros,andGeoffreyEHin-
+lowermacro-F1andmicro-F1,whichimpliesthat
+ton. 2016. Layer normalization. arXiv preprint
+theSEmoduleenablesthemodeltoproducebetter arXiv:1607.06450.
+representationsforthepredictions.
+Onlyattendingtothefirst orlastRes-SElayer RohitBabbarandBernhardSchölkopf.2017. Dismec:
+Distributedsparsemachinesforextrememulti-label
+outputleadstoworseresults. Itconfirmsourargu-
+classification. In Proceedings of the Tenth ACM
+mentthatthemulti-layerattentioncancapturein-
+International Conference on Web Search and Data
+formationfromtheinputatdifferentlevels,which Mining,pages721–729.
+PengfeiCao,YuboChen,KangLiu,JunZhao,Sheng- Fei Li and Hong Yu. 2020. Icd coding from clinical
+ping Liu, and Weifeng Chong. 2020. Hypercore: text using multi-filter residual convolutional neural
+Hyperbolic and co-graph representation for auto- network. InAAAI,pages8180–8187.
+matic icd coding. In Proceedings of the 58th An-
+nual Meeting of the Association for Computational Richard Liaw, Eric Liang, Robert Nishihara, Philipp
+Linguistics,pages3105–3114. Moritz, Joseph E Gonzalez, and Ion Stoica.
+2018. Tune: A research platform for distributed
+Ilias Chalkidis, Emmanouil Fergadiotis, Prodromos
+model selection and training. arXiv preprint
+Malakasiotis, Nikolaos Aletras, and Ion Androut-
+arXiv:1807.05118.
+sopoulos.2019. Extrememulti-labellegaltextclas-
+sification: A case study in EU legislation. In Pro-
+Junyang Lin, Qi Su, Pengcheng Yang, Shuming Ma,
+ceedings of the Natural Legal Language Process-
+andXuSun.2018. Semantic-unit-baseddilatedcon-
+ingWorkshop2019,pages78–87,Minneapolis,Min-
+volution for multi-label text classification. arXiv
+nesota.AssociationforComputationalLinguistics.
+preprintarXiv:1808.08561.
+Ilias Chalkidis, Manos Fergadiotis, Sotiris Kotitsas,
+Prodromos Malakasiotis, Nikolaos Aletras, and Ion Tsung-Yi Lin, Priya Goyal, Ross Girshick, Kaiming
+Androutsopoulos. 2020. An empirical study on He,andPiotrDollár.2017. Focallossfordenseob-
+large-scale multi-label text classification including ject detection. In Proceedings of the IEEE interna-
+fewandzero-shotlabels. InProceedingsofthe2020 tional conference on computer vision, pages 2980–
+Conference on Empirical Methods in Natural Lan- 2988.
+guageProcessing(EMNLP),pages7503–7515,On-
+line.AssociationforComputationalLinguistics. JingzhouLiu,Wei-ChengChang,YuexinWu,andYim-
+ing Yang. 2017. Deep learning for extreme multi-
+Wei-Cheng Chang, Hsiang-Fu Yu, Kai Zhong, Yim- label text classification. In Proceedings of the 40th
+ing Yang, and Inderjit S Dhillon. 2020. Taming International ACM SIGIR Conference on Research
+pretrainedtransformersforextrememulti-labeltext and Development in Information Retrieval, pages
+classification. In Proceedings of the 26th ACM 115–124.
+SIGKDD International Conference on Knowledge
+Discovery&DataMining,pages3163–3171.
+YinhanLiu,MyleOtt,NamanGoyal,JingfeiDu,Man-
+dar Joshi, Danqi Chen, Omer Levy, Mike Lewis,
+AlexisConneau, KartikayKhandelwal, NamanGoyal,
+Luke Zettlemoyer, and Veselin Stoyanov. 2019.
+Vishrav Chaudhary, Guillaume Wenzek, Francisco
+Roberta: A robustly optimized bert pretraining ap-
+Guzmán, Edouard Grave, Myle Ott, Luke Zettle-
+proach. arXivpreprintarXiv:1907.11692.
+moyer, and Veselin Stoyanov. 2019. Unsupervised
+cross-lingualrepresentationlearningatscale. arXiv
+Jueqing Lu, Lan Du, Ming Liu, and Joanna Dip-
+preprintarXiv:1911.02116.
+nall. 2020. Multi-label few/zero-shot learning with
+Jacob Devlin, Ming-Wei Chang, Kenton Lee, and knowledge aggregated from multiple label graphs.
+KristinaToutanova.2018. Bert:Pre-trainingofdeep arXivpreprintarXiv:2010.07459.
+bidirectional transformers for language understand-
+ing. arXivpreprintarXiv:1810.04805. JamesMullenbach,SarahWiegreffe,JonDuke,Jimeng
+Sun, and Jacob Eisenstein. 2018. Explainable pre-
+KaimingHe,XiangyuZhang,ShaoqingRen,andJian dictionofmedicalcodesfromclinicaltext. Proceed-
+Sun.2016. Deepresiduallearningforimagerecog- ingsofthe2018ConferenceoftheNorthAmerican
+nition. In Proceedings of the IEEE conference on Chapter of the Association for Computational Lin-
+computervisionandpatternrecognition,pages770– guistics: HumanLanguageTechnologies,Volume1.
+778.
+Ankit Pal, Muru Selvakumar, and Malaikannan
+Lu Hou, Jinhua Zhu, James Kwok, Fei Gao, Tao Qin,
+Sankarasubbu. 2020. Multi-label text classification
+andTie-yanLiu.2019. Normalizationhelpstraining
+using attention-based graph neural network. arXiv
+of quantized lstm. In Advances in Neural Informa-
+preprintarXiv:2003.11644.
+tionProcessingSystems,pages7346–7356.
+Yashoteja Prabhu, Anil Kag, Shrutendra Harsola,
+Jie Hu, Li Shen, and Gang Sun. 2018. Squeeze-and-
+Rahul Agrawal, and Manik Varma. 2018. Parabel:
+excitation networks. In Proceedings of the IEEE
+Partitionedlabeltreesforextremeclassificationwith
+conferenceoncomputervisionandpatternrecogni-
+application to dynamic search advertising. In Pro-
+tion,pages7132–7141.
+ceedings of the 2018 World Wide Web Conference,
+Alistair EW Johnson, Tom J Pollard, Lu Shen, pages993–1002.
+H Lehman Li-Wei, Mengling Feng, Moham-
+mad Ghassemi, Benjamin Moody, Peter Szolovits, Haoran Shi, Pengtao Xie, Zhiting Hu, Ming Zhang,
+LeoAnthonyCeli,andRogerGMark.2016. Mimic- and Eric P Xing. 2017. Towards automated
+iii, a freely accessible critical care database. Scien- icd coding using deep learning. arXiv preprint
+tificdata,3(1):1–9. arXiv:1711.04075.
+YukihiroTagami.2017. Annexml: Approximatenear-
+est neighbor search for extreme multi-label classifi-
+cation. InProceedingsofthe23rdACMSIGKDDin-
+ternationalconferenceonknowledgediscoveryand
+datamining,pages455–464.
+Thanh Vu, Dat Quoc Nguyen, and Anthony Nguyen.
+2020. A label attention model for icd coding from
+clinical text. In Proceedings of the Twenty-Ninth
+International Joint Conference on Artificial Intelli-
+gence(IJCAI-20).
+Alex Wang, Amanpreet Singh, Julian Michael, Fe-
+lix Hill, Omer Levy, and Samuel Bowman. 2018.
+GLUE: A multi-task benchmark and analysis plat-
+form for natural language understanding. In Pro-
+ceedings of the 2018 EMNLP Workshop Black-
+boxNLP: Analyzing and Interpreting Neural Net-
+works for NLP, pages 353–355, Brussels, Belgium.
+AssociationforComputationalLinguistics.
+Thomas Wolf, Lysandre Debut, Victor Sanh, Julien
+Chaumond, ClementDelangue, AnthonyMoi, Pier-
+ric Cistac, Tim Rault, Remi Louf, Morgan Funtow-
+icz, Joe Davison, Sam Shleifer, Patrick von Platen,
+Clara Ma, Yacine Jernite, Julien Plu, Canwen Xu,
+Teven Le Scao, Sylvain Gugger, Mariama Drame,
+Quentin Lhoest, and Alexander Rush. 2020. Trans-
+formers: State-of-the-art natural language process-
+ing. InProceedingsofthe2020ConferenceonEm-
+pirical Methods in Natural Language Processing:
+SystemDemonstrations,pages38–45,Online.Asso-
+ciationforComputationalLinguistics.
+Xiancheng Xie, Yun Xiong, Philip Yu, and Yamgy-
+ongZhu.2019. Ehrcodingwithmulti-scalefeature
+attention and structured knowledge graph propaga-
+tion. InProceedingsofthe28thACMInternational
+ConferenceonInformationandKnowledgeManage-
+ment.
+Pengcheng Yang, Xu Sun, Wei Li, Shuming Ma, Wei
+Wu,andHoufengWang.2018. Sgm: sequencegen-
+eration model for multi-label classification. arXiv
+preprintarXiv:1806.04822.
+Ronghui You, Zihan Zhang, Ziye Wang, Suyang Dai,
+Hiroshi Mamitsuka, and Shanfeng Zhu. 2019a. At-
+tentionxml: Label tree-based attention-aware deep
+model for high-performance extreme multi-label
+text classification. In Advances in Neural Informa-
+tionProcessingSystems,pages5820–5830.
+Yongjian You, Weijia Jia, Tianyi Liu, and Wenmian
+Yang.2019b. Improvingabstractivedocumentsum-
+marization with salient information modeling. In
+Proceedings of the 57th Annual Meeting of the
+Association for Computational Linguistics, pages
+2132–2141,Florence,Italy.AssociationforCompu-
+tationalLinguistics.
+A Appendix di ki q γ
+conv
+Range 100-240 5-25 0.1-0.3 0.5-2
+A.1 AdditionalExperiments 180,180, 15,15,
+EUR-Lex 0.1 1
+200,200 7,7
+We also evaluated our model on two large-scale 160,160, 17,17,
+Wiki10-31K 0.3 1
+220,220 5,5
+benchmark datasets: EUR-Lex and Wiki10-31K,
+toshowtheeffectivenessofourmodelacrossdo-
+Table11: Theparametervaluesusedindifferenttasks.
+mains. Weusew max = 2000,3000forEUR-Lex di , ki: the out-channel size and the kernel size of
+conv
+andWiki10-31Krespectively,andthehyperparam- the SE convolutional layer in the ith Res-SE block, q:
+etersofthemodelsaregiveninTable11. thedropoutprobabilityaftertheinputembeddinglayer,
+γ: thepowerterminthefocalloss.
+A.1.1 Datasets
+Model #parameters Modelsize
+EUR-Lex consists of a collection of documents
+AttentionXML,EUR-Lex - 0.20GB
+of European Union laws. It contains 19,314 doc-
+AttentionXML,Wiki10-31K - 0.62GB
+uments in total with 3,956 categories regarding BERT-large 340M -
+RoBERTa-large 355M -
+differentaspectsofEuropeanlaw. Wefollowthe
+XLNet-large 340M -
+setting ofYouet al. (2019a) tosplit the train and
+EffectiveCAN,EUR-Lex 10M 0.12GB
+testsets,obtaining15,449and3,865trainingand EffectiveCAN,Wiki10-31K 38M 0.46GB
+testingdocuments. Fromthetrainingset,wethen
+Table 12: Model size comparison between Effective-
+take1,545documentsoutforvalidation,resulting
+CAN, AttentionXML and the transformer-based mod-
+in13,904trainingdocuments.
+els (BERT-large, RoBERTa-large, XLNET-large) used
+Wiki10-31K is a collection of social tags for inX-transformer
+Wikipedia pages. It’s composed of 20,762 docu-
+ments and 30,938 associated tags. We also use
+size. Table 12 lists the comparison of the model
+thesettingofYouetal.(2019a)toget14,146and
+size between our model, AttenionXML, and the
+6,616trainingandtestingdocuments. Wethenuse
+transformer-based models used in X-transformer.
+1415documentsforvalidation,resultingin12,731
+We can see that our model is much smaller than
+trainingdocuments.
+BERT-large,XLNet-largeandRoberta-largeused
+A.1.2 Results inX-transformer. Notethatthereareothercompo-
+nentsinX-transformerthatwedon’ttakeintoac-
+The results on the EUR-Lex dataset are listed in
+count. Withasignificantlysmallermodelsize,our
+Table 13. The results from our model are higher
+modelachievedlessthan1%droponEUR-Lexand
+than some strong baselines including AnnexML
+Wiki10-31KdatasetscomparedtoX-transformer.
+(Tagami,2017),DiSMEC(BabbarandSchölkopf,
+Inaddition,ourmodelcanhandlemuchlongerse-
+2017), Parabel (Prabhu et al., 2018), and Atten-
+quencesthantransformermodels(maximum512
+tionXML (You et al., 2019a), and is only lower
+tokens). Thisisespeciallyimportantwhenthein-
+thanX-transformer(Changetal.,2020)byatiny
+formationforpredictinglabelsisspreadoverthe
+gap, e.g. 0.08% lower on precision@1. We also
+longdocument.
+observe that traditional ML models, such as An-
+nexML,DiSMECandParabel,generallyproduce
+worseresultsthandeeplearningmodelsuchasAt-
+tentionXML.Byemployinglarge-scalepretrained
+transformer-based models, X-tranformer reports
+thestart-of-the-artresults.
+Table 13 also shows that our model produces
+verycompetitiveresultsontheWiki10-30Kdataset.
+Ourmodeloutperformsmostbaselinesexceptfor
+X-transformer. Thelosingmarginsarequitesmall,
+0.66% on precision@1, 0.08% on precision@3,
+and0.43%onprecision@5.
+Comparedtothelarge-scaletransformer-based
+models, our model is more effective in terms
+of balancing the model performance and model
+EUR-Lex Wiki10-31K
+Model
+P@1 P@3 P@5 P@1 P@3 P@5
+AnnexML(Tagami,2017) 79.66 64.94 53.52 86.46 74.28 64.20
+DiSMEC(BabbarandSchölkopf,2017) 83.21 70.39 58.73 84.13 74.72 65.94
+Parabel(Prabhuetal.,2018) 82.12 68.91 57.89 84.19 72.46 63.37
+AttentionXML(Youetal.,2019a) 87.12 73.99 61.92 87.47 78.48 69.37
+X-Transformer(Changetal.,2020) 87.22 75.12 62.90 88.51 78.71 69.62
+OurEffectiveCAN 87.14 74.28 61.95 87.85 78.63 69.29
+Table13: ResultsonEUR-LexandWiki10-31K(valuesinpercentage)
