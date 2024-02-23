@@ -1,0 +1,459 @@
+Signal,ImageandVideoProcessing(2023)17:1027–1034
+https://doi.org/10.1007/s11760-022-02308-x
+ORIGINAL PAPER
+Unconstrained face mask and face-hand interaction datasets: building
+a computer vision system to help prevent the transmission
+of COVID-19
+Fevziye Irem Eyiokur1 ·Hazım Kemal Ekenel2·Alexander Waibel1
+Received:1July2021/Revised:18April2022/Accepted:28June2022/Publishedonline:22July2022
+©TheAuthor(s)2022
+Abstract
+Health organizations advise social distancing, wearing face mask, and avoiding touching face to prevent the spread of
+coronavirus.Basedontheseprotectivemeasures,wedevelopedacomputervisionsystemtohelppreventthetransmissionof
+COVID-19.Specifically,thedevelopedsystemperformsfacemaskdetection,face-handinteractiondetection,andmeasures
+social distance. To train and evaluate the developed system, we collected and annotated images that represent face mask
+usage and face-hand interaction in the real world. Besides assessing the performance of the developed system on our own
+datasets,wealsotesteditonexistingdatasetsintheliteraturewithoutperforminganyadaptationonthem.Inaddition,we
+proposed a module to track social distance between people. Experimental results indicate that our datasets represent the
+real-world’sdiversitywell.Theproposedsystemachievedveryhighperformanceandgeneralizationcapacityforfacemask
+usagedetection,face-handinteractiondetection,andmeasuringsocialdistanceinareal-worldscenarioonunseendata.The
+datasetsareavailableathttps://github.com/iremeyiokur/COVID-19-Preventions-Control-System.
+Keywords COVID-19·Facemaskdetection·Face-handinteractiondetection·Socialdistancemeasurement·CNN
+1 Introduction 19pandemicarehandledinthiscontextbyresearchers.These
+studies focus on diagnosing COVID-19 [5–8], adjusting
+TheCOVID-19pandemichasaffectedthewholeworldsince the existing surveillance systems to COVID-19 conditions
+the beginning of 2020. In order to decrease the transmis- [9–15], and building systems to control the preventions
+sion of the COVID-19 disease, many health institutions, [10,16–28].Facedetectionandrecognitionsystems’perfor-
+particularly the World Health Organization (WHO), have mance deteriorates when subjects wear face masks. Thus,
+recommended serious constraints and preventions [1]. The novelfacerecognitionanddetectionstudies[9,11,12,14,15]
+essentialprecautionsthatindividualscancarryoutareprac- trytoimprovetheperformanceunderthiscondition.More-
+ticing social distance [2], wearing a face mask properly over,inordertotracktheexecutionofpreventionsagainstthe
+(covering mouth and nose), paying attention to personal spreadofCOVID-19,severalworksinvestigatethedetection
+hygiene, especially hand hygiene, and avoiding touching offacemasksandwearingamasksuitably[10,16–24],how
+faceswithhandswithoutcleanliness[1]. peoplekeepphysicaldistancing[22,25–28],anddetectionof
+Convolutional Neural Networks (CNNs), introduced in face-handinteraction[29].
+late80s[3,4],havegainedpopularityduringthelastdecade. To research the effects of COVID-19 regulations, some
+Duetothesuccessofdeeplearningincomputervision,novel face mask datasets are introduced. In [10], a novel masked
+researchtopicsthatemergedasaconsequenceoftheCOVID- face recognition dataset is published to improve the face
+recognition performance in the case of occlusion due to
+B
+FevziyeIremEyiokur the face masks. In [16], an artificial masked face dataset,
+fevziye.yaman@kit.edu named MaskedFace-Net, is presented. It contains 137,016
+imagesthataregeneratedfromtheFFHQdataset[30]using
+1 InstituteforAnthropomaticsandRobotics,KarlsruheInstitute
+ofTechnology,Karlsruhe,Germany a mask-to-face deformable model. Joshi et. al [17] pro-
+posed a framework to detect whether people are wearing
+2 DepartmentofComputerEngineering,IstanbulTechnical
+University,Istanbul,Turkey a mask or not in public areas. They utilized MTCNN [31]
+123
+1028 Signal,ImageandVideoProcessing(2023)17:1027–1034
+andMobileNetV2[32]todetectfacesandclassifythemon respectively. We trained well-known CNN models for the
+theirownvideodataset.In[9],aone-stagedetectorbasedon face mask and face-hand interaction detection tasks. While
+RetinaFace[33]isproposedtodetectfacesandclassifythem the first model classifies the face image as wearing a mask
+whether they contain masks. In [18], the authors proposed properly,wearingamaskimproperly,ornotwearingamask,
+a real-time face mask detector named SSDMNV2, which thesecondmodelclassifiesfaceimagesastouchingtheface
+is composed of SSD [34] face detector and MobileNetV2 or not. The trained models are evaluated both on the col-
+[32] mask classifier. In addition to the face mask detection lecteddatasetsandontheexistingfacemaskdatasetsinthe
+studies,arecentstudy[29]investigatedtheface-handtouch- literature without training or fine-tuning on them. We also
+ing behavior. The authors presented 2M non-touching and proposed a rule-based approach to measure the social dis-
+74Ktouchingface-handinteractionannotationson64video tance.
+recordingsandtheyevaluatedintroduceddatasetwithrule- Ourcontributionscanbesummarizedasfollows:(1)We
+based, hand-crafted and CNN feature-based models. As a presenttwonoveldatasets,ISL-UFMDandISL-UFHD,for
+result of evaluations, CNN-based model obtained the best face mask and face-hand interaction detection tasks. ISL-
+resultswith83.76%F1-score. UFMDisoneofthelargestfacemaskdatasetsthatincludes
+These aforementioned studies show that the face mask real-world images with a significant amount of variations
+detection task is mostly handled in two classes, which are andimproperfacemaskusageclass.TheISL-UFHDisthe
+faces with or without a mask. However, this is not suf- firstdatasetthatcontainsface-handinteractionimagesfrom
+ficient, since this setting omits improper face mask usage unconstrained real-world scenes. (2) To help people to fol-
+thatfrequentlyoccursinreal-worldcases.In[19],although low protective measures to avoid spread of COVID-19, we
+improper usage of face mask was presented, these images develop a computer vision system that contains all three
+areconsideredasnomaskclasswhenthedetectionsystem tasks for the first time. (3) We extensively investigate sev-
+was developed. Furthermore, in [35], improper face mask eral CNN models on our datasets to show the efficiency of
+class contains a small amount of images, and in [16], the our unconstrained datasets. We also tested them on pub-
+imagesareartificiallygenerated.Incontrasttoexistingstud- licly available masked face datasets without performing
+ies,wepresentanoveldatasetwhichcontainsalargersetof adaptation,e.g.fine-tuning,onthemtodemonstratethegen-
+unconstrained real world images. We handle the face mask eralizationcapacityofourtrainedmodels.Weachievedvery
+detectionasamulti-classclassificationtaskbyrepresenting high classification accuracies which indicates the collected
+improper face mask usage class as well. Differently from datasets’capabilitytorepresentreal-worldcases.Moreover,
+previous studies, we additionally aim to address face-hand toevaluatetheoverallsystem,weutilizedsixdifferentshort
+interaction detection in order to prevent the spread of air- real-worldvideos.
+borneviruses.Theface-handinteractiontaskisinvestigated
+in[29]forthefirsttime;however,theutilizeddatasetisnot
+collectedforthispurposeanddoesnotcorrespondtothereal- 2 TheISL-UFMD&ISL-UFHDdatasets
+worldconditions.Thismotivatesustocollectandannotatean
+unconstraineddatasetforface-handinteractiondetectionas Existingdatasets,whicharelistedinTable1,mainlyfocused
+well.SinceourobjectiveistomonitorthreemainCOVID-19 on collecting face mask images to develop a system that
+protectivemeasures,namelyfacemaskdetection,face-hand examineswhetherthereisamaskontheface.Mostofthem
+interactiondetection,andsocialdistancemeasurementtasks, contain a limited amount of improper face mask images
+we develop a comprehensive computer vision system that or include artificially generated masks on the face images
+handlesthesemeasuresjointlyforthefirsttime.Moreover, usinglandmarkpointsaroundthemouthandnose.Besides,
+we show the positive effect of using large-scale datasets of the variety of subjects’ ethnicity, environment, resolution,
+diversefacialimagesonthetasks’performancesandgener- and head-poses are limited. For instance, in these datasets
+alizationcapacityofthetrainedmodels. exceptMaskedFace-Net[16],Asianpeopleareinthemajor-
+Inthiswork,wecollectedtwonovelfacedatasets,namely ity.AlthoughMaskedFace-Netincludesvariationintermsof
+InteractiveSystemsLabsUnconstrainedFaceMaskDataset ethnicity,itconsistsartificiallygeneratedfacemaskimages.
+(ISL-UFMD) and Interactive Systems Labs Unconstrained Besides,theyhavelimitedhead-posesmostlyfromfrontalto
+Face-HandInteractionDataset(ISL-UFHD).Thesedatasets profileviewinyawaxis.Thus,theselimitationsledustocol-
+are collected from the web to provide a significant amount lectanunconstraineddataset.Additionally,thereisonlyone
+ofvariationintermsofpose,illumination,resolution,envi- dataset [29] with face-hand interaction annotations. How-
+ronment, and subjects’ ethnicities. We utilized proposed ever, these annotations are limited based on the number of
+datasets for the training of presented system which con- subjectsandthedatasetiscollectedundercontrolledcondi-
+sists of three submodules, face mask detection, face-hand tions.Incontrast,wepresentaface-handinteractiondataset
+interactiondetection,andsocialdistancemeasurementtasks, thatiscollectedfromunconstrainedreal-worldscenes.
+123
+Signal,ImageandVideoProcessing(2023)17:1027–1034 1029
+Table1 Comparisonofthefacemaskdatasets
+Datasetname Nomask Mask ImproperMask FaceMaskType Ethnicities HeadPose
+ISL-UFMD 10698 10618 500 Real Various Various
+RMFD[10]* 90468 2203 – Real Asian FrontaltoProfile
+RWMFD[10] 858 4075 238 Real MostlyAsian FrontaltoProfile
+Facemask[35] 718 3239 123 Real MostlyAsian Various
+MaskedFace-Net[16] – 67049 66734 Artificial Various MostlyFrontal
+(*)AlthoughitisstatedthatRMFDdataset[10]contains5000faceimageswithmask,thereareonly2203faceimageswithmaskinthepublicly
+availableversion
+2.1 Datacollection
+We collected a large amount of face images from several
+differentresources,suchaspubliclyavailablefacedatasets,
+FFHQ [30], CelebA [36], LFW [37], Wider-Face [38],
+YouTube videos, and web. These different sources enable
+ustocollectasignificantvarietyoffaceimagesintermsof
+ethnicity,age,andgender.Inadditiontothesubjectdiversity,
+weobtainedimagesfromindoorandoutdoorenvironments,
+under different light conditions and resolutions. We also Fig.1 ExampleimagesfromISL-UFMDbelongingtothreedifferent
+considered ensuring large head pose variations. Moreover, classes;nomask,facemask,improperfacemask
+anotherimportantkeypointistoleveragetheperformanceof
+ourCOVID-19preventionsystemforthecombinedscenario,
+e.g.,determiningmaskusageinthecaseoftouchingfacesor
+detectingface-handinteractioninthecaseofwearingamask.
+Besides,ourimagesincludedifferentsortsofocclusionthat
+makethedatasetmorechallenging.Intheend,ISL-UFMD
+contains21,816faceimagesforthefacemaskdetectionsce-
+nario, 10,618 face images with masks and 10,698 images
+without a mask. Additionally, we gathered 500 images for
+impropermaskusage.Thisclasshasarelativelysmallnum- Fig.2 ExampleimagesfromISL-UFHDthatrepresentface-handinter-
+berofimagescomparedtonomaskandmaskclassesdueto actionandnointeraction
+lackoffaceimageswithimpropermaskusage.
+TheISL-UFHDiscomposedof20,038sampleswithand
+withoutafullycoverednoseandmouthbythemaskareanno-
+10,018 samples without face-hand interaction. Please note
+tated with the improper mask label. If a person has a mask
+that,evenifthehandisaroundthefacewithouttouchingit,
+underthechin,weannotatedtheimagewithnomasklabel.
+weannotatedimagesasanointeraction.Therefore,themodel
+Intheface-handannotation,weaimtoidentifywhetherthe
+shouldbeabletodistinguishwhetherthehandistouchingor
+handtouchesthefacefromRGBimages.Weconsideredthe
+beingclosetotheface.
+directcontactortooclosetocontactastheexistenceofface-
+hand interaction. Many examples of annotated face images
+2.2 Dataannotation forfacemaskandface-handinteractiondetectionareshown
+inFigs.1and2.Itisclearthatourproposeddatasetscontain
+Forlabellingthecollecteddatasets,wedesignedaweb-based largeamountofvariationsespeciallyforethnicityandhead
+imageannotationtool.Elevenpeoplefromdifferentcountries pose.Also,theexampleshavediversityintermsofposition
+annotated our images using our web tool. After examining ofhanduponfaceandusageoffacemask.
+annotations from labelers, we decided each image’s final
+label. Since we formulate our tasks as classification prob-
+lems, we annotated our images in that manner. While we 3 Methodology
+havethreeclasses—mask,nomask,impropermask—forthe
+maskdetectiontask,wehavetwoclassesfortheface-hand Theproposedsystem,whichisillustratedinFig.3,consists
+interactiondetectiontask.Theimagesthatincludetheface ofthreesubmodules.Thesystemperformspersondetection
+123
+1030 Signal,ImageandVideoProcessing(2023)17:1027–1034
+Fig.3 ProposedsystemforcontrollingCOVID-19preventions
+and then calculates distances between detected people on forMobileNetV2,ResNet50,andInception-v3,respectively.
+inputimage/videoframe.Meanwhile,thesameinputisused FortheEfficientNet,weemployednetworkswithinputsizes
+todetectandcropfacesofsubjectstoperformfacemaskand between224×224and300×300.Weexecutedtrainingof
+face-handinteractiondetections.Whilethefacemaskmodel ourmodelswithmini-batchsizeof32to128ontheNVIDIA
+decides whether a person wears a mask properly, the face- TitanRTXGPU.
+handinteractionmodelidentifieswhetherahandtouchesthe
+subject’sface.Wedecidedtoperformpersonandfacedetec-
+3.2 Socialdistancecontrolling
+tion separately to eliminate the effect of missing modality.
+Forinstance,althoughaperson’sbodyisoccludedand,there-
+Keeping the social distance from others is another crucial
+fore, social distancing cannot be measured for this person,
+measurement to avoid spreading of COVID-19. For this,
+systemcanstilldetectthefaceofthepersontoperformother
+firstly, we detect each person on the image using a pre-
+tasks.Similarly,ifthesubject’sfaceisoccludedornotturned
+trainedpersondetectionmodel,DeepHRNet[44].Thus,we
+tothecamera,systemcancapturetheperson’sbodytocal-
+obtain bounding boxes around the people and estimated
+culatethesocialdistance.
+pose information of each person. Principally, we focus on
+theshoulders’coordinatestomeasuretheapproximatebody
+3.1 Facemaskandface-handinteractiondetection width of a person on the image. In many studies, measure-
+mentsarecalculatedbasedontheboundingboxaroundthe
+In order to obtain face crops, we performed face detection person.However,whentheangleofthebodyjointsandpose
+usingRetinaFace[33]thatwastrainedonWider-Facedataset areconsidered,changesontheboundingboxesmayreduce
+[38].WeusedRetinaFacedetectorsinceitisrobustagainst theprecisionofthemeasurements.Topreventthis,wepro-
+tiny faces, challenging head poses, and faces with a mask. posetouseshoulders’coordinatestomeasurethewidthand
+Then, we cropped detected faces with a 20% margin for identify the middle point of shoulders line as center of the
+each side, since the face detector’s outputs are quite tight. body. After performing detection and pose estimation, we
+Toperformfacemaskandface-handinteractiondetections, generated pairs P(p ,p ) using the combination of each
+i j
+we employed several different CNN architectures, namely detectedpersons. p and p arerepresenteachdetectedper-
+i j
+ResNet50 [39], Inception-v3 [40], MobileNetV2 [32], and son.Then,wecalculatedtheEuclideandistancebetweenthe
+EfficientNet[41].WedecidedtouseEfficientNet,sinceitis shouldercentersofeachpairofpersons.Inordertodecide
+the state-of-the-art model. We also included MobileNetV2, whether these persons keep social distance between each
+sinceitisalight-weightdeepCNNmodel.Finally,wechose other,weadaptivelycalculateathresholdforeachpairindi-
+ResNetandInception-v3modelsbasedontheirhighperfor- vidually based on the average of their body width. Since
+mances.Inthetraining,webenefitedfromtransferlearning the represented measurement of the real world, expressed
+and initialized our networks with the weights of the pre- bypixelsintheimagedomain,constantlychangesasdepth
+trainedmodelsonImageNet[42].Weemployedsoftmaxloss increases, we overcome this by calculating the average of
+attheendofeachnetwork.InEfficientNetandMobileNetV2, the body widths of two people. Since the average shoulder
+we utilized dropout with a 0.2 probability rate to avoid widthofanadultisaround40-50cmintherealworldand
+overfitting. For training, we used 0.0001 learning rate and therequiredsocialdistancebetweentwopersonsis1.5-2.0
+0.0005 weight decay parameters. We optimized our mod- meters,weempiricallydecidetoselectλcoefficientasthree
+els with Adam [43] with β ,β = (0.9,0.999). The input whencalculatingthethresholdforsocialdistanceinthepixel
+1 2
+sizesofthenetworksare224×224,256×256,299×299 domainasinEq.1.
+123
+Signal,ImageandVideoProcessing(2023)17:1027–1034 1031
+Table2 FacemaskdetectionresultsonproposedISL-UFMDdatasetforthreeclasses
+Model Accuracy Precision Recall
+NoMask Mask ImproperMask NoMask Mask ImproperMask
+Inception-v3 98.20% 0.985 0.986 0.833 0.988 0.984 0.800
+ResNet50 95.63% 0.965 0.954 0.636 0.973 0.973 0.389
+MobileNetV2 97.91% 0.988 0.975 0.842 0.983 0.992 0.640
+EfficientNet-b0 97.82% 0.973 0.984 0.929 0.992 0.986 0.520
+EfficientNet-b1 97.91% 0.979 0.986 0.800 0.990 0.984 0.711
+EfficientNet-b2 97.91% 0.990 0.977 0.792 0.977 0.992 0.760
+EfficientNet-b3 98.19% 0.988 0.990 0.733 0.986 0.982 0.880
+Boldvaluesindicatethebestscores
+T pi,pj =λ×(||p is1 − p is2|| 2+||p js1 − p js2|| 2)/2 (1)
+Finally, if the Euclidean distance between two persons
+islowerthanthecalculatedthreshold,wedecidethatthese
+peopledonotkeepsufficientsocialdistance.
+4 Experimentalresults
+Intheexperiments,weusedourproposeddatasetstoevalu-
+ateoursystem.Wehandled90%ofthedatafortraining,the
+remainingdataarereservedequallyforvalidationandtest-
+ing. However, since the ISL-UFHD dataset contains twice
+more data for no interaction class than interaction class,
+we put aside 5,000 images from no face-hand interaction
+class to avoid class bias in face-hand interaction detec-
+tion experiments. Further, we utilized published face mask
+datasetsincross-datasetexperiments.Weusedthepublicly
+available versions1 of RMFD and RWMFD [10]. RMFD Fig. 4 Class activation map (CAM): a face mask detection task, b
+face-hand interaction detection task, c misclassified samples of face
+includes around 2,203 masked face images. For RWMFD,
+maskdetectiontask,dmisclassifiedsamplesofface-handinteraction
+we executed RetinaFace and obtained 5,171 face images detectiontask
+from 4343 images. We used MaskedFace-Net dataset [16]
+which contains 130,000 face images belongs to correctly
+wornfacemasks(CMFD)andincorrectlywornfacemasks separately. It is also observed that the precision and recall
+(IMFD) subsets. Face mask dataset (Kaggle) [35] contains valuesareveryaccuratefornomaskandmaskclasses,while
+853images.Weusedprovidedannotationstoacquire4,080 the results for improper mask class are slightly lower than
+cropfaces. thesetwoclasses.Eventhoughimproperfacemaskimages
+may confuse with proper face mask images due to visual
+4.1 Facemaskdetection similarity,themoreprobablereasonbehindthisoutcomeis
+thelackofimagesforimpropermaskclass.
+InTable2,wepresentedtheresultsofthetrainingsonISL- In Fig. 4a, we demonstrated Class Activation Maps
+UFMD.Accordingtotheexperimentalresults,althoughall (CAM) [45] for the face mask detection task to investigate
+employed models achieved significantly high performance, activation of the model. It is clearly seen that the model
+thebestoneisInception-v3modelwith98.20%classification focuses on the middle part of the faces, particularly on the
+accuracy.Inadditiontotheclassificationaccuracy,wealso nose and mouth. In the second image, the model identified
+presentedprecisionandrecallmeasurementsforeachclass improper mask usage since the nose of the subject is not
+covered by the face mask even though the mouth is cov-
+1 https://github.com/X-zhangyang/Real-World-Masked-Face- ered. In Fig. 4c, we presented some misclassified images.
+Dataset. Although the model classifies the images incorrectly, the
+123
+1032 Signal,ImageandVideoProcessing(2023)17:1027–1034
+Table3 Resultsforcross-datasetexperiments.Allmodelsaretrainedandtestedoncorrespondingdataset.Pleasenotethatallexperimentsare
+conductedonthe3-classclassificationsetuptoperformfaircomparison
+Architecture TrainingSet TestSet #Images Accuracy
+Train Test
+MobileNetV2 ISL-UFMD RMFD[10] 20764 92671 91.4%
+MobileNetV2 ISL-UFMD RWMFD[10] 20764 5171 94.7%
+MobileNetV2 ISL-UFMD MaskedFace-Net[16] 20764 133782 88.11%
+MobileNetV2 ISL-UFMD Facemask[35] 20764 4080 95.71%
+Inception-v3 ISL-UFMD RMFD[10] 20764 92671 95.91%
+Inception-v3 ISL-UFMD RWMFD[10] 20764 5171 95.9%
+Inception-v3 ISL-UFMD MaskedFace-Net[16] 20764 133782 91.42%
+Inception-v3 ISL-UFMD Facemask[35] 20764 4080 94.7%
+MobileNetV2 RMFD+RWMFD ISL-UFMD 97842 21816 86.59%
+MobileNetV2 RMFD+RWMFD Facemask[35] 97842 4080 91.07%
+MobileNetV2 MaskedFace-Net+FFHQ ISL-UFMD 211936 21816 51.49%
+MobileNetV2 MaskedFace-Net+FFHQ Facemask[35] 211936 4080 20.4%
+Inception-v3 RMFD+RWMFD ISL-UFMD 97842 21816 88.92%
+Inception-v3 RMFD+RWMFD Facemask[35] 97842 4080 88.4%
+Inception-v3 MaskedFace-Net+FFHQ ISL-UFMD 211936 21816 51.39%
+Inception-v3 MaskedFace-Net+FFHQ Facemask[35] 211936 4080 19.2%
+Boldvaluesindicatethebestscores
+Table 4 Face-hand interaction detection results on proposed ISL- the combination of RMFD and RWMFD datasets [10]. We
+UFHDdataset used them together since RMFD dataset has no improper
+Model Accuracy Precision Recall maskclass.Thesecondsetupincludes211,936imagesfrom
+the MaskedFace-Net dataset [16] with FFHQ dataset [30]
+Inception-v3 93.20% 0.932 0.932
+duetoabsenceofnomaskclassonMaskedFace-Net.While
+ResNet50 91.76% 0.918 0.918
+we selected RMFD, RWMFD, MaskedFace-Net, and Face
+MobileNetV2 92.37% 0.924 0.924
+mask(Kaggle)[35]datasetsastargetforourmodel,weused
+EfficientNet-b0 92.37% 0.926 0.924
+the proposed ISL-UFMD dataset and Face mask (Kaggle)
+EfficientNet-b1 92.90% 0.929 0.929
+datasetastargetdatasetsforothermodels.Almostallmodels,
+EfficientNet-b2 93.35% 0.933 0.934 thatweretrainedontheISL-UFMD,achievedmorethan90%
+EfficientNet-b3 92.44% 0.925 0.924 accuracy.TheseresultsindicatethatourISL-UFMDdataset
+Boldvaluesindicatethebestscores is significantly representative to provide well generalized
+modelsforthefacemaskdetectiontask.Thecombinationof
+RMFDandRWMFDalsoprovidedaccurateresults,although
+prediction probabilities of the model are not as high as in theyarenotashighastheonesobtainedbytrainingthemod-
+correct predictions. This outcome indicates that the model elsontheproposeddataset.Themodels,thataretrainedon
+did not confidently misclassify images. Still, the difficulty theMaskedFace-Net,showtheworstperformance.Apossi-
+intheheadposeandilluminationcausesmisclassificationin blereasonofthisoutcomecouldbeduetothefactthatthe
+somecases. artificialdataarenotasusefulastherealdataforthetraining.
+Cross-dataset experiments Inthe firstexperiment, we eval-
+uated MobileNetV2 and Inception-v3 models, that were 4.2 Face-handinteractiondetection
+trainedonourproposeddataset,onfourdifferentpublicface
+maskdatasets.Theseresultsarepresentedinthefirstpartof In Table 4, we present the face-hand interaction detection
+Table 3.Weemployedtwodifferentarchitecturestoendorse results.Asinthefacemaskdetectiontask,alloftheemployed
+experimental outcome. In the second experiment, we fine- modelshaveachievedveryhighperformancetodiscriminate
+tuned the MobileNetV2 and Inception-v3 models with two whetherthereisaninteractionwithhand.Thebestclassifi-
+trainingsetupstocomparewiththemodelsthatweretrained cationaccuracyisobtainedas93.35%usingEfficientNet-b2
+on our dataset and these results are shown in the second model.Thebestrecallandprecisionresultsareachievedby
+partofTable3.Thefirstsetupcontains97,842imagesfrom EfficientNet-b2modelaswell.Almostallresultsinthetable
+123
+Signal,ImageandVideoProcessing(2023)17:1027–1034 1033
+Table5 Evaluationoftheoverallsystemonthetestvideos performanceofoursystem,theresultsonvideosthatcontains
+variouspeopleandcasesindicatethatsystemcanreachvery
+Video #frames #sub. Maskacc. Face-handacc. Dist.acc.
+highperformancesimilartotheonesthatareobtainedbythe
+V1 179 2 100% 99.16% 98.32% modelsonindividualtestsets.
+V2 307 2 99.51% 96.25% 100%
+V3 303 3 96.91% 89.43% 96.69%
+5 Conclusion
+V4 192 3 100% 86.97% 97.22%
+V5 207 5 99.03% 95.45% 100%
+Inthispaper,wecollectedandpresentedunconstrainedface
+V6 105 7 87.07% 99.86% 74.55%
+mask (ISL-UFMD) and face-hand interaction (ISL-UFHD)
+Total 1293 22 97.95% 93.84% 96.51%
+datasets to conduct face mask and face-hand interaction
+detectiontasks.Further,weproposedasystemtotrackessen-
+tial COVID-19 preventions, which are proper face mask
+are considerably similar to each other. Precision and recall usage, avoiding face-hand interaction, and keeping social
+metricsarebalancedandcompatiblewiththeaccuracies. distance,togetherforthefirsttime.Weemployedseveraldif-
+InFig.4b,weprovideCAM[45]fortheface-handinter- ferentwell-knownCNNmodelstoperformoursystemand
+actiondetection.Itisclearlyseenthatthemodelfocuseson createbenchmarkresultsforourproposeddatasets.Addition-
+thehandregiontodecidewhetherthereisaninteraction,if ally,weperformedgeometriccalculationtocheckthesocial
+hand exists. In Fig. 4d, we demonstrate some misclassified distance between people. Experimental results showed that
+images for the face-hand interaction detection. In the first trainedmodelsachievedsignificantlyhighperformancewith
+image,althoughthemodelcandetectthehandandtheface, thehelpofourproposeddatasets,sincetheycontainalarge
+itcannotidentifythedepthbetweenthemduetotheposition amount of variation which represents various cases in the
+ofthehand.Inthesecondimage,theinteractionwithhands realworld.Thecross-datasetexperimentsindicatethegen-
+isnotcorrectlyclassifiedduetothechallenginganglesofthe eralization capacity of trained models on unseen data. The
+headandhands. proposedsystemcanbeeffectivelyutilizedtotrackallpre-
+ventionsagainstthetransmissionofCOVID-19.Asafuture
+4.3 Socialdistancecontrolling work,wewillfocusontocollectmoreimproperfacemask
+usage images to improve the performance as well as con-
+We utilized six different videos that we collected from tributetotheliteraturebyprovidingmoredata.
+the web to evaluate proposed social distancing module.
+Acknowledgements The project on which this report is based was
+These videos have different number of frames and they
+funded by the Federal Ministry of Education and Research (BMBF)
+wererecordedinvariousenvironmentswithdifferentcamera ofGermanyunderthenumber01IS18040A.Theauthorsareresponsi-
+angles.Duringthecalculationoftheaccuracyofthesocial bleforthecontentofthispublication.
+distancemeasurementalgorithm,weutilizedtheannotations
+Funding Open Access funding enabled and organized by Projekt
+thatwedecidedbasedonthesubjectpairsandexistingdis-
+DEAL.
+tance between each other. Person detector could not detect
+some of the subjects in the scene, if they are not visible in Open Access This article is licensed under a Creative Commons
+Attribution4.0InternationalLicense,whichpermitsuse,sharing,adap-
+thecameraduetotheocclusionbyotherpeopleorobjects.
+tation, distribution and reproduction in any medium or format, as
+Forthatreason,weignoredthemissingdetectionswhenwe
+long as you give appropriate credit to the original author(s) and the
+annotatedthevideos’framesandcalculatedtheaccuracies. source, provide a link to the Creative Commons licence, and indi-
+According to the results in Table 5, we achieved very high cateifchangesweremade.Theimagesorotherthirdpartymaterial
+inthisarticleareincludedinthearticle’sCreativeCommonslicence,
+accuracies onaverage. However, thefundamental problem,
+unlessindicatedotherwiseinacreditlinetothematerial.Ifmaterial
+especially occurred in the last video, is caused by the lack
+is not included in the article’s Creative Commons licence and your
+ofdepthinformation.Weprojectreal-worlddistancestothe intended use is not permitted by statutory regulation or exceeds the
+imagepixelswitharule-basedapproachwithoutusingrefer- permitteduse,youwillneedtoobtainpermissiondirectlyfromthecopy-
+rightholder.Toviewacopyofthislicence,visithttp://creativecomm
+encepoints.Therefore,depthperceptioncanbeproblematic
+ons.org/licenses/by/4.0/.
+forspecificangles.
+4.4 Overallsystemperformance
+References
+We evaluated the overall system performance on the same
+1. Coronavirus disease advice for the public. https://www.who.int/
+six videos and presented the results in Table 5. When we
+emergencies/diseases/novel-coronavirus-2019/advice-for-public.
+examinedtheface-handinteractionandfacemaskdetection Accessed:2021-05-01
+123
+1034 Signal,ImageandVideoProcessing(2023)17:1027–1034
+2. Covid-19: physical distancing. https://www.who.int/weste 25. Sathyamoorthy, A.J., et al.: Covid-robot: Monitoring social
+rnpacific/emergencies/covid-19/information/physical-distancing. distancing constraints in crowded scenarios. arXiv preprint
+Accessed:2021-05-01 arXiv:2008.06585(2020)
+3. Waibel, A., Hanazawa, T., Hinton, G., Shikano, K., Lang, K.J.: 26. Yang,D.,Yurtsever,E.,Renganathan,V.,Redmill,K.A.,Özgüner,
+Phoneme recognition using time-delay neural networks. IEEE Ü.:Avision-basedsocialdistancingandcriticaldensitydetection
+Trans.Acoust.SpeechSignalProcess.37(3),328–339(1989) systemforcovid-19.arXivpreprintarXiv:2007.03578pp.24–25
+4. Le Cun, Y., et al.: Handwritten digit recognition with a back- (2020)
+propagationnetwork.In:NeurIPS(1989) 27. Rezaei,M.,Azarmi,M.:Deepsocial:socialdistancingmonitoring
+5. Chen,J.,etal.:Deeplearning-basedmodelfordetecting2019novel and infection risk assessment in covid-19 pandemic. Appl. Sci.
+coronaviruspneumoniaonhigh-resolutioncomputedtomography. 10(21),7514(2020)
+Sci.Rep.10,1–11(2020) 28. Ahmed,I.,Ahmad,M.,Rodrigues,J.J.,Jeon,G.,Din,S.:Adeep
+6. Li,L.,etal.:Usingartificialintelligencetodetectcovid-19 and learning-basedsocialdistancemonitoringframeworkforcovid-19.
+community-acquiredpneumoniabasedonpulmonaryct:evalua- Sustain.CitiesSoc.65,102571(2021)
+tionofthediagnosticaccuracy.Radiology296(2),E65–E71(2020) 29. Beyan,C.,etal.:Analysisofface-touchingbehaviorinlargescale
+7. Farooq, M., Hafeez, A.: Covid-resnet: A deep learning frame- socialinteractiondataset.In:ICMI(2020)
+work for screening of covid19 from radiographs. arXiv preprint 30. Karras, T., Laine, S., Aila, T.: A style-based generator architec-
+arXiv:2003.14395(2020) tureforgenerativeadversarialnetworks.In:CVPR,pp.4401–4410
+8. Narin,A.,Kaya,C.,Pamuk,Z.:Automaticdetectionofcoronavirus (2019)
+disease(covid-19)usingx-rayimagesanddeepconvolutionalneu- 31. Zhang, K., Zhang, Z., Li, Z., Qiao, Y.: Joint face detection and
+ralnetworks.arXivpreprintarXiv:2003.10849(2020) alignmentusingmultitaskcascadedconvolutionalnetworks.IEEE
+9. Jiang,M.,Fan,X.:Retinamask:afacemaskdetector.arXivpreprint SignalProc.Lett.23(10),1499–1503(2016)
+arXiv:2005.03950(2020) 32. Sandler, M., Howard, A., Zhu, M., Zhmoginov, A., Chen, L.C.:
+10. Wang,Z.,etal.:Maskedfacerecognitiondatasetandapplication. Mobilenetv2:Invertedresidualsandlinearbottlenecks.In:CVPR,
+arXivpreprintarXiv:2003.09093(2020) pp.4510–4520(2018)
+11. Anwar,A.,Raychowdhury,A.:Maskedfacerecognitionforsecure 33. Deng,J.,Guo,J.,Ververas,E.,Kotsia,I.,Zafeiriou,S.:Retinaface:
+authentication.arXivpreprintarXiv:2008.11104(2020) Single-shotmulti-levelfacelocalisationinthewild.In:CVPR,pp.
+12. Damer,N.,etal.:Theeffectofwearingamaskonfacerecognition 5203–5212(2020)
+performance:anexploratorystudy.In:BIOSIG(2020) 34. Liu,W.,etal.:Ssd:Singleshotmultiboxdetector.In:ECCV,pp.
+13. Chen,S.,Liu,W.,Zhang,G.:Efficienttransferlearningcombined 21–37.Springer(2016)
+skip-connectedstructureformaskedfaceposesclassification.IEEE 35. Face mask detection. https://www.kaggle.com/andrewmvd/face-
+Access8,209688–209698(2020) mask-detection.Accessed:2021-05-01
+14. Boutros,F.,Damer,N.,etal.:Mfr2021:Maskedfacerecognition 36. Liu,Z.,Luo,P.,Wang,X.,Tang,X.:Deeplearningfaceattributes
+competition.In:IJCB,pp.1–10.IEEE(2021) inthewild.In:ICCV,pp.3730–3738(2015)
+15. Erakιn,M.E.,Demir,U.,Ekenel,H.K.:Onrecognizingoccluded 37. Huang, G.B., Learned-Miller, E.: Labeled faces in the wild:
+facesinthewild.In:BIOSIG,pp.1–5.IEEE(2021) Updatesandnewreportingprocedures.Dept.Comput.Sci.,Univ.
+16. Cabani,A.,etal.:Maskedface-net-adatasetofcorrectly/incorrectly MassachusettsAmherst,Amherst,MA,USA,Tech.Rep14(003)
+maskedfaceimagesinthecontextofcovid-19.SmartHealth19, (2014)
+100144(2021) 38. Yang,S.,Luo,P.,Loy,C.C.,Tang,X.:Widerface:Afacedetection
+17. Joshi,A.S.,Joshi,S.S.,Kanahasabai,G.,Kapil,R.,Gupta,S.:Deep benchmark.In:CVPR,pp.5525–5533(2016)
+learningframeworktodetectfacemasksfromvideofootage.In: 39. He, K., Zhang, X., Ren, S., Sun, J.: Deep residual learning for
+CICN,pp.435–440.IEEE(2020) imagerecognition.In:CVPR,pp.770–778(2016)
+18. Nagrath,P.,Jain,R.,Madan,A.,Arora,R.,Kataria,P.,Hemanth,J.: 40. Szegedy, C., Vanhoucke, V., Ioffe, S., Shlens, J., Wojna, Z.:
+Ssdmnv2:arealtimeDNN-basedfacemaskdetectionsystemusing Rethinking the inception architecture for computer vision. In:
+singleshotmultiboxdetectorandmobilenetv2.Sustain.CitiesSoc CVPR,pp.2818–2826(2016)
+66,102692(2021) 41. Tan,M.,Le,Q.:Efficientnet:Rethinkingmodelscalingforconvo-
+19. Batagelj, B., Peer, P., Štruc, V., Dobrišek, S.: How to correctly lutionalneuralnetworks.In:ICML(2019)
+detectface-masksforcovid-19fromvisualinformation?Appl.Sci. 42. Deng, J., et al.: Imagenet: A large-scale hierarchical image
+11(5),2070(2021) database.In:CVPR,pp.248–255.IEEE(2009)
+20. Chowdary,G.J.,Punn,N.S.,Sonbhadra,S.K.,Agarwal,S.:Face 43. Kingma,D.P.,Ba,J.:Adam:Amethodforstochasticoptimization.
+maskdetectionusingtransferlearningofinceptionv3.In:Interna- arXivpreprintarXiv:1412.6980(2014)
+tionalConferenceonBigDataAnalytics(2020) 44. Wang,J.,etal.:Deephigh-resolutionrepresentationlearningfor
+21. Wang, Z., Wang, P., Louis, P.C., Wheless, L.E., Huo, Y.: Wear- visualrecognition.IEEETrans.PAMI43,3349–3364(2020)
+mask: Fast in-browser face mask detection with serverless edge 45. Selvaraju,R.R.,Cogswell,M.,Das,A.,Vedantam,R.,Parikh,D.,
+computingforcovid-19.arXivpreprintarXiv:2101.00784(2021) Batra,D.:Grad-cam:Visualexplanationsfromdeepnetworksvia
+22. Petrovic´,N.,Kocic´,-D.:Iot-basedsystemforcovid-19indoorsafety gradient-basedlocalization.In:ICCV,pp.618–626(2017)
+monitoring.preprint),IcETRAN(2020)
+23. Loey,M.,Manogaran,G.,Taha,M.H.N.,Khalifa,N.E.M.:Fighting
+againstcovid-19:anoveldeeplearningmodelbasedonyolo-v2
+Publisher’sNote SpringerNatureremainsneutralwithregardtojuris-
+withresnet-50formedicalfacemaskdetection.Sustain.CitiesSoc.
+dictionalclaimsinpublishedmapsandinstitutionalaffiliations.
+65,102600(2021)
+24. Loey,M.,Manogaran,G.,Taha,M.H.N.,Khalifa,N.E.M.:Ahybrid
+deeptransferlearningmodelwithmachinelearningmethodsfor
+facemaskdetectionintheeraofthecovid-19pandemic.Measure-
+ment167,108288(2021)
+123

@@ -1,0 +1,718 @@
+Towards Generalizable Neuro-Symbolic Systems for Commonsense
+Question Answering
+KaixinMa¶∗ JonathanFrancis¶§ QuanyangLu† EricNyberg¶ AlessandroOltramari§
+¶LanguageTechnologiesInstitute,SchoolofComputerScience,CarnegieMellonUniversity
+†DepartmentofMechanicalEngineering,CollegeofEngineering,CarnegieMellonUniversity
+§IntelligentIoT,BoschResearchandTechnologyCenter(Pittsburgh,USA)
+{kaixinm, jmf1, qlv, ehn}@cs.cmu.edu
+alessandro.oltramari@us.bosch.com
+Abstract knowledge and leverage more sophisticated rea-
+soning mechanisms (Zhang et al., 2018; Oster-
+Non-extractive commonsense QA remains a
+mannetal.,2018),showingthatthepreviousstate-
+challenging AI task, as it requires systems to
+of-the-art models often struggle to solve these
+reasonabout,synthesize,andgatherdisparate
+newer tasks reliably. As a result, commonsense
+piecesofinformation,inordertogeneratere-
+has received a lot of attention in other areas as
+sponsestoqueries.Recentapproachesonsuch
+tasksshowincreasedperformance,onlywhen well, such as natural language inference (Zellers
+models are either pre-trained with additional et al., 2018b, 2019) and visual question answer-
+information or when domain-specific heuris- ing (Zellers et al., 2018a). Despite the impor-
+tics are used, without any special considera- tance of commonsense knowledge, however, pre-
+tion regarding the knowledge resource type.
+viousworkonQAmethodstakesacoarse-grained
+In this paper, we perform a survey of recent
+view of commonsense, without considering the
+commonsense QA methods and we provide a
+subtle differences across the various knowledge
+systematic analysis of popular knowledge re-
+sources and knowledge-integration methods, types and resources. Such differences have been
+across benchmarks from multiple common- discussedatlengthinAIbyphilosophers,compu-
+sense datasets. Our results and analysis show tational linguists, cognitive psychologists (see for
+that attention-based injection seems to be a instance (Davis, 2014)): at the high level, we can
+preferable choice for knowledge integration
+identify declarative commonsense, whose scope
+and that the degree of domain overlap, be-
+encompassess factualknowledge, e.g., ‘the sky is
+tween knowledge bases and datasets, plays a
+blue’, ‘Paris is in France’; taxonomic knowledge,
+crucialroleindeterminingmodelsuccess.
+e.g.,‘footballplayersareathletes’,‘catsaremam-
+1 Introduction mals’;relationalknowledge,e.g.,‘thenoseispart
+of the skull’, ‘handwriting requires a hand and
+With the recent success of large pre-trained
+a writing instrument’; procedural commonsense,
+language models (Devlin et al., 2019; Radford
+which includes prescriptiveknowledge, e.g., ‘one
+et al., 2019; Yang et al., 2019; Liu et al.,
+needs an oven before baking cakes’, ‘the electric-
+2019), model performance has reached or sur-
+ity should be off while the switch is being re-
+passed human-level capability on many previ-
+paired’(Hobbsetal.,1987);sentimentknowledge,
+ous question-answering (QA) benchmarks (Her-
+e.g., ‘rushing to the hospital makes people wor-
+mann et al., 2015; Rajpurkar et al., 2016; Lai
+ried’, ‘being in vacation makes people relaxed’;
+et al., 2017). However, these benchmarks do
+and metaphorical knowledge (e.g., ‘time flies’,
+not directly challenge model reasoning capabil-
+‘raining cats and dogs’). We believe that it is im-
+ity, as they require only marginal use of exter-
+portanttoidentifiythemostappropriatecommon-
+nal knowledge to select the correct answer, i.e.,
+sense knowledge type required for specific tasks,
+all the evidence required to solve questions in
+in order to get better downstream performance.
+these benchmarks is explicit in the context lexi-
+Once the knowledge type is identified, we can
+cal space. Efforts have been made towards build-
+thenselecttheappropriateknowledge-base(s),and
+ing more challenging datasets that, by design, re-
+the suitable neural integration mechanisms (e.g.,
+quiremodelstosynthesizeexternalcommonsense
+attention-basedinjection,pre-training,orauxiliary
+∗WorkwasdoneduringaninternshipatBoschResearch. trainingobjectives).
+Accordingly, in this work we conduct a com- et al. (2018) introduced a pipeline for extracting
+parison study of different knowledge bases and grounded multi-hop commonsense relation paths
+knowledge integration methods, and we evaluate fromConceptNetandproposedtoinjectcommon-
+model performance on two multiple-choice QA sense knowledge into neural models’ intermedi-
+datasets that explicitly require commonsense rea- aterepresentations,usingattention. Similarly,Mi-
+soning. In particular, we used ConceptNet (Speer haylov and Frank (2018) also proposed to extract
+etal.,2016)andtherecently-introducedATOMIC relevant knowledge triples from ConceptNet and
+(Sap et al., 2019) knowledge resources, integrat- use Key-Value Retrieval (Miller et al., 2016) to
+ing them with the Option Comparison Network gatherinformationfromknowledgetoenhancethe
+model (OCN; Ran et al. (2019)), a recent state- neural representation. Zhong et al. (2018) pro-
+of-the-art model for multiple choice QA tasks. posedtopre-trainascoringfunctionusingknowl-
+We evalutate our models on the DREAM (Sun edgetriplesfromConceptNet,tomodelthedirect
+etal.,2019)andCommonsenseQA(Talmoretal., andindirectrelationbetweenconcepts. Thisscor-
+2019) datasets. An example from DREAM that ing function was then fused with QA models to
+requires commonsense is shown in Table 1, and make the final prediction. Pan et al. (2019a) in-
+an example from CommonsenseQA is shown in troduced an entity discovery and linking system
+Table 2. Our experimental results and analysis toidentifythemostsaliententitiesinthequestion
+suggest that attention-based injection is prefer- and answer-options. Wikipedia abstracts of these
+ableforknowledgeintegrationandthatthedegree entitiesarethenextractedandappendedtotheref-
+of domain overlap, between knowledge-base and erence documents to provide additional informa-
+dataset,isvitaltomodelsuccess.1 tion. Weissenbornetal.(2018)proposedastrategy
+ofdynamicallyrefiningwordembeddingsbyread-
+Dialogue:
+inginputtextaswellasexternalknowledge,such
+M:Ihearyoudrivealongwaytoworkeveryday.
+W:Oh,yes.it’saboutsixtymiles.butitdoesn’tseem as ConceptNet and Wikipedia abstracts. More re-
+thatfar,theroadisnotbad,andthere’snotmuchtraffic. cently, Lin et al. (2019) proposed to extract sub-
+Question:
+graphs from ConceptNet and embed the knowl-
+Howdoesthewomanfeelaboutdrivingtowork?
+Answerchoices: edge using Graph Convolutional Networks (Kipf
+A.Shedoesn’tminditastheroadconditionsaregood.*
+and Welling, 2016). Then the knowledge repre-
+B.Sheisunhappytodrivesuchalongwayeveryday.
+sentation is integrated with word representation
+C.Sheistiredofdrivinginheavytraffic.
+throughanLSTMlayerandhierarchicalattention
+Table1: AnexamplefromtheDREAMdataset; theas- mechnism. Lv et al. (2019) introduced graph-
+terisk(*)denotesthecorrectanswer. basedreasoningmodulesthattakesbothConcept-
+NetknowledgetriplesandWikipediatextasinputs
+to refine word representations from a pretrained
+Question:
+languagemodelandmakepredictions.
+Arevolvingdoorisconvenientfortwodirectiontravel,
+butitalsoservesasasecuritymeasureatawhat?
+Commonsense knowledge integration has also
+Answerchoices:
+A.Bank*;B.Library;C.DepartmentStore; received a lot of attention on many other tasks.
+D.Mall;E.NewYork Tandon et al. (2018) proposed to use common-
+sense knowledge as hard/soft constraints to bias
+Table 2: An example from the CommonsenseQA
+theneuralmodel’spredictiononaproceduraltext
+dataset;theasterisk(*)denotesthecorrectanswer.
+comprehension task. Ma et al. (2018) proposed
+to used embedded affective commonsense knowl-
+edge inside LSTM cell to control the informa-
+2 RelatedWork
+tion flow in each gate for sentiment analysis task.
+Ithas beenrecognizedthat manyrecent QAtasks Li and Srikumar (2019) presented a framework
+require external knowledge or commonsense to to convert declarative knowlegde into first-order
+solve, and numerous efforts have been made in logic that enhance neural networks’ training and
+injecting commonsense in neural models. Bauer prediction. Peters et al. (2019) and Levine et al.
+(2019) both tried to injecting knowlegde into lan-
+1Fromaterminologicalstandpoint,‘domainoverlap’here
+mustbeinterpretedastheoverlapbetweenquestiontypesin guagemodelsbypretrainingonknowledgebases.
+thetargeteddatasets,andtypesofcommonsenserepresented
+intheknowledgebasesunderconsideration. Previous works only focus on using external
+knowledgesourcestoimprovemodelperformance the dialogue encoding D
+enc
+∈ Rn d×d, question
+on certain tasks, disregarding the type of com- encoding Q
+enc
+∈ Rnq×d, and answer-option en-
+monsense knowledge and how the domain of the coding O
+k,enc
+∈ Rno×d are separated from T enc.
+knowledgeresourceaffectsresultsondownstream Here, option-encoding consists both of question
+tasks. In this paper, we examine the roles of and option, i.e. Q ⊆ O and n +n = n,
+enc k,enc d o
+knowledge-base domain and specific integration as suggested by Ran et al. (2019). Given a set of
+mechanismsonmodelperformance. options O (k = 1,2,...), these options are com-
+k
+pared,pairwise,usingstandardtri-linearattention
+3 ApproachOverview
+(Seoetal.,2016):
+In this section, we describe the model architec-
+ture used in our experiments. Next, we intro- Att(u,v) = W 1·u+W 2·v+(W 3◦v)·u (2)
+ducetwopopularknowledgeresources,wedefine
+our knowledge-extraction method, then we illus- Where, W 1,W 2,W 3 ∈ Rd are trainable weights
+trate various neural knowledge-integration mech- and u ∈ Rx×d, v ∈ Ry×d are input matri-
+anisms. ces; x and y here are generic placeholder for in-
+put lengths; matrix multiplication and element-
+3.1 Modelarchitecture
+wise multiplication are denoted by (·) and (◦), re-
+The BERT model (Devlin et al., 2019) has been spectively. Next, we gather information from all
+applied to numerous QA tasks and has achieved other options, to form a new option representa-
+very promising performance, particularly on the tion O ∈ Rno×d. Formally, given option
+k,new
+DREAM and CommonsenseQA datasets. When O k,encandanotheroptionO
+l,enc
+∈ Rn l×d,O
+k,new
+utilizing BERT on multiple-choice QA tasks, the iscomputedasfollows:
+standard approach is to concatenate the dialogue
+contextandthequestionwitheachanswer-option, Ol =O ·Att(O ,O ) (3)
+k l,enc l,enc k,enc
+in order to generate a list of tokens which is
+O(cid:102)l =[O −Ol;O ◦Ol] (4)
+then fed into BERT encoder; a linear layer is k k,enc k k,enc k
+added on top, in order to predict the answer. O =tanh(W ·[O ;{O(cid:102)l} ]) (5)
+k,new c k,enc k l(cid:54)=k
+One aspect of this strategy is that each answer-
+option is encoded independently: from a cogni- Where, W ∈ R(d+2d(|O|−1))×d, |O| denotes to-
+c
+tive perspective, this aspect contradicts how hu- tal number of options and n denotes the number
+l
+mans typically solve multiple-choice QA tasks, of words in the compared option. Then, a gating
+namely by weighing each option to find correla- mechanism is used to fuse the option-wise corre-
+tionswithinthem, inadditiontocorrelationswith lationinformationO withthecurrentoption-
+k,new
+respecttothequestion. Toaddressthisissue,Ran encodingO . Gatingvaluesarecomputedas:
+k,enc
+et al. (2019) introduced the Option Comparison
+Network (OCN) that explicitly models pairwise
+G =sigmoid(W g[O k,enc;O k,new;Q(cid:101)]) (6)
+answer-option interactions, making OCN better-
+suitedformultiple-choiceQAtaskstructures. We
+Q(cid:101) =Q enc·softmax(Q enc·V a)T (7)
+re-implemented OCN while keeping BERT as its O fuse =G◦O k,enc+(1−G)◦O k,new (8)
+upstream encoder.2 Specifically, given a dialogue
+D, a question Q, and an answer-option O k, we Here, W g ∈ R3d×d and V a ∈ Rd×1. Co-attention
+concatenate them and encode with BERT to get (Xiong et al., 2016) is applied to re-read the dia-
+hiddenrepresentationT ∈ Rn×d: logue,giventhefusedoption-correlationfeatures:
+enc
+T =BERT(D;Q;O ) (1)
+enc k A =Att(D ,O ) (9)
+do enc fuse
+Where d is the size of BERT’s hidden represen- A =Att(O ,D ) (10)
+od fuse enc
+tation and n is the total number of words. Next,
+O = A ·[D ;A ·O ] (11)
+d od enc do fuse
+2Because the newly-released XLNet has out-performed
+BERT on various tasks, we considered using XLNet as the
+O(cid:102)d =ReLU(W p([O d;O fuse])) (12)
+OCN’sencoder. However,fromourinitialexperiments,XL-
+Net is very unstable, in that it easily provides degenerate Here, W ∈ R3d×d. Finally, self-attention (Wang
+solutions—aproblemnotedbyDevlinetal.(2019)forsmall p
+datasets.WefoundBERTtobemorestableinourstudy. etal.,2017)isusedtocomputefinaloptionrepre-
+Figure1: OptionComparisonNetworkwithKnowledgeInjection
+sentationO(cid:102)f ∈ Rno×d: 3.3 Knowledgeelicitation
+ConceptNet. For the DREAM dataset, we find
+O
+s
+=O(cid:102)d·Att(O(cid:102)d,O(cid:102)d) (13) ConceptNet relations that connect dialogues and
+questions to the answer-options. The intuition is
+O
+f
+= [O(cid:102)d;O s,O(cid:102)d−O s;O(cid:102)d◦O s] (14)
+thattheserelationpathswouldprovideexplicitev-
+O(cid:102)f =ReLU(W f ·O f) (15) idencethatwouldhelpthemodelfindtheanswer.
+Formally, given a dialogue D, a question Q, and
+Unlike the vanilla BERT model, which takes an answer-option O, we find all ConceptNet rela-
+the first token to predict the answer, max-pooling tions (C1, r, C2), such that C1 ∈ (D + Q) and
+is applied on the sequence dimension of O(cid:102)f ∈ C2 ∈ O, or vice versa. This rule works well for
+Rno×d,inordertogeneratethefinalprediction. single-word concepts. However, a large number
+of concepts in ConceptNet are actually phrases,
+and finding exactly matching phrases in D/Q/O
+3.2 Knowledgebases
+ismuchharder. Tofullyutilizephrase-basedCon-
+The first knowledge-base we consider for our ex- ceptNetrelations,werelaxedtheexact-matchcon-
+perimentsisConceptNet(Speeretal.,2016). Con- strainttothefollowing:
+ceptNet contains over 21 million edges and 8
+#wordsinC∩S
+million nodes (1.5 million nodes in the partition > 0.5 (16)
+#wordsinC
+for the English vocabulary), generating triples of
+the form (C1,r,C2): the natural-language con- Here, S represents D/Q/O, depending on which
+cepts C1 and C2 are associated by common- sequencewetrytomatchtheconceptC to. Addi-
+sense relation r, e.g., (dinner, AtLocation, restau- tionally, when the part-of-speech (POS) tag for a
+rant). Thanks to its coverage, ConceptNet is concept is available, we make sure it matches the
+one of the most popular semantic networks for POS tag of the corresponding word in D/Q/O.
+commonsense. ATOMIC (Sap et al., 2019) is For CommonsenseQA, we use the same proce-
+a new knowledge-base that focuses on procedu- duretofindConceptNetrelationsforeachanswer-
+ral knowledge. Triples are of the form (Event, option,exceptthatonlyQispresentandused. Ta-
+r,{Effect|Persona|Mental-state}),whereheadand ble 3 shows the extracted ConceptNet triples for
+tail are short sentences or verb phrases and r rep- the CommonsenseQA example in Table 2. It is
+resentsanif-thenrelationtype. Anexamplewould worthnotingthatweareabletoextracttheoriginal
+be: (X compliments Y, xIntent, X wants to be ConceptNet sub-graph that was used to create the
+nice). Since both DREAM and CommonsenseQA question, alongwithsomeextratriples. Although
+datasets are open-domain and require general not perfect, the bold ConceptNet triple does pro-
+commonsense, we think these knowledge-bases vide some clue that could help the model resolve
+aremostappropriateforourinvestigation. thecorrectanswer.
+Options ExtractedConceptNettriples
+Bank (revolvingdoorAtLocationbank)(bankRelatedTosecurity)
+Library (revolvingdoorAtLocationlibrary)
+DepartmentStore (revolvingdoorAtLocationstore)(securityIsAdepartment)
+Mall (revolvingdoorAtLocationmall)
+NewYork (revolvingdoorAtLocationNewYork)
+Table3: ExtractedConceptNetrelationsforsampleshowninTable2.
+Inputsentence GeneratedATOMICrelations
+Utterance1 (xAttrdedicated)(xWanttogettowork)
+Utterance2 (xAttrfar)(xReacthappy)(xWanttogettotheirdestination)
+OptionA (xAttrcalm)(xWanttoavoidtheroad)
+OptionB (xAttrcareless)(xReactannoyed)(xEffectgettired)
+OptionC (xAttrfrustrated)(xEffectgettired)(xWanttogetoutofcar)
+Table4: SamplegeneratedATOMICrelationsforsampleshowninTable1.
+ATOMIC. We observe that many questions in the one from correct answer seems to be semati-
+DREAM inquire about agent’s opinion and feel- callycloserthantheothertwo.
+ing. Superficially, this particular question type
+3.4 Knowledgeinjection
+seemswell-suitedforATOMIC,whosefocusison
+folk psychology and related general implications; Given previously extracted/generated knowledge
+we could frame our goal as evaluating whether triples, we need to integrate them with the OCN
+ATOMIC can provide relevant knowledge to help model. InspiredbyBaueretal.(2018),wepropose
+answer these questions. However, one challenge to use attention-based injection. For Concept-
+tothisstrategyisthatheadsandtailsofknowledge Net knowledge triples, we first convert concept-
+triples in ATOMIC are short sentences or verb relationtokensintoregulartokens,inordertogen-
+phrases, while rare words and person-references erateapseudo-sentence. Forexample,“(book,At-
+are reduced to blanks and PersonX/PersonY, re- Location, library)” would be converted to “book
+spectively. This calls for a new matching pro- at location library.” Next, we use the BERT em-
+cedure, different from the ConceptNet extrac- bedding layer to generate an embedding of this
+tion strategy, for eliciting ATOMIC-specific rela- pseudo-sentence, with C denoting a ConceptNet
+tions: we rely on the recently-published COMET relation:
+model (Bosselut et al., 2019) to generate new H = BiLSTM(C) (17)
+C
+ATOMICrelations,withintermediatephrasalres-
+If we let H ∈ R1×2l be the concatenation of the
+olutions. In particular, we first segmented all di- C
+final hidden states and l be the number of hidden
+alogues, questions, and answer-options into sen-
+units in the LSTM layer, then m ConceptNet re-
+tences. We further segment long sentences into
+lations would yield the commonsense knowledge
+sub-sentences, using commas as seperators. Be-
+matrix H ∈ Rm×2l. We adopt the attention
+cause only verb-phrases satisfy the definition of M
+mechanism used in QAnet (Yu et al., 2018) to
+an “event” in ATOMIC (i.e., relations are only
+modeltheinteractionbetweenH andtheBERT
+invoked by verbs), we remove all sentences/sub- M
+encodingoutputT (fromEquation1):
+sentences that do not contain any verb. Next, we enc
+use a pre-trained COMET model (Bosselut et al.,
+H(cid:101)M =H
+M
+·W
+proj
+(18)
+2019) to generate all possible ATOMIC relations,
+S =Att(H ,T ) (19)
+for all candidate sentences/sub-sentences and we M enc
+usegreedy-decodingtotakethe1-bestsequences. A m =softmax(S)·H(cid:101)M (20)
+Table4showsthesampleATOMICrelations,gen- A = softmax(S)·softmax(ST)·T (21)
+t enc
+erated using the DREAM example in Table 1. It is
+T = [T ;A ;T ◦A ;T ◦A ] (22)
+C enc m enc m enc t
+interestingtonotethatthereactionforthewoman
+T =ReLU(T ·W ) (23)
+agent (second utterance) is identified as happy, out C a
+sinceshesaidthat‘theroadisnotbad.’ Ifwecom-
+Specifically, H is first projected into the same
+pare the identified attributes for answer-options, M
+dimension as T , using W ∈ R2l×d. Then,
+enc proj
+the similarty matrix S ∈ Rn×m is computed us- randomly masked out 15% of the tokens; we
+ing tri-linear attention, as in Equation 2. We then fine-tuned BERT, using a masked language
+then use S to compute text-to-knowledge atten- model objective. Then we load this fine-tuned
+tion A ∈ Rn×d and knowledge-to-text attention model into OCN and trained on DREAM and
+m
+A ∈ Rn×d. Finally,theknowledge-awaretextual CommonsenseQA tasks. As for pre-training
+t
+representation T ∈ Rn×d is computed, where on ATOMIC, we again use COMET to convert
+out
+W ∈ R4d×d. T is fed to subsequent layers (in ATOMIC knowledge triples into sentences; we
+a out
+placeofT ),inordertogeneratetheprediction. created special tokens for 9 types of relations as
+enc
+The model structure with knowledge-injection is well as blanks. Next, we randomly masked out
+summarizedinFigure1. 15% of the tokens, only masking out tail-tokens.
+For ATOMIC knowledge triples, the injection WeusethesameOMCSpre-trainingprocedure.
+method is slightly different. Because heads of
+Models DevAcc TestAcc
+these knowledge triples are sentences/utterances
+BERTLarge(*) 66.0 66.8
+andthetailscontainattributesofthepersons(i.e., XLNet(*) - 72.0
+OCN 70.0 69.8
+subject and object of the sentence), it is not pos- OCN+CNinjection 70.5 69.6
+OCN+ATinjection 69.6 70.1
+sible to directly inject the knowledge triples, as-
+OCN+OMCSpre-train 64.0 62.6
+is. We replace the heads of the ATOMIC knowl- OCN+ATOMICpre-train 60.3 58.8
+edge triples with the corresponding speaker for
+Table 5: Results on DREAM; the asterisk (*) denotes
+dialogues and leave as blank for the answer-
+resultstakenfromleaderboard.
+options. Next, we convert the special relation to-
+kensintoregulartokens, e.g., “xIntent”⇒“intent”
+and “oEffect”⇒ “others effect”, to make pseudo- Models DevAcc
+BERT+OMCSpre-train(*) 68.8
+sentences. As a result, an ATOMIC relation “(the RoBERTa+CSPT(*) 76.2
+OCN 64.1
+road is not bad, xReact, happy)” would be con- OCN+CNinjection 67.3
+OCN+OMCSpre-train 65.2
+verted to “(W, react, happy).” Moreover, as the
+OCN+ATOMICpre-train 61.2
+ATOMIC knowledge triples are associated with OCN+OMCSpre-train+CNinject 69.0
+dialogues and answer-options, independently, we
+inject option relations into O
+enc
+∈ Rno×d and di- T dea nb ole te6 s: rR ese usu ltl sts tao kn eC no frm om mo ln es ade en rs boe aQ rdA .;theasterisk(*)
+alogue relations into D , respectively, using the
+enc
+injectionmethoddescribedabove.
+4 Experiments
+3.5 Knowledgepre-training
+4.1 Datasets
+Pre-training large-capacity models (e.g., BERT,
+GPT (Radford et al., 2019), XLNet (Yang et al., We choose to evaluate our hypotheses using the
+2019))onlargecorpora, thenfine-tuningonmore DREAM and CommonsenseQA datasets, because
+domain-specific information, has led to perfor- some/allquestionsrequirecommonsensereason-
+mance improvements on various tasks. Inspired ingandbecausethereremainsalargegapbetween
+by this, our goal in this section is to observe state-of-the-artmodelsandhumanperformance.
+the effect of pre-training BERT on commonsense DREAMisadialogue-basedmultiple-choiceQA
+knowledgeandrefiningthemodelontask-specific dataset, introduced by Sun et al. (2019). It was
+content from our DREAM and CommonsenseQA collected from English-as-a-foreign-language ex-
+corpora. Essentially, we would like to test if pre- aminations, designed by human experts. The
+training on our external knowledge resources can dataset contains 10,197 questions for 6,444 dia-
+help the model acquire commonsense. For the logues in total, and each question is associated
+ConceptNet pre-training procedure, pre-training with 3 answer-options. The authors point out that
+BERTonpseudo-sentencesformulatedfromCon- 34% of questions require commonsense knowl-
+ceptNet knowledge triples does not provide much edgetoanswer,whichincludessocialimplication,
+gain on performance. Instead, we trained BERT speaker’sintention,orgeneralworldknowledge.
+on the Open Mind Common Sense (OMCS) cor- CommonsenseQA is a multiple-choice QA
+pus (Singh et al., 2002), the original corpus that dataset that specifically measure commonsense
+was used to create ConceptNet. We extracted reasoning (Talmor et al., 2019). This dataset is
+about 930K English sentences from OMCS and constructed based on ConceptNet (Speer et al.,
+2016). Specifically, a source concept is first ex- surprise,OCNpre-trainedonOMCSorATOMIC
+tractedfromConceptNet,alongwith3targetcon- gotsignificantlylowerperformance.
+cepts that are connected to the source concept, As for results on CommonsenseQA, Concept-
+i.e., a sub-graph. Crowd-workers are then asked Net knowledge-injection provides a significant
+to generate questions, using the source concept, performanceboost(+2.8%),comparedtotheOCN
+such that only one of the target concepts can cor- baseline, suggesting that explicit links from ques-
+rectly answer the question. Additionally, 2 more tiontoanswer-optionshelpthemodelfindthecor-
+distractorconceptsareselectedbycrowd-workers rect answer. Pre-training on OMCS also provides
+so thateach question is associatedwith 5 answer- a small performance boost to the OCN baseline.
+options. Intotal,thedatasetcontains12,247ques- Since both ConceptNet knowledge-injection and
+tions. For CommonsenseQA, we evaluate mod- OMCS pre-training are helpful, we combine both
+els on the development-set only, since test-set an- approaches with OCN and we are able to achieve
+swersarenotpubliclyavailable. further improvement (+4.9%). Finally, similar
+to the results on DREAM, OCN pre-trained on
+4.2 Trainingdetails
+ATOMICyieldsasiginificantperformancedrop.
+For ease of comparison, we borrow hyperparam-
+eter settings from Pan et al. (2019b); we used 5 ErrorAnalysis
+the BERT Whole-Word Masking Uncased model
+(Devlin et al., 2018) for all experiments. For To better understand when a model performs bet-
+DREAM experiments, we used a max sequence- ter or worse with knowledge-integration, we ana-
+length of 512, batch-size of 24, learning rate of lyzedmodelpredictions. DREAMdatasetprovides
+1e−5, and we trained the model for 16 epochs. annotations for about 1000 questions: 500 ques-
+For CommonsenseQA, we used a max sequence tions in the development-set and 500 in the test-
+length of 60, batch-size of 32, learning rate of set. Specifically, questions are manually classi-
+1e−5, and trained for 8 epochs. For pre-training fiedinto5categories: Matching,Summary,Logic
+on OMCS, we used max sequence length of 35, inference, Commonsense inference, and Arith-
+batch-sizeof32,learningrateof3e−5,andtrained metic inference; and each question can be clas-
+for 3 epochs. For pre-training on ATOMIC, the sified under multiple categories. We refer read-
+max sequence length is changed to 45, other hy- ers to Sun et al. (2019) for additional category
+perparameters remain the same, and we only use information. We extracted model predictions for
+the ATOMIC training set. When using OCN on these annotated questions in test-set and grouped
+CommonsenseQA,sincethereisnodialogue,we them by types. The accuracies for each question-
+computeco-attentionwithQ ,inplaceofD , group are shown in Table 7. Note that we omit-
+enc enc
+inordertokeepthemodelstructureconsistent. ted 2 categories that have less than 10 questions.
+FortheConceptNetandtheATOMICknowledge-
+4.3 Results
+injection models, we can see that they did bet-
+DREAM results are shown in Table 5, and ter on questions that involve commonsense (last
+CommonsenseQA results are shown in Table 3 columns in the table), and the performance on
+6. For all of our experiments, we run 3 tri- other types are about the same or slightly worse,
+als with different random seeds and we report compared to baseline OCN. As for models pre-
+average scores in the tables. Evaluated on trainedonOMCScorpusorATOMICknowledge-
+DREAM, our OCN model got a significant per- base, we already saw that these model perfor-
+formance boost (+3.0%), compared to BERT- mancesdrop,comparedtothebaseline. Whenwe
+large from previous work. We think the rea- look at the performance difference in each ques-
+sons are that OCN is better-suited for the task tion type, it is clear that some categories account
+and that we used BERT Whole-Word Mask- for the performance drop more than others. For
+ing Uncased model. OCN with ConceptNet example, for both the OMCS pre-trained model
+knowledge-injection achieves slightly better re- andtheATOMICpre-trainedmodel,performance
+sults on the development-set, while ATOMIC dropssignificantlyforMatchingquestions,inpar-
+knowledge-injection helps achieve a small im- ticular. On the other hand, for questions that re-
+provementonthetest-set. However,werecognize quire both commonsense inference and summa-
+that these improvements are very limited; to our rization,bothmodels’performancesonlydropped
+Models M(54) S(15) A+L(11) L(228) C+L(122) C(14) C+S(60)
+OCN 88.9 86.7 27.3 75.9 60.7 71.4 70.0
+OCN+CNinjection 83.3(-5.6) 86.7(+0.0) 18.2(-9.2) 76.8(+0.9) 59.8(-0.9) 64.3(-7.1) 78.3(+8.3)
+OCN+ATinjection 88.9(+0.0) 80.0(-6.7) 27.3(+0.0) 75.9(+0.0) 66.4(+5.7) 71.4(+0.0) 75(+5.0)
+OCN+OMCSpre-train 70.4(-18.5) 73.3(-13.4) 45.4(+18.1) 69.7(-6.2) 48.4(-12.3) 57.1(-14.3) 68.3(-1.7)
+OCN+ATOMICpre-train 66.6(-22.3) 86.7(+0.0) 18.2(-9.2) 64.0(-11.9) 51.6(-9.1) 42.9(-28.5) 70.0(+0.0)
+Table 7: Accuracies for each DREAM question type: M means Matching, S means Summary, L means Logic
+inference,CmeansCommonsenseinference,andAmeansArithmaticinference. Numbersbesidetypesdenotethe
+numberofquestionsofthattype.
+Models AtLoc.(596) Cau.(194) Cap.(109) Ant.(92) H.Pre.(46) H.Sub.(39) C.Des.(28) Des.(27)
+OCN 64.9 66.5 65.1 55.4 69.6 64.1 57.1 66.7
++CNinj, 67.4(+2.5) 70.6(+4.1) 66.1(+1.0) 60.9(+5.5) 73.9(+4.3) 66.7(+2.6) 64.3(+7.2) 77.8(+11.1)
++OMCS 68.8(+3.9) 63.9(-2.6) 62.4(-2.7) 60.9(+5.5) 71.7(+2.1) 59.0(-5.1) 64.3(+7.2) 74.1(+7.4)
++ATOMIC 62.8(-2.1) 66.0(-0.5) 60.6(-4.5) 52.2(-3.2) 63.0(-6.6) 56.4(-7.7) 60.7(+3.6) 74.1(+7.4)
++OMCS+CN 71.6(+6.7) 71.6(+5.1) 64.2(+0.9) 59.8(+4.4) 69.6(+0.0) 69.2(+5.1) 75.0(+17.9) 70.4(+3.7)
+Table8: AccuraciesforeachCommonsenseQAquestiontype: AtLoc. meansAtLocation,Cau. meansCauses,
+Cap.meansCapableOf,Ant.meansAntonym,H.Pre.meansHasPrerequiste,H.SubmeansHasSubevent,C.Des.
+meansCausesDesire,andDes. meansDesires. Numbersbesidetypesdenotethenumberofquestionsofthattype.
+slightlyordidnotchange. Basedontheseresults, tions” in ATOMIC; and “CausesDesire” in Con-
+we infer that commonsense knowledge-injection ceptNet is similar to “Wants” in ATOMIC. This
+with attention is making an impact on models’ result also correlates with our findings from our
+weight distributions. The model is able to do analysis on DREAM, wherein we found that mod-
+better on questions that require commonsense but elswithknowledgepre-trainingperformbetteron
+is losing performance on other types, suggest- questions that fit knowledge domain but perform
+ing a direction for future research in developing worse on others. In this case, pre-training on
+more robust (e.g., conditional) injection methods. ATOMIC helps the model do better on questions
+Moreover,pre-trainingonknowledge-basesseems thataresimilartoATOMICrelations,eventhough
+to have a larger impact on models’ weight distri- overall performance is inferior. Finally, we no-
+butions, resulting in inferior performance. This ticed that questions of type “Antonym” appear to
+weight distribution shift also favors of common- be the hardest ones. Many questions that fall into
+sense, as we see that commonsense types are not this category contain negations, and we hypothe-
+affected as much as other types. We also con- size that the models still lack the ability to reason
+ducted similar analysis for CommonsenseQA. overnegationsentences,suggestinganotherdirec-
+Since all questions in CommonsenseQA require tionforfutureimprovement.
+commonsense reasoning, we classify questions
+6 Discussion
+based on the ConceptNet relation between the
+questionconceptandcorrectanswerconcept. The Based on our experimental results and error anal-
+intuition is that the model needs to capture this ysis, weseethatexternalknowledgeisonlyhelp-
+relation in order to answer the question. The ac- fulwhenthereisalignmentbetweenquestionsand
+curacies for each question type are shown in Ta- knowledge-base types. Thus, it is crucial to iden-
+ble 8. Note that we have omitted question types tify the question type and apply the best-suited
+that have less than 25 questions. We can see knowledge. In terms of knowledge-integration
+that with ConceptNet relation-injection, all ques- methods, attention-based injection seems to be
+tion types got performance boosts, for both OCN the better choice for pre-trained language mod-
+model and OCN pre-trained on OMCS, suggest- els such as BERT. Even when alignment between
+ing that knowledge is indeed helpful for the task. knowledge-base and dataset is sub-optimal, the
+In the case of OCN pre-trained on ATOMIC, al- performance would not degrade. On the other
+thoughtheoverallperformanceismuchlowerthan hand,pre-trainingonknowledge-baseswouldshift
+OCN baseline, it is interesting to see that perfor- the language model’s weight distribution toward
+mance for the “Causes” type is not significantly its own domain, greatly. If the task domain
+affected. Moreover, performance for “CausesDe- does not fit knowledge-base well, model perfor-
+sire” and “Desires” types actually got much bet- mance is likely to drop. When the domain of the
+ter. As noted by (Sap et al., 2019), “Causes” knowledge-basealignswiththatofthedatasetper-
+in ConceptNet is similar to “Effects” and “Reac- fectly, both knowledge-integration methods bring
+performance boosts and a combination of them Jacob Devlin, Ming-Wei Chang, Kenton Lee, and
+couldbringfurthergain. KristinaToutanova.2018. Bert:Pre-trainingofdeep
+bidirectional transformers for language understand-
+7 FutureWork ing. arXivpreprintarXiv:1810.04805.
+Jacob Devlin, Ming-Wei Chang, Kenton Lee, and
+We have presented a survey on two popular
+Kristina Toutanova. 2019. BERT: Pre-training of
+knowledgebases(ConceptNetandATOMIC)and
+deepbidirectionaltransformersforlanguageunder-
+recent knowledge-integration methods (attention standing. In Proceedings of the 2019 Conference
+and pre-training), on commonsense QA tasks. of the North American Chapter of the Association
+for Computational Linguistics: Human Language
+EvaluationontwoQAdatasetssuggeststhatalign-
+Technologies, Volume 1 (Long and Short Papers),
+mentbetweenknowledge-basesanddatasetsplays
+pages4171–4186,Minneapolis,Minnesota.Associ-
+a crucial role in knowledge-integration. We be- ationforComputationalLinguistics.
+lieve it is worth conducting a more comprehen-
+Ellen Dodge, Jisup Hong, and Elise Stickles. 2015.
+sive study of datasets and knowledge-bases and
+Metanet: Deep semantic automatic metaphor anal-
+putting more effort towards defining an auxiliary
+ysis. In Proceedings of the Third Workshop on
+learning objective, in a constrained-optimization MetaphorinNLP,pages40–49.
+(i.e., multi-task learning) framework, that identi-
+Aldo Gangemi, Nicola Guarino, Claudio Masolo, and
+fiesthetypeofknowledgerequired,basedondata
+Alessandro Oltramari. 2010. Interfacing wordnet
+characteristics. In parallel, we are also interested
+withdolce: towardsontowordnet. Ontologyandthe
+inbuildingaglobalcommonsenseknowledgebase Lexicon: A Natural Language Processing Perspec-
+byaggregatingConceptNet,ATOMIC,andpoten- tive,pages36–52.
+tially other resources like FrameNet (Baker et al.,
+Karl Moritz Hermann, Tomas Kocisky, Edward
+1998) and MetaNet (Dodge et al., 2015), on the
+Grefenstette,LasseEspeholt,WillKay,MustafaSu-
+basis of a shared-reference ontology (following leyman, and Phil Blunsom. 2015. Teaching ma-
+theapproachesdescribedin(Gangemietal.,2010) chinestoreadandcomprehend. InC.Cortes,N.D.
+Lawrence,D.D.Lee,M.Sugiyama,andR.Garnett,
+and (Scheffczyk et al., 2010)): the goal would be
+editors,AdvancesinNeuralInformationProcessing
+to assess whether injecting knowledge structures
+Systems 28, pages 1693–1701. Curran Associates,
+from a semantically-cohesive lexical knowledge Inc.
+baseofcommonsenseguaranteesstablemodelac-
+Jerry R Hobbs, William Croft, Todd Davies, Douglas
+curacyacrossdatasets.
+Edwards, andKennethLaws.1987. Commonsense
+metaphysics and lexical semantics. Computational
+linguistics,13(3-4):241–250.
+References
+Thomas N. Kipf and Max Welling. 2016. Semi-
+CollinFBaker,CharlesJFillmore,andJohnBLowe.
+supervised classification with graph convolutional
+1998. The berkeley framenet project. In Proceed- networks. CoRR,abs/1609.02907.
+ingsofthe17thinternationalconferenceonCompu-
+tationallinguistics-Volume1, pages86–90.Associ- Guokun Lai, Qizhe Xie, Hanxiao Liu, Yiming Yang,
+ationforComputationalLinguistics. and Eduard H. Hovy. 2017. RACE: large-scale
+reading comprehension dataset from examinations.
+Lisa Bauer, Yicheng Wang, and Mohit Bansal. 2018. CoRR,abs/1704.04683.
+Commonsenseforgenerativemulti-hopquestionan-
+swering tasks. In Proceedings of the 2018 Confer- Yoav Levine, Barak Lenz, Or Dagan, Dan Padnos,
+ence on Empirical Methods in Natural Language Or Sharir, Shai Shalev-Shwartz, Amnon Shashua,
+Processing, pages 4220–4230, Brussels, Belgium. and Yoav Shoham. 2019. Sensebert: Driving some
+AssociationforComputationalLinguistics. senseintobert. ArXiv,abs/1908.05646.
+Antoine Bosselut, Hannah Rashkin, Maarten Sap, Tao Li and Vivek Srikumar. 2019. Augmenting neu-
+Chaitanya Malaviya, Asli Celikyilmaz, and Yejin ral networks with first-order logic. In Proceed-
+Choi. 2019. COMET: Commonsense transform- ings of the 57th Annual Meeting of the Association
+ersforautomaticknowledgegraphconstruction. In forComputationalLinguistics,pages292–302,Flo-
+Proceedingsofthe57thAnnualMeetingoftheAsso- rence,Italy.AssociationforComputationalLinguis-
+ciationforComputationalLinguistics,pages4762– tics.
+4779, Florence, Italy. Association for Computa-
+tionalLinguistics. Bill Yuchen Lin, Xinyue Chen, Jamin Chen, and
+Xiang Ren. 2019. Kagnet: Knowledge-aware
+Ernest Davis. 2014. Representations of commonsense graphnetworksforcommonsensereasoning. ArXiv,
+knowledge. MorganKaufmann. abs/1909.02151.
+YinhanLiu,MyleOtt,NamanGoyal,JingfeiDu,Man- QiuRan,PengLi,WeiweiHu,andJieZhou.2019. Op-
+dar Joshi, Danqi Chen, Omer Levy, Mike Lewis, tion comparison network for multiple-choice read-
+Luke Zettlemoyer, and Veselin Stoyanov. 2019. ingcomprehension. CoRR,abs/1903.03033.
+Roberta: A robustly optimized BERT pretraining
+Maarten Sap, Ronan LeBras, Emily Allaway, Chan-
+approach. CoRR,abs/1907.11692.
+draBhagavatula,NicholasLourie,HannahRashkin,
+Shangwen Lv, Daya Guo, Jingjing Xu, Duyu Tang, BrendanRoof,NoahASmith,andYejinChoi.2019.
+Nan Duan, Ming Gong, Linjun Shou, Daxin Jiang, Atomic: An atlas of machine commonsense for if-
+Guihong Cao, and Songlin Hu. 2019. Graph- thenreasoning. InAAAI.
+basedreasoningoverheterogeneousexternalknowl-
+Jan Scheffczyk, Collin F Baker, and Srini Narayanan.
+edge for commonsense question answering. ArXiv,
+2010. Reasoning over natural language text by
+abs/1909.05311.
+meansofframenetandontologies. Ontologyandthe
+Yukun Ma, Haiyun Peng, and Erik Cambria. 2018.
+lexicon: Anaturallanguageprocessingperspective,
+Targeted aspect-based sentiment analysis via em- pages53–71.
+bedding commonsense knowledge into an attentive
+Min Joon Seo, Aniruddha Kembhavi, Ali Farhadi,
+lstm. InAAAI.
+and Hannaneh Hajishirzi. 2016. Bidirectional at-
+tention flow for machine comprehension. ArXiv,
+TodorMihaylovandAnetteFrank.2018. Knowledge-
+abs/1611.01603.
+able reader: Enhancing cloze-style reading com-
+prehensionwithexternalcommonsenseknowledge. PushSingh,ThomasLin,ErikT.Mueller,GraceLim,
+In Proceedings of the 56th Annual Meeting of the Travell Perkins, and Wan Li Zhu. 2002. Open
+Association for Computational Linguistics (Volume mind common sense: Knowledge acquisition from
+1: Long Papers), pages 821–832, Melbourne, Aus- the general public. In On the Move to Meaning-
+tralia.AssociationforComputationalLinguistics. ful Internet Systems, 2002 - DOA/CoopIS/ODBASE
+2002ConfederatedInternationalConferencesDOA,
+Alexander Miller, Adam Fisch, Jesse Dodge, Amir-
+CoopIS and ODBASE 2002, pages 1223–1237,
+Hossein Karimi, Antoine Bordes, and Jason We-
+Berlin,Heidelberg.Springer-Verlag.
+ston.2016. Key-valuememorynetworksfordirectly
+reading documents. In Proceedings of the 2016 Robyn Speer, Joshua Chin, and Catherine Havasi.
+Conference on Empirical Methods in Natural Lan- 2016. Conceptnet 5.5: An open multilingual graph
+guageProcessing,pages1400–1409,Austin,Texas. ofgeneralknowledge. InAAAIConferenceonArti-
+AssociationforComputationalLinguistics. ficialIntelligence.
+SimonOstermann,MichaelRoth,AshutoshModi,Ste- Kai Sun, Dian Yu, Jianshu Chen, Dong Yu, Yejin
+fan Thater, and Manfred Pinkal. 2018. SemEval- Choi, and Claire Cardie. 2019. Dream: A chal-
+2018 task 11: Machine comprehension using com- lengedatasetandmodelsfordialogue-basedreading
+monsense knowledge. In Proceedings of The 12th comprehension. TransactionsoftheAssociationfor
+International Workshop on Semantic Evaluation, ComputationalLinguistics,7:217–231.
+pages 747–757, New Orleans, Louisiana. Associa-
+Alon Talmor, Jonathan Herzig, Nicholas Lourie, and
+tionforComputationalLinguistics.
+JonathanBerant.2019. CommonsenseQA:Aques-
+Xiaoman Pan, Kai Sun, Dian Yu, Heng Ji, and Dong tion answering challenge targeting commonsense
+Yu.2019a. Improvingquestionansweringwithex- knowledge. InProceedingsofthe2019Conference
+ternalknowledge. CoRR,abs/1902.00993. of the North American Chapter of the Association
+for Computational Linguistics: Human Language
+Xiaoman Pan, Kai Sun, Dian Yu, Heng Ji, and Dong Technologies, Volume 1 (Long and Short Papers),
+Yu.2019b. Improvingquestionansweringwithex- pages4149–4158,Minneapolis,Minnesota.Associ-
+ternalknowledge. CoRR,cs.CL/1902.00993v1. ationforComputationalLinguistics.
+Matthew E. Peters, Mark Neumann, NiketTandon,BhavanaDalvi,JoelGrus,Wen-tauYih,
+IV RobertL.Logan, Roy Schwartz, Vidur Joshi, AntoineBosselut,andPeterClark.2018. Reasoning
+Sameer Singh, and Noah A. Smith. 2019. Knowl- about actions and state changes by injecting com-
+edge enhanced contextual word representations. monsense knowledge. In Proceedings of the 2018
+ArXiv,abs/1909.04164. Conference on Empirical Methods in Natural Lan-
+guageProcessing,pages57–66,Brussels,Belgium.
+Alec Radford, Jeff Wu, Rewon Child, David Luan, AssociationforComputationalLinguistics.
+DarioAmodei,andIlyaSutskever.2019. Language
+modelsareunsupervisedmultitasklearners. Wenhui Wang, Nan Yang, Furu Wei, Baobao Chang,
+and Ming Zhou. 2017. Gated self-matching net-
+PranavRajpurkar,JianZhang,KonstantinLopyrev,and works for reading comprehension and question an-
+PercyLiang.2016. SQuAD:100,000+questionsfor swering. In Proceedings of the 55th Annual Meet-
+machine comprehension of text. In Proceedings of ing of the Association for Computational Linguis-
+the2016ConferenceonEmpiricalMethodsinNatu- tics(Volume1: LongPapers),pages189–198,Van-
+ralLanguageProcessing,pages2383–2392,Austin, couver,Canada.AssociationforComputationalLin-
+Texas.AssociationforComputationalLinguistics. guistics.
+Dirk Weissenborn, Tom’avs Kovcisk’y, and Chris
+Dyer. 2018. Dynamic integration of background
+knowledgeinneuralnlusystems.
+Caiming Xiong, Victor Zhong, and Richard Socher.
+2016. Dynamic coattention networks for question
+answering. ArXiv,abs/1611.01604.
+Zhilin Yang, Zihang Dai, Yiming Yang, Jaime
+Carbonell, Ruslan Salakhutdinov, and Quoc V.
+Le. 2019. Xlnet: Generalized autoregres-
+sive pretraining for language understand-
+ing. Cite arxiv:1906.08237Comment: Pre-
+trained models and code are available at
+https://github.com/zihangdai/xlnet.
+AdamsWeiYu,DavidDohan,ThangLuong,RuiZhao,
+Kai Chen, and Quoc Le. 2018. Qanet: Combining
+localconvolutionwithglobalself-attentionforread-
+ingcomprehension.
+Rowan Zellers, Yonatan Bisk, Ali Farhadi, and Yejin
+Choi.2018a. Fromrecognitiontocognition: Visual
+commonsensereasoning. CoRR,abs/1811.10830.
+RowanZellers,YonatanBisk,RoySchwartz,andYejin
+Choi. 2018b. SWAG: A large-scale adversarial
+dataset for grounded commonsense inference. In
+Proceedings of the 2018 Conference on Empirical
+Methods in Natural Language Processing, pages
+93–104, Brussels, Belgium. Association for Com-
+putationalLinguistics.
+Rowan Zellers, Ari Holtzman, Yonatan Bisk, Ali
+Farhadi, and Yejin Choi. 2019. HellaSwag: Can a
+machine really finish your sentence? In Proceed-
+ings of the 57th Annual Meeting of the Association
+for Computational Linguistics, pages 4791–4800,
+Florence, Italy.AssociationforComputationalLin-
+guistics.
+Sheng Zhang, Xiaodong Liu, Jingjing Liu, Jianfeng
+Gao, Kevin Duh, and Benjamin Van Durme. 2018.
+Record: Bridging the gap between human and ma-
+chinecommonsensereadingcomprehension. CoRR,
+abs/1810.12885.
+Wanjun Zhong, Duyu Tang, Nan Duan, Ming Zhou,
+Jiahai Wang, and Jian Yin. 2018. Improving ques-
+tionansweringbycommonsense-basedpre-training.
+CoRR,abs/1809.03568.

@@ -1,0 +1,1091 @@
+MixandMatch: Learning-freeControllableTextGeneration
+usingEnergyLanguageModels
+FatemehsadatMireshghallah1,KartikGoyal2,TaylorBerg-Kirkpatrick1
+1UniversityofCaliforniaSanDiego,2ToyotaTechnologicalInstituteatChicago(TTIC)
+[fatemeh, tberg]@ucsd.edu, kartikgo@ttic.edu
+Abstract ationviaeithertrainingdomain-conditionedneu-
+rallanguagemodels(Prabhumoyeetal.,2020;He
+Recent work on controlled text generation
+has either required attribute-based fine-tuning etal.,2020;Lampleetal.,2018;Shenetal.,2017;
+of the base language model (LM), or has Krishna et al., 2020; Reif et al., 2021; Ficler and
+restrictedtheparameterizationoftheattribute Goldberg, 2017; Khalifa et al., 2021) or finetun-
+discriminatortobecompatiblewiththebaseau- ing/modifyinganunderlyinglargepre-trainedbase
+toregressiveLM.Inthiswork,weproposeMix
+modelforgenerationondomain-specificdatafor
+andMatchLM,aglobalscore-basedalternative
+attributesensitivegeneration(Ziegleretal.,2019;
+for controllable text generation that combines
+Keskaretal.,2019;Maietal.,2020;Gururangan
+arbitrary pre-trained black-box models for
+etal.,2020;Chronopoulouetal.,2021).Notonlydo
+achievingthedesiredattributesinthegenerated
+textwithoutinvolvinganyfine-tuningorstruc- theseapproachesinvolvecomputationaloverhead
+turalassumptionsabouttheblack-boxmodels. andestimationerrorsassociatedwiththetrainingof
+Weinterpretthetaskofcontrollablegeneration languagemodels,buttheyarealsodependentonac-
+as drawing samples from an energy-based cesstoalargeamountofattribute-specificlanguage
+modelwhoseenergyvaluesarealinearcombi-
+datawhichcanbeimpracticalinmanyscenariosand
+nationofscoresfromblack-boxmodelsthatare
+exacerbate privacy concerns (Brown et al., 2022;
+separately responsible for fluency, the control
+Mireshghallahetal.,2021;Kandpaletal.,2022).
+attribute, and faithfulness to any conditioning
+context. We use a Metropolis-Hastings sam- Ourapproacheschewstrainingandfocuseson
+plingschemetosamplefromthisenergy-based
+generation-timecontrolfrompre-trainedmodules.
+model using bidirectional context and global
+Recent work in this space has used attribute
+attributefeatures.Wevalidatetheeffectiveness
+discriminators(Dathathrietal.,2020;Krauseetal.,
+of our approach on various controlled gener-
+ation and style-based text revision tasks by 2020;YangandKlein,2021;Holtzmanetal.,2018)
+outperformingrecentlyproposedmethodsthat tosteerthegenerationfromalargeautoregressive
+involveextratraining,fine-tuning,orrestrictive languagemodel. Thesediscriminatorsneedtobe
+assumptionsovertheformofmodels. separately trained on partial generations in order
+tobeoperationalizedwithstep-wiseautoregressive
+1 Introduction
+models. As a result, this approach also requires
+Whilelargetransformer-basedautoregressivelan- availabilityofdatatotrainstep-wisediscriminators
+guagemodelstrainedonmassiveamountsofdata for attributes that are essentially global (at the
+foundontheinternetexhibitexceptionalcapabilities sequence-level)innature. Therefore,wefocuson
+togeneratenaturallanguagetext,effectivemethods drawingsamplesfromatest-timecombinationof
+for generating text that satisfy global constraints pretrained blackbox experts that each score a de-
+andpossessholisticdesiredattributesremainsan siredpropertyofoutputtext–forexample,fluency,
+activeareaofresearch.Thesemechanismsforcon- attributesensitivity,orfaithfulnesstothecontext.
+trollingthegenerationoflanguagehavethepoten- Specifically,weviewtheproductoftheseblack-box
+tialtomitigateundesirablebiasesencodedbythe experts as a probabilistic energy model (Hinton,
+largelanguagemodelsandpreventthegenerationof 2002) – i.e., a non-autoregressive, globally
+hatespeechandtoxiclanguage(Xuetal.;Gehman normalized language model – and then sample
+et al., 2020; Sap et al., 2021; Baheti et al., 2021; (withoutfurthertrainingorfine-tuning)usingaspe-
+MireshghallahandBerg-Kirkpatrick,2021).Much cializedGibbssamplerwithaMetropolis-Hastings
+ofthepriorworkhasapproachedcontrolledgener- correctionstep(Goyaletal.,2021).
+2202
+rpA
+4
+]LC.sc[
+2v99231.3022:viXra
+Iteration i: The cake is stale.
+Attribute Discriminator E(X)
+1
+MLM (BERT) as MLM
+exp(−∑ iE i(X)) pr Go ip bo bs sa sl
+a
+w mit ph lein
+r
+proposal
+Hamming Distance E 2(X) Z
+Proposal: The cake is fresh.
+Energy LM
+BertScore E 3(X)
+Metropolis-Hastings
+MH
+correction
+correction based on
+Energy LM
+Agency Score E 4(X) Gibbs sampler with
+accept / reject
+Metropolis-Hastings
+correction
+BLEURT E(X) Iteration i+1: The cake is fresh.
+5
+Figure1: OverviewofMixandMatchLM.TheLegopiecesshowdifferentexpertsthatcanbeusedtoformthe
+energyLMandhelpcontroldifferentfeaturesinthegeneratedtext.TherightsideshowstheithstepinthetheGibbs
+samplingchain,whereaproposalismadebytheMLM,andthenitisaccepted/rejectedbasedontheenergyscore.
+Ourfullframework, whichweentitleMixand approaches that are more resource/data intensive.
+MatchLM(depictedinFigure1),enablesthegener- We observe that our approach, which does not
+ationofhigh-qualityattribute-controlledsamplesby require any gradient optimization and is able
+mixingandmatchingblack-boxmodelslikeoff-the- to combine arbitrary heterogeneous black-box
+shelfpre-trainedattribute-sensitivediscriminators models, outperformsotherapproachesaccording
+(e.g., sentiment classifiers), large bidirectional to various automated metrics of fluency, quality,
+pre-trained language models like BERT (Devlin and control, as well as human evaluations. We
+etal.,2019),andothermodulesspecializingincap- haveprovidedcode,data,andsamplegenerations
+turingdesirablefeaturespertainingtofaithfulness in this GitHub repository: https://github.
+toanyadditionalcontext, likehammingdistance, com/mireshghallah/mixmatch (see A.1
+orBertScoredistance(Zhangetal.,2020)between fordetailsonreproducingtheresults).
+the sample and the conditioning context. We
+2 RelatedWork
+generatesamplesfromtheenergylanguagemodel
+assembledfromthesecomponentexpertsbyusing Theapproachesclosestinspirittoourworkinvolve
+therecentlyproposedGibbs-Metropolis-Hastings steering generation from a base language model
+scheme (Goyal et al., 2021) for sampling from with external attribute-sensitive control mecha-
+energymodelsusingamaskedlanguagemodelasa nisms. Plug-and-PlayLM(Dathathrietal.,2020)
+proposaldistribution.Inthisscheme,anexpressive usesdiscriminatorslearnedfromanautoregressive
+bidirectionallanguagemodellikeBERTisusedto LM’s top-level hidden layer to modify the LM’s
+makeaproposalateachtransitionstepintheGibbs states toward increasing the probability of the
+chain to jump to a sequence x¯ from the current desired attribute via gradient ascent at each step.
+sequencex.Thisproposal’sfitnessisjudgedbythe GeDi (Krause et al., 2020) and FUDGE (Yang
+changeintheenergylanguagemodel’sscore,with andKlein,2021)takeasimilarapproachbuttrain
+thesampleracceptingproposalswithlargerenergy customstep-wiseattribute-sensitivediscriminators
+reductionsatahigherrate.WhiletheMCMCnature that decide whether the desired attribute is likely
+of our sampler negatively impacts the runtime tobesatisfiedbythecurrentgenerationpath.GeDi
+during decoding compared to autoregressive trainsclass-conditionallanguagemodelsforthese
+approaches with ancestral sampling, we find our discriminatorsandhenceadditionallyreliesonac-
+approachtostillbepracticalandyieldhigh-quality cesstoattributesensitivelanguagedata.Kumaretal.
+diversesamplesthatrespectthedistributioninduced (2021)formulatethetaskofcontrolledgeneration
+bytheproductofexpertblack-boxmodels. asoptimizingthebaseLM’slikelihoodsubjectto
+globaldifferentiableattribute-basedconstraintsby
+Wedemonstratetheflexibilityofourapproachby gradientdescentovertheposition-wisesimplexes
+performingavarietyofcontrolledgenerationtasks, overthevocabulary.DExperts(Liuetal.,2021)is
+such as aspect-based text revision, style transfer, anotherdecoding-timecontrollablegenerationap-
+and attribute grounded generation and compare proachthatmodifiesthestep-wisesoftmaxlogitsof
+it to recently proposed controlled generation anautoregressivepre-trainedLMwithsoftmaxlog-
+itsofseparatelytraineddomain-specificexpertau- sentimentsentences. Thisrequiressatisfactionof
+toregressivelanguagemodels.Theseapproachesre- twomajorconstraints:(1)ThesequenceX should
+quiretrainingofcustommodulesanddonotreadily bewell-formed,(2)ThesequenceXshouldexpress
+enjoythebenefitsofincorporatingglobalattribute- positivesentiment.Ifwehaveaccesstotwoseparate
+basedfeaturesintothegenerationmechanismina probabilitydistributionsoverX,oneformodeling
+simpleprobabilisticmanner.Incontrast,following well-formedness(p (X))andanotherformodeling
+1
+thefindingsrelatedtoimplicitenergy-basedmodels positivity(p (X)),thenanaturalsolutionforcon-
+2
+trainedvianon-probabilisticobjectives(Grathwohl trolledgenerationinthissettingwouldbetodraw
+etal.,2019;Goyaletal.,2021),ourenergy-based samplesfromaprobabilitydistributionthatisaprod-
+formulationisnotonlyoptimization-freebutalso uct of these two distributions i.e. p (X) ∝
+desire
+fullymodularandabletoeasilyincorporateglobal p (X)·p (X). Inourapproach, wefurtherrelax
+1 2
+features, allowing for heterogeneous black-box thisrequirementbyassumingaccesstoexpertblack-
+expertstobecombinedwitheachother. boxes that yield scalar non-probabilistic energy
+3 Mix-and-matchLanguageModels scoresE 1 andE 2 indicatingfitnessofasequence
+w.r.t. well-formednessandpositivityrespectively.
+Inthissection,wedescribeourapproachandmo-
+Undertheproductofexpertsframeworkabovethe
+tivationbehindourmethod.Specifically,weframe
+desiredprobabilitydistributionwouldtaketheform:
+the problem of performing controlled generation
+log p (X)=−(E (X)+E (X)) − logZ.
+desire 1 2
+asaproblemofsamplingfromaspecializedenergy-
+This expression shows that when working with
+based(orgloballynormalized)sequencemodelthat
+scalarscoresfortheexpertblack-boxes,theproduct
+definesaprobabilitydistributionthatsatisfiesthede-
+ofexpertmodelsyieldsanenergymodelwhoseen-
+siredconstraintswewishtoimposeinthecontrolled
+ergyissimplythesumofthescalarenergyvalues
+generationsetting.Asdescribedbelow,thisenergy-
+obtainedfromtheexpertmodels. Inspiredbythis,
+basedmodeliscomposedofpre-trainedcomponents
+weproposeaframeworkforcontrolledgeneration
+anddoesnotrequireanyfurtheroptimization. An
+thatinvolveslinearcombinationsofvariousblack-
+energy-basedsequencemodeldefinestheprobabil-
+boxexpertsinordertoobtainadistributionwhose
+itydistributionoverthespaceofpossiblesequences
+samplessatisfytherequirementsofadesiredcon-
+X as:1 p(X;θ)=
+(cid:80)
+X(cid:48)e ∈− XE e( −X E;θ () X(cid:48);θ),whereE(X;θ)
+trolledgenerationtask:E
+M&M(X)=(cid:80)k
+i=1α iE i(X),
+refers to the scalar energy of a sequence X that whereourproposedmix-and-matchenergyiscom-
+is parametrized by θ. Lower energy corresponds posed of k expert energy components, which are
+to the higher likelihood of X. In contrast to the weightedbyscalarhyperparametersα.
+common autoregressive sequence models, exact
+3.2 ExpertFactorsinMix-and-MatchLM
+likelihood computation and efficient sampling
+AsshowninFig.1,weusethefollowingblack-box
+from these models is challenging. Despite these
+expertsinourexperimentsasmodulesthatwecan
+challenges,wefocusonthisparadigmofsequence
+addorremovetoproducedesiredbehavior:
+modeling because energy-based models offer
+increasedflexibilityviasequence-levelfeaturesand E mlm(X) : Recent work has shown that large
+constraints.Aswediscussnext,thiscapabilitylets masked language models (MLM) like BERT can
+useasilydefineexpressivefunctionsforcontrolled discriminatebetweenwell-formedandill-formed
+generationofsequenceswhichisnotreadilyoffered sentences(Zhangetal.,2020)andinduceanimplicit
+bytheautoregressivemodelingparadigm. energy function over the sequences (Goyal et al.,
+2021). Hence,weuseBERT-baseasablack-box
+3.1 ProductofExpertsEnergy-based
+tomodeltheformandfluencyofsentences.Specif-
+ModelsandControlledGeneration
+ically,weuseanenergyparametrizationintroduced
+Ourapproachismotivatedbytheperspectivethat
+inGoyaletal.(2021)whichisnegativeofthesum
+thetaskofcontrolledgenerationrequiresconcen-
+ofunnormalizedlogitsiterativelycomputedateach
+tratingprobabilitymassoverasmallsubspaceof
+positionobtainedviatheforwardpassoftheMLM
+sequencesinX thatsatisfiesvariousconstraintsper-
+aftermaskingthecorrespondingposition.
+tainingtofluency,targetattributes,andothercontrol
+E (X) : This particular expert module refers
+disc
+variables.Considerthetaskofgeneratingpositive
+totheenergyobtainedviathediscriminatorforthe
+attributesofinterest. Whatthismodulereturnsis
+1For simplicity, we are concerned with a finite set of
+sequenceslimitedbysomemaximumlength. the raw logits of the discriminator, for the target
+attribute. For instance, if we have a sentiment 3.4 ControlledgenerationTasks
+classifier,andwanttoproducepositivesentiment,
+We use the expert black-box factors and the
+thenE (X)=−logp(+|X).
+disc samplingschemedescribedaboveinourframework
+E (X;X(cid:48)) : For a given sequence X(cid:48), this toperformtwokindsofcontrolledgenerationtasks.
+hamm
+quantityreferstothehammingdistancebetweenthe Prompted generation: This task focuses on
+sequenceX andX(cid:48).Thispenalizestokenlevelde- generatingwell-formedsentencesthatstartwitha
+viationfromX(cid:48)whichisusefulifweareinterested specifiedpromptandalsosatisfyatargetattribute
+inonlymakingminoreditstoX(cid:48)asdescribedlater. for which we have access to a discriminator.
+E (X;X(cid:48)):Similartothehammingdistance, An example task would be to generate positive
+fuzzy
+sentiment sequences starting with This movie.
+thisquantityreferstotheBertScore(Zhangetal.,
+2020) computed between X and X(cid:48) which can Theenergyfunctiontakestheform:
+beviewedasafuzzyhammingdistancethattakes
+semanticsimilarityintoaccount. E gen(X)=E mlm(X)+αE disc(X) (1)
+3.3 Samplingscheme
+αisahyperparameterthatcontrolsthetradeoffbe-
+To sample from the energy parametrizations tweentheMLMscoreandthediscriminator’sinflu-
+described in the previous section, we follow the ence.ForMH-basedsamplingforthistask,weini-
+Metropolis-Hastings (Hastings, 1970) MCMC tializethesequencewiththestartingpromptandthe
+scheme for sampling from the masked language restofthetokensmaskedout,whichcreatesaseed
+modelsintroducedbyGoyaletal.(2021).Whilethe text of shape the movie[MASK][MASK]...
+proposaldistributionweuseisthesameasGoyal [MASK],forthepromptexampleofthe movie.
+etal.(2021)i.e.maskedlanguagemodel’s(BERT’s) Thenumberofmasktokensdependsonthetarget
+conditionals,theenergyparametrizationsweuseare generation length, and we constrain the sampler
+moresuitablydesignedforcontrolledgeneration. toonlyproduceproposalsandrevisenon-prompt
+We briefly explain the sampling procedure, tokens,andmarktheprompttokensas“frozen”.
+which involves forming long Markov chains of Controlled text revision: This task involves
+sequences starting with a random sequence, and editingasourcesequenceX(cid:48)inordertosatisfythe
+followingtheMHschemewhichusesaproposal desiredtargetattributesexhibitedbythegenerated
+distribution to propose a new sequence at each sequenceX.Theenergyfunctionforthistaskis:
+stepinachainwhichiseitheracceptedorrejected
+based on its fitness to the energy function. The Erev(X)=Egen(X)+βEhamm(X,X(cid:48))+γEfuzzy(X,X(cid:48)) (2)
+sequences at the end of these chains correspond
+to samples from the desired energy-based model. This energy function in addition to valuing
+Operationally, ateachMCMCstep, wemaskout well-formednessandsatisfyingtargetattributere-
+atokenatarandompositioninthecurrentsequence quirementsalsofocusesonmaintainingfaithfulness
+X inthechainandproposeanewsequenceX¯ to tothesourcesequenceX(cid:48). Forsamplingwiththis
+transition to by sampling a token from the MLM energy,weinitializethesequencewiththesequence
+conditionalsoftmaxatthemaskedposition. This X(cid:48)tobeedited.Thissetsthelengthofthetargetse-
+proposed sequence is evaluated by its ability to quencetobethesameasthesource.Inthissetup,the
+reduce the energy from the current sequence samplercanrevisealltokensandisnotconstrained.
+in the chain and is accepted with the probabil-
+Forboththesetasks,werunaseparateMCMC
+(cid:18) (cid:19)
+ity p(X¯; X) = min 1,e−EM&M(X¯)p mlm(Xi|X \i) . chain for each generated sentence for 8 to 15
+e−EM&M(X)p mlm(X¯ i|X \i)
+epochs,dependingonthetask.Anepochrefersto
+E (X)referstotheproductofexpertsenergy,
+M&M onemaskingcycleoverallthenon-frozenpositions
+i refers to the position chosen for masking, p
+mlm (selectedrandomly)ofthesequence.
+refers to the MLM’s conditional distribution at
+4 ExperimentalSetup
+the[MASK]position. Intuitively,thisacceptance
+probabilityindicatesthattheproposedsequenceX¯ We provide full experimental details in appendix
+ismoreacceptableifithaslowerenergythanthecur- SectionB,hereweprovideabriefoverviewofthe
+rentsequenceXinthechainandisrareorlesslikely tasks,datasets,baselines,andmetricsusedinthe
+tobeproposedbytheproposaldistributionagain. experiments.
+4.1 TasksandDatasets etal.,2017)andcheckeachgeneratedsequenceand
+countthenumberoftargetagencyverbsthatexist
+Controllable debiasing (ROC story cor-
+there.Thecountbecomestheagencyscore.
+pus): We use the subset of the ROC story cor-
+pus(Mostafazadehetal.,2016)test-setthatisused 4.3 Baselines
+by PowerTransformer (Ma et al., 2020) for their
+PowerTransformer. For the task of controllable
+evaluations.Weusethisdataforcontrollabledebi-
+debiasing (agency revision), we compare our
+asing,atextrevisiontaskwhichaimstocorrectthe
+work with PowerTransformer (Ma et al., 2020),
+implicitandpotentiallyundesirableagencybiases
+an approach that uses paraphrasing and self-
+incharacterportrayals,byreplacingverbssuchas
+supervisionbasedonareconstructionloss,building
+“wish"and“dream",with“pursue"and“achieve".
+onpre-trainedlanguagemodels,tore-writetextand
+Sentiment transfer (Yelp): We use Yelp (Shen
+controlagencylevelofsentences.
+etal.,2017)dataset’stest-setforthetaskofsenti-
+menttransfer.Thetestsetcomprises1000sentences, He et al. For style transfer on sentiment an
+halfwithpositiveandhalfwithnegativesentiment. formality, we compare with He et al. (2020), a
+Wealsohaveareferencesetofhandwrittensenti- generative style transfer framework which uses
+menttransferredsentences,providedby(Heetal., a variational autoencoder (VAE) built using a
+2020)thatweuseforreportingevaluationmetrics. sequence-to-sequenceLSTM-basedmodeltodoun-
+Formality transfer (GYAFC): We use 1051 supervisedstyletransfer.Thisframeworkneedsto
+sentencesfromtheentertainmentandmusicdomain betrainedfromscratchforeachstyletransfertask.
+subset of the GYAFC (Rao and Tetreault, 2018) UNMT.Asasecondbaselineforstyletransfer,we
+dataset, which contains formal and informal sen- useUNMT(Lampleetal.,2018),anunsupervised
+tencesforthetaskofformalitytransfer(bothdirec- machinetranslationframeworkthatdemonstrates
+tionsofformaltoinformalandinformaltoformal). highperformanceforsentimenttransfer.
+Promptedgeneration:Weevaluateourapproach
+PPLM. For the task of sentiment controlled
+ontwoformsofpromptedgeneration:1)sentiment
+generation, we compare to Plug-and-Play LM
+controlled generation and 2) topic controlled
+(PPLM)Dathathrietal.(2020),whichdoesattribute
+generation. For sentiment controlled generation,
+controlled generation using the flow of gradients
+we set Mix and Match LM to generate text with
+from discriminators trained on the last hidden
+positive or negative sentiment given prompts, by
+layer representations of the generator, to guide
+usingaYelpsentimentclassifierasdiscriminator
+generation.
+andcompareagainstPPLM(Dathathrietal.,2020)
+FUDGE. This approach (Yang and Klein, 2021)
+whichisapopularsentimentcontrolledgeneration
+trains step-wise discriminators on partial gen-
+method. For topic controlled generation, we
+erations from GPT-2 to determine whether the
+compareagainstFUDGE(YangandKlein,2021),
+constraints related to desired attributes will be
+andfollowtheirexperimentalsetupconsistingof
+satisfiedbythefuturecompletionofthesequence
+7distincttopicsand20prompts.
+ornot.Wecompareagainstthisontopiccontrolled
+4.2 ExpertComponentConfigurations
+generation as this approach was shown to be
+WeuseaHuggingfacepre-trainedbert-base- superiortoPPLMonthistask.
+uncased model as our MLM for yielding E
+mlm
+4.4 EvaluationMetrics
+andalsoprovidingtheproposaldistributioninour
+MHMCMCsampler.ForobtainingE ,wetrain Weuseavarietyofevaluationmetricstocompare
+disc
+BERT-based classifiers on the training-set of our ourapproach’sperformanceontwomajorfacets:
+datasetstouseasourattributediscriminators. We (1) Quality of generated text, and (2) success on
+couldhaveusedanypre-trainedattributeclassifier matchingthetargetattributeusedforcontrol.
+from Huggingface for E , but we keep those
+disc
+4.4.1 TextQualityandSemanticSimilarity
+asidetouseasexternalattributeclassifiersforfair
+evaluation against baselines. For experiments in GPT-2PPL.Wefeedourgeneratedtestsentences
+which we add the BertScore (Zhang et al., 2020) toaHuggingface(Radfordetal.,2019)pre-trained
+component to the energy, we use the pre-trained GPT-2xlmodel,andreportitsperplexity(PPL),as
+roberta-large_L17 model. Finally, for anautomaticmeasureoffluency.Althoughthismea-
+agencyscore,weusethelexiconprovidedby(Sap sureisnotaperfectindicatoroffluency,wefinditto
+beausefulmetricalongsidehumanjudgements.2 Weofferdifferentvariantsofourframework,to
+BLEU. For sentiment (Yelp) and formality provideafaircomparisonandtobetterablateour
+(GYAFC)transferwherewehavereferencetext,we proposedmethod. “Disc”denotesourframework
+reporttheBLEUscore. Forcontrolleddebiasing, where we add the discriminator expert (E disc)
+wereportBLEUbetweengeneratedtextandsource which is trained to predict the agency level of a
+andshowitasBLEU(src). sentence,totheenergyalongwithE mlm,andE hamm
+BertScore.Asameasureofmeaningpreservation, (Eq.2). Hammingdistanceiscomputedbetween
+weusetheF1BertScoremetric(Zhangetal.,2020) the generated proposals and the source sentence.
+tocomparethesemanticsimilarityoftheprovided The “Agency Score” variant adds an alternative
+referencesentencewiththegeneratedoutput. termtoE M&MinsteadofE disc,whichisthenumber
+HammingDistance.Wealsoreportthehamming oftargetagencyverbsaccordingtotheconnotation
+distancebetweenthesourcetextandgeneratedtext, frames lexicon (Sap et al., 2017) in the sentence.
+tomeasuretheextentofthechange. The“Disc+Agency”varianthasbothenergycom-
+ponents. Wealsoapplyourmethodintwoways:
+4.4.2 AttributeQuality
+“VerbReplace”whichallowsthesamplertopropose
+Internal Classifier Accuracy. We report the revisions for only one pre-determined verb (pro-
+accuracyoftheinternalclassifier(thediscriminator videdinthedataset).Inthissetup,alltokensremain
+usedforgeneration)onthegeneratedtext,assuming frozen,exceptforthegivenverb.Theconventional
+thetargetattributeisthecorrectlabel. Thehigher mode(M&MLM),however,proposesrevisionsfor
+thisaccuracyis,thebetter. alltokensinthesentenceandisnotconstrained.
+External Classifier Accuracy. It is natural
+Table2showsthatintheconventionalsetup,Mix
+to get high accuracy on the internal classi-
+andMatchLM(Disconly)hasperformancesimilar
+fier, since we are sampling from it. To have
+to that of PowerTransformer, without boosting.
+a fair comparison, we report accuracy us-
+WiththeAgencyScorecomponent,ourmethodout-
+ing external classifiers from Huggingface
+performsPowerTransformerintermsofaccuracyof
+(textattack/bert-base-uncased-
+revisionaspertheagencylexiconaccuracymetric,
+yelp-polarity (Morris et al., 2020) for
+withnegligiblelossinmeaning(BertScore). The
+sentiment and cointegrated/roberta-
+reasonbehindthisbetterperformanceintermsof
+base-formalityforformality).
+applyingtargetagencyaccuracyisthatourmethod’s
+Agency Lexicon Accuracy. For controlled sampling is guided by the energy that is directly
+debiasing,wemeasuretheaccuracyofthechange built on the metrics we care about, as opposed
+in agency by comparing the target agency level to trying to apply them through paraphrasing
+withthatofthegeneratedtext,extractedusingthe and proxies such as vocab boosting, which are
+connotationframeslexicon,andfollowingthesetup employedinthePowerTransformermethod.
+fromMaetal.(2020).
+Another important observation here is the dif-
+5 Results ferencebetween“VerbReplace”andconventional
+modes. This ablation shows that although our
+5.1 ControllableDebiasing
+methodmakesfewchanges(theaverageHamming
+Tables 1 and 2 show our results for the task of
+distance between source and output sentences
+textrevisionforcontrollingagencybiaswhichis
+are between 1.37 and 2.45), it still outperforms
+introduced by PowerTransformer Ma et al. 2020,
+a“static”methodthathasextraknowledgeofthe
+ourBaselineforthistask. PowerTransformerhas
+offendingverbandfocusesonchangingonlythat
+avanilla(noboost)variantandavariantwithvocab
+verb,byasignificantmargin.
+boosting,whichup-weightsthelogitsofverbsthat
+belongtothetargetagencylexiconsoastoincrease 5.2 StyleTransfer
+theirprobabilityandincentivizegenerationinthat Inthissectionweexperimentwithsentimentand
+direction. We also measure our metrics on the formalitytransfer,whereSentimenttransferneeds
+original test-set, without revision, to provide a fewerchangesandformalitytransferneedsmore
+bettersenseofthechangesmade. structural change to the original sentence. We
+showsamplesentencesandtransfersinTable1(we
+2Due to the high variance in the PPL scores generated
+cannot show samples for formality as the dataset
+acrosssentencesbyGPT-2,wereportthemedianscorefor
+eachsystemundercomparison. isnotpublic).
+Table 1: Original and style transferred sample sentences, using Mix & Match LM. Sentiment shows the task of
+sentiment transfer, from negative to positive and positive to negative, on Yelp. Agency shows the controllable
+agencyde-biaisngtask(Maetal.,2020).Intheexamples,wearetransferringnegativeagencytopositive.
+Original Transferred
+thefood’sok,theserviceisamongtheworstihaveencountered. thefood’swonderful,theserviceisamongthefinestihaveencountered.
+wewillnotbeusingthislocationagain. wewilldefinitelybeseekingthislocationagain.
+goodselectionofpartsandaccessoriesandreasonableprices. poorselectionofpartsandaccessoriesandhighprices.
+itisacoolplace,withlotstoseeandtry. itisastupidplace,withnothingtoseeandtry.
+maryneedednewshoes. marygotnewshoes.
+shefollowedtheinstructionsasbestasshecould. sheexecutedtheinstructionsasbestasshecould.
+pamwantedtohaveaspecialcakeforherson’sbirthday. pamdecidestohaveaspecialcakeforherson’sbirthday.
+whitneyisgoingtofailhertest. whitneyissettogethertest.
+Table 2: Controllable debiasing/ sentence agency revision on ROC-story corpus. The (src) next to the metrics
+denotes measurement with respect to the source text. Int. Clsf. is the accuracy of the discriminator used in the
+energy. Hamm. showstheHammingdistance. AgencyAcc. istheaccuracyofagencyrevisionbasedontheagency
+lexicon(SecB.4.1).
+Method BLEU(src) GPT-2 BertScore(src) Hamm.(src) Int.Clsf. AgencyAcc.
+SourceText 100.00 153.9 1.00 0.00 7.47 9.81
+PowerTransformer(NoBoost) 60.30 210.8 0.94 1.11 64.84 69.17
+PowerTransformer(+Boost) 57.46 247.2 0.95 1.28 77.23 85.03
+M&MLMVerbReplace(Disc) 60.53 238.7 0.95 1.04 81.05 70.80
+M&MLMVerbReplace(AgencyScore) 63.34 193.3 0.96 0.89 32.42 64.75
+M&MLMVerbReplace(Disc+AgencyScore) 54.52 248.8 0.95 1.05 77.23 77.27
+M&MLM(Hamming+Disc) 56.26 211.2 0.95 1.37 96.52 69.00
+M&MLM(Hamming+AgencyScore) 35.26 231.6 0.95 1.56 23.13 86.01
+M&MLM(Hamming+Disc+Agencyscore) 39.82 261.6 0.93 2.45 90.16 89.42
+5.2.1 SentimentTransfer however, regenerate the sentence which imposes
+morechange,ascanbeobservedfromthehamming
+For this task, we include two components in our
+distancecolumn(Hamm.(src))inTable3.
+energymodel,theattributediscriminator(E ),
+disc
+toinducethetargetstyle,andthehammingdistance 5.2.2 FormalityTransfer
+(E hamm),tomaintainthemeaningofthesentence. For this task, we include the formality classi-
+We don’t include the more complex semantic fier (E ), Hamming distance (E ), and
+disc hamm
+similarity-related component like E fuzzy, since BertScore (E fuzzy) components in the energy
+sentimenttransfercannormallybedonebymaking formulation,topermitthetransferofstyleandalso
+only a few changes to the sentence. We report maintainthemeaningofthesentence.E helps
+fuzzy
+resultswithtwodifferentvariants, onewherethe with imposing semantic similarity between the
+discriminatorcomponenthasahighercoefficientin source and generated sentences, since Hamming
+theenergy(Discriminator↑)andonewheretheham- alone isn’t sufficient for judging comparable
+mingdistancehasahighercoefficient(Hamming↑). formal and informal sentences. We show results
+Ineffect,thesetwoshowthetrade-offbetweentrans- for two setups of our framework, one where the
+ferqualityandfaithfulnesstothesourcesentence. discriminatorcoefficientishigher(Discriminator↑)
+WeseeinTable3thatourmethod,withtheham- and another where the BertScore coefficient is
+mingcomponentup-weighted,outperformsboththe higher(BertScore↑).
+generativebaselinesintermsoftransferaccuracy In Table 4 we have broken down the external
+(Ext. Clsf.) and semantic similarity (BertScore). classifieraccuracyforthedifferenttransferdirec-
+We can also see Mix and Match LM has higher tionsofformaltoinformal(→Inf.)andviceversa.
+BLEU score, with respect to the provided hand- Wedothisbecausethe→Form. taskisgenerally
+writtenreferencesentences. Wehypothesizethat harder and therefore has lower accuracy. We
+thissuperiorityisduetothetendencyofourmodel observethatourmethodoutperformsthebaselines
+tomakeminimalrevisionsthatsatisfytheproduct intermsofBertScoreandBLEU,forsimilarlevels
+ofexpertsenergymodel.Therefore,ourmodelcan of external classifier accuracy. However, we can
+successfullychangethestylewithoutchangingthe see that the GPT-2 PPL of our method is higher
+meaningofthesentence.Thegenerativebaselines, than the baselines. The reason behind this is the
+tnemitneS
+ycnegA
+.lesaB
+sruO
+Table 3: Sentiment transfer on Yelp. (ref)/(src) means the metric measured is measured with respect to refer-
+ence/source text. Int./Ext. Clsf. show internal/external attribute classifier accuracy. Hamm. shows Hamming
+distance.
+Method BLEU(ref) GPT-2 BertScore(src) Hamm.(src) Int.Clsf. Ext.Clsf.
+ReferenceText 100.00 169.5 1.00 5.80 83.70 85.60
+Heetal. 18.67 200.6 0.93 4.23 84.87 79.82
+UNMT 17.00 171.8 0.94 3.67 84.87 80.22
+M&MLM(Discriminator↑) 15.75 163.5 0.93 2.84 97.53 90.00
+M&MLM(Hamming↑) 19.71 191.5 0.95 1.83 94.72 82.85
+Table4: FormalitytransferonGYAFCdataset. The(ref)/(src)nexttothemetricsdenotesthattheyaremeasured
+withrespecttothereference/sourcetext. Int. Clsf. showstheaccuracyofthediscriminatorusedintheenergy,and
+→Informal/Form.showsthebreakdownoftheexternalclassifieraccuracy.Hamm.showstheHammingdistance.
+Method BLEU(ref) GPT-2 BertScore(src) Hamm.(src) Int.Clsf. →Informal →Form.
+ReferenceText 100.00 118.1 0.92 7.72 82.97 100.00 9.41
+Heetal. 15.83 122.8 0.90 10.03 64.79 100.00 3.33
+UNMT 14.17 143.8 0.90 11.92 56.04 99.81 7.64
+M&MLM(Discriminator↑) 17.78 206.3 0.89 5.22 91.15 96.67 23.13
+M&MLM(BertScore↑) 27.71 194.4 0.93 2.50 72.12 94.26 19.01
+formatandnoiseinthedata. Thesamplesforthis metric.Thissuggeststhetendencyofmodel-based
+datasetaretakenfromthemusicandentertainment fluencymetricstobebiasedtowardthecorrespond-
+industry domain and contain some symbols and ingmodelsasthePPLMusesGPT-2forgeneration
+characterssimilartoemojis(e.g. “:)” and“***”). andM&MLMusesBERT.Toenableamoreconclu-
+Thisiswherethetendencyofourapproachtoward sivecomparisonofthetextquality,wereportresults
+minimalrevisionsishurtful–ourrevisionsoftext, with human evaluations. For these evaluations,
+oftendonotgetridofallofthesesymbols,while werandomlyselect10generatedoutputsforeach
+the baselines’ generative methods successfully prompt,persentiment(240overall),andaskedthree
+removeallthesuperfluouscharactersbecausethey Amazon Turkers per sample pair, which sample
+rewritesentencesfromscratch. theyfindmorefluent. Wereportthemajorityvote
+oftheTurkersinthetable. Theresultsshowthat
+5.3 PromptedControlledGeneration
+forsequenceswithlengths12and20,theyfound
+5.3.1 SentimentControlledGeneration
+ourgenerationsmorefluent. However,forlength
+We generate 560 sequences of different lengths 50,thepreferencerateforM&Mdropsto46.7%,
+(12, 20 and 50 tokens), given 14 prompts, 2 whichshowsthatourmethodissuperiortoPPLM
+sentiments,and20sequencespersentiment,taken for short/medium length generation, however,
+fromDathathrietal.(2020)’sexperimentalsetup. PPLMdoesbetteratgeneratinglongersequences.
+The prompts and sample generations are in the
+5.3.2 TopicControlledGeneration
+appendixB.9andA.2,andafulllistofgenerations
+isinthesupplementarymaterial. We follow FUDGE’s (Yang and Klein, 2021)
+Table 6 shows our results for this experiment. experimentalsetupwhichcovers7topics,given20
+Here, we have an additional metric, the MLM promptsandgenerate7×20sequencesoflength
+energy (lower is better), which, like GPT-2, 20. To enforce topicality on our generations, we
+indicatesthequalityofgeneratedsentences(Salazar addatopic-basedenergy,E topic. Thisenergyis
+etal.,2020)accordingtoBERT.Wereportthisextra essentiallythenegativecountofthenumberoftopic-
+metricheresincePPLMusesaGPTmodelforgen- relatedwords(usingthelistprovidedbyFUDGE).
+eration,anditisnaturalthatitwouldmeasurebetter Table7showstheresultsofthisexperiment,gen-
+onthismetric.Thetableshowsthatforalllengths erationsarealsoprovidedinA.2. Topic-score(↑)
+ofgeneratedsentences,ourmethodismuchbetterat is the usage rate of topic-related words that were
+inducingthetargetsentiment.However,weobserve usedfortrainingandevaluationoftopiccontrolled
+thatPPLMperformsbetterintermsofGPT-2while generation by Yang and Klein in their paper.
+our method performs better on the MLM energy Grammaticality(↑)isthescoreofgrammaticality
+.lesaB
+sruO
+.lesaB
+sruO
+Table5:Samplesofpromptedsentimentcontrolledgenerations,usingourMixandMatchLMandPPLM.
+Ours(MixandMatchLM) PPLM
+thecountryisnotedforattractingaquarter-milliontourists. thecountry’stopcyclingeventisrightbehindtheolympics,andthe
+thelakewecomeacrosscanbesaidtobebeautiful. thelakeisagreatspotforswimming,divingandsnorke
+thechickenandalltheotheringredientsproducedadeliciousmeal. thechickenwingisoneofthebestfoodsyoucaneatandit
+themoviewasfamily-friendlyandasuccessinjapan. themovie,whichiscurrentlyonlythethirdthethethethethe
+thecountrywasunstableandwasnotreadytomodernize. thecountry’stopanimalwelfareagency,theministryofagricultureandfood
+thelakewasnotsupposedtobenavigableunderanycircumstances. thelake,alarge,andthemostmassiveandmostterribleof
+thechickenwasgrowlingandbeginningtofeelalittlesick. thechickennoodlesarethemosthorriblefoodihaveeverhad.
+themoviereceivedonlytwonominationsandearnednograndprix. themovieisnotinthe,a,a,a
+Table6: Promptedsentimentcontrolledgenerationresultsandhumanevaluations.BERT denotestheBERTMLM
+energyscore(equivalentofGPT-2perplexity),andlowerscoreisbetter. Int./Ext. Clsf. showtheaccuracyofthe
+discriminatorusedintheenergy/externaldiscriminatorfromHuggingface.
+GPT-2(↓) BERT(↓) Int.Clsf.(↑) Ext.Clsf.(↑) HumanPreference(%)
+Length
+Ours PPLM Ours PPLM Ours PPLM Ours PPLM Ours PPLM
+12 264.1 113.1 −160.4 −137.1 94.3 71.7 65.1 58.0 71.1 29.9
+20 167.2 61.1 −271.0 −237.1 96.3 74.5 65.9 57.6 62.9 37.1
+50 122.3 29.0 −692.3 −606.1 93.8 73.6 68.6 60.7 46.7 53.3
+given by a Roberta-based CoLA grammaticality Table 7: Prompted topic controlled generation results
+andhumanevaluations.
+model averaged over all outputs (Warstadt et al.,
+2019).The“Div”(↑)metricsshowthediversityof Metrics FUDGE M&MLM
+generatedtext,overunigrams,bigramsandtrigrams. Topic-score(↑) 1.45 1.21
+Finally, thehumanevaluationsshowhumanpref- Grammaticality(↑) 0.61 0.74
+GPT-2PPL(↓) 104.8 110.2
+erence,intermsoffluencyofthesentences(B.10).
+DiversityoverUnigrams(↑) 0.54 0.57
+Asshownbythetable,thefluencyofourmethodis DiversityoverBigrams(↑) 0.86 0.89
+comparabletothatofFUDGE,evenbetterinterms DiversityoverTrigrams(↑) 0.87 0.88
+HumanPreference(%)(↑) 36.5 63.5
+ofhumanpreferenceandgrammaticalityjudgment.
+FUDGEhasaslightlyhighertopicscore,whichis
+6 Conclusion
+expectedsinceittrainsacustomstep-wisediscrim-
+inatorforeachtopicthatisoptimizedforthetask. We present Mix and Match Language Models
+But our approach shows competitive faithfulness (M&M LM), a training-free framework for con-
+to the topics especially considering the fact that trolledtextgenerationthatcaneasilymixheteroge-
+promptedGPT-2generationswithouttheFUDGE neousexpertmodules.Weshowthatourframework
+discriminatorsonlyachieveatopic-scoreof0.23. outperformspriormethodsonasuiteoftextrevision
+andattribute-controlledgenerationtasks. Further,
+our results indicate that probabilistic energy
+5.4 InferenceSpeed
+languagemodels,typicallyconsideredintractable,
+canbeusedforpracticaltextgenerationtaskswhen
+Given that our model’s inference procedure combinedwithanappropriatesamplingscheme.
+involvesMCMCsampling,it’sreasonabletoexpect Acknowledgments
+its run-time to be slower than more traditional
+The authors would like to thank the anonymous
+baselines. For sequences of length 20, we find
+reviewers and meta-reviewers for their helpful
+that our un-optimized implementation requires 8
+feedback. We also thank our colleagues at the
+secondspergenerationand3secondsperrevision
+UCSD/CMUBergLabfortheirhelpfulcomments
+–while,incontrast,baselinesystemPPLMrequires
+andfeedback.
+16 seconds and FUDGE requires 0.4 seconds
+EthicalConsiderations
+per generation. This is a substantial slowdown
+comparedtoFUDGE,butnotonethatrendersthe Theproposedapproachtakesstepstowardsanovel
+proposedapproachimpracticalinofflinesettings. paradigmthatmightpartiallymitigatetheneedfor
+Further, faster sampling schemes are beyond the energy-intensiveGPUtraining–potentiallyleading
+scopeofthispaperbutmightbeexploredinfuture to positive environmental impact down the line.
+worktospeedupmodelslikeM&MLM. The approach may also have positive impacts on
+.tneSsoP
+.tneSgeN
+accessibilityasstrongcomputationalresourcesare andKevinSwersky.2019. Yourclassifierissecretly
+notrequiredwhensettingupanewcontrolledtext an energy based model and you should treat it like
+one. arXivpreprintarXiv:1912.03263.
+generationsystem. Wedohoweveracknowledge
+thatstrongcontrolledgenerationmethodsthatrely Suchin Gururangan, Ana Marasovic´, Swabha
+ondiscriminatorshavethepotentialtoregurgitate Swayamdipta, Kyle Lo, Iz Beltagy, Doug Downey,
+and Noah A. Smith. 2020. Don’t stop pretraining:
+sensitivetrainingdataandproduceharmfuloutputs
+Adapt language models to domains and tasks. In
+andtoxiclanguage(Xuetal.;Gehmanetal.,2020;
+Proceedings of the 58th Annual Meeting of the
+Wallace et al., 2020). However, if used properly Association for Computational Linguistics, pages
+and for good, we anticipate a positive impact on 8342–8360, Online. Association for Computational
+debiasingandsafegeneration. Linguistics.
+W Keith Hastings. 1970. Monte carlo sampling
+References methodsusingmarkovchainsandtheirapplications.
+AshutoshBaheti, MaartenSap, AlanRitter, andMark
+JunxianHe, XinyiWang, GrahamNeubig, andTaylor
+Riedl. 2021. Just say no: Analyzing the stance of
+Berg-Kirkpatrick.2020. Aprobabilisticformulation
+neural dialogue generation in offensive contexts.
+ofunsupervisedtextstyletransfer. InInternational
+arXivpreprintarXiv:2108.11830.
+ConferenceonLearningRepresentations.
+Hannah Brown, Katherine Lee, Fatemehsadat
+GeoffreyEHinton.2002. Trainingproductsofexperts
+Mireshghallah, Reza Shokri, and Florian Tramèr.
+by minimizing contrastive divergence. Neural
+2022. What does it mean for a language model to
+computation,14(8):1771–1800.
+preserveprivacy? arXivpreprintarXiv:2202.05520.
+Ari Holtzman, Jan Buys, Maxwell Forbes, Antoine
+Alexandra Chronopoulou, Matthew E Peters, and
+Bosselut, David Golub, and Yejin Choi. 2018.
+Jesse Dodge. 2021. Efficient hierarchical domain
+Learning to write with cooperative discriminators.
+adaptation for pretrained language models. arXiv
+In Proceedings of the 56th Annual Meeting of the
+preprintarXiv:2112.08786.
+Association for Computational Linguistics (Volume
+1:LongPapers),pages1638–1649,Melbourne,Aus-
+SumanthDathathri,AndreaMadotto,JaniceLan,Jane
+tralia.AssociationforComputationalLinguistics.
+Hung, Eric Frank, Piero Molino, Jason Yosinski,
+and Rosanne Liu. 2020. Plug and play language
+NikhilKandpal, EricWallace, andColinRaffel.2022.
+models: A simple approach to controlled text gen-
+Deduplicating training data mitigates privacy risks
+eration. In International Conference on Learning
+inlanguagemodels. ArXiv,abs/2202.06539.
+Representations.
+NitishShirishKeskar,BryanMcCann,LavRVarshney,
+Jacob Devlin, Ming-Wei Chang, Kenton Lee, and
+CaimingXiong,andRichardSocher.2019. Ctrl: A
+Kristina Toutanova. 2019. BERT: Pre-training of
+conditionaltransformerlanguagemodelforcontrol-
+deep bidirectional transformers for language under- lablegeneration. arXivpreprintarXiv:1909.05858.
+standing. InProceedingsofthe2019Conferenceof
+the North American Chapter of the Association for Muhammad Khalifa, Hady Elsahar, and Marc Dymet-
+ComputationalLinguistics: HumanLanguageTech- man.2021. Adistributionalapproachtocontrolled
+nologies, Volume1(LongandShortPapers), pages text generation. In International Conference on
+4171–4186, Minneapolis, Minnesota. Association LearningRepresentations.
+forComputationalLinguistics.
+Ben Krause, Akhilesh Deepak Gotmare, Bryan Mc-
+Jessica Ficler and Yoav Goldberg. 2017. Controlling Cann, Nitish Shirish Keskar, Shafiq Joty, Richard
+linguistic style aspects in neural language genera- Socher, and Nazneen Fatema Rajani. 2020. GeDi:
+tion. In Proceedings of the Workshop on Stylistic GenerativeDiscriminatorGuidedSequenceGenera-
+Variation, pages 94–104, Copenhagen, Denmark. tion. arXivpreprintarXiv:2009.06367.
+AssociationforComputationalLinguistics.
+Kalpesh Krishna, John Wieting, and Mohit Iyyer.
+Samuel Gehman, Suchin Gururangan, Maarten Sap, 2020. Reformulatingunsupervisedstyletransferas
+Yejin Choi, and Noah A Smith. 2020. Realtoxici- paraphrasegeneration. ArXiv,abs/2010.05700.
+typrompts: Evaluating neural toxic degeneration in
+languagemodels. arXivpreprintarXiv:2009.11462. Sachin Kumar, Eric Malmi, Aliaksei Severyn, and
+YuliaTsvetkov.2021. Controlledtextgenerationas
+KartikGoyal,ChrisDyer,andTaylorBerg-Kirkpatrick. continuous optimization with multiple constraints.
+2021. Exposingtheimplicitenergynetworksbehind AdvancesinNeuralInformationProcessingSystems,
+masked language models via metropolis-hastings. 34.
+ArXiv,abs/2106.02736.
+GuillaumeLample,MyleOtt,AlexisConneau,Ludovic
+Will Grathwohl, Kuan-Chieh Wang, Jörn-Henrik Denoyer,andMarc’AurelioRanzato.2018. Phrase-
+Jacobsen, David Duvenaud, Mohammad Norouzi, based&neuralunsupervisedmachinetranslation. In
+Proceedings of the 2018 Conference on Empirical Diego, California. Association for Computational
+Methods in Natural Language Processing, pages Linguistics.
+5039–5049.
+Shrimai Prabhumoye, Alan W Black, and Ruslan
+Alisa Liu, Maarten Sap, Ximing Lu, Swabha Salakhutdinov. 2020. Exploring controllable text
+Swayamdipta, Chandra Bhagavatula, Noah A. generation techniques. In Proceedings of the 28th
+Smith,andYejinChoi.2021. DExperts: Decoding- InternationalConferenceonComputationalLinguis-
+time controlled text generation with experts and tics,pages1–14,Barcelona,Spain(Online).Interna-
+anti-experts. In Proceedings of the 59th Annual tionalCommitteeonComputationalLinguistics.
+Meeting of the Association for Computational Lin-
+guisticsandthe11thInternationalJointConference Alec Radford, Jeff Wu, Rewon Child, David Luan,
+on Natural Language Processing (Volume 1: Long DarioAmodei,andIlyaSutskever.2019. Language
+Papers), pages 6691–6706, Online. Association for modelsareunsupervisedmultitasklearners.
+ComputationalLinguistics.
+Sudha Rao and Joel R. Tetreault. 2018. Dear sir or
+XinyaoMa, MaartenSap, HannahRashkin, andYejin
+madam, may i introduce the gyafc dataset: Corpus,
+Choi. 2020. PowerTransformer: Unsupervised
+benchmarksandmetricsforformalitystyletransfer.
+controllable revision for biased language correc- InNAACL.
+tion. In Proceedings of the 2020 Conference on
+EmpiricalMethodsinNaturalLanguageProcessing
+EmilyReif,DaphneIppolito,AnnYuan,AndyCoenen,
+(EMNLP), pages 7426–7441, Online. Association
+ChrisCallison-Burch,andJasonWei.2021. Arecipe
+forComputationalLinguistics.
+for arbitrary text style transfer with large language
+models. arXivpreprintarXiv:2109.03910.
+FlorianMai, NikolaosPappas, IvanMontero, NoahA.
+Smith, and James Henderson. 2020. Plug and
+Julian Salazar, Davis Liang, Toan Q. Nguyen, and
+play autoencoders for conditional text generation.
+Katrin Kirchhoff. 2020. Masked language model
+In Proceedings of the 2020 Conference on Em-
+scoring. InProceedingsofthe58thAnnualMeeting
+pirical Methods in Natural Language Processing
+of the Association for Computational Linguis-
+(EMNLP), pages 6076–6092, Online. Association
+tics, pages 2699–2712, Online. Association for
+forComputationalLinguistics.
+ComputationalLinguistics.
+Fatemehsadat Mireshghallah and Taylor Berg-
+MaartenSap,MarcellaCindyPrasettio,AriHoltzman,
+Kirkpatrick. 2021. Style pooling: Automatic text
+HannahRashkin,andYejinChoi.2017. Connotation
+styleobfuscationforimprovedclassificationfairness.
+frames of power and agency in modern films. In
+InProceedingsofthe2021ConferenceonEmpirical
+Proceedings of the 2017 Conference on Empirical
+Methods in Natural Language Processing, pages
+Methods in Natural Language Processing, pages
+2009–2022,OnlineandPuntaCana,DominicanRe-
+2329–2334,Copenhagen,Denmark.Associationfor
+public.AssociationforComputationalLinguistics.
+ComputationalLinguistics.
+Fatemehsadat Mireshghallah, Huseyin Inan, Marcello
+Maarten Sap, Swabha Swayamdipta, Laura Vianna,
+Hasegawa, Victor Rühle, Taylor Berg-Kirkpatrick,
+Xuhui Zhou, Yejin Choi, and Noah A Smith. 2021.
+andRobertSim.2021. Privacyregularization: Joint
+Annotators with attitudes: How annotator beliefs
+privacy-utility optimization in LanguageModels.
+In Proceedings of the 2021 Conference of the and identities bias toxic language detection. arXiv
+North American Chapter of the Association for
+preprintarXiv:2111.07997.
+ComputationalLinguistics: HumanLanguageTech-
+nologies,pages3799–3807,Online.Associationfor Tianxiao Shen, Tao Lei, Regina Barzilay, and Tommi
+Jaakkola. 2017. Style transfer from non-parallel
+ComputationalLinguistics.
+textbycross-alignment. InProceedingsofthe31st
+John Morris, Eli Lifland, Jin Yong Yoo, Jake Grigsby, International Conference on Neural Information
+Di Jin, and Yanjun Qi. 2020. Textattack: A frame- ProcessingSystems,pages6833–6844.
+workforadversarialattacks,dataaugmentation,and
+adversarial training in nlp. In Proceedings of the EricWallace,MitchellStern,andDawnXiaodongSong.
+2020 Conference on Empirical Methods in Natural 2020. Imitationattacksanddefensesforblack-box
+Language Processing: System Demonstrations, machinetranslationsystems. InEMNLP.
+pages119–126.
+AlexWarstadt, AmanpreetSingh, andSamuelRBow-
+NasrinMostafazadeh,NathanaelChambers,Xiaodong man.2019. Neuralnetworkacceptabilityjudgments.
+He, Devi Parikh, Dhruv Batra, Lucy Vanderwende, Transactions of the Association for Computational
+PushmeetKohli, andJamesAllen.2016. Acorpus Linguistics,7:625–641.
+and cloze evaluation for deeper understanding
+of commonsense stories. In Proceedings of the AlbertXu,EshaanPathak,EricWallace,SuchinGuru-
+2016 Conference of the North American Chapter rangan, Maarten Sap, Dan Klein, and UC Berkeley.
+of the Association for Computational Linguistics: Detoxifying language models risks marginalizing
+HumanLanguageTechnologies,pages839–849,San minorityvoices.
+Kevin Yang and Dan Klein. 2021. FUDGE: Con-
+trolled text generation with future discriminators.
+In Proceedings of the 2021 Conference of the
+North American Chapter of the Association for
+ComputationalLinguistics: HumanLanguageTech-
+nologies,pages3511–3535,Online.Associationfor
+ComputationalLinguistics.
+Tianyi Zhang, Varsha Kishore, Felix Wu, Kilian Q.
+Weinberger,andYoavArtzi.2020. Bertscore: Eval-
+uating text generation with bert. In International
+ConferenceonLearningRepresentations.
+DanielMZiegler,NisanStiennon,JeffreyWu,TomB
+Brown, Alec Radford, Dario Amodei, Paul Chris-
+tiano, and Geoffrey Irving. 2019. Fine-tuning
+language models from human preferences. arXiv
+preprintarXiv:1909.08593.
+A Appendix and informal sentences for the task of formality
+transfer(bothdirectionsofformaltoinformaland
+A.1 CodeandDataDirectoryStructure
+informaltoformal).Hereweusetheentertainment
+We have provided all our code, data and our
+andmusicdomainsubsetofthisdata,followingthe
+generations in https://github.com/
+evaluationsetupof(Heetal.,2020). Thisdataset
+mireshghallah/mixmatch, and our
+also contains parallel data between formal and
+checkpoints are uploaded anonymously here
+informalsentences,whichweuseasreferencefor
+https://zenodo.org/record/5855005.
+reportingevaluationmetrics.
+There is a readme file in the repo, which has
+Promptedgeneration:Weevaluateourapproach
+instructionsonhowtorungenerationandgeteval-
+ontwoformsofpromptedgeneration:1)sentiment
+uationmetrics.Wehavenotincludedthedatafiles
+controlled generation, and 2) topic controlled
+fortheformality,sincetheGYAFCdatasetrequires
+generation.onpromptedgeneration.Forsentiment
+permissionforaccess,sowecannotreleaseit.
+controlledgeneration,wesetMixandMatchLM
+A.2 SampleGenerations
+togeneratetextwithpositiveornegativesentiment
+Duetopagelimitationsinthebodyofthepaper,we given prompts (listed in Appendix B.9) by using
+includemoresamplegenerationsfromourmethod a Yelp sentiment classifier as discriminator and
+intheformoftableshere.Wehavenosamplesfrom compare against PPLM (Dathathri et al., 2020)
+theformalitytransfertask,however,sincethedata whichisapopularsentimentcontrolledgeneration
+used(GYAFC)isprotectedandneedspermissions method. For topic controlled generation, we
+foraccess,sowecannotpublishit. However,we compareagainstFUDGE(YangandKlein,2021),
+haveprovidedcodeneededtoreproduceourresults, andfollowtheirexperimentalsetupconsistingof
+onceaccesstotheoriginaldataisgained. Table8 7distincttopicsand20prompts.
+showsFUDGEgenerationsversusMixandMatch
+B.2 ExpertComponentConfigurations
+generations.
+WeuseaHuggingfacepre-trainedbert-base-
+B ExperimentalSetupDetails uncased model as our MLM for yielding E
+mlm
+B.1 TasksandDatasets andalsoprovidingtheproposaldistributioninour
+MHMCMCsampler.ForobtainingE ,wetrain
+Controllable debiasing (ROC story cor- disc
+BERT-based classifiers on the training-set of our
+pus): We use the subset of the ROC story
+datasetstouseasourattributediscriminators. Al-
+corpus(Mostafazadehetal.,2016)test-setthatis
+thoughwecouldhaveusedanypre-trainedattribute
+used by PowerTransformer (Ma et al., 2020) for
+classifierfromamodelrepositorylikeHuggingface
+theirevaluations.Weusethisdataforcontrollable
+forE ,wetrainourownclassifierforcontrolled
+debiasing,atextrevisiontaskwhichaimstocorrect disc
+empiricalcomparison. Asdescribedlater, wedo
+the implicit and potentially undesirable agency
+use pretrained Huggingface attribute classifiers
+biasesincharacterportrayals.Thistest-setconsists
+as external attribute classifiers for fair evaluation
+of 549 sentences, where 224 sentences have low
+againstbaselines.Forexperimentsinwhichweadd
+agencyverbs(suchaswish,dream,etc.)andtherest
+theBertScore(Zhangetal.,2020)componenttothe
+havehighagency(likepursue,achieve,etc.). The
+energy, we download the pre-trained roberta-
+taskistorevisethesentencessuchthatthemeaning
+large_L17 models from Huggingface, respec-
+is preserved, but the agency of the sentence is
+tively. We have provided implementation details
+changedinthetargetdirection.
+andhyperparameterablationsofalltheexperiments
+Sentiment transfer (Yelp): We use Yelp (Shen
+inAppendixB.6,B.7,B.8andB.9.
+et al., 2017) dataset’s test-set for the task of
+sentimenttransfer. Thetestsetcomprisesof1000 B.3 Baselines
+sentences,halfwithpositiveandhalfwithnegative PowerTransformer. For the task of controllable
+sentiment. We also have a reference set of hand debiasing (agency revision), we compare our
+writtensentimenttransferredsentences,provided work with PowerTransformer (Ma et al., 2020),
+by (He et al., 2020) that we use for reporting an approach that uses paraphrasing and self-
+evaluationmetrics. supervisionbasedonareconstructionloss,building
+Formality transfer (GYAFC): We use 1051 onpre-trainedlanguagemodels,tore-writetextand
+sentences from the test-set of the GYAFC (Rao controlagencylevelofsentences.
+andTetreault,2018)dataset,whichcontainsformal Heetal.Forstyletransferonsentimentanformal-
+Table8:Samplesofpromptedtopiccontrolledgenerations,usingourMixandMatchLMandFUDGE.
+Ours(MixandMatchLM) FUDGE
+toreview,pleaselinkto(chessworld.net/chessworld/download.html). toreview,insteadofusingthe"n/a"flag(likeonourpreviousposts)
+insummary,keyprogramclientsarehomeforge,blogdevandskeptic.net. insummary:-installandrunalocalmysqlserveronthehostcomputer-
+addamysqltable
+it has been shown using several techniques, including microscopy, ithasbeenshownusingebpf/ebpis(extractionofanewebp
+electronmicroscopy,anddigitalloansharking.
+theconnectiontotheassaultwasnotwithoutcontroversy,especiallygiven theconnectionfailed,however,underanauditofoneofthetwo,thejudge
+theexperttestimonytheprosecutorhadprovided. said.the
+to review, or submit information to the cdu regarding the current toreview,thecourt’sdecisionnottoreviewthecaseraisesanimportant
+(constitutionally)electorallaw. question.thecourt’s
+toconclude,whenaclaimisnottrue,thedefendant’sclaimsareoften toconclude,thecourtheldamotionisproperlymadetodismissaclaim
+nottrue. foranawardofattorney
+foundationaltothisisthecoldwar,whicheliminatesallmilitarydefense foundationaltothisisanattackontheconventionalwisdomontheleft
+availabletotheenemy. thattheleftistheparty
+viewsonthecivilwarfleet,thenationalmaritimemuseum.viewsonthe views on russia’s military buildup on the strength of his repeated
+royalnavy,admiralty. insistence,anumberof
+toconclude,weallagreethatconstructivedefensemethodsarenotyet constructivedefense? toconclude, therussiannavy’sattackonthe
+available. malaysianship,ataskforcecarryingoutexercises,
+anillustrationof:thehistoricalbackground,culture,andgeneralpolitical anillustrationofananti-democraticregimeunderafascistdictatorship
+significanceofthebooks’contents. anditssuppressionofthepopularoppositionand
+the issue focused on socialism, democracy, social justice and self- theissuefocusedonreligiousfreedominthecountry’sconstitution,a
+governmentincountriesacrosstheglobe. fundamentalpillarofu.s.
+inthisessay,kingfrederickiiiofprussiawasprominentlyfeaturedin inthisessay,theterm"politicalcorrectness"isusedtorefertopolitical
+americanpost-civilwarculture. demandsimposedonthe
+the issue focused on the inferiority of conservatives ( "" religious theissuefocusedonreligiousfreedom,particularlywhenthebibleteaches
+conservatives"")vs.atheists. thatgodis"thecreator."
+tosummariseaccuratelythewinddirection,additionalcharactersmay tosummarise,ifthepresent-daychristianchurcheswereamonasticorder
+beaddedtotheclassificationtablebelow. ofthemonksrather
+anillustrationofthenaturalhistoryofwalesbyfrancisbacon.bateson, anillustrationofanancientbronzeagevillageinthenortherngreekregion
+charles(1839). ofcrete,whichshowsa
+priortothisdate, themanuscriptwasnotcurrentlyavailableonthe priortothisexperiment,thescientistshadnotseenanewspeciesinthe
+internet,andiscitedrarely. areasincethelate1800
+therelationshiphasinspiredresearchintotheroleofwomenineconomics, therelationshipbetweenenergyuseandenergyuseasafunctionoftime
+andcontributionstofeministeconomictheory. wasalsoinvestigatedusingalinearmixed
+theissuefocusedondevelopmentsinthefieldof"darwinism,biology theissuefocusedondataretention,andthekeyelementsoftheretention
+andhumanevolution"research. matrix,includingretentionofidentifiers
+furthermore,theperformancespaceis"packedwithclassicalmusic"and furthermore,theeighty-firststaristheplanet’slargestmoonanditsits
+is"lavishlydecorated". directlyinbetween
+toconclude,anasteroidbecomes,mathematically,thelargestasteroid toconclude,scientistsbehindspacemonkey,andanumberoftheother
+toeverbe"discovered". projectsthatnasaissupporting
+to summarise other countries’respective territorial claims, including tosummarise:x(1xa2a19a1a2b2
+territorialwaters,islands,etc..
+Table9: SentimenttransferonYelpdatasetablationstudy. Thetuplesinthefirstcolumnshowthe(α,δ,β)setof
+parameters. Weablatetheeffectthatdifferentcomponentshaveonthetransfer.The(ref)/(src)nexttothemetrics
+denotesthattheyaremeasuredwithrespecttothereference/sourcetext. Int./Ext. Clsf. showtheaccuracyofthe
+discriminatorusedintheenergy/externaldiscriminatorfromHuggingface.Hamm.showstheHammingdistance.
+(Disc,MLM,Hamm.) BLEU GPT-2 BertScore Hamm. Int.Clsf. Ext.Clsf.
+(1,0,1) 4.77 1611.8 0.88 5.308 81.7 67.4
+(1,0,0) 1.12 3825.3 0.85 8.378 99.0 84.5
+(0,1,0) 3.77 101.3 0.90 5.92 24.7 29.3
+(100,1,0) 2.89 143.0 0.88 7.067 99.2 96.5
+(0,1,50) 23.60 110.0 0.99 0.002 4.3 5.0
+(100,1,50) 19.71 191.5 0.95 1.838 94.7 82.8
+ity domains, we compare our work with He et al. supervisedstyletransfer.Thisframeworkneedsto
+(2020),agenerativestyletransferframeworkwhich betrainedfromscratchforeachstyletransfertask.
+usesavariationalautoencoder(VAE)builtusinga
+UNMT. As a second baseline for style transfer,
+sequence-to-sequenceLSTM-basedmodeltodoun-
+we compare our work with UNMT (Lample
+retupmoC
+lageL
+yratiliM
+scitiloP
+noigileR
+ecneicS
+ecapS
+Table10: FormalitytransferonGYAFCdatasetablationstudy. Thetuplesinthefirstcolumnshowthe(γ,η)setof
+parameters. WeablatetheeffecttheBLEURTandBertScoreexpertshaveonthetransfer. The(ref)/(src)nextto
+themetricsdenotesthattheyaremeasuredwithrespecttothereference/sourcetext.Int.Clsf.showstheaccuracyof
+thediscriminatorusedintheenergy,and→Informal/Form.showsthebreakdownoftheexternalclassifieraccuracy.
+Hamm.showstheHammingdistance.
+(BLEURT,BertScore) BLEU GPT-2 BertScore Hamm. Int.Clsf. →Inf. →Form.
+(100,0) 14.07 243.9 0.87 5.93 89.34 97.41 19.80
+(300,0) 13.75 233.9 0.88 5.88 89.34 97.01 22.94
+(0,100) 17.78 206.3 0.89 5.22 91.15 96.67 23.13
+(0,300) 18.85 210.9 0.90 4.91 88.23 97.04 23.13
+etal.,2018),anunsupervisedmachinetranslation tocomparethesemanticsimilarityoftheprovided
+frameworkthatdemonstrateshighperformancefor referencesentencewiththegeneratedoutput.
+sentimenttransfer. HammingDistance.Wealsoreportthehamming
+PPLM. For the task of sentiment controlled distancebetweenthesourcetextandgeneratedtext,
+generation,wecompareourworktoPlug-and-Play tomeasuretheextentofthechangeinducedbyour
+LM (PPLM) Dathathri et al. (2020), which does framework.
+attribute controlled generation using the flow of
+B.4.2 AttributeQuality
+gradients from discriminators trained on the last
+hidden layer representations of the generator, to Internal Classifier Accuracy. To evaluate the
+guidegeneration. quality of applying target attributes, we report
+FUDGE. This approach (Yang and Klein, 2021) accuracyoftheinternalclassifier(thediscriminator
+trains step-wise discriminators on partial gen- usedforgeneration)onthegeneratedtext,assuming
+erations from GPT-2 to determine whether the thetargetattributeisthecorrectlabel. Thehigher
+constraints related to desired attributes will be thisaccuracyis,thebetter.
+satisfiedbythefuturecompletionofthesequence ExternalClassifierAccuracy. Sincetheinternal
+ornot.Wecompareagainstthisontopiccontrolled classifier is the one we are sampling from, it is
+generation as this approach was shown to be natural that we would get high accuracy on it,
+superiortoPPLMonthistask. compared to our baselines. To create a more
+B.4 EvaluationMetrics fair comparison, we also report classification
+accuracy using external classifiers, downloaded
+Weuseavarietyofevaluationmetricstocompare
+from Huggingface. For sentiment classification
+ourapproach’sperformanceontwomajorfacets:
+weusetextattack/bert-base-uncased-
+(1) Quality of generated text, and (2) success on
+yelp-polarity (Morris et al., 2020), and for
+matchingthetargetattributeusedforcontrol.
+formality we use cointegrated/roberta-
+B.4.1 TextQualityandSemanticSimilarity
+base-formality.
+GPT-2PPL.Wefeedourgeneratedtestsentences Agency Lexicon Accuracy. For the controlled
+toaHuggingface(Radfordetal.,2019)pre-trained debiasing experiment, we measure the accuracy
+GPT-2xlmodel,andreportitsperplexity(PPL),as of the change in agency by comparing the target
+anautomaticmeasureoffluency.Althoughthismea- agency level with that of the generated text,
+sureisnotaperfectindicatoroffluency,wefinditto extractedusingtheconnotationframeslexicon,and
+beausefulmetricalongsidehumanjudgements.3
+followingthesetupfromMaetal.(2020).
+BLEU. For sentiment (Yelp) and formality
+B.5 Hyper-parameter
+(GYAFC)transferexperiments,sincewehaverefer-
+andComponentSelection
+encetext,wereporttheBLEUscore.Forcontrolled
+debiasing,wereportBLEUbetweengeneratedtext Selection of components is based on the needs
+andsource,andshowitasBLEU(src). ofthetaskandisstraightforward. Youaddeach
+BertScore.Asameasureofmeaningpreservation, component you need, to satisfy some condition.
+weusetheF1BertScoremetric(Zhangetal.,2020) Ifyouwanttodosentimentcontrolledgeneration,
+youaddasentimentclassifier. Findingthehyper-
+3Due to the high variance in the PPL scores generated
+parametersforeachcomponent(themultiplierin
+acrosssentencesbyGPT-2,wereportthemedianscorefor
+eachsystemundercomparison. energy)isalsosimple,sincethetrade-offbetween
+thedifferentcomponentsisclear. Forinstance,as PPLMsgithubrepo,availableatthisurl: https:
+showninTable9,increasingthediscriminatorscore //github.com/uber-research/PPLM/
+resultsinamoresuccessfulsentimenttransfer,and tree/master/human_annotation/
+increasing the Hamming score results in keeping pplm_labeled_csvs.
+thesentencethesame. PPLM has multiple knobs to tune for sam-
+B.6 ControllableDebiasing: pling, and after running a greed search we
+Hyperparameters found that gamma=1,num_iterations=10
+,step_size=0.1,kl_scale=0.01 and
+For the results presented in Table 2, we ran the
+gm_scale=0.95yeildthebestresults(reported
+Gibbschainfor8epochs(8iterationsoverallthe
+in Table 6). We generated samples by running
+tokens)fortheconventionalmodeofourmethod,
+the command python run_pplm.py -D
+and30iterationsforverbreplacement.Weusedthe
+sentiment,withthementionedhyperparameters.
+parametersα=100,β=50,θ=100,whereθisthe
+ForFUDGE,wetunetheλparameter,andwefind
+coefficientassignedtotheagencyscorer,andαand
+thatλ=10worksbest.
+βaredefinedinEquations1and2.
+Forourmethod,werantheGibbschainfor15
+B.7 SentimentTransfer:Hyperparameters
+epochs, and used hyperparameter α = 40, from
+Inthissectionwediscussthehyperparametersused Eq.1.Wedon’tuseanyexpertsotherthantheyelp
+forsamplingandseetheeffectsofeachone. For sentiment classifier, so we don’t have any other
+theresultspresentedinTable3,werantheGibbs hyperparamters.
+chainfor8epochs(8iterationsoverallthetokens),
+B.10 HumanEvaluations
+andusedtheparametersα=100,β=25(forDis-
+WeusedAmazonMechanicalTurkforourevalua-
+criminator↑)andα=100,β=50,forHamming↑.
+tions,whereeachHITwasatwochoicequestionof
+αandβaredefinedinEquations1and2.
+“whichsentenceismorefluent?”andtheproviders
+Table 9 shows six different scenarios, with
+werepaid$0.1perHIT.WeselectedTurkersfrom
+six different coefficeints for the Disciriminator
+Englishspeakingcountries.Wealsohadeacheach
+(α), BERT MLM (δ) and Hamming distance (β)
+questionanswered3times(by3Turkers),tocreate
+components in the energy function, which helps
+redundancyandrobustness.
+understandtheeffecteachexperthas.
+B.11 GPUHoursandInfrastructure
+B.8 FormalityTransfer:Hyperparameters
+Oneofthemainpurposesofthisworkistointroduce
+FortheresultspresentedinTable4,werantheGibbs
+aparadigminwhichwere-useexistingmodelsand
+chainfor5epochs(5iterationsoverallthetokens),
+donotretrain. Assuch,wedidnotneedGPUsfor
+andusedtheparametersα=140,β=15,γ=100
+training(wefinetunedtwoclassifierfordemonstra-
+(forDiscriminator↑)andα=140,β=50,γ=300,
+tionpurposes,whichtooklessthantwoGPUhours).
+for BertScore ↑. α, β and γ are defined in
+However, we do use GPUs for inference (less
+Equations1and2.
+computationallyintensive),forgeneratingsamples.
+Table 10 shows four different scenarios, with
+We used an in-house 4GPU server (NVIDIA
+four different coefficeints for the BLEURT
+RTX2080),andthesamplingsandhyperparameter
+and BertScore components in the energy func-
+tuningtookanoverallofaround10-14fulldayson
+tion, which helps understand the effect each
+the4GPUs.
+expert has. For BLEURT, we use pre-trained
+Elron/bleurt-base-512 from Hugging-
+face.
+B.9 PromptsandHyperparameters
+UsedforControlledGeneration
+We have listed the prompts that we used for
+controlled text generation (these prompts are
+taken from Dathathri et al. (2020)): the country,
+the lake, the chicken, the movie, the pizza,
+the painting, the year, the city, the book, the
+potato, the horse, the road, the president, once
+upon a time. We collect these prompts from

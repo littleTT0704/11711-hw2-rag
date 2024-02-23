@@ -1,0 +1,435 @@
+CONNECTIONISTTEMPORALLOCALIZATIONFORSOUNDEVENTDETECTIONWITH
+SEQUENTIALLABELING
+YunWangandFlorianMetze
+LanguageTechnologiesInstitute,CarnegieMellonUniversity,Pittsburgh,PA,U.S.A.
+maigoakisame@gmail.com, fmetze@cs.cmu.edu
+ABSTRACT clustering”problemimpededtheaccuratelocalizationoflongsound
+events. In this paper, we make three major modifications to CTC
+Research on sound event detection (SED) with weak labeling has
+andproposeaconnectionisttemporallocalization(CTL)framework,
+mostly focused on presence/absence labeling, which provides no
+whichsuccessfullysolvesthepeakclusteringproblem. Evaluation
+temporal information at all about the event occurrences. In this
+onasubsetofAudioSetshowsthatCTLclosesathirdofthegap
+paper, we consider SED with sequential labeling, which specifies
+betweenpresence/absencelabelingandstronglabeling.
+thetemporalorderoftheeventboundaries. Theconventionalcon- OurCTLframeworkalsoprovidesawaytoeasilycombinemul-
+nectionist temporal classification (CTC) framework, when applied
+tipletypesoflabeling,suchaspresence/absencelabeling,sequential
+toSEDwithsequentiallabeling,doesnotlocalizelongeventswell
+labeling, and strong labeling. When we have stronger labeling
+duetoa“peakclustering”problem. WeadapttheCTCframework
+available in a smaller amount and weaker labeling available in a
+andproposeconnectionisttemporallocalization(CTL),whichsuc-
+largeramount,suchacombinationmakesitpossibletofullyexploit
+cessfullysolvestheproblem. EvaluationonasubsetofAudioSet
+theinformationinallthedata.
+showsthatCTLclosesathirdofthegapbetweenpresence/absence
+labeling and strong labeling, demonstrating the usefulness of the
+extratemporalinformationinsequentiallabeling.CTLalsomakesit 2. CTL:MOTIVATIONANDALGORITHM
+easytocombinesequentiallabelingwithpresence/absencelabeling
+2.1. SequentialLabeling
+andstronglabeling.
+Index Terms— Sound event detection (SED), weak labeling, In speech recognition, a typical form of supervision is a phoneme
+sequentiallabeling,connectionisttemporalclassification(CTC) sequence for each utterance without temporal alignment. A direct
+analogy for SED would be a sequence of sound events for each
+recording,buttheorderofsoundeventscanbehardtodefinewhen
+1. INTRODUCTION
+theyoverlap.Toavoidthisproblem,wedefinesequentiallabelingto
+beasequenceofeventboundaries. Forexample,ifthecontentofa
+Soundeventdetection(SED)isthetaskofclassifyingandlocalizing
+recordingcanbedescribedas“adogbarkswhileacarpassesby”,
+occurrencesofsoundeventsinaudiostreams. ThetrainingofSED
+thesequenceofeventboundarieswillbe: caronset,dogonset,dog
+modelsusedtorelyuponstronglabeling,whichspecifiesthetype, offset, car offset. We denote this by ´C´D`D`C: letters with the rising
+onset time and offset time of each sound event occurrence. Such accent´C,´Dstandfortheonsetsofthe“car”and“dog”events,while
+labeling,however,isverytedioustoobtainbyhand.Inordertoscale letters with the falling accent `C and `D stands for their offsets; the
+SED up, many successful attempts have been made to train SED
+underlinemeansthisisasequencewithouttemporalalignment.
+systemswithweaklabeling,suchas[2,3,4]andourTALNet[5].
+For annotators, sequential labeling is not too much harder to
+Eventhoughtrainedwithweaklabeling,someofthesesystemsare
+producethanpresence/absencelabeling;thedifficultymainlyarises
+abletotemporallylocalizeeventsintheiroutput.
+whensoundeventsoccurdenselyoroverlap. Inanycase,itisstill
+When the term weak labeling is used in the literature, it often
+easier to produce than strong labeling, because it is not necessary
+specificallyreferstopresence/absencelabeling,whichonlyspecifies
+to mark the precise onset and offset times of each sound event
+thetypesofsoundeventspresentinarecordingbutdoesnotprovide
+occurrence. Also, sequentiallabelingmaybeautomaticallymined
+any temporal information. Presence/absence labeling is popular
+fromtextualdescriptionsofaudiorecordings,suchas“adogbarks
+becauseittakestheleastefforttoproduce; assuch,AudioSet[6],
+whileacarpassesby”.
+the currently largest corpus for SED, is also labeled this way. In
+thispaper,however,westudySEDwithsequentiallabeling,which
+2.2. ThePeakClusteringProblemofCTC
+specifies the order of the boundaries of events occurring in each
+recording. We demonstrate that the extra temporal information CTC can be applied to SED with sequential labeling as follows.
+in sequential labeling, though incomplete, can still improve the First,wedefinethevocabularyofCTCoutputtoincludetheonset
+localizationofsoundevents. and offset labels of each event type, plus a “blank” label (denoted
+Connectionist temporal classification (CTC) [7] is a popular by -). For an SED system that deals with n types of events, the
+framework used for speech recognition when the supervision is vocabularysizeis2n+1. Aneuralnetwork(oftenwitharecurrent
+sequential,e.g.phonemesequenceswithouttemporalalignment[8]. layer)predictstheframe-wiseprobabilityofeachlabelinthevocab-
+CTChasbeendirectlyappliedtoSEDwithsequentiallabelingin[9] ulary;theseprobabilitiessumto1ateachframe. Theprobabilities
+and a previous work of ours [10]; the latter found that a “peak of specific temporal alignments (e.g. -´C´D`D`C-, ´C-´D`D`C`C) can be
+calculated by multiplying the probabilities of individual labels at
+ThisworkwassupportedinpartbyagiftawardfromRobertBoschLLCanda eachframe. Thetotalprobabilityofthegroundtruthsequence(e.g.
+facultyresearchawardfromGoogle. Itusedthe“comet”and“bridges”clustersofthe
+XSEDEenvironment[1],supportedbyNSFgrantnumberACI-1548562. ´C´D`D`C) is defined as the sum of the probabilities of all alignments
+9102
+beF
+91
+]DS.sc[
+4v25090.0181:viXra
+thatcanbereducedtothegroundtruthsequencebyamany-to-one probabilitiesatagivenframemayexceed1. Tosolvethisproblem,
+mapping B; this mapping first collapses all consecutive repeating wemakethesecondmodificationtoCTC:wetreattheprobabilities
+labelsintoasingleone,thenremovesallblanklabels.Forexample, ofdifferenteventboundariesatthesameframeasmutuallyindepen-
+both the alignments -´C´D`D`C- and ´C-´D`D`C`C can be reduced to the dent,insteadofmutuallyexclusive.Inthisway,theprobabilityofno
+unalignedsequence´C´D`D`C, thereforeP(´C´D`D`C) = P(-´C´D`D`C-)+ eventboundariesoccurringatframetcanbecalculatedby:
+P(´C-´D`D`C`C) plus the probabilities of many other alignments. A (cid:89)
+(cid:15) = [1−z (l)] (2)
+systematicforwardalgorithmisproposedin[7]tocomputethistotal t t
+l
+probabilityefficiently.Thelossfunctionforthisrecordingisdefined
+wherelgoesoveralleventboundaries. Theprobabilityofemitting
+as−logP(´C´D`D`C);thiscanbeminimizedwithanyneuralnetwork
+asingleeventboundarylatframetisthen:
+trainingalgorithm,suchasgradientdescent.
+WhenCTCisdirectlyappliedtoSEDwithsequentiallabeling,it p (l)=z (l)·(cid:89) [1−z (l(cid:48))] (3)
+t t t
+hasbeenfoundin[10]todetectshorteventswell:apeakappearsin l(cid:48)(cid:54)=l
+theframe-wiseprobabilitiesoftheonsetandoffsetlabelsaroundthe Ifwedefine
+z (l)
+actualoccurrenceoftheevent.Forlongevents,however,CTCtends δ (l)= t (4)
+topredictpeaksfortheonsetandtheoffsetnexttoeachother,which t 1−z t(l)
+meanstheeventisnotwelllocalized(seeSec.3.3foranexample). ThenEq.3reducesto
+This“peakclustering”problemoccursforseveralreasons.First,
+p (l)=(cid:15) ·δ (l) (5)
+because sound events do not overlap too often, adjacent onset and t t t
+offsetlabelsareanextremelycommonpatterninthetraininglabel The assumption that boundary labels at the same frame are
+sequences. As a result, CTC may misunderstand a pair of onset mutually independent seems to eliminate the need for the blank
+andoffsetlabelsascollectivelyindicatingtheexistenceofanevent, label. Indeed, the blank label in CTC serves two purposes: (1) to
+instead of understanding them as separately indicating the event allow emitting nothing at a frame, and (2) to separate consecutive
+boundaries. Second,theCTClossfunctiononlymandatestheorder repetitions of the same label. With the independence assumption,
+ofthepredictedlabels,withoutimposinganytemporalconstraints. the first purpose is naturally achieved. Here we make the third
+In this case, the recurrent layer of the network will prefer to emit modificationtoCTC:themappingBnolongercollapsesconsecutive
+onsetandoffsetlabelsnexttoeachother,becausethisminimizesthe repeatinglabelsintoasingleone.Withthissimplification,theblank
+effortofmemory. Therootcauseofthe“peakclustering”problem labelcanberemovedaltogether.
+isthattheoutputlayerofthenetworkisonlytrainedtodetectevent Theindependenceassumptionalsoallowsustoassesstheprob-
+boundaries; it is expected to keep “silent” both when an event is ability of emitting multiple labels at the same frame, which is not
+inactive and when an event is continuing, despite the potentially possiblewiththestandardCTC.Theprobabilityofemittingmultiple
+hugedifferencesintheacousticfeatures.Whenthenetworkpredicts labelsl 1,...,l ktogetheratframetcanbecalculatedas
+theonsetandoffsetlabelsofalongeventoccurrencenexttoeach (cid:89)k (cid:89)
+other, it actually does not violate this expectation on too many p t(l 1,...,l k)= z t(l i)· [1−z t(l)]
+i=1 l∈/{l1,...,lk}
+frames,anddoesnothaveenoughincentivetocorrectthisbehavior.
+(cid:89)k
+=(cid:15) · δ (l ) (6)
+t t i
+i=1
+2.3. ConnectionistTemporalLocalization
+Now we can formulate our CTL forward algorithm. What we
+In this section we make three major modifications to the CTC wanttofindisthetotalprobabilityofemittingthegroundtruthlabel
+framework,andpresentaconnectionisttemporallocalization(CTL) sequence L = l 1,...,l |L|, regardless of the temporal alignment.
+frameworksuitableforlocalizingsoundevents.Wealsodescribethe Whatwearegivenistheframe-levelprobabilitiesofeventsy t(E),
+correspondingforwardalgorithmforcalculatingthetotalprobability fromwhichwecanderivetheprobabilityp t(·)ofemittingzero,one
+ofaneventboundarysequence. ormorelabelsateachframebyEq.6. Letα t(i)betheprobability
+The first modification addresses the root cause of the “peak ofhavingemittedexactlythefirstilabelsofLaftertframes. The
+clustering”problem: theoutputlayerofthenetworkshouldpredict α’scanbecomputedwiththefollowingrecurrenceformula:
+theframe-wiseprobabilitiesoftheeventsthemselvesinsteadofthose
+(cid:88)i
+oftheeventboundaries. Inthisway,thenetworkcanlearntomake α t(i)= α t−1(i−j)·p t(l i−j+1,...,l i)
+j=0
+differentpredictionswithdifferentacousticfeatures. Theboundary
+(cid:88)i (cid:89)i
+probabilities are then derived from the event probabilities using a = α t−1(i−j)·(cid:15) t· δ t(l k) (7)
+j=0 k=i−j+1
+“rectifieddelta”operator.Moreformally,lety (E)betheprobability
+t
+oftheeventEbeingactiveatframet. Here1 ≤ t ≤ T,whereT
+Inthesummation,theindexjstandsforthenumberoflabelsemitted
+isthenumberofframesintherecordinginquestion. Letz (´E)and atframet.Theinitialvaluesare:
+t
+z (`E)betheprobabilitiesoftheonsetandoffsetlabelsoftheevent (cid:26) 1, ifi=0
+t α (i)= (8)
+Eatframet.Wecalculatethemusingthefollowingequations: 0 0, ifi>0
+z t(´E)=max[0,y t(E)−y t−1(E)] Thefinalvalue, α T+1(|L|), isthetotalprobabilityofemittingthe
+z (`E)=max[0,y (E)−y (E)] (1) label sequence L, and its negative logarithm is the contribution of
+t t−1 t
+therecordinginquestiontothelossfunction.
+In these equations we allow t to range from 1 to T +1, in order Eq.7allowsemittingarbitrarilymanylabelsatthesameframe.
+toaccommodateeventsthatstartatthefirstframeorendatthelast Whenthegroundtruthlabelsequenceislong,thiscanposeaprob-
+frame.Wheny (E)ory (E)isreferenced,weassumeittobe0. lemoftimecomplexity. Inpractice,itisrareformultiplelabelsto
+0 T+1
+Now we have the frame-wise probabilities of all event bound- beemittedatthesameframe. Therefore,itcanbedesirabletolimit
+aries, we only need to define the frame-wise probability of the themaximumnumberofconcurrentlabels,i.e. themaximumvalue
+blank.However,adifficultyarisesbecausethesumoftheboundary ofjinEq.7.Wecallthismaximumvaluethemaxconcurrence.
+Frame-level probabilities 100 * 35 Frame-level probabilities 100 * 35 Frame-level probabilities 100 * 71 Frame-level probabilities 100 * 35
+of events of events of event boundaries of events
+Linear softmax Rectified delta
+Recording-level probabilities 1 * 35 Frame-level probabilities 101 * 70
+of events of event boundaries
+(a) Strong labeling system (b) MIL system for (c) CTC system for (d) CTL system for
+presence/absence labeling sequential labeling sequential labeling
+Fig.1.StructuresofthefournetworkstrainedinSec.3.2.Theshapeisspecifiedas“frames*frequencybins*featuremaps”for3-Dtensors
+(shaded),and“frames*featuremaps”for2-Dtensors.“convn*m”standsforaconvolutionallayerwiththespecifiedkernelsizeandReLU
+activation;batchnormalizationisappliedbeforetheReLUactivation.“pooln*m”standsforamaxpoolinglayerwiththespecifiedstride.
+3. EXPERIMENTS System Loc.F 1(%)
+Stronglabeling(topline) 67.38
+3.1. DataPreparation MIL(baseline) 55.83
+CTC 31.91
+WecarriedoutexperimentsonasubsetofAudioSet[6]. AudioSet
+Maxconcurrence=1 59.92
+consists of over 2 million 10-second excerpts of YouTube videos,
+CTL Maxconcurrence=2 57.49
+labeled with the presence/absence of 527 types of sound events.
+Maxconcurrence=3 53.63
+Becausewewouldneedsequentiallabelingfortrainingandstrong
+labelingforevaluation,wegeneratedsequentialandstronglabeling
+Table1.Localizationperformanceofthefoursystems.
+foralltherecordingsusingTALNet[5]–astate-of-the-artnetwork
+trained with presence/absence labeling that is good at localizing
+units. TheCTLsystempredictstheframe-wiseprobabilitiesofthe
+sound events. We used a frame length of 0.1 s, so each recording
+eventsandthenderivestheboundaryprobabilitieswiththe“rectified
+consistedof100frames.
+delta”operator.Wetriedmaxconcurrencevaluesof1,2and3.
+Notallofthe527soundeventstypesofAudioSetwerelabeled
+ThesystemsweretrainedusingtheAdamoptimizer[12]witha
+with high quality, and the labels generated by TALNet would be
+constantlearningrateof10−3. Thebatchsizewas500recordings.
+evennoisier. Toreducetheeffectofsuchlabelnoise, weselected
+Weapplieddatabalancingtoensurethateachminibatchcontained
+35soundeventtypesthathadrelativelyreliablelabels(seeTable4.1
+roughlyequalnumbersofrecordingsofeacheventtype.Afterevery
+of [11] for a complete list). Four of these event types (speech,
+200minibatches(calledacheckpoint), weevaluatedthenetwork’s
+sing,musicandcrowd)wereoverwhelminglyfrequent;wefil-
+localizationperformanceusingtheframe-levelF macro-averaged
+teredtherecordingsofAudioSettoretainonlythosethatcontained 1
+across the 35 event types. For the strong labeling, MIL and CTL
+atleastoneoftheremaining31typesofsoundevents. Thisleftus
+systems, we first tuned class-specific thresholds to optimize the
+with 359,741 training recordings, 4,879 validation recordings and
+frame-levelF ofeacheventtypeonthevalidationdata,thenapplied
+5,301evaluationrecordings. Thetotaldurationoftheserecordings 1
+themdirectlytotheevaluationdata.FortheCTCsystem,wepicked
+isaround1,000hours,or18%ofentirecorpus.
+the most probable label at each frame, and marked each event as
+activebetweeninnermostmatchingpairsofonsetandoffsetlabels.
+3.2. NetworkStructuresandTraining
+3.3. PerformanceofCTLforSequentialLabeling
+WetrainedfournetworkswhosestructuresareillustratedinFig.1.
+All the layers up to the GRU layer are shared across the four net- Table1liststhehighestevaluationF obtainedbythevarioussys-
+1
+works;theselayershighlyresemblethehiddenlayersofTALNet[5], temswithin100checkpoints.TheCTCsystemfallslongbehindthe
+butareshallowerandnarrower.Thefoursystemshavedifferentout- baseline;asweshallsee,thisisduetothe“peakclustering”problem.
+putends. Thefirstsystempredictstheprobabilitiesofthe35types TheCTLsystem(withamaxconcurrenceof1)successfullyoutper-
+ofsoundevents,anddirectlyreceivesstronglabelingassupervision. formsthebaseline,andclosesathirdofthegapbetweenthebaseline
+Thesecondsystemisamultipleinstancelearning(MIL)systemfor of MIL with presence/absence labeling and the topline of strong
+presence/absencelabeling: itfirstpredictsframe-wiseprobabilities, labeling. A class-wise error analysis shows that the CTL system
+thenaggregatesthemintorecording-levelprobabilitieswithalinear exhibits a uniform improvement across classes, outperforming the
+softmaxpoolingfunctionjustlikeTALNet.Thesetwosystemsserve MIL baseline for 28 of the 35 event types. In addition, it appears
+asthetoplineandthebaselinefortheCTCandCTLsystems. The unnecessarytoallowmultiplelabelstooccuratthesameframe.
+CTCsystemdirectlypredictstheframe-wiseprobabilitiesofevent Fig.2presentstheoutputofthefoursystemsonanevaluation
+boundariesandtheblanklabel;theoutputlayerhas35∗2+1=71 recording, which contains the whining of a dog intermingled with
+serutaef
+knabretliF 1 * 46
+*
+004
+3*3 vnoc 61 * 46
+*
+004
+2*2 loop 61 * 23
+*
+002
+3*3 vnoc 23 * 23
+*
+002
+2*2 loop 23 * 61
+*
+001
+3*3 vnoc 46 * 61
+*
+001
+2*1 loop 46 * 8
+*
+001
+3*3 vnoc 821 * 8
+*
+001
+2*1 loop 821 * 4
+*
+001
+3*3 vnoc 652 * 4
+*
+001
+2*1 loop 652 * 2
+*
+001
+3*3 vnoc 215 * 2
+*
+001
+2*1 loop 215 * 1
+*
+001
+nettalf 215 *
+001
+2*652
+URGiB 215 *
+001
+detcennoc
+ylluF )diomgis(
+(a) Strong labeling system 61
+speech
+1 )%
+tn
+e v child 0.5
+(
+1
+F60
+E
+dog
+le59
+0 v e
+0 2 4 6 8 10 l-e58
+m
+tn
+e v
+Esp me
+u
+de
+s
+oc ih
+gc
+(b) MIL system 001
+.5
+a rf
+e g
+a re
+v
+a
+-o555 567
+max concurrence = 1
+0 2 (c4
+) CTC
+syste6
+m
+8 10 rc
+a M54
+m ma ax
+x
+c co on nc cu ur rr re en nc ce
+e
+=
+=
+2
+3
+blank 1 53
+<speech> Pure MIL 30:1 10:1 3.3:1 Pure CTL
+</speech> 0.8
+<cry> Fig. 3. The localization performance obtained by combining CTL
+le b << c/ hc ir ldy> > 0.6 andMILwithdifferentweights.
+a
+L </child> 0.4
+<dog>
+wefixedtheweightoftheCTLlossto1,andtriedoutthefollowing
+</dog> 0.2
+<cat> weightsfortheMILloss: 30(emphasizingtheMILlossmore),10
+</cat> (weightingbothlossesequally),and3.3(emphasizingtheCTLloss
+0
+0 2 4 6 8 10 more).TheresultinglocalizationperformancesareplottedinFig.3.
+(d) CTL system Amixingweightof3.3:1appearstobegenerallyagoodchoice,and
+1
+tn e v Espe de och g 0.5 give Ts ha em pa or tg ei nn ta ial lim usp er oo fv ce om men bt ino in ngto ap Co Tf Lpu sr ye stC emTL w. ithothersystems
+0
+0 2 4 6 8 10 isnotlimitedtotheexperimentsabove.Becausesequentiallabeling
+Time (s)
+takesmoreefforttoproducethanpresence/absencelabelingafterall,
+Fig. 2. The frame-level predictions of the four systems on the itcanbewellimaginedthattherewillbelessdatawithsequential
+evaluation recording 0F04c rY4aw. Dots stand for the ground labelingavailablethandatawithpresence/absencelabeling.System
+truth;shadesofgrayindicatetheframe-levelprobabilitiesofevents, combination allows us to exploit the information in both types of
+event boundaries or the blank label. Crosses indicate the most labeling: wecancomputetheMILlossonallthedataandtheCTL
+probable label at each frame (for the CTC system), or events with loss on the part of the data with sequential labeling, and train a
+probabilitieshigherthantheclass-specificthresholds(fortheother systemtominimizeanappropriateweightedaverageofthetwoloss
+systems).<E>and</E>standfortheonsetandoffsetlabelsofthe functions.Ifwealsohavedatawithstronglabeling,thentheframe-
+eventE.Unimportanteventsareomitted. wisecross-entropylossofastronglabelingsystemcanbeaddedto
+the weighted average, too. A CTL system can be combined with
+speech. The topline strong labeling system localizes both events anMILsystemandastronglabelingsystemwithnoeffort,thanks
+well; thebaselineMILsystemfailstolocalizethespeechevent. tothefactthatitcomputesframe-wiseprobabilitiesofeventsinthe
+TheCTCsystemcanlocalizetheoccurrencesofspeech(although samewayastheothertwosystems.
+with a few spurious detections); for the dog event, however, it
+exhibits the “peak clustering” problem: it predicts (with low con-
+4. CONCLUSIONANDDISCUSSION
+fidence)manypairsofonsetandoffsetlabelsofdognexttoeach
+other. TheCTLsystemavoidsthe“peakclustering”problem, and We made three modifications to the connectionist temporal clas-
+alsolocalizesthespeechoccurrencesbetterthantheMILsystem.
+sification (CTC) framework: (1) instead of predicting frame-wise
+boundary probabilities directly, the network predicts event proba-
+3.4. CombiningSequentialLabelingwithPresence/AbsenceLa- bilities and then derives boundary probabilities using a “rectified
+beling delta” operator; (2) the boundary probabilities at the same frame
+areregardedasmutuallyindependentinsteadofmutuallyexclusive;
+When sequential labeling is available for training a SED system, (3) the mapping B from alignments to unaligned label sequences
+presence/absence labeling is automatically also available. This no longer collapses consecutive repeating labels. The resulting
+prompts us to think about combining a CTL system trained with framework, which we name “connectionist temporal localization”
+sequential labeling and an MIL system trained with presence/ (CTL), successfully solves the “peak clustering” problem of CTC,
+absence labeling. Because the two systems share all layers up to and closes a third of the gap between the baseline of presence/
+theframe-wiseprobabilitiesofevents,thiscombinationturnsoutto absencelabelingandthetoplineofstronglabeling.
+besurprisinglyeasy: itsufficestocombinethelossfunctionsofthe BecauseaCTLsystempredictsframe-wiseeventprobabilities
+twosystemsusingaweightedaverage.Attesttime,thelocalization in the same way as an MIL system for presence/absence labeling
+output can be directly taken from the shared layer of frame-wise andastronglabelingsystem,thecombinationofthethreesystems
+eventprobabilities.Incontrast,itismoredifficulttocombineaCTC isaseasyasaweightedaverageofthelossfunctions. Thismakesit
+systemwithanMILsystembecausetheyhavedifferentoutputends. possibletoexploittheinformationinallthreetypesoflabelingwhen
+We combined an MIL system with CTL systems trained with wehavedifferentdatalabeledatdifferentgranularities.
+differentvaluesofmaxconcurrence: 1,2and3. Whenwetrained FormoredetailsabouttheCTLalgorithmandtheexperiments,
+the systems alone, we found that the loss of the CTL systems please refer to Chapter 4 of the first author’s PhD thesis [11].
+usually stabilized around 0.2, while the loss of the MIL system Thecodeandacousticfeaturesfortheexperimentsareavailableat
+usually stabilized around 0.02. For the combination experiments, https://github.com/MaigoAkisame/cmu-thesis.
+5. REFERENCES
+[1] J.Towns,T.Cockerill,M.Dahan,I.Foster,K.Gaither,A.Grimshaw,
+V. Hazlewood, S. Lathrop, D. Lifka, G. D. Peterson, R. Roskies,
+J.R.Scott,andN.Wilkins-Diehr,“XSEDE:Acceleratingscientific
+discovery,” Computing in Science & Engineering, vol. 16, no. 5,
+pp.62–74,2014.
+[2] S.Hersheyetal.,“CNNarchitecturesforlarge-scaleaudioclassifica-
+tion,”inInternationalConferenceonAcoustics,Speech,andSignal
+Processing(ICASSP),IEEE,2017,pp.131–135.
+[3] Q.Kong,Y.Xu,W.Wang,andM.D.Plumbley,“Audiosetclas-
+sificationwithattentionmodel:Aprobabilisticperspective,”inIn-
+ternationalConferenceonAcoustics,Speech,andSignalProcessing
+(ICASSP),IEEE,2018,pp.316–320.
+[4] C.Yu,K.S.Barsim,Q.Kong,andB.Yang,“Multi-levelattention
+model for weakly supervised audio classification,” ArXiv e-prints,
+2018.[Online].Available:http://arxiv.org/abs/1803.
+02353.
+[5] Y. Wang, J. Li, and F. Metze, “A comparison of five multiple
+instancelearningpoolingfunctionsforsoundeventdetectionwith
+weaklabeling,”ArXive-prints,2018.[Online].Available:http:
+//arxiv.org/abs/1810.09050.
+[6] J.F.Gemmeke,D.P.W.Ellis,D.Freedman,A.Jansen,W.Lawrence,
+R.C.Moore,M.Plakal,andM.Ritter,“AudioSet:Anontologyand
+human-labeleddatasetforaudioevents,”inInternationalConference
+onAcoustics,Speech,andSignalProcessing(ICASSP),IEEE,2017,
+pp.776–780.
+[7] A. Graves, S. Ferna´ndez, F. Gomez, and J. Schmidhuber, “Con-
+nectionisttemporalclassification:Labellingunsegmentedsequence
+datawithrecurrentneuralnetworks,”inInternationalConferenceon
+MachineLearning(ICML),ACM,2006,pp.369–376.
+[8] A. Graves and N. Jaitly, “Towards end-to-end speech recognition
+with recurrent neural networks,” in International Conference on
+MachineLearning(ICML),ACM,2014,pp.1764–1772.
+[9] Y. Hou, Q. Kong, J. Wang, and S. Li, “Polyphonic audio tagging
+withsequentiallylabelleddatausingcrnnwithlearnablegatedlinear
+units,”inProceedingsoftheDetectionandClassificationofAcoustic
+ScenesandEvents2017Workshop(DCASE2017),2018,pp.78–82.
+[10] Y.WangandF.Metze,“Afirstattemptatpolyphonicsoundeventde-
+tectionusingconnectionisttemporalclassification,”inInternational
+ConferenceonAcoustics,Speech,andSignalProcessing(ICASSP),
+IEEE,2017,pp.2986–2990.
+[11] Y.Wang,“Polyphonicsoundeventdetectionwithweaklabeling,”
+PhDthesis,CarnegieMellonUniversity,2018.
+[12] D.KingmaandJ.Ba,“Adam:Amethodforstochasticoptimization,”
+ArXive-prints,2014.[Online].Available:http://arxiv.org/
+abs/1412.6980.

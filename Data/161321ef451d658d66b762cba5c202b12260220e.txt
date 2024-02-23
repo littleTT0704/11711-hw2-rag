@@ -1,0 +1,689 @@
+TheThirty-FifthAAAIConferenceonArtificialIntelligence(AAAI-21)
+Data Augmentation for Abstractive Query-Focused
+Multi-Document Summarization
+RamakanthPasunuru,1 AsliCelikyilmaz,2 MichelGalley,2 ChenyanXiong,2
+YizheZhang,2 MohitBansal,1 JianfengGao2
+1UNCChapelHill,2MicrosoftResearch,Redmond
+fram,mbansalg@cs.unc.edu,faslicel,mgalley,Chenyan.Xiong,yizhe.zhang,jfgaog@microsoft.com
+Abstract
+TheprogressinQuery-focusedMulti-DocumentSummariza-
+tion(QMDS)hasbeenlimitedbythelackofsufficientlarge-
+scale high-quality training datasets. We present two QMDS
+trainingdatasets,whichweconstructusingtwodataaugmen-
+tation methods: (1) transferring the commonly used single-
+document CNN/Daily Mail summarization dataset to create
+theQMDSCNNdataset,and(2)miningsearch-querylogsto
+create the QMDSIR dataset. These two datasets have com-
+plementary properties, i.e., QMDSCNN has real summaries
+butqueriesaresimulated,whileQMDSIRhasrealqueriesbut
+simulatedsummaries.Tocoverboththeserealsummaryand
+queryaspects,webuildabstractiveend-to-endneuralnetwork
+modelsonthecombineddatasetsthatyieldnewstate-of-the-
+arttransferresultsonDUCdatasets.Wealsointroducenew
+hierarchical encoders that enable a more efficient encoding
+ofthequerytogetherwithmultipledocuments.Empiricalre-
+sults demonstrate that our data augmentation and encoding
+methods outperform baseline models on automatic metrics, Figure 1: Sample from our QMDSIR dataset, which illus-
+aswellasonhumanevaluationsalongmultipleattributes. trates how a set of retrieved documents based on a query
+canprovidecomplementaryinformationthatcanbeusedto
+reconstruct the information in the answer passage (used as
+1 Introduction
+goldsummary).
+Query-focused multi-document summarization (QMDS)
+aimsatgeneratingashortsummaryfromasetofdocuments
+thatanswersaquery.Comparedtothepopularsingledocu-
+order. In fact, QMDS is more realistic for various applica-
+mentsummarization(SDS)task(Rush,Chopra,andWeston
+tionssuchaspersonalizedinformationretrieval(IR),conver-
+2015; Chopra, Auli, and Rush 2016; Nallapati et al. 2016;
+sational IR, and recommendation engines, in which search
+Celikyilmazetal.2018;ChenandBansal2018;Gehrmann,
+results can be tailored to an information need. To support
+Deng,andRush2018),researchinQMDShasreceivedless
+researchonchallengingQMDStask,weintroducetwodata
+attention. Thisispartiallydue tothescarcityof large-scale
+augmentationmethodsandnewneuralmodels.
+high-qualityQMDSdatasets.TheSDShasvarietyofhigh-
+Two new data augmentation methods. Recently, multi-
+qualitydatasets(Hermannetal.2015;Grusky,Naaman,and
+ple newMDS datasetshave beenintroduced: A large-scale
+Artzi 2018) on different domains such as news (Napoles,
+datasetby Liuetal.(2018)namedWikiSum,andasmaller
+Gormley, and Durme 2012; Nallapati et al. 2016), scien-
+MDS by Fabbri et al. (2019). Even though WikiSum also
+tific articles (Qazvinian and Radev 2008), etc., however,
+includes the topic of the article as query, it is mostly used
+notmanyhigh-qualitydatasetsexistforQMDStrainingand
+to train MDS models (Liu et al. 2018; Liu and Lapata
+evaluation.
+2019),sinceatopicismoregenerictobeusedasaninfor-
+Another overlooked feature of QMDS is that it tries to
+mation seeking query. To this end, we introduce two new
+solve more realistic query-based scenarios than the SDS
+data augmentation methods to enable large-scale training
+or multi-document summarization (MDS) tasks. Different
+of QMDS models. In the first method, we restructure the
+from these tasks, QMDS task considers summarizing only
+single-documentCNN/DailyMail(CNN/DM)dataset(Her-
+salient information that best answers the query in a logical
+mannetal.2015)tocreateanewQMDSdatasetbychunk-
+Copyright©2021,AssociationfortheAdvancementofArtificial ingthedocumentsintosmalldocumentsofparagraphsand
+Intelligence(www.aaai.org).Allrightsreserved. usethetitleofthearticleasaquery.Werefertothisdataset
+13666
+as QMDSCNN, which has (cid:24)300K samples. For the second Goldstein1998),clusteringbasedontopicdetection(Radev
+method,weminereal-userwebqueries,toprankedwebdoc- et al. 2004), graph-based (Erkan and Radev 2004) or
+uments, and answer passages from the search log of Bing hierarchical LDA-style models (Haghighi and Vander-
+(see Fig. 1). We consider the answer passage returned by wende 2009), and variants of query-focused summariza-
+Bing, which is extracted from one of the top ranked docu- tion (Dang 2005), that orient the summary around a given
+mentsasthesummaryandtherestofthedocumentsasinput query (Daume´ III and Marcu 2006; Zhao, Wu, and Huang
+documentsformingoursecondQMDSdataset.Wecallthis 2009). Earlier abstractive MDS focused on template- and
+datasetas QMDSIR,whichhas(cid:24)100Ksamples.Thesetwo planner-based (McKeown and Radev 1995; Radev and
+new datasets have complementary properties: QMDSCNN McKeown 1998; Barzilay, McKeown, and Elhadad 1999)
+has manually written summaries and noisy queries, while andgraph-basedmethods(Ganesan,Zhai,andHan2010).
+the QMDSIR has real queries but automatically generated Recent MDS Research. Recent neural SDS models have
+summaries.Thus,wecombinethesetwodatasetstoobtaina shownsignificantimprovementsonbothextractive(Nallap-
+balancedsetofhigh-qualityaugmenteddata,whichweused ati,Zhou,andMa2016;ChengandLapata2016;Narayan,
+totrainournovel,large-scaleQMDSmodels. Cohen, and Lapata 2018) and abstractive (Rush, Chopra,
+Novel models for query-focused MDS task.1 Liu and and Weston 2015; Chopra, Auli, and Rush 2016; Nallap-
+Lapata (2019) presented a hierarchical encoder-decoder ati et al. 2016; Celikyilmaz et al. 2018; Chen and Bansal
+transformer MDS model with attention layers and incor- 2018; Gehrmann, Deng, and Rush 2018) setups. How-
+porated the query by simply concatenating to the top- ever, MDS models with neural networks are limited by
+rankeddocument.Focusingonbuildingabetterabstractive theunavailabilityoflarge-scaleMDSdatasets.Zhang,Tan,
+end-to-end neural network-based QMDS model, we intro- and Wan (2018) adapts a state-of-the-art SDS model for
+duce HEROSumm: HiErarchical QueRy focused Order- MDS.Feigenblatetal.(2017)introducesaextractive-based
+awaremulti-documentSummarizationmodel,extendingthe QMDS model using the Cross-Entropy method. Baumel,
+model in Liu and Lapata (2019) with three novel compo- Eyal, and Elhadad (2018) introduces query relevance to
+nents: (a) Hierarchical Encoding: unlike previous work, adaptSDSmodeltoQMDS.Lebanoff,Song,andLiu(2018)
+which uses a single global representation of the multi- exploitstheMMRmethodtofusedisparatesentencesfrom
+document encoder during the decoding of the summary, multi-documentinputs.LiuandLapata(2019)introduceda
+we use both the local and global representations from the hierarchical transformer model to better encode global and
+encoder during decoding; (b) Ordering Component: The localaspectsinmultipledocuments.Inthiswork,focusing
+QMDS model of (Liu and Lapata 2019) receives the rank on the coherency aspect of summaries, we design compo-
+order of documents as input from an external module. If nentstoattendthequeryandthelocalandglobalaspectsof
+the order information is incorrect, it can adversely affect documentsbetter,whiletrackingtheorderinginformationto
+the QMDS model’s performance. Hence, to eliminate this generatemoreaccurateandfocusedsummaries.
+cascadingerroreffect,weintroduceanewdocumentorder- MDS Datasets. Recent introduction of large-scale MDS
+ing module that learns the ordering pattern while training datasets, WikiSum (Liu et al. 2018), Multi-News (Fabbri
+the QMDS model parameters end-to-end. (c) Query Com- et al. 2019), Wikipedia Current Events (Ghalandari et al.
+ponent: Unlike previous work, which prepends the query 2020), set a promising direction for developing powerful
+to top document during encoding, we enrich our QMDS neuralnetworkmodels.Focusingonqueryfocusedsumma-
+model with an additional transformer component that en- rizationofmorerealisticscenarios,weconstructedtwonew
+codes the query. The decoder then attends the local and/or large-scale QMDS datasets, based on popular single docu-
+global layers of the multiple document encoders which are mentCNN/DMdatasetandrealsearchquerylogs.
+conditionedonthequeryoutputencoding.
+Our quantitative evaluations show that the HEROSumm 3 TwoNewQMDSDatasets
+model, which includes new QMDS focused components,
+cangeneratemoreaccuratesummariesthanthebaseline.We
+3.1 QMDSCNNDataset
+also demonstrate that neural models trained on the QMD- CNN/Daily Mail (CNN/DM) is a commonly used SDS
+SCNNandQMDSIRdatasetsconstructedwithourdataaug- dataset (Hermann et al. 2015). The documents are online
+mentation methods show promising attributes of transfer- news articles and the summaries are human written high-
+ability compared to the models trained on the WikiSum lightsofcorrespondingarticles.Weusethescriptsprovided
+dataset,whentestedonrealQMDSdatasetswithsummaries by See, Liu, and Manning (2017) to obtain this dataset.
+writtenbyhumans(DUC2006and2007).Wefurthervali- Wepresentherestep-by-stepinstructionsforconvertingthe
+date the superiority of our data augmentation methods via CNN/DMSDSdatasetintoaQMDSdataset:
+humanevaluationstudiesalongmultipleattributes. Step-1:Generateaqueryperdocument.Weusethetitle
+ofnewsarticleasthequerytoenableaquery-focusedsetup.
+2 RelatedWork Step-2: Chunk documents. Each news article has multi-
+Earlier MDS Research. Earlier extractive MDS work ple small paragraphs (approximately 20 small paragraphs),
+haveusedvariousapproachesincludingmaximummarginal and the sentences in the summary span across these small
+relevance (MMR) to reduce redundancy (Carbonell and paragraphs.Werandomlygroupthesesmallparagraphsinto
+chunks (one to four paragraphs per chunk), each chunk
+1Code:https://github.com/ramakanth-pasunuru/QmdsCnnIr forming a new document. In essence, we split the original
+13667
+Statistics Train Val Test span across multiple documents. We measure this by tak-
+ingasummaryandcorrespondingdocumentsfromaquery-
+QMDSCNN(#samples) 287,113 13,368 11,490
+documents-summary triplet (excluding the retrieved docu-
+-Avg.#documents 6.5 6.5 6.5
+ments), and align each sentence in the summary to one of
+-Avg.Doc.length(#tokens) 355 346 353
+-Avg.Querylength(#tokens) 13.8 14.5 14.2 thedocuments.Wefoundthattherearemanytripletswhose
+summary spans multiple documents, thus, enabling multi-
+QMDSIR(#samples) 82,076 10,259 10,260
+document properties. Statistics and additional analysis are
+-Avg.#documents 5.8 5.4 5.5
+inthearXivversionofthispaper.
+-Avg.Doc.length(#tokens) 1,291 1,402 1,379
+-Avg.Querylength(#tokens) 6.2 6.2 6.2
+3.2 QMDSIRDataset
+Table1:QMDSCNNandQMDSIRstatistics.
+The QMDSIR contains queries that are issued by actual
+search engine users. This is more realistic than using the
+titles of articles as queries as in the WikiSum dataset. We
+article into anywhere from one to four smaller documents,
+followthesestepstoconstructtheQMDSIRdataset:
+composingnewquery-documents-summarytriplets.
+Step-1:Samplesearchlogs.WerandomlysampleEnglish
+Step-3: Create new documents from documents on the
+queries from Bing search logs in the United States, during
+same topic. CNN/DM dataset contains several documents
+the first six months of 2019. Only queries that have natu-
+on similar or the same topic, mostly written by different
+rallanguageanswersreturnedandtheanswerpassagesthat
+newsgroups on the same day. Our goal is to collate these
+receivedpositiveuserfeedbackarekept.
+documents of similar topics and select chunks from them
+to append to our new triplets datasets as follows:2 We take Step-2:Capturesummarytextanddocuments.Foreach
+the entire CNN/DM dataset and index all the chunks with posed-query, we collect the top 10 ranked documents from
+BM25(RobertsonandWalker1994).3 Foreachnewlycon- Bingandthedisplayedanswerpassage.Theanswerpassage
+structedquery-documents-summarytriplet,wetakethetitle isextractedfromoneofthetoprankeddocumentsbyBing’s
+ofthesummaryasquery,sendtotheBM25searchengine, productionQAsystem,whichisaconstantlyupdatedstate-
+which returns chunks from the entire dataset related to the of-the-art neural-based single-document extractive summa-
+title(asquery).Wetakethetopfourchunksandappendto rization model. We use this answer passage as the target
+theoriginalquery-documents-summarytripletasnewdocu- summary.Weidentifythedocumentfromwhichtheanswer
+ments.Weprovidedetailsonthedatacurationpipelinewith passageisextracted,andomitthatdocumentfromthecan-
+exampletripletsinthearXivversionofthispaper. didatedocumentstoenforcetheneedsofMDS.
+Table1presentsthestatisticsof QMDSCNN dataset.The Step-4:Constructdataset.Thequery,theextractedanswer
+average number of documents and document length are passage as summary, and the rest of the top-ranked docu-
+roughly same across train/val/test sets. Each triplet sample mentsrepresentthetripletsofourQMDSIRdataset(seeTa-
+containsaround5-8documents,fromwhichfourdocuments ble1forstatistics).
+areretrievedusingBM25asdescribedpreviously. IsQMDSIRdatasetsuitableforQMDS?Sinceweusereal
+Is QMDSCNN datasetsuitableforQMDS?Firstly,anac- searchquerylogs,thedocumentsinatripletarecloselyre-
+curate abstractive summary should be entailed by the input latedtothequerywithapotentialtoanswerthequery,how-
+documentandcontainonlythesalientinformation(Guo,Pa- ever, they may or may not contain the direct answer. As
+sunuru,andBansal2018).SpecificallyfortheQMDStask, showninFigure1,collectivelythedocumentsmayinclude
+thequeryshouldalsobeentailedbythesummary.Sincethe contenttoformasummarythatcananswerthequery.This
+documentsalongwiththeirtitlesandsummariesareallwrit- makes our dataset more abstractive in nature as a QMDS
+tenbyhumansintheCNN/DMdataset,weassumethatthe modelwillneedtorecoverandgeneratetheanswerpassage
+summariesshouldreflectthetitle,aswellaseachsummary (summary) using the query and all the other (top-ranked)
+should be entailed by its corresponding document. We ex- documentsinthetriplet.
+tendthedocumentlistofagivenquery-documents-summary
+triplet with additional chunks as new relevant documents.
+Since these relevant documents are retrieved based on the 4 Models
+relatednesstothequery(titleofthesummary),theyextend
+Notation. Our QMDS datasets comprise of instances of
+theentailmentchainsuchthattheabstractivesummaryofa
+tripletsofquery-documents-summary,[q;fD gN;y],repre-
+tripletisalsoentailedbythecorrespondingaugmenteddoc- i i
+uments. sentingthequeryq,list-of-documentsfD igN i andthesum-
+Secondly,agoodsummaryshouldcontainsentencesthat marytexty.EachinputdocumentD iofthetriplet,isrepre-
+sentedassequenceoftokens,D =fw gT ,inwhichw is
+i ij j=1 ij
+2Inthescenariowheretherearenosimilartopics,theretrieved the jth tokeninthe ith rankeddocument D . Werepresent
+i
+documents are still useful to simulate the use case of QMDS for
+thelatentrepresentationsasfollows:lettheinputtotheen-
+presentingthesearchresults,wherethereturneddocumentsetcon- coder of the transformer be h0 . Then the input and output
+tainsbothrelevantandirrelevantdocuments. ij
+3BM25isarankingfunctionusedbysearchenginestoestimate representations of any transformer encoder block in the lth
+therelevanceofdocumentstoagivensearchquery. layerisrepresentedwithhl(cid:0)1andhl ,respectively.
+ij ij
+13668
+Encoder outputs
+Summary
+Probabilites
+Linear
+Feed Softmax
+Forward
+Concat
+Linear
+Concat Transformer Encoder
+Query Layer
+Inter-Document
+Attention Add & Norm
+Feed Self-Attention
+Multi-Head Forward
+Pooling Add & Norm
+Add & Norm Feed
+Transformer Encoder Forward Multi-Head
+Add & Norm Attention Global Layers
+Add & Norm
+Feed
+Forward Add & Norm Tran Qsf uo erm rye Lr
+a
+E yn ec roder M Au tl tt ei- nH tie oa nd
+Add & Norm ments MM ula tis -k He ed
+ad
+M Au tl tt ei- nH tie oa nd n-Docu Attention
+Transformer Encoder
+Local Layers
+Multi-Head
++ Pooling
++++ +++
+Summary +
+Document Embeddings Document
+Embeddings Embeddings Query
+Summary Embeddings
+Input Documents (shifted right) Inputs Documents
+(a)Baselineencoder-decoderQMDSmodel. (b)TheHEROSummencoder.
+Figure2:Comparisonof(a)baselineand(b)HEROSummmodelwiththreenewcomponentsthatextendsthebaselineQMDS
+model:HierarchicalEncodings,OrderingComponentandQueryEncoder,enlargedontherightof(b).Unlikebaselinemodel,
+theHEROSummdecoderattendstoboththelocalandgloballayers.
+4.1 BaselineQMDSModel Local Transformer Layer. We use the same transformer
+OurbaselineissimilartothepreviousworkofLiuandLap- layer proposed in Vaswani et al. (2017) as our local trans-
+ata(2019),4inwhichmultipledocumentsarefirstseparately formerlayer.Thislayerhasthetraditionalmulti-headatten-
+encodedviatransformerlocalencoderlayers.Next,weadd tionmodule,feed-forwardnetwork,andlayernormalization.
+globaltransformerlayerswithmulti-headpoolingandinter- Global Transformer Layer. Our global transformer layer
+paragraph attention to allow each document to be aware of is similar to that of Liu and Lapata (2019), which primar-
+the information present in the other documents. Later, we ily encodes the inter-document context information. This
+usetheoutputoftheglobalencoderastheencodercontext layerhas3components:(1)multi-headpoolingtoobtaina
+forthetransformerdecoderlayers(seeFig.2a).Inthisbase- fixedlengthdocumentrepresentations;(2)inter-document
+line, we append the query to the first document. Also, we attention to model the dependencies across multiple doc-
+encodethedocumentrankinginformationintheformofpo- uments; and (3) concatenation of the input with the con-
+sitional encoding which is obtained from a separate docu- textfrominter-attentionfollowedbyafeed-forwardnetwork
+mentrankermodel(LiuandLapata2019). (see Fig. 2a). More details on global transformer layer can
+Document Encoding. Each word token w in each docu- befoundinLiuandLapata(2019).
+ij
+mentD ismappedtoanembeddingvectorwe.Sincetrans- Decoder Transformer. We use the same decoder trans-
+i ij
+formershavenosequenceinformation,weusepositionen- former layer proposed in Vaswani et al. (2017), as shown
+codingembeddingssimilartoVaswanietal.(2017).Differ- ontherightsideoftheFig.2a.
+ent from SDS models, for MDS we encode both the inter
+and intra document positions of each word token w . For 4.2 HEROSummModel
+ij
+this,weusetwopositionalencoders,oneforinter-document
+Extending the baseline model, our HEROSumm model in-
+level,representingtheorderofthedocumentandanotherfor
+troduces three new components: a new encoder for the
+intra-documentlevel,representingthepositionofthetoken
+query,varyinghierarchicalencodinginputsforthedecoder,
+inthedocument.Thenthepositionalencodingofatokenw
+ij as well as unsupervised learning of the order of the salient
+isconcatenationoftheinterpe andintrape documentposi-
+i j conceptstobepresentedinthegeneratedsummary.Allthese
+tion encodings, respectively. Finally, the input to the trans-
+componentsaretargetedontheencoder,soinFig.2bweare
+formerh0 isrepresentedas:h0 =we +[pe;pe],where[;]
+ij ij ij i j onlyshowingtheencoderpartofthemodel.
+presentstheconcatenationoperation.
+Query Encoder. Unlike the baseline model in which the
+4LiuandLapata(2019)consideredtheirmodelinaMDSsetup, query text is simply appended to the top-ranked document
+however,weviewitasasimpleQMDSmodel. before sending it to the encoder, we encode the query via
+13669
+reyaL
+labolG
+redocnE
+remrofsnarT
+x 2
+reyaL
+lacoL
+redocnE
+remrofsnarT
+x
+6
+PositionalEncoding
+Document
+Inter
+and
+Intra
+Encoding
+1
+x Transformer
+Decoder
+Layer
+Positional
+gnidocnE
+lacihcrareiH
+Ordering
+Component
+Encoding Positional
+Encoding Positional
+a separate transformer encoder layer. This layer is inserted ument positions predicted by the document ranker, we ig-
+betweenlocalandgloballayersoftheencoder,asshownin nore the document position embeddings in the initial layer
+Fig.2b(withanenlargedviewprovidedontherightofthe ofthetransformer,andencodethepositionalembeddingsof
+figure).Aseparatequerylayercreatesahierarchyofinfor- thedocumentsatthefinallayerofthetransformerencoder.
+mation encoding, i.e., the local layers enable a rich intra- For this, we use a self-attention module (Lin et al. 2017)
+documentfeaturerepresentation,thequerylayerconditions to know the importance of each document in the multi-
+thislocallayerfeaturesw.r.t.thegivenquery,andtheglobal document setup. We then encode this importance informa-
+layerenabletheinter-documentfeaturerepresentationonthe tioninanovelwayviaapositionalencodingmodule:
+queryconditionedlocallayers.
+Let q
+k
+be the kth token in the query, and hl
+ij
+be the out- PE (Di;2j) =sin(r i=100002j=dmodel)
+(2)
+put of jth token in ith ranked document of the last local PE
+(Di;2j+1)
+=cos(r i=100002j=dmodel)
+layerbeforethequerylayer.Thequeryinputrepresentation
+(hq)forthequerylayerisacombinationofitstokenembed- where, PE(D i;2j) represents the 2jth dimensional posi-
+dink gs(qe)andthepositionalencodingpq,whichisdefined tional encoding representation of document D i, r i is the
+ashq =k wq+pq.Weencodethequeryink putalongwiththe importance score assigned for document D i using the self-
+k k k attention module, and d is the model’s hidden size.
+last local layer output (hl ) in the following steps to form model
+ij This positional encoding module allows us to convert an
+ourtransformerencoderquerylayer:
+unorderedimportancescoreintoanorderingrepresentation,
+o1 =LN(hl +MHA(hl;hl;MHP(hq))) sinceunorderedscoreprojectedonasinusoidalwavearepo-
+i i i i (1) sitionedinanorderlyfashion.Finally,weconcatenatethefi-
+o2 =LN(o1+FFN(o1))
+i i i nalgloballayerrepresentationsoftheencoderwiththedoc-
+umentordering-basedpositionalencodingrepresentationsto
+where, MHA is multi-head attention, MHP is multi-head
+formthefinalencoderrepresentations(Fig.2b,top-left).
+pooling(LiuandLapata2019)whichisappliedonfullquery
+tokens (hq), LN is layer normalization, and FFN is feed-
+forwardnetworks.o2 istheoutputfromthislayerwhichis 5 ExperimentalSetup5
+i
+usedasinputtothetransformerencodergloballayer. Datasets. We use three large datasets for training QMDS
+Hierarchical Encodings. Unlike the baseline model (Liu models: our two datasets QMDSCNN and QMDSIR, de-
+andLapata2019),inwhichthedecoderonlyattendstothe scribed in Sec. 3.1, and the WikiSum. We also use DUC
+global layer features, the HEROSumm decoder attends to 2006andDUC2007datasetsforevaluatingourmodels.6
+both the output of the local and global layers taking into Model Ablations and Training. We experiment with four
+account both context. Our intuition is that the local lay- differentablationsofHEROSumm(HSinshort)modelex-
+ers carry information specific to the individual documents, tendingthebaselineQMDSmodelofLiuandLapata(2019)
+while the global layers carry information w.r.t. all the doc- withonlyhierarchicalencodings,onlytheorderingcompo-
+uments.Specifically,thedecoderutilizestheglobalproper- nent,andwiththequeryencoding.HS-Joint,ourfullmodel,
+ties from all documents by attending over to the output of combines two or three of these components depending on
+thegloballayer.Itcanalsoattendtothelocallayerstofocus thetypeofthedatasetusedintheexperiments.
+on the specific aspects of the documents, in which salient Evaluation Metrics. We use ROUGE (Lin 2004), i.e.,
+information related to the query may be more pronounced. ROUGE-1, ROUGE-2, and ROUGE-L as our automatic
+Weconcatenatetheoutputofthelocalandgloballayersand evaluation metrics. We report sentence-level ROUGE F1
+projectitthroughalinearlayer,asshowninFig.2btop-left. scoresforalllarge-scaledatasets.ForDUCdatasets,were-
+Self Ordering Transformer Encodings. In QMDS, the portsentence-levelROUGErecallwith250wordlimit.
+rank-order of the list of documents is an important infor-
+mation as it helps the model to weigh in on the documents 6 Results
+relevanttothequery.Otherwise,focusingequallyonalldoc-
+Wepresentempiricalresultsofourproposedmodelsonvari-
+uments makes it very hard for the model to weed out the
+ousdatasets.Wefirstreportonthreelarge-scaleQMDSaug-
+salient information and also present them in the correct or-
+mented datasets: WikiSum, QMDSCNN, and QMDSIR, to
+der in the summary. Previous work (Liu and Lapata 2019)
+understandhowwellvariousmodelsfittheaugmenteddata.
+introduced a two-stage pipeline to inject the ordering into
+Validatingthesuperiorityofourproposedmodelsandaug-
+theirmodel.Inthestage-1,adocumentrankeristrainedsep-
+mentationmethods,wealsoshowtransferresultsoftraining
+aratelytolearntheimportanceofadocumentw.r.t.agiven
+on our augmented datasets by using DUC 2006 and 2007
+query. In the stage-2, they use these importance scores to
+(twohuman-annotatedrealQMDSdatasets)astestsets.
+rank the documents and encode them in the model. How-
+ever, the errors introduced by the document ranker can po- 6.1 ResultsonAccuracy
+tentially have cascading effects on the performance of the
+WikiSum Dataset. Table 2 shows the results on the Wik-
+finalsummarizationmodel.
+iSum dataset. We observe that both hierarchical encodings
+To address this issue, we propose a single-stage model
+that jointly learns to rank the documents while learning to 5Due to space constraints and no supplementary allowed in
+generate salient summary via our ordering component (see AAAIrules,weprovidemoredetailsinthearXivversion.
+Fig.2b).Insteadofusingthepositionalencodingofthedoc- 6https://www-nlpir.nist.gov/projects/duc/data.html
+13670
+Model R-1 R-2 R-L Model R-1 R-2 R-L
+LiuandLapata(2019)? 38.03 24.68 36.20 LiuandLapata(2019) 36.31 15.40 33.38
+HSw/HierarchicalEncodings 38.14 24.88 36.33 HSw/HierarchicalEncodings 37.88 16.36 35.23
+HSw/OrderingComponent 38.57 25.13 36.71 HSw/OrderingComponent 36.95 14.95 34.34
+HSw/QueryEncoding 35.70 21.86 33.70 HSw/QueryEncoding 36.96 16.05 34.37
+HS-JointModel 38.37 24.90 36.52 HS-JointModel 37.09 16.33 34.45
+Table 2: Performance of our baseline and variations of Table3:AccuracyresultsonQMDSCNNdataset.
+HEROSumm (HS) model on WikiSum dataset. R-1, R-2,
+and R-L denote sentence-level ROUGE-1, ROUGE-2, and
+Model R-1 R-2 R-L
+ROUGE-L,respectively.?isthereproducedresultfromthe
+codeprovidedbyLiuandLapata(2019). LiuandLapata(2019) 43.60 21.88 39.40
+HSw/HierarchicalEncodings 43.37 21.64 39.21
+HSw/OrderingComponent 39.37 18.79 35.61
+HSw/QueryEncoding 44.11 22.62 39.93
+andorderingmethodsimprovetheperformanceofthemodel
+HS-JointModel 45.53 23.44 41.15
+incomparisontothecorrespondingbaseline.78However,the
+additionofseparatequeryencodingdidnotimprovethere-
+sults,infact,theybecomeworse.Thiscanbeexplainedby Table4:AccuracyresultsonQMDSIRdataset.
+thefactthatthisdatasetmaynotbewellsuitedforevaluating
+theQMDSmodelssincethequeriesareconstructedfromthe
+titleoftheWikipediaarticlewhilethesummariesaretaken 0:01 on ROUGE-1 and ROUGE-2 metrics, and p < 0:05
+asthefirstparagraphofthearticle.Thus,neitherthequeries onROUGE-L),suggestingthatthisdatasetenablesefficient
+northesummariesarenaturalnorconstructedtoreflectthe useofthequeriesbytheQMDSmodels.Overall,weachieve
+propertiesofahigh-qualityQMDSdataset.Finally,wecom- best results with our HS-Joint model in comparison to our
+binethehierarchicalandorderingmethodstoformthejoint baselineandotherHSablationswithp<0:01inallmetrics.
+model(seeFig.2)whichagainperformssignificantlybetter
+thanthebaselinewithp<0:05inallmetrics. 6.2 ResultsonTransferLearning
+QMDSCNNDataset.Table3presentstheevaluationresults
+WeusetheDUC2006and2007datasetsfortransferlearn-
+of our baseline and three of our HEROSumm model varia-
+ingexperimentswithtwoscenarios.Inthefirstscenario,we
+tions(usinghierarchicalencodings,ordering,andqueryen-
+train on the 3 large QMDS datasets and show transfer re-
+coding) on the new QMDSCNN dataset. We observe that
+sultsontheDUC2006and2007datasets.Inthesecondone,
+both HS models with hierarchical encodings and query-
+we finetune models from the first scenario on DUC 2006,
+basedmethodsperformsignificantlybetterthanthebaseline,
+and then test on DUC 2007. We evaluate on quantitative
+however,HSwithorderingmethoddidnotworkwellonthis
+and qualitative metrics using ROUGE and human evalua-
+dataset.9Forthisexperiment,ourHS-Jointmodelcombines
+tions,respectively.Inbothscenarios,wecompareresultsof
+the hierarchical encodings and the query encoder compo-
+the baseline model (Liu and Lapata 2019) to our HS-Joint
+nents.WeobservethatHS-Jointmodelissignificantlybetter
+model,whichisthelastrowinTable2,3,&4.Ourdataaug-
+incontextmatchaccuracythanthebaselinewithp < 0:01.
+mentation methods are not specific to solve DUC datasets,
+Our HS with hierarchical encodings method outperformed
+but rather aim to improve QMDS in general, where DUC
+theHS-Jointmodel.Thiscanbeattributedtothefactthathi-
+is one of the standard evaluation sets on which we show
+erarchicalmodelingoflocalandglobalinformationismore
+improvements via transfer setup. We believe our data aug-
+crucialforthisdatasetwhilesummariesdon’tsharecomple-
+mentation methods would be useful for the community in
+mentaryinformationwiththequery.
+creatinglarger-scaletrainingdatasetsforQMDS.
+QMDSIR Dataset. Table 4 shows the results on QMDSIR
+Impactofourdataaugmentationmethods.Table5shows
+dataset, comparing our model ablations against the base-
+results when DUC 2006 and DUC 2007 datasets are used
+line. For this experiment, our HS-Joint model is a combi-
+as test sets and compare our HS-Joint models against the
+nation of hierarchical encodings and query encoding com-
+baseline models. We report recall scores with 250 word
+ponents.WeobservethatHSwithqueryencodingsmethod
+length. Based on pre-training experiment results on DUC
+performs significantly better than the baseline (with p <
+2006 in Table 5(a) and on DUC 2007 in Table 5(b), our
+dataaugmentation methodsperformbetter thantraining on
+7HEROSumm (HS) with hierarchical encodings and HS with
+theWikiSumdatasetbyalargemargin.Ourbaselinemodels
+orderingmethodarestatisticallysignificantlybetterthanbaseline
+trainedonthecombineddatasets,QMDSCNNIR,outperform
+withp<0:05andp<0:01,respectively,inallmetrics.
+allotherbaselinemodels.However,ontheHS-jointmodels,
+8We initially tried the random ranking order of input docu-
+ments,anditperformedworsethanoriginalorder(baselineinTa-
+QMDSCNNIR is not better than individual data augmenta-
+ble2),whichinturnperformedlowerthanourorderingcomponent. tion methods. This suggests that we might also need better
+9Both hierarchical encodings and query-based methods per- weightedsamplingorcurriculumlearningwhenwecombine
+formsignificantlybetterthanbaselinewithp<0:01inallmetrics. these two datasets, which we leave for future work. How-
+OrderingmethodalsoperformedwellonROUGE-1/L(p<0:01). ever,webelievethattheindividualcontributionsofourtwo
+13671
+(a)DUC2006testset (b)DUC2007testset (c)DUC2007testset
+Model Dataset R-1 R-2 R-L R-SU4 R-1 R-2 R-L R-SU4 R-1 R-2 R-L R-SU4
+No-Pretraining - - - - - - - - 10.01 1.42 9.80 3.18
+WikiSum 24.00 4.28 22.72 8.16 23.42 4.41 22.17 8.05 34.34 6.35 32.07 11.42
+Baseline QMDSIR 29.65 3.83 27.93 9.63 29.35 3.75 27.45 9.55 32.81 4.15 30.54 10.53
+QMDSCNN 30.45 6.13 28.61 10.39 31.72 7.07 29.69 11.34 36.80 7.36 34.49 12.53
+QMDSCNNIR 30.57 6.17 28.88 10.57 32.33 6.98 30.50 11.63 37.07 7.36 34.62 12.60
+No-Pretraining - - - - - - - - 18.80 2.40 18.17 5.94
+WikiSum 22.96 4.09 21.76 7.89 22.91 4.45 21.74 7.92 29.97 4.22 27.98 9.10
+HS-Joint QMDSIR 30.17 4.01 28.31 9.79 29.74 3.74 27.83 9.71 31.33 4.02 29.29 10.10
+QMDSCNN 31.14 6.28 29.28 10.90 34.14 7.60 32.08 12.50 38.31 7.64 35.65 13.26
+QMDSCNNIR 30.83 6.18 29.17 10.91 33.13 7.37 31.05 12.04 36.26 6.49 33.79 12.34
+Table5:Transferresultswhereeachmodelistrainedonvariousdatasets,andtestedrespectivelyon(a)DUC2006and(b)DUC
+2007.In(c),thepre-trainedmodelsof(b)arethenfine-tunedonDUC2006dataset.
+dataaugmentationmethods(QMDSCNNandQMDSIR)are DUC2006 DUC2007
+Criteria
+still useful. We observe similar behavior on the DUC 2007
+WIKI CB = WIKI CB =
+afterfine-tuninginTable5(c).
+Impact of new QMDS components. Compared to the Informativeness 30 107 12 52 63 20
+Non-redundancy 27 110 12 51 58 25
+baseline model, our HS-Joint models, which incorporate
+Coherence 27 112 11 55 59 20
+novelQMDSfocusedcomponents,yieldmuchbetterresults
+Order 25 112 11 56 63 12
+when trained on datasets constructed with data augmenta-
+Focus 21 117 12 61 59 13
+tion methods and tested on real human datasets as shown
+Overall 23 103 24 46 53 35
+in Table 5. Results support that with better data augmenta-
+tionandamuchbettertransformerarchitecture,wecanbuild
+moreaccuratemodelswithhighertransfercapabilities.10 Table6:Humanevaluationbetweenbaselinemodeltrained
+Humanevaluation.Wealsoevaluateourdataaugmentation on WikiSum (WIKI) and QMDSCNNIR (CB) datasets. ‘=’
+methodsusinghead-to-headhumanevaluationsonAmazon denotesnodifferencebetweenthetwo.
+MechanicalTurk(AMT).Wecomparesummariesgenerated
+bytwobaselinemodels:onetrainedontheWikiSum(WIKI)
+andanotheroneontheQMDSCNNIR(CB)dataset,combin- DUC2006,ourdataaugmentationCBmethodyieldsmuch
+ing our two new datasets. We generate samples from DUC better results compared to the one on WikiSum in all as-
+2006andDUC2007testdataset,andeachsampleisevalu- pects.12 OnDUC2007,afine-tuningsetup,westillseethat
+ated by 3 judges. For DUC 2007, we use the same models our method is better in all aspects except focus.13 Overall,
+fine-tunedontheDUC2006datasetasexplainedearlier.For thesehumanevaluationsalsosuggestthatouraugmentation
+each test dataset, we ask the turkers to choose between the methodsarebetterthanpreviouswork(WikiSum).
+twomodelsummariesthatanswerthegivenquerybasedon
+5 different aspects:11 (1) Informativeness: which summary 7 Conclusions
+is better in terms of answering the query better? (2) Non- Tosupportresearchonquery-focusedmulti-documentsum-
+redundancy:whichsummaryisbetterintermsofrepeating marization task, we introduce two new data augmentation
+less of the same ideas? (3) Coherence: which summary is methodsusingexistingandnewdatasources.Wefurtherin-
+betterintermsofexpressingideasintheclearestmannerflu- troduce a new transformer encoder-decoder model that ex-
+ently?(4)Order:whichsummaryisbetteratpresentingthe tends the baseline models with new components to encode
+informationinthelogicalorder?(5)Focus:whichsummary the queries together with multiple documents in a hierar-
+isbetterintermsofonlysharingthemainideaswithnoextra chicalsetting.Newcomponentsenrichtheinformationpro-
+superfluousdetails?Wealsoasktheturkerstocomparethe videdtothedecoderthatgeneratesfocusedsummaries.We
+summariesonoverallquality.Wechosetheturkerswhoare show that summaries generated by the models trained on
+locatedintheUSAandUK,haveatleast10;000approved augmenteddatasetsaremoreaccuratecomparedtotheexist-
+HITs,andhaveanapprovalrateofgreaterthan98%.Wepay ingdatasets.Additionally,ourbestmodelcangeneratesum-
+$0.5foraHIT.TheresultsareasshowninTable6,whereon mariesthatarecoherentandcontainspecificinformationre-
+latedtothequerywithbetterorderofevents.
+10The current SOTA extractive QMDS model (Roitman et al.
+2020) achieves R-1/R-2/R-SU4 scores of 43.94/10.09/15.96 on 12OurCBaugmentationmethodisstatisticallysignificantlybet-
+DUC2006and46.02/12.53/17.91onDUC2007.However,itisnot terthanWikiSuminall5aspectswithp < 0:001basedonboot-
+strictlycomparablewithourend-to-endabstractiveQMDSmodels. straptest(Noreen1989;EfronandTibshirani1994).
+11DuringAMTevaluation,wealsoshowoneofthegoldsum- 13Eventhoughourmethodperformedloweronthefocusaspect,
+marieswithoutprovidingtheoriginaldocuments. thedifferenceisverylow(lowestw.r.t.allotheraspects).
+13672
+Acknowledgments Ganesan,K.;Zhai,C.;andHan,J.2010. Opinosis:Agraph
+based approach to abstractive summarization of highly re-
+We thank the reviewers for their helpful comments. We
+dundantopinions. InCOLING.
+thank Tong Wang at Microsoft Turing for helping create
+QMDSIR. We also thank Paul Bennett, Tobias Schnabel, Gehrmann,S.;Deng,Y.;andRush,A.M.2018. Bottom-up
+Woon Sang Cho, Chen Qu, and Jiawei Wu for helpful abstractivesummarization. InEMNLP.
+discussions. This work was partially supported by NSF-
+Ghalandari,D.G.;Hokamp,C.;Pham,N.T.;Glover,J.;and
+CAREERAward1846185andaMicrosoftPhDFellowship.
+Ifrim,G.2020.ALarge-ScaleMulti-DocumentSummariza-
+tion Dataset from the Wikipedia Current Events Portal. In
+References
+Proceedingsofthe58thAnnualMeetingoftheAssociation
+Barzilay,R.;McKeown,K.;andElhadad,M.1999.Informa- forComputationalLinguistics(ACL2020).
+tionfusioninthecontextofmulti-documentsummarization.
+Grusky,M.;Naaman,M.;andArtzi,Y.2018. Newsroom:A
+InProceedingsofthe37thannualmeetingoftheAssociation
+Dataset of 1.3 Million Summaries with Diverse Extractive
+forComputationalLinguistics,550–557.
+Strategies. InNAACL.
+Baumel,T.;Eyal,M.;andElhadad,M.2018.Queryfocused
+Guo, H.; Pasunuru, R.; and Bansal, M. 2018. Soft Layer-
+abstractive summarization: Incorporating query relevance,
+Specific Multi-Task Summarization with Entailment and
+multi-document coverage, and summary length constraints
+intoseq2seqmodels. arXivpreprintarXiv:1801.07704. Question Generation. In Proceedings of the 56th Annual
+Meeting of the Association for Computational Linguistics
+Carbonell, J.; and Goldstein, J. 1998. The use of MMR,
+(Volume 1: Long Papers), 687–697. Melbourne, Australia:
+diversity-basedrerankingforreorderingdocumentsandpro-
+AssociationforComputationalLinguistics.
+ducingsummaries. InProceedingsofthe21stannualinter-
+nationalACMSIGIRconferenceonResearchanddevelop- Haghighi,A.;andVanderwende,L.2009.Exploringcontent
+mentininformationretrieval,335–336. modelsformulti-documentsummarization. InProceedings
+of Human Language Technologies: The 2009 Annual Con-
+Celikyilmaz, A.; Bosselut, A.; He, X.; and Choi, Y. 2018.
+ference of the North American Chapter of the Association
+Deepcommunicatingagentsforabstractivesummarization.
+forComputationalLinguistics,362–370.
+InNAACL.
+Hermann,K.M.;Kocisky,T.;Grefenstette,E.;Espeholt,L.;
+Chen, Y.-C.; and Bansal, M. 2018. Fast Abstractive Sum-
+Kay, W.; Suleyman, M.; and Blunsom, P. 2015. Teaching
+marizationwithReinforce-SelectedSentenceRewriting. In
+machinestoreadandcomprehend. InNeurIPS,1693–1701.
+ProceedingsofACL.
+Lebanoff, L.; Song, K.; and Liu, F. 2018. Adapting the
+Cheng, J.; and Lapata, M. 2016. Neural summarization by
+NeuralEncoder-DecoderFrameworkfromSingletoMulti-
+extractingsentencesandwords. InACL.
+DocumentSummarization.InProceedingsofthe2018Con-
+Chopra, S.; Auli, M.; and Rush, A. M. 2016. Abstractive ference on Empirical Methods in Natural Language Pro-
+sentencesummarizationwithattentiverecurrentneuralnet- cessing,4131–4141.
+works. InHLT-NAACL.
+Lin, C.-Y. 2004. ROUGE: A package for automatic eval-
+Dang,H.T.2005. OverviewofDUC2005. InProceedings uation of summaries. In Text summarization branches out,
+ofthedocumentunderstandingconference,volume2005,1– 74–81.
+12.
+Lin,Z.;Feng,M.;Santos,C.N.d.;Yu,M.;Xiang,B.;Zhou,
+Daume´III,H.;andMarcu,D.2006.Bayesianquery-focused
+B.;andBengio,Y.2017.Astructuredself-attentivesentence
+summarization. In Proceedings of the 21st International embedding. InICLR.
+Conference on Computational Linguistics and the 44th an-
+nualmeetingoftheAssociationforComputationalLinguis- Liu, P. J.; Saleh, M.; Pot, E.; Goodrich, B.; Sepassi, R.;
+tics,305–312.AssociationforComputationalLinguistics. Kaiser,L.;andShazeer,N.2018. Generatingwikipediaby
+summarizinglongsequences. InICLR.
+Efron,B.;andTibshirani,R.J.1994. Anintroductiontothe
+bootstrap. CRCpress. Liu,Y.;andLapata,M.2019. HierarchicalTransformersfor
+Multi-DocumentSummarization. InProc.ofACL.
+Erkan, G.; and Radev, D. R. 2004. LexRank: Graph-based
+lexicalcentralityassalienceintextsummarization. Journal McKeown, K.; and Radev, D. R. 1995. Generating sum-
+ofartificialintelligenceresearch22:457–479. mariesofmultiplenewsarticles. InProceedingsofthe18th
+annual international ACM SIGIR conference on Research
+Fabbri,A.R.;Li,I.;She,T.;Li,S.;andRadev,D.R.2019.
+anddevelopmentininformationretrieval,74–82.
+Multi-News: a large-scale multi-document summarization
+datasetandabstractivehierarchicalmodel. InACL. Nallapati, R.; Zhou, B.; dos santos, C. N.; Gulcehre, C.;
+and Xiang, B. 2016. Abstractive text summarization using
+Feigenblat, G.; Roitman, H.; Boni, O.; and Konopnicki, D.
+sequence-to-sequencernnsandbeyond. InCoNLL.
+2017.Unsupervisedquery-focusedmulti-documentsumma-
+rizationusingthecrossentropymethod. InProceedingsof Nallapati, R.; Zhou, B.; and Ma, M. 2016. Classify or se-
+the40thInternationalACMSIGIRConferenceonResearch lect: Neural architectures for extractive document summa-
+andDevelopmentinInformationRetrieval,961–964. rization. arXivpreprintarXiv:1611.04244.
+13673
+Napoles, C.; Gormley, M.; and Durme, B. V. 2012. Anno-
+tatedGigaword.ProceedingsoftheJointWorkshoponAuto-
+maticKnowledgeBaseConstructionandWeb-scaleKnowl-
+edgeExtraction.
+Narayan, S.; Cohen, S. B.; and Lapata, M. 2018. Rank-
+ingSentencesforExtractiveSummarizationwithReinforce-
+mentLearning. InNAACL,1747–1759.
+Noreen,E.W.1989.Computer-intensivemethodsfortesting
+hypotheses. WileyNewYork.
+Qazvinian,V.;andRadev,D.R.2008.ScientificPaperSum-
+marizationUsingCitationSummaryNetworks. InProceed-
+ingsofthe22ndInternationalConferenceonComputational
+Linguistics(Coling2008),689–696.Manchester,UK:Col-
+ing2008OrganizingCommittee.
+Radev, D. R.; Jing, H.; Stys´, M.; and Tam, D. 2004.
+Centroid-based summarization of multiple documents. In-
+formationProcessing&Management40(6):919–938.
+Radev,D.R.;andMcKeown,K.R.1998.Generatingnatural
+languagesummariesfrommultipleon-linesources.Compu-
+tationalLinguistics24(3):470–500.
+Robertson,S.E.;andWalker,S.1994. Somesimpleeffec-
+tiveapproximationstothe2-poissonmodelforprobabilistic
+weightedretrieval. InSIGIR’94,232–241.Springer.
+Roitman, H.; Feigenblat, G.; Cohen, D.; Boni, O.; and
+Konopnicki, D. 2020. Unsupervised Dual-Cascade Learn-
+ing with Pseudo-Feedback Distillation for Query-Focused
+ExtractiveSummarization. InProceedingsofTheWebCon-
+ference2020,2577–2584.
+Rush, A. M.; Chopra, S.; and Weston, J. 2015. A neural
+attentionmodelforabstractivesentencesummarization. In
+EMNLP.
+See, A.; Liu, P. J.; and Manning, C. D. 2017. Get To The
+Point:SummarizationwithPointer-GeneratorNetworks. In
+ACL.
+Vaswani, A.; Shazeer, N.; Parmar, N.; Uszkoreit, J.; Jones,
+L.;Gomez,A.N.;Kaiser,Ł.;andPolosukhin,I.2017. At-
+tentionisallyouneed. InNeurIPS,5998–6008.
+Zhang, J.; Tan, J.; and Wan, X. 2018. Adapting neu-
+ral single-document summarization model for abstractive
+multi-documentsummarization:Apilotstudy. InProceed-
+ings of the 11th International Conference on Natural Lan-
+guageGeneration,381–390.
+Zhao, L.; Wu, L.; and Huang, X. 2009. Using query ex-
+pansion in graph-based approach for query-focused multi-
+document summarization. Information processing & man-
+agement45(1):35–41.
+13674

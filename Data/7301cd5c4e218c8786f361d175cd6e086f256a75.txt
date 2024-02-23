@@ -1,0 +1,1000 @@
+BMC Bioinformatics
+BioMed Central
+Proceedings Open Access
+Transmembrane helix prediction using amino acid property
+features and latent semantic analysis
+Madhavi Ganapathiraju*1, N Balakrishnan2, Raj Reddy1 and
+Judith Klein-Seetharaman*1,3
+Address: 1Language Technologies Institute, Carnegie Mellon University, Pittsburgh, USA, 2Supercomputer Education and Research Centre, Indian
+Institute of Science, Bangalore, India and 3Department of Structural Biology, University of Pittsburgh School of Medicine, Pittsburgh, USA
+Email: MadhaviGanapathiraju*-madhavi+@cs.cmu.edu; NBalakrishnan-balki@serc.iisc.ernet.in; RajReddy-rr+@cmu.edu;
+JudithKlein-Seetharaman*-judithks@cs.cmu.edu
+* Corresponding authors
+from Sixth International Conference on Bioinformatics (InCoB2007)
+Hong Kong. 27–30 August 2007
+Published: 13 February 2008
+BMC Bioinformatics 2008, 9(Suppl 1):S4 doi:10.1186/1471-2105-9-S1-S4
+<supplement> <title> <p>Asia Pacific Bioinformatics Network (APBioNet) Sixth International Conference on Bioinformatics (InCoB2007)</p> </title> <editor>Shoba Ranganathan, Michael Gribskov and Tin Wee Tan</editor> <note>Proceedings</note> </supplement>
+This article is available from: http://www.biomedcentral.com/1471-2105/9/S1/S4
+© 2008 Ganapathiraju et al; licensee BioMed Central Ltd.
+This is an open access article distributed under the terms of the Creative Commons Attribution License (http://creativecommons.org/licenses/by/2.0),
+which permits unrestricted use, distribution, and reproduction in any medium, provided the original work is properly cited.
+Abstract
+Background: Prediction of transmembrane (TM) helices by statistical methods suffers from lack of sufficient training
+data. Current best methods use hundreds or even thousands of free parameters in their models which are tuned to fit
+the little data available for training. Further, they are often restricted to the generally accepted topology "cytoplasmic-
+transmembrane-extracellular" and cannot adapt to membrane proteins that do not conform to this topology. Recent
+crystal structures of channel proteins have revealed novel architectures showing that the above topology may not be as
+universal as previously believed. Thus, there is a need for methods that can better predict TM helices even in novel
+topologies and families.
+Results: Here, we describe a new method "TMpro" to predict TM helices with high accuracy. To avoid overfitting to
+existing topologies, we have collapsed cytoplasmic and extracellular labels to a single state, non-TM. TMpro is a binary
+classifier which predicts TM or non-TM using multiple amino acid properties (charge, polarity, aromaticity, size and
+electronic properties) as features. The features are extracted from sequence information by applying the framework used
+for latent semantic analysis of text documents and are input to neural networks that learn the distinction between TM
+and non-TM segments. The model uses only 25 free parameters. In benchmark analysis TMpro achieves 95% segment F-
+score corresponding to 50% reduction in error rate compared to the best methods not requiring an evolutionary profile
+of a protein to be known. Performance is also improved when applied to more recent and larger high resolution datasets
+PDBTM and MPtopo. TMpro predictions in membrane proteins with unusual or disputed TM structure (K+ channel,
+aquaporin and HIV envelope glycoprotein) are discussed.
+Conclusion: TMpro uses very few free parameters in modeling TM segments as opposed to the very large number of
+free parameters used in state-of-the-art membrane prediction methods, yet achieves very high segment accuracies. This
+is highly advantageous considering that high resolution transmembrane information is available only for very few proteins.
+The greatest impact of TMpro is therefore expected in the prediction of TM segments in proteins with novel topologies.
+Further, the paper introduces a novel method of extracting features from protein sequence, namely that of latent
+semantic analysis model. The success of this approach in the current context suggests that it can find potential
+applications in other sequence-based analysis problems.
+Availability: http://linzer.blm.cs.cmu.edu/tmpro/ and http://flan.blm.cs.cmu.edu/tmpro/
+Page 1 of 16
+(page number not for citation purposes)
+BMC Bioinformatics 2008, 9(Suppl 1):S4 http://www.biomedcentral.com/1471-2105/9/S1/S4
+Background available for all membrane proteins. Recently, a method
+Membrane proteins are a large fraction (about 30%) of all was developed with a reduced number of parameters that
+the proteins found in living organisms [1]. Knowledge of uses evolutionary information only indirectly and incor-
+the location of transmembrane (TM) segments can be use- porates structural parameters on amino acid burial
+ful in narrowing down the possible tertiary structure con- derived from soluble proteins [19].
+formations for the given protein [2-5], and in the
+prediction of function [6,7]. The number of TM proteins Here, we propose a different alternative approach that
+with experimentally determined structure corresponds to does not incorporate evolutionary information, only
+only about 1.5% out of about 35,000 protein structures requires optimization of 25 free parameters, and is inde-
+deposited to date in the Protein Data Bank (PDB), making pendent of topology. Based on the recent quantitative
+it desirable and necessary to predict the structure by com- demonstration that not only hydrophobicity but also
+putational sequence analysis. other amino acid properties, in particular aromaticity and
+charge, carry topological information [20,21], we devel-
+All of the TM helix prediction methods make use of two oped a new method "TMpro" that derives features from
+fundamental characteristics: (i) the length of the TM helix several different amino acid properties to discriminate
+being at least 19 residues so that it is long enough to cross between TM and non-TM segments. TMpro uses a classifi-
+the 30 Å thick hydrophobic core of the bilayer [8], and (ii) cation algorithm (an artificial neural network, a hidden
+the TM residues being hydrophobic for reasons of thermo- Markov model or a linear classifier) to learn these features
+dynamic stability in the membrane environment [9]. For for TM prediction independent of the membrane topol-
+transmembrane helix prediction without the use of evolu- ogy. The framework for sequence representation, feature
+tionary information, there are primarily two approaches. extraction and data processing for prediction used in
+Simple, explicit methods, use a numerical scale of amino TMpro is analogous to the framework developed previ-
+acid properties to represent primary sequence, and per- ously for classification of secondary structure elements
+form windowing and thresholding to locate long hydro- based on latent semantic analysis used for information
+phobic segments [9,10]. More advanced methods are retrieval and summarization in natural language process-
+implicit and treat the 20 amino acids as distinct entities, ing (described in detail in ref. [22]). In this approach, the
+without explicit representation of their similarities, and secondary structure or here TM segments are treated as
+statistically model their distribution in different topologi- equivalent to text-documents, and are represented as bag-
+cal locations of the TM proteins [11,12]. Many of the of-words in terms of the underlying vocabulary. For
+advanced methods that use statistical modeling also TMpro, the vocabulary consists of {positive charge, nega-
+expect that the membrane proteins conform to the com- tive charge, neutral charge, aromatic, aliphatic, ...}. Seg-
+monly observed topology of cytoplasmic-TM-extracellu- ment/document similarity is computed based on the
+lar. However crystal structures of a number of channel frequencies of occurrence of the "words" in the segment/
+proteins have been determined recently, that do not fol- document. The method is tested on established bench-
+low the general topology [13]. For example, the KcsA mark as well as more recent data sets, and is found to per-
+potassium channel has a pore forming helix that can be form significantly better than other methods that also do
+confused with a TM segment [14]. In aquaporin two short not use evolutionary information in segment accuracies
+TM helices have flanking loops that exit onto the same and similar to those that do use evolutionary information.
+side of the membrane [15]. Owing to these deviations
+from the general architecture, accurate prediction of TM Previous benchmark analysis on a dataset of proteins for
+structure in these cases is difficult, and there is a need for which high-resolution crystallographic information was
+prediction methods that do not restrict the "allowed" available at the time [16] and other similar comparative
+topologies of the membrane protein structure. In princi- evaluations [23-26] have shown that TMHMM [27] is one
+ple, explicit methods do not suffer from these limitations: of the best methods for TM helix prediction from
+without constraining the expected topology of the pro- sequence alone. TMHMM is thus a widely accepted
+tein, they locate long hydrophobic segments and predict method to analyze large datasets and also to study specific
+them to be TM helices [8,10]. However, these methods do proteins [1,28]. Even though the benchmark server [29]
+not use additional information to overcome confusion uses a somewhat outdated dataset for testing, it is an excel-
+between globular hydrophobic regions and TM segments, lent resource to quantitatively compare TM helix predic-
+and suffer from low prediction accuracy [16]. One tion methods. Using the benchmark server, TMpro
+approach to reducing the errors is to use sequence profiles achieves 30–50% reduction in segment error rate in com-
+[17,18]. However, this results in a large number of param- parison to the top-performing single sequence methods
+eters to be optimized, which is problematic given the TMHMM, SOSUI [30], DAS-TMFILTER [31,32] and ranks
+overall little data available for training of these methods. second best in segment accuracy, closely following
+Furthermore, evolutionary information is restricted or not PHDpsihtm08, a method that uses evolutionary informa-
+Page 2 of 16
+(page number not for citation purposes)
+BMC Bioinformatics 2008, 9(Suppl 1):S4 http://www.biomedcentral.com/1471-2105/9/S1/S4
+tion [18]. Although accuracy, rather than error rate, is a
+more common measure of prediction performance it ∑
+P(0|q)= P(o|q) o∈{A,D,E,F,G,I,L,M,P,V,W}
+must be noted that the latter provides an absolute quanti-
+fication of improvement. While the significance of a 5% ∑o
+increase in accuracy varies relative to the initial accuracy P(1|q)= P(o|q) o∈{CC,H,K,N,Q,R,S,T,Y}
+level, a 5% decrease in the error rate indicates the same o
+amount of significance irrespective of the initial error rate (1)
+– namely, a 50% error reduction resulting from accuracy
+where, P(x | q) refers to the probability of observing x
+increase from 80% to 90% is as significant as that result-
+while in state q; observation 0 refers nonpolar residue,
+ing from only a 5% increase in accuracy from 90% to 95%
+and observation 1 refers to a polar residue. The primary
+which yields the same reduction in error rate of 50%. We
+sequence of the test set proteins is similarly mapped to a
+also evaluated TMHMM on most recent available data
+sequence of 0's and 1's depending on whether the residues
+sets, MPtopo [33] and PDBTM [34].
+are nonpolar or polar respectively. TM helices are then
+predicted for the mapped sequences with the TMHMM
+Results and discussion
+models modified by Equation 1.
+Amino acid properties other than hydrophobicity are also
+predictive of TM structure
+The results are shown in Table 1. When the 20 possible
+To estimate the predictive capacity of different properties
+amino acids are collapsed drastically to only the 2 possi-
+of amino acids, we used our protein sequence representa-
+ble property values, polar or nonpolar, the prediction
+tions according to the groupings of amino acids by differ-
+accuracy of TM segments (segment F-score) is still at
+ent properties described in Methods, and applied the
+~59%. In other words, the 2-valued polarity (or hydro-
+TMHMM architecture to these reduced representations.
+phobicity) of the residues contains ~64% of the informa-
+We used the publicly available model parameters of
+tion compared to that given by 20-amino acid
+TMHMM (version 1) as-is [35], and tested the prediction
+representation. Surprisingly, even more remarkable
+accuracy on the set of 36 high resolution proteins (Meth-
+results were obtained with the other representations: the
+ods). First, we obtained the accuracies with the original
+segment F-score of TM prediction with aromaticity prop-
+representation of 20 amino acids as a control. Next, the
+erty (3-valued scale) and electronic property (5-valued
+possible observations in each state are collapsed from 20
+scale). Table 1 shows that for both of these properties, the
+to 2 possibilities for polarity (polar or nonpolar), 3 for
+amount of predictive information contained by the col-
+charge, 3 for aromaticity, 3 for size and 5 for electronic
+lapsed representation of primary sequence is close to 92%
+properties (Methods). To illustrate the procedure using
+of the information encoded in the full spectrum of the 20
+polarity as an example, the probability mass of all polar
+amino acids. The residue accuracy Q is in a similar range
+2
+amino acids is summed to yield the probability of observa-
+– the single property representations contain 80–94% of
+tion of a polar residue in that state, as given in Equation 1.
+the information encoded by the full list of 20 amino acids.
+Table 1: Accuracy of TM prediction with TMHMM architecture but using property representations of residues in comparison to full 20
+letter amino acid representation.
+1 2 3 4 5 6
+Sequence Number of Symbols Segment F-score Segment F-score as % Q Q score as % of that
+2 2
+representation of that with amino with amino acid
+acid representation representation
+Amino acids 20 92 - 81 -
+Polarity 2 59 64% 65 80%
+Aromaticity 3 84 91% 74 91%
+Electronic property 5 85 92% 76 94%
+The TMHMM architecture, with model parameters corresponding to version 1 http://www.binf.ku.dk/~krogh/TMHMM/TMHMM1.0.model was
+used for TM helix prediction. Note that all other comparisons used TMHMM 2.0. The first row of results labeled Amino acids corresponds to this
+"rewired" TMHMM. Accuracies are computed locally, with metrics corresponding to those defined in [2]. F-score is the geometric mean of the
+segment recall (Qobs,htm) and segment precision (Qprec,htm). Next row, marked 'polarity' corresponds to the TMHMM when the observation
+probabilities of 20 amino acids are grouped to form 2 observations, namely polar and nonpolar. Columns 4 and 6 give what percentage contribution
+is made by polarity representation in comparison to that of 20 amino acid representation. For example, polarity representation achieves 59% F-
+score, which is 64% of the 92% segment F-score achieved by amino acid representation. Results for aromaticity representation and electronic
+property representation are given similarly in the next two rows.
+Page 3 of 16
+(page number not for citation purposes)
+BMC Bioinformatics 2008, 9(Suppl 1):S4 http://www.biomedcentral.com/1471-2105/9/S1/S4
+These results demonstrate that even with a rudimentary
+representation of the amino acid sequence as polar/non-
+polar, aromatic/aliphatic/neutral, electron donor/accep-
+tor/neutral, significant prediction accuracy can be
+achieved. This observation strongly validates the hypo-
+thesis that amino acid properties other than hydrophobic-
+ity/polarity alone have predictive capacity. This prompted
+us to test if we can exploit this fact to develop a new TM
+prediction algorithm that makes use of this additional
+information.
+Analogy to latent semantic analysis
+A major challenge in TM helix prediction is the danger of
+overfitting because of the small amount of available train-
+ing data, even if only few features are used in model devel-
+opment. Text document classification suffers from the
+same difficulty, although in the human language technol-
+ogies domain largely because of the hundreds of thou-
+mFCilegamsusrbiferica a1nteio onr ocfo pmroptleetinel yfe-natounrme evmecbtroarnse o tfy tphee completely-
+sands of different words in the vocabulary. Latent
+Classification of protein feature vectors of the com-
+semantic analysis is a method successfully used for text
+pletely-membrane or completely-nonmembrane
+document summarization to address this problem. In type: Figure shows the data points of the training set, and
+latent semantic analysis, similarities between documents linear classifier learnt from this data. The first two dimen-
+or sentences are captured by studying the underlying word sions of the features after principal component analysis are
+distributions – the order of appearance of the words is not shown in the scattergram. It may be seen that even a simple
+preserved but the overall frequencies are accounted for linear classifier can separate out a large fraction of the data
+[36]. Singular value decomposition (SVD) and selection points into the correct class.
+of the "top energy" (or "high variance") words is used to
+reduce the noise in the data. Here, we propose to use
+latent semantic analysis in direct analogy to its applica- corresponding to completely TM type are shown with a
+tion in language by capturing amino acid property distri- red 'o' marker. A linear classifier learnt using Fischer's dis-
+butions in TM segments analogous to word distributions criminant over these data points is also shown (black
+in text documents. To this end, the windowed segments of line). It can be seen qualitatively that although there is a
+protein sequences are represented as bag-of-words, where region of confusability, a large number of data of either
+words here are the different amino acid properties – class fall in the non-confused region. We can use the linear
+namely, polar, non-polar, charged positive, charged nega- classifier to estimate the separability of the feature sets. Of
+tive, and so on. Although the number of words in the the feature vectors originating from completely-TM or
+vocabulary of TM protein structure is very small (only 10 completely non-TM windows of the training data, only
+are considered in this work), singular value decomposi- 7% are misclassified. When all the feature vectors of the
+tion and discarding of low energy dimensions is still nec- training set including those with mixed label are classified,
+essary to overcome overfitting of the statistical models to only 15% of the features are misclassified, indicating that
+the very small training data. Discarding of highly specific there is a good separability of the TM features from non-
+feature dimensions ensures over fitting of statistical mod- TM features. In TMpro, we used a neural network to learn
+els does not happen. We verified the benefit of using the boundary between these feature vectors. When a
+latent semantic analysis as a feature reduction method by smaller window size of only 6 residues is used, features
+comparing classification using the full set of features and corresponding to TM and non-TM are not separable with
+the latent semantic analysis derived ones (see section a boundary. We therefore used a hidden Markov model
+"Need for Latent Semantic Analysis", below). that can capture gradual variation in the features along the
+sequence. The TMpro feature vectors combined with the
+Separability of the feature vectors linear classifier, the HMM and the NN classifier, will be
+First, we estimated the separability of the feature vectors referred to in the following as TMpro LC, TMpro HMM
+derived from latent semantic reduction of amino acid and TMpro NN, respectively.
+property features. Figure 1 shows a scattergram of the first
+two dimensions against each other of features derived
+with window size 16. Data corresponding to completely
+non-TM type are shown with a blue '+' marker and those
+Page 4 of 16
+(page number not for citation purposes)
+BMC Bioinformatics 2008, 9(Suppl 1):S4 http://www.biomedcentral.com/1471-2105/9/S1/S4
+Benchmark analysis of transmembrane segment prediction Table 2, in comparison to that of TMHMM [16]. All three
+in membrane proteins implementations of TMpro show improvements over
+In order to compare the performance of the three different TMHMM results. Even the simple linear classifier yields a
+implementations of TMpro to previous work we used the 4% increase in the F-score, with an "even increase" in both
+TMH benchmark web server for evaluations [16]. We the segment recall and precision. The HMM model
+trained our models with the same data set as had been improves the Q compared to the linear classifier. While
+ok
+used for training TMHMM, namely the set of 160 pro- the F-score remains the same, there is an imbalance
+teins. The data set used for evaluation is the set of 36 pro- between recall and precision. Although Q in both
+ok
+teins (called high-resolution data set) from the TMpro (LC) and TMpro (HMM) is lower than in
+benchmark analysis paper [16], referred to as dataset 1, TMHMM, the segment level accuracies are improved in
+below. both these methods. TMpro (NN) shows the highest
+improvement in Q . The results obtained with the NN
+ok
+We performed the evaluations by submitting the predic- method yield a Q of 83% (a 12% increase over
+ok
+tions on the benchmark evaluation server [29]. The pre- TMHMM). A high value of Q , which is the most strin-
+ok
+dictions on alpha helical membrane proteins are gent metric at the segment level, indicates that the TMpro
+evaluated by the following set of metrics [16]: Q is the NN achieves very good prediction of TM helices. This
+ok
+percentage of proteins whose membrane segments are all value of Q is higher than those achieved by any of the
+ok
+predicted correctly. Segment recall (Qobs,htm on bench- methods that have been evaluated by [16] excepting
+mark server) is the percentage of experimentally deter- HMMTOP (which uses the entire test set of proteins in
+mined (or 'observed') segments that are predicted training, as opposed to only 7 proteins of the testing set
+correctly. Segment precision (Qpred,htm on benchmark are used in training TMpro and TMHMM), and
+server) is the percentage of predicted segments that are PHDpsihtm08 [37] (which uses evolutionary information
+correct. The residue accuracy Q refers to the percentage of and a complex model with hundreds of model parame-
+2
+residues that are predicted correctly. We also computed ters). The segment F-score reaches 95% with an even bal-
+the F-score, which is the geometric mean of segment level ance between segment recall and precision. This segment
+recall and precision (Qobs,htm and Qpred,htm). Since recall accuracy represents a 50% reduction in error rate as com-
+and precision can each be increased arbitrarily at the pared to TMHMM, which is the best method not using
+expense of the other value, the two metrics when seen evolutionary information evaluated in the benchmark
+independently do not reflect the strength of the algo- analysis [16]. In other words, 10% of errors in the seg-
+rithm. Hence, the geometric mean of the two, (effectively ments missed or over-predicted by TMHMM, half of those
+the point where the two measures are expected to be difficult segments are correctly predicted by TMpro.
+equal) is used as the metric. TMHMM misclassifies 3 proteins as soluble proteins, in
+contrast to TMpro which does not misclassify any. The
+The evaluation of TMpro (LC), TMpro (HMM) and TMpro results of all the methods evaluated in benchmark are
+(NN) by the benchmark server (on dataset 1) is shown in shown in Table 3.
+Table 2: Comparison of TMpro methods with that of TMHMM on high resolution data set of 36 proteins from benchmark analysis.
+Method ↓ Q Segment F Segment Recall Segment Q # of TM
+ok 2
+Score Precision proteins
+misclassified as
+soluble proteins
+High resolution proteins (36 TM proteins)
+1 TMHMM 71 90 90 90 80 3
+2 TMpro LC 61 94 94 94 76 0
+3 TMpro HMM 66 95 97 92 77 0
+4 TMpro NN 83 96 95 96 75 0
+Without SVD
+5 TMpro NN 69 94 95 93 73 0
+without SVD
+It can be seen that TMpro achieves high segment accuracy (F-score) even with a simple linear classifier. For a description of evaluation metrics see
+caption of Table 3. To demonstrate the requirement of singular value decomposition of features, the results obtained by directly using property
+count features without employing SVD are shown in the last row. It may be seen that the results are slightly poor compared to standard TMpro.
+Page 5 of 16
+(page number not for citation purposes)
+BMC Bioinformatics 2008, 9(Suppl 1):S4 http://www.biomedcentral.com/1471-2105/9/S1/S4
+Table 3: Evaluation results on the benchmark data set.
+Protein-level accuracy Per-segment accuracy Per-residue
+accuracy
+Method Q False False Qhtm Fscore Qhtm %obs Qhtm %prd Q2
+ok
+Positives negatives
+PHDpsihtm08 84 2 3 98 99 98 80
+TMpro 83 14 0 95 95 96 73
+HMMTOP2 83 6 0 99 99 99 80
+DAS 79 16 0 97 99 96 72
+TopPred2 75 10 8 90 90 90 77
+TMHMM1 71 1 8 90 90 90 80
+SOSUI 71 1 8 87 88 86 75
+PHDhtm07 69 3 14 82 83 81 78
+KD 65 81 0 91 94 89 67
+PHDhtm08 64 2 19 76 77 76 78
+GES 64 53 0 93 97 90 71
+PRED-TMR 61 4 8 87 84 90 76
+Ben-Tal 60 3 11 84 79 89 72
+Eisenberg 58 66 0 92 95 89 69
+Hopp-Woods 56 89 0 89 93 86 62
+WW 54 32 0 93 95 91 71
+Roseman 52 95 0 88 94 83 58
+Av-Cid 52 95 0 88 93 83 60
+Levitt 48 93 0 87 91 84 59
+A-Cid 47 95 0 89 95 83 58
+Heijne 45 92 0 87 93 82 61
+Bull-Breese 45 100 0 87 92 82 55
+Sweet 43 84 0 86 90 83 63
+Radzicka 40 100 0 86 93 79 56
+Nakashima 39 90 0 85 88 83 60
+Fauchere 36 99 0 86 92 80 56
+Lawson 33 98 0 82 86 79 55
+EM 31 99 0 84 92 77 57
+Wolfenden 28 2 39 52 43 62 62
+Performance of methods other than TMpro were originally reported in Protein Science [16] and are reproduced here with permission from Cold
+Spring Harbor Laboratory Press, Copyright 2002. TMpro values in comparison to these published values are returned by the benchmark web
+server [29] when TMpro predictions are uploaded. The columns from left to right show: method being evaluated; Protein level accuracies: Q ,
+ok
+which is the percentage of proteins in which all experimentally determined segments are predicted correctly, and no extra segments are predicted;
+that is, there is a one to one match between predicted and experimentally determined segments. False positives, which is the percentage of globular
+proteins that are misrecognized as membrane proteins. False negatives, which is the number of membrane proteins that are misclassified as soluble
+proteins because no TM segment is predicted in the protein. In segment level metrics are shown segment F-score which is the geometric mean of
+Recall and Precision, Recall (Qhtm,%obs, percentage of experimentally determined segments that are predicted correctly), Precision (Qhtm,%pred
+percentage of predicted segments that are correct). Q is the residue level accuracy when all residues in a protein are considered together, and the
+2
+Q value for the entire set of proteins is the average of that of individual proteins. See [16] for further details on these metrics.
+2
+Performance on recent MPtopo and PDBTM data sets studied TMpro (NN) further. In this and the subsequent
+The benchmark analysis described in the previous section sections, we henceforth refer to TMpro (NN) as TMpro.
+is useful in comparing the TMpro method with other well In the evaluation of TMpro performance on more recent
+accepted methods, but the evaluation data set does not data, we also compared our predictions with two other
+include recently determined membrane protein struc- algorithms that do not use evolutionary profile: SOSUI
+tures. We therefore computed the accuracies achieved by [30]and DAS-TMfilter [31,32].
+the TMpro on two recent data sets, MPtopo and PDBTM.
+In order to allow for a fair comparison with TMHMM, the The results of the comparison between TMpro, TMHMM,
+training set was kept the same as that used for TMHMM SOSUI, DAS-TMfilter are shown in Table 4. As can be
+2.0, namely the set of 160 proteins. 12 out of 191 proteins seen, TMpro achieves a 2–3% increase in segment F-score
+of PDBTM and 16 out of 101 proteins of MPTOPO are in comparison to TMHMM, 4–6% in comparison to
+contained in the training set. Since TMpro (NN) gave the SOSUI and 3–5% in comparison to DAS-TMfilter. Thus,
+best prediction results in the benchmark analysis, we only we conclude that amino acid properties used in conjunc-
+Page 6 of 16
+(page number not for citation purposes)
+BMC Bioinformatics 2008, 9(Suppl 1):S4 http://www.biomedcentral.com/1471-2105/9/S1/S4
+Table 4: Evaluation of TMHMM, SOSUI, DAS TMfilter and TMpro NN prediction performance on PDBTM non-redundant set and
+MPtopo high resolution set.
+F Qhtm Qhtm
+Method Q Score %obs %prd Q2 Confusion
+ok
+with soluble
+PDBTM (191 proteins, 789 TM segments)
+1 TMHMM 68 90 89 90 84 13
+2 SOSUI 60 87 86 87 17
+3 DAS TMfilter 62 90 90 91 85 10
+4 TMpro NN 57 93 93 93 81 2
+Without Singular Value Decomposition (SVD)
+5 TMpro no SVD 57 91 93 90 81
+MPtopo (101 proteins, 443 TM segments)
+6 TMHMM 66 91 89 94 84 5
+7 SOSUI 68 89 91 87 82 7
+8 DAS TMfilter 66 88 87 90 78 5
+9 TMpro NN 60 93 92 95 79 1
+For description of columns, see caption of Table 3. Qhtm,%obs and Qhtm,%pred have been computed per-protein and averaged over all the proteins. Last
+column shows the number of membrane proteins that have been mistaken as soluble proteins.
+tion with latent semantic analysis and neural network phobic helices in soluble proteins are confused to be TM
+classifier are highly predictive of TM segments on the two helices. We found that 14% of the globular proteins in the
+recent data sets. dataset provided on the benchmark server are confused to
+be that of membrane type by TMpro. However, it is to be
+Need for latent semantic analysis noted that all the methods that have lower confusion with
+We addressed the question whether or not the latent globular proteins also miss many membrane proteins and
+semantic analysis is really needed, because the TM struc- wrongly classify them to be of globular type (see Table 3).
+ture vocabulary is much smaller than the word vocabulary TMpro misclassifies only 1 of the MPTopo proteins as sol-
+in language. To this end, a different neural network was uble protein, whereas TMHMM and DAS-TMfilter mis-
+trained with 10 dimensional input vectors wherein the classified 5 TM proteins and SOSUI misclassified 7 TM
+SVD step was removed, and the 10-word input dimen- proteins as soluble proteins. In the PDBTM set, TMpro
+sions were connected directly to the neural network. Seg- misclassifies only 2 proteins as soluble proteins as com-
+ment accuracies were found to be about 2% lower for the pared to 13 proteins by TMHMM and 17 proteins by
+F-score segment accuracy for the benchmark and PDBTM SOSUI and 10 proteins by DAS-TMfilter that were misclas-
+data sets (see Tables 2 and 4). We conclude that although sified (Table 4).
+the TM structure input vocabulary is small, the SVD step is
+useful for high accuracy TM segment prediction. We Application to specific proteins
+attribute this advantageous effect to the small available In the above sections, we have demonstrated that without
+training data in this field. using evolutionary information, without restricting the
+membrane topology and with only using 25 free parame-
+Confusion with globular proteins ters, the TMpro approach results in very high accuracies in
+The benchmark server provides a set of 616 globular pro- TM structure prediction of TM proteins with known topol-
+teins also for evaluation. Although classification of pro- ogy. We believe that these features will make TMpro par-
+teins into globular and TM types is a problem ticularly useful in future predictions of TM helices in
+fundamentally different from predicting the sequential proteins from novel families and with novel topologies.
+positions of TM helices in TM proteins and the use of TM Although substantiating this claim quantitatively will
+helix prediction methods to differentiating between TM require solving new membrane protein structures, we
+and non-TM proteins is a misuse of these methods, it is would like to present three specific examples to qualita-
+still a useful exercise in estimating to what degree hydro- tively illustrate the potential strengths and weaknesses of
+Page 7 of 16
+(page number not for citation purposes)
+BMC Bioinformatics 2008, 9(Suppl 1):S4 http://www.biomedcentral.com/1471-2105/9/S1/S4
+this method. Figure 2 shows the predicted TM segments of DIV-TMHMM as a representative of a multiple-sequence
+the KcsA potassium channel (PDB ID 1BL8, [14]), the alignment-based method.
+aquaporins (represented by PDB ID 1FQY [15]) and the
+human immunodeficiency virus (HIV) envelope glyco- (i) KcsA potassium channel: In contrast to the general
+protein gp41 (structure unknown). TMpro results are topology of membrane proteins which have a membrane
+compared to those from TMHMM, DAS-TMfilter, SOSUI segment completely traversing from the cytoplasmic (cp)
+as representatives of single-sequence methods, and PRO- to extracellular (ec) side or vice versa, resulting in a ...cp-
+PFrigeduirceti o2ns of membrane segments in specific proteins
+Predictions of membrane segments in specific proteins: (A) KcsA potassium channel, (B) aquaporin and (C) human
+immunodeficiency virus glycoprotein GP41. Observed segments (red) and predicted segments by TMpro, TMHMM version
+2.0, SOSUI, DAS-TMfilter and PRODIV-TMHMM are shown in this order. Experimentally observed segments are not known
+for GP41. For aquaporin, the analog output of TMpro neural network is also shown. This representation reveals that the 3rd
+predicted helix, which is unusually long, shows a relative minimum in its center. Although it is not sufficient for automatic pre-
+diction, it does indicate the possibility of a separating loop, as is observed experimentally.
+Page 8 of 16
+(page number not for citation purposes)
+BMC Bioinformatics 2008, 9(Suppl 1):S4 http://www.biomedcentral.com/1471-2105/9/S1/S4
+TM-ec-TM-cp... topology, the KscA potassium channel has Conclusion
+a short 11-residue pore-forming helix (ph) and an 8-resi- All TM helix prediction methods make use of the fact that
+due pore-forming loop (pl) that are surrounded by TM the propensities of amino acids are characteristically dif-
+helices of a tetrameric arrangement of 4 chains. The loops ferent in TM helices as compared to soluble portions. The
+on either side of this short helix exit onto the extracellular most successful methods incorporate very restrictive
+side of the membrane, giving the protein the topology of topologies into complex statistical models of amino acid
+"cp-TM-ec-ph-pl-ec-TM-cp". The predictions of the TM propensities. These models use hundreds to thousands of
+segments in the KcsA potassium channel are shown in Fig- free parameters but are trained with the limited data set
+ure 2A. TMHMM incorrectly predicts part of the pore- available today. In this paper, we describe a method
+forming helix and a part of the extracellular loop together TMpro, which uses only 25 free parameters, does not use
+as a TM segment while TMpro correctly predicts 2 TM seg- topology restrictions and does not require evolution
+ments, matching with the observed segments. SOSUI also information for success. The method is based on using
+correctly predicts only 2 TM segments while DAS-TMfilter novel amino acid property reduced vocabulary features
+predicts 3 segments. The evolutionary method PRODIV- beyond traditional use of hydrophobicity in conjunction
+TMHMM predicts 3 segments incorrectly. with application of methods borrowed from text docu-
+ment classification. TMpro diplays high (>90%) segment
+(ii) Aquaporins. Aquaporins also deviate from the ...cp- accuracy consistently across benchmark and more recent
+TM-ec-TM-cp... topology in that they have two short TM TM protein datasets and is therefore well suited for seg-
+helices (about half the length of a normal TM helix) which ment level prediction. TMpro also shows promise in pre-
+are very distant in primary sequence but are close in the dicting TM segments in membrane proteins with unusual
+3D structure to form what looks like a single TM helix in topology which are difficult to recover by other methods.
+a back to back orientation of the two short helices. In this The current Q values indicate that the method has still
+ok
+highly unusual topology, the two short helices are of the room for improvement, which could be obtained by
+type cp-TM-cp and ec-TM-ec. The TM helix predictions are reducing the false positive error rate, work that is currently
+shown in Figure 2B. None of the methods compared can underway.
+correctly predict both short TM helices, including TMpro.
+Of the observed eight TM helices, TMpro, TMHMM and Further, the paper introduces a novel method of extracting
+DAS-TMfilter predict 6 while SOSUI predicts 5. TMpro features from protein sequence, namely that of latent
+and DAS-TMfilter both predict an unusually long helix semantic analysis model. Most methods for transmem-
+that connects TM segments 3 and 4. Although this predic- brane helix prediction capture amino acid propensities
+tion is wrong, both the methods provide some evidence through single numbers (as in hydrophobicity scales) or
+for the separation of the two TM helices: DAS-TMfilter probability distributions (as in hidden Markov models).
+gives a text output that there is a possibility of two helices; Here, we transform the training data into a new feature
+in the analog output of TMpro NN there is a minimum at space, and learn a boundary that separates the transmem-
+the position of the loop. In contrast, PRODIV-TMHMM is brane features from non-transmembrane features using a
+not able to infer the two short helices. However, it does neural network model. The success of this approach sug-
+show a better alignment of the other predicted helices gests that it can find potential applications in other
+with the observed locations. sequence-based analysis problems.
+(iii) HIV glycoprotein gp41. The topology of gp41 is not Methods
+known, and there is significant debate over the nature of Data sets
+the putative TM segments [38]. The TM helix predictions The training set is the set of 160 proteins [11] used to train
+are shown in Figure 2C. TMpro predicts two TM segments TMpro and for comparison TMHMM version 2. Three dif-
+with high confidence; one of them is the known fusion ferent data sets of alpha helical TM protein sequences with
+peptide, which constitutes a TM helix during HIV fusion high resolution information are used for evaluation: (1)
+with the host cell. Of the other methods compared the set of high resolution proteins from the benchmark
+(TMHMM, DAS-TMfilter, SOSUI, PRED-TMR, evaluations by Chen et. al [16]. (2) TM proteins with high
+HMMTOP), only DAS-TMfilter and SOSUI predict two resolution information from the MPtopo data set consist-
+TM segments – the other methods do not predict the TM ing of 443 TM segments in 101 proteins [33]. (3) A
+helix at all and predict the fusion peptide as the only TM PDBTM dataset downloaded in April 2006 which con-
+segment. Such a prediction is incompatible with the tains all transmembrane proteins with 3D structures from
+experimental evidence that gp41 is a TM protein, while the PDB determined to that date [34]. PDBTM provides a
+the fusion peptide is buried in a hydrophobic, but soluble list of non-redundant subset of the set of alpha-helical TM
+non-TM core. proteins. Non-redundant is defined as having sequence
+identity less than 40% [34]. Chains corresponding to this
+Page 9 of 16
+(page number not for citation purposes)
+BMC Bioinformatics 2008, 9(Suppl 1):S4 http://www.biomedcentral.com/1471-2105/9/S1/S4
+non-redundant list were extracted from the complete set, (4) As opposed to a simple threshold yielding a linear
+resulting in 191 proteins consisting of 789 TM segments. boundary between TM and non-TM features, an advanced
+statistical model is used to separate the features in the two
+Instead of formulating a 3-class labeling scheme referring classes by a nonlinear boundary. A neural network (NN)
+to "inside", "outside" and "membrane", we used a 2-class is used to classify the reduced dimension features as TM
+labeling scheme "TM" and "non-TM", where the data and non-TM, while a hidden Markov model (HMM) is
+labels corresponding to inside and outside are mapped to built independently to capture the sequential nature of
+a single state 'non-TM'. TM and non-TM features. The HMM architecture used
+here is a simpler one and therefore less restrictive com-
+Approach pared to the models of TMHMM or HMMTOP [12,27].
+The proposed approach is to find TM segment features
+derived from amino acid property representations and (5) The prediction labels output by NN and HMM are
+then use a suitable classification or statistical modeling arrived at independently.
+method to achieve better accuracy in TM prediction (Fig-
+ure 3). Data preprocessing
+Step 1: Protein sequence representation
+(1) To begin with, the primary sequence which is origi- The primary sequence of each protein is decomposed into
+nally in terms of the 20 amino acids, is decomposed into five different sequences by replacing each amino acid with
+five different primary sequences, each one representing its property (see Figure 4A):
+one property of the amino acids, namely polarity, charge,
+aromaticity, size and electronic property. (cid:129) Charge: 3 possible values: positive (H, K, R), negative
+(D, E), neutral (A, C, F, G, I, L, M, N, P, Q, S, T, V, W, Y)
+(2) These property label sequences are then studied in a
+moving window. (cid:129) Polarity: 2 possible values: polar (C, D, E, H, K, N, Q, R,
+S, T, Y), nonpolar (A, F, G, I, L, M, P, V, W)
+(3) The feature space is reduced by singular value decom-
+position. (cid:129) Aromaticity: 3 possible values: aliphatic (I, L, V), aro-
+matic (F, H,W, Y), neutral (A, C, D, E, G, K, M, N, P, Q, R,
+S, T)
+(B) Windowed analysis from
+left to right of protein sequence
+(A) Map
+amino acid Place a moving
+Count C , (C)
+sequence to window at i1 (D) Neural
+C …C Singular Value
+5 different position i i2 i10 Network
+Decomposition
+property
+sequences
+i = i + 1
+Amino 5 Property Sequences Matrix of Features Prediction
+Acid Lx5 Counts (L-l+1) x 4 Lx1
+Sequence (L-l+1) x 10
+Lx1
+BFliogcukr ed ia3gram of TMpro prediction.
+Block diagram of TMpro prediction. Primary sequence of protein (amino acid sequence) is input to the system. (A) maps
+it to 5 amino acid property se-quences. The output has size 5 x L (rows x columns). These 5 sequences form input to (B)
+which performs windowed analysis, and outputs a matrix of counts of 10 properties (C1 to C10) for each window position.
+This output has the size 10xL-l+1. The outputs from (B) for all proteins are collected together and singular value decomposi-
+tion is performed by C. During testing phase, an SVD approximation is performed for the matrix of a single test protein. The
+output of this block (C) forms the final features used by neural network. (D) Features are evaluated by the NN model and a 2-
+state prediction is output for each residue (TM, non-TM). An analog value also is output ranging from -1 to 1 that indicates the
+closeness of the feature to non-TM or to TM correspondingly.
+Page 10 of 16
+(page number not for citation purposes)
+BMC Bioinformatics 2008, 9(Suppl 1):S4 http://www.biomedcentral.com/1471-2105/9/S1/S4
+HEADER : POTASSIUM CHANNEL KCSA
+1 2 3 4 5 6 7
+123456789012345678901234567890123456789012345678901234567890123456789012345
+RESIDUE : MPPMLSGLLARLVKLLLGRHGSALHWRAAGAATVLLVIVLLAGSYLAVLAERGAPGAQLITYPRALWWSVETATT
+TOPOLOGY : ---------------------------MMMMMMMMMMMMMMMMMMMMMMM-------------------------
+CHARGE : ----------p--p----pp----p-p-----------------------np-----------p------n----
+POLARTY : -----p----p--p----pp-p--p-p-----p----------pp-----pp-----p--pp-p----p-pp-pp
+AROMATIC : ....R..RR..RR.RRR..-...R--.......RRRRRRRR...-R.RR.........RR.-...R--.R.....
+SIZE : O..OO..OO.OOOOOOO.OO...OOOO.....oOOOOOOOO...OO.OO.OO.....OOOoO.O.OOO.OOo.oo
+E-PROP : aDDad..ddDAddAddd.A...Dd..ADD.DDaddddddddD..adDddDDA.DD.DaddaaDADd...dDaDaa
+TOPOL1O GY : ---------------2-8- ----------MMMMMMMMMM5M0MMMMMMMMMMMM-------------------------
+Completely r 2 Completely membrane Mixed
+nonmembrane Window Window
+Window
+(A)
+Window Position
+1 2 … 13 14 15 … 28 29 … 50 51
+1 2 2 5 5 4 0 0 2 2
+2 3 3 6 6 5 1 2 6 6
+3 13 13 10 10 11 15 14 10 10
+4 7 8 5 4 4 8 8 2 3
+5 0 0 3 3 3 0 0 1 1
+6 2 2 3 3 2 0 0 2 2
+7 3 3 2 3 3 5 4 7 6
+8 2 1 0 0 0 1 1 3 3
+9 7 8 5 4 4 8 8 2 3
+10 0 0 0 0 0 1 1 1 1
+Class Label
+-1 -1 … -1 0 0 … 1 1 … 0 -1
+(cid:111)
+(B).
+(FAig) uDraet a4 preprocessing and feature extraction:
+(A) Data preprocessing and feature extraction: A sample sequence is shown with its property annotations. Line (1)
+header of the protein (potassium channel Kcsa). Line (2) primary amino acid sequence. Line (3) Topology: nonmembrane ‘-’
+and membrane ‘M’. Line (4) Charge: posi-tive ‘p’, negative ‘n’ and neutral ‘-’. Line (5) Polarity: polar ‘p’ and nonpolar ‘-’. Line (6)
+Aro-maticity: aromatic ‘R’, aliphatic ‘-’ and neutral ‘,’. Line (7) Size: small ‘.’, medium ‘o’ and large ‘O’. Line (8) Electronic prop-
+erty: strong acceptor ‘A’, weak acceptor ‘a’, neutral ‘.’, weak donor ‘d’ and strong donor ‘D’. Line (9): topology again. A win-
+dow of width 16 residues is moved across the sequence from left to right, one residue at a time. At each position the different
+prop-erty-feature combinations (such as “charge-negative”, size “medium”) in the window are counted. The collection of these
+counts in a vector forms the feature at that position. In the ex-ample shown above, the window width is shown as 16 residues.
+In the analyses, the width used for HMM modeling is 6 residues and that for NN modeling is 16 residues. If the length of the
+protein is L residues, and window length is l residues, the number of feature vectors obtained is: L-l+1. The three shaded win-
+dows at positions 1, 23 and 50 have labels “completely non-TM”, “completely TM” and “mixed” correspondingly. (B) Fea-
+ture vectors: Feature vectors of the sequence corresponding to each of the window posi-tions are shown. The 10 rows of
+property number correspond to the Cij list of Eqn. 2. The win-dow position refers to the residue number of the first residue
+in the window. Feature vectors cor-responding to the blue, red and yellow windows in (A) are shown in their corresponding
+color in the table. The class label of the feature vector is shown in the last row: completely nonmembrane -1, membrane 1.
+(cid:129) Size: 3 possible values: small (A, G, P, S), medium (D, ure 4A). In other words, the residue r at position i, is rep-
+i
+N, T), large (C, E, F, H, I, K, L, M, Q, R, V, W, Y) resented by its properties
+(cid:129) Electronic property: 5 possible values: strong donor (A, r = (C P A S E) (2)
+i i i i i i
+D, E, P), weak donor (I, L, V), neutral (C, G, H, S, W),
+weak acceptor (F, M, Q, T, Y), strong acceptor (K, N, R) where C, P, A, S and E are the charge, polarity, aromatic-
+i i i i i
+ity, size and electronic-property of the residue r.
+i
+The protein sequence representation at this stage has 5
+rows of length L, where L is the length of the protein (Fig-
+Page 11 of 16
+(page number not for citation purposes)
+rebmun
+eulav-ytreporP
+BMC Bioinformatics 2008, 9(Suppl 1):S4 http://www.biomedcentral.com/1471-2105/9/S1/S4
+Step 2: Neighborhood analysis through a window is the length of the protein sequence and l is the window
+The protein sequence is analyzed with a moving window
+length. The columns contain the feature vectors corre-
+of length l; the window is moved along the sequence one
+sponding to their positions in the protein sequence. The
+residue at a time, each position of the window yielding a
+matrix P is referred to as the protein feature matrix. In Figure
+feature vector. The feature vector at position i, represented
+4B, the columns excluding the class labels correspond to
+by R is derived from the window beginning at the ith resi-
+i
+due and extending l residues to its right. It is given as R i's. The entire matrix excluding the class labels corre-
+sponds to P.
+R = [C ] (3)
+i ij 1×10
+A protein feature matrix is created for each of the proteins
+where, C is the count of property-value j in window i. The in the dataset, both for training and testing purposes. The
+ij
+specific property-values counted by C 's are as follows: features extracted this way are used in topology modeling
+ij
+through HMMs and for feature classification based predic-
+C : count of "charge-positive" tion by NNs.
+i1
+C : count of "polarity-polar" Singular value decomposition
+i2
+Amino acid properties for feature representation (C to
+i1
+C i3: count of "polarity-nonpolar" C i10) are mutually dependent. It is therefore desirable to
+transform these feature vectors into an orthogonal dimen-
+C : count of "aromaticity-aromatic" sional space prior to use of these features for prediction.
+i4
+Such a feature selection process helps in biological inter-
+C : count of "aromaticity-aliphatic" pretation of results since the differences between the
+i5
+classes of feature vectors can be visualized. Furthermore,
+C : count of "electronic property-strong acceptor" this process reduces the number of parameters required to
+i6
+create the HMMs and NN.
+C : count of "electronic property-strong donor"
+i7
+To achieve this, protein feature matrices of all the proteins
+C : count of "electronic property-acceptor" are concatenated to form a large matrix A, and subjected
+i8
+to singular value decomposition (SVD)
+C : count of "electronic property-donor"
+i9
+A = USVT (5)
+C : count of "size-medium"
+i10
+where U and V are the right and left singular matrices and
+The choice of the above 10 properties is arrived at by stud- S is a diagonal matrix whose elements are the eigenvalues
+ying histograms of number of segments versus percentage of the matrix P. The feature vectors for analysis are now
+of residues of a given property in segments of length l, and the column vectors of the matrix product [39]
+identifying the properties that showed distinct peaks in
+the histogram for TM and non-TM segments (data not SVT or AUT (6)
+shown).
+Setting the diagonal elements of the last rows of S to zero
+While r is the vector of properties of the amino acid at is known to reduce noise in the representation of the fea-
+i
+position i, R is the number of times a residue with a spe- ture vectors and also reduces over-fitting due to the small
+i
+cific property value occurs in a window of length l starting training set by the subsequent classifier to which the fea-
+at position i and extending to its right. When feature vec- tures are input. The eigenvalues (values of the principal
+tors R are computed for every position of the window, diagonal in S) show the energy content in corresponding
+i
+moving to the right one residue at a time, the entire pro- dimensions. The top 4 dimensions of S of our training
+tein will have a matrix representation P (Equation 4), data have been found to carry 85% of the energy (vari-
+whose columns are the feature vectors ance) and hence only these top 4 dimensions have been
+used for feature representation. The matrices U, S and V
+are dependent on the matrix A from which they are com-
+P =[R 1T R 2T ... R LT −l+1] 10 × L-l+1 (4) puted. Therefore, for each new protein, singular value
+decomposition should ideally be recomputed, but this
+RT is the transpose of vector R. The number of rows in
+i i would also require recomputation of all the statistical
+matrix P is 10, same as the length of the residue feature models built on the features derived trough singular value
+vector (Equation 3). Number of columns is L-l+1, where L decomposition. To avoid this, the feature vectors along
+Page 12 of 16
+(page number not for citation purposes)
+BMC Bioinformatics 2008, 9(Suppl 1):S4 http://www.biomedcentral.com/1471-2105/9/S1/S4
+the same principal components can be approximated by diately preceding a TM segment are numbered backwards
+multiplication R with UT similarly as given in Equation. 6 with respect to the TM segment as S6–S2, and the 5 resi-
+i
+[39]. dues following the TM segment are numbered forward
+S18–S22. Symmetrically positioned states on either side
+Hidden Markov Model topology modeling of S1 are tied to each other. For example, states S7–S11
+Model architecture and S13–S17, and states S2–S22 and S3–S21 are tied to
+TMpro models the proteins with the simple and general each other. Where the loop length is short, the number of
+architecture shown in Figure 5. The features extracted by loop residues is shared equally between adjacent mem-
+TMpro, are derived from a window of residues, and are brane segments, half being numbered in the S18–S22
+therefore smoothed among neighboring positions. Since series and half being numbered in the S6–S2 series.
+the features in TMpro consist of simpler 2- or 3- rather
+than 20-valued properties, the feature distributions will Observation probabilities for each of the states are mod-
+vary less between adjacent residue positions. Hence, in the eled by a Gaussian mixture model (GMM). The GMM of a
+simplified HMM architecture self-transitions are allowed state S is computed by accumulating all those feature vec-
+i
+in the interior membrane region and in long loop regions. tors whose residue labels are numbered i. For states S and
+1
+The architecture shown in Figure 5 is a model suitable for S , there are 4 mixtures in the model, and for all other
+12
+the topology of the known TM proteins, while being suf- states there is one Gaussian that models its feature space.
+ficiently flexible to accommodate possible new topolo-
+gies. The window length l used for feature extraction is 6 Transition probabilities and initial state-probabilities are
+residues. computed by counting the number of corresponding
+labels of the sequences. Specifically, the probability of
+Hidden Markov model parameter computation transition from state i to state j is given by
+In traditional hidden Markov models, the state transitions
+are unknown even for the training data. That is, the label, Count of sequence ’ij’ in the labels
+and hence the corresponding state in the HMM is not A i,j = Count of ’i’ in thhe labels (7)
+known at each observation instant. However, when mod-
+eling TM topology, the labels are known at the residue Similarly, the initial probability for state i is given by
+level. TMpro models the HMM states as follows: states S2–
+S11 and S13–S22 correspond to one residue position. Count of sequences where first label=i
+State S7 marks the beginning of the TM segment and S17 π = (8)
+i Number of trainingg sequences
+its end. 5 residues on either end of the TM segments are
+numbered 7–11 and 13–17. The internal TM residues are In the training set there are no transitions from state 11 to
+numbered 12. The 5 residues of the non-TM region imme- state 13, because every TM segment is longer than 10 res-
+2 3 4 5 6 7 8 9 10 11
+S12
+S1
+22 21 20 19 18 17 16 15 14 13
+HFiMguMr eto 5pology used for transmembrane prediction
+HMM topology used for transmembrane prediction. The architecture models cytoplasmic and extracellular regions in a
+single state S1 by 4 different feature clusters as a Gaussian mixture model. The interior membrane region, that is the TM seg-
+ment excluding 5 residue positions each at both ends, is modeled by a single state S12 with 4 feature clusters as a Gaussian
+mixture model. The transition from non-TM to TM segment is modeled with 5 sequential states on the non-TM side and 5
+sequential states on the TM side. States S18-S22 are connected to states S6-S2 respectively as shown, to accommodate short
+loops between two TM segments. States S11 is connected to S13 to allow accommodation of short TM helices. All the transi-
+tion states, S2-S11 and S13-S22 are modeled with a single Gaussian feature cluster.
+Page 13 of 16
+(page number not for citation purposes)
+BMC Bioinformatics 2008, 9(Suppl 1):S4 http://www.biomedcentral.com/1471-2105/9/S1/S4
+idues. However, to accommodate unseen topological
+models of TM proteins, for example that of aquaporin er
+y
+w
+o stf
+ai t tth
+eh e
+1tw 3tro
+aa
+nnsh dsio
+t
+fir rot
+o
+nh
+m
+e
+p
+l sri tc
+o
+ae
+b
+ts
+ea
+o
+b
+1f
+i
+0
+l8
+i tt
+oyr e
+f
+ss
+r
+ti
+o
+ad tmu
+e
+e 1ss
+4t
+al .e ten g 1t 1h ,
+i
+sa asm ssia gl nl em da ts os putLayer HiddenLa
+n
+I
+Transmembrane helix prediction at residue level Dimension 1 er
+y
+a
+To make a prediction of TM helix locations in a new pro- L
+ut
+tein, the protein is subjected to data preprocessing as dur- utp
+O
+ing the training phase. The sequence of feature vectors is Dimension 2
+then presented to HMM and/or NN. Prediction of new
+protein topologies follows standard procedure [40]: the
+feature stream of the protein is evaluated by the hidden Dimension 3
+Markov model to arrive at a most-likely state sequence.
+Contiguous residues corresponding to the state labels 7–
+17 are considered a single TM helix segment in the final
+Dimension 4
+prediction. All other residues are labeled non-TM.
+Neural Networks for feature classification NtFuiergeuu rcralela sn6seiftiwcaotriokn a:rchitecture used for transmembrane fea-
+Data preprocessing for NN is the same as for HMM. The Neural network architecture used for transmem-
+window size (l) used is 16. During training, a class label is brane feature classification: The neural network has an
+defined for each window based on the number of TM and input layer with 4 nodes that take each of the 4 dimensions
+non-TM residue labels in the window (Figure 4A): of the feature vectors as input. The output layer has 1 tansig
+neuron that fires a value between -1 and +1 corresponding
+to non-transmembrane and transmembrane respectively.
+(cid:129) Completely-membrane (Class label = 1): If all residues
+There is a hidden layer between input and output layers con-
+in the window are labeled TM
+sisting of 4 neurons. The network is connected fully in the
+forward direction.
+(cid:129) Completely-nonmembrane (Class label = -1): If all resi-
+dues in the window are labeled non-TM
+(cid:129) Mixed (Class label = 0): If some residues in the window validation of the training set to be used for automatic clas-
+are labeled TM and some non-TM sification of the feature into its class.
+Model architecture Feature vector classification with NN
+The number of input nodes of the NN is 4 and the number Each input feature vector causes the output neuron to fire
+of output neurons is 1 (Figure 6). One hidden layer of 4 an analog value ranging from -1 (non-TM class) to +1 (TM
+nodes is placed in between input and output layers (the class). A threshold of 0.4 is used to label the residue at the
+choice of 4 units in the hidden layer is based on maxi- first position in the window to be TM or non-TM. Since
+mum accuracy in 10-fold cross validation of the training the feature is derived over a window of length 16, and
+data). The model is fully connected in the forward direc- threshold of 0.4 is "more confident" towards the TM label,
+tion. Each of the hidden and output neurons is a tansig the 8 residues starting from the first position of the win-
+classifier [41]. Each input dimension is normalized such dow are all set to be of TM type (these numbers are
+that the range of all the dimensions is the same. derived through cross validation of the training set). The
+process is repeated for the next feature vector, and so on,
+Model Training and a TM label is assigned to 8 residues at a time every
+The network is trained using back-propagation procedure time the output neuron fires a value greater than the
+[41], by presenting it with feature vectors and their corre- threshold.
+sponding target output class labels. Mixed label feature
+vectors are not presented for training, since they arise from Implementation
+both TM and non-TM residues and hence are expected to SVD
+lie in the "confusable" region in the features space. The Singular value decomposition of the protein feature
+output neuron learns to fire -1 for non-TM features and +1 matrix is computed using the SVDS tool in MATLAB®. Lin-
+for TM features. For feature vectors that are ambiguous, ear classification using Fischer's discriminant is carried
+the output lies in the range of -1 to +1. A threshold of 0.4 out using the MATLAB® statistical pattern recognition tool-
+is chosen based on maximum accuracy in 10-fold cross box [42].
+Page 14 of 16
+(page number not for citation purposes)
+BMC Bioinformatics 2008, 9(Suppl 1):S4 http://www.biomedcentral.com/1471-2105/9/S1/S4
+HMM and GMM implementation 8. Jayasinghe S, Hristova K, White SH: Energetics, stability, and pre-
+diction of transmembrane helices. J Mol Biol 2001,
+Transition and initial probabilities of the model are com-
+312(5):927-934.
+puted as given by equations 7 and 8. Observation proba- 9. White SH: Global statistics of protein sequences: implications
+bilities of a given state, which are Gaussian mixtures of the for the origin, evolution, and prediction of structure. Annu Rev
+Biophys Biomol Struct 1994, 23:407-439.
+feature vectors assigned to that state, are computed with
+10. Kyte J, Doolittle RF: A simple method for displaying the hydro-
+Netlab toolbox for MATLAB from the Nabney online pathic character of a protein. J Mol Biol 1982, 157(1):105-132.
+resource [43]. The Bayes Net Toolbox (BNT) in a MAT- 11. Sonnhammer EL, von Heijne G, Krogh A: A hidden Markov model
+for predicting transmembrane helices in protein sequences.
+LAB® environment obtained from the Murphy online Proc Int Conf Intell Syst Mol Biol 1998, 6:175-182.
+resource is used for the task of predicting the state 12. Tusnady GE, Simon I: Principles governing amino acid compo-
+sition of integral membrane proteins: application to topol-
+sequence of a test protein [44].
+ogy prediction. J Mol Biol 1998, 283(2):489-506.
+13. Fleishman SJ, Unger VM, Ben-Tal N: Transmembrane protein
+NN implementation structures without X-rays. Trends Biochem Sci 2006,
+31(2):106-113.
+Training and classification procedures for neural networks
+14. Doyle DA, Cabral JaoM, Pfuetzner RA, Kuo A, Gulbis JM, Cohen SL,
+are implemented using the Neural Net toolbox of MAT- Chait BT, MacKinnon R: The Structure of the Potassium Chan-
+LAB®. nel: Molecular Basis of K+ Conduction and Selectivity. Science
+1998, 280(5360):69-77.
+15. Murata K, Mitsuoka K, Hirai T, Walz T, Agre P, Heymann JB, Engel A,
+Competing interests Fujiyoshi Y: Structural determinants of water permeation
+through aquaporin-1. Nature 2000, 407(6804):599-605.
+The authors declare that they have no competing interests.
+16. Chen CP, Kernytsky A, Rost B: Transmembrane helix predic-
+tions revisited. Protein Sci 2002, 11(12):2774-2791.
+Authors' contributions 17. Viklund H, Elofsson A: Best alpha-helical transmembrane pro-
+tein topology predictions are achieved using hidden Markov
+All four authors have contributed significantly to this
+models and evolutionary information. Protein Sci 2004,
+work. MG has developed the algorithm, NB and RR pro- 13(7):1908-1917.
+18. Rost B, Casadio R, Fariselli P, Sander C: Transmembrane helices
+vided direction for computational aspects of the algo-
+predicted at 95% accuracy. Protein Sci 1995, 4(3):521-533.
+rithm and JKS provided insights into the biological/ 19. Cao B, Porollo A, Adamczak R, Jarrell M, Meller J: Enhanced recog-
+biophysical aspects of membrane protein structure. Man- nition of protein transmembrane domains with prediction-
+based structural profiles. Bioinformatics 2006, 22(3):303-309.
+uscript has been prepared by MG and JKS and has been
+20. Eyre TA, Partridge L, Thornton JM: Computational analysis of
+read and approved by NB and RR. alpha-helical membrane protein structure: implications for
+the prediction of 3D structural models. Protein Eng Des Sel 2004,
+17(8):613-624.
+Acknowledgements 21. Pilpel Y, Ben-Tal N, Lancet D: kPROT: a knowledge-based scale
+This work was supported by the National Science Foundation grants for the propensity of residue orientation in transmembrane
+EIA0225656, EIA0225636, CAREER CC044917 and National Institutes of segments. Application to membrane protein structure pre-
+diction. J Mol Biol 1999, 294(4):921-935.
+Health grant LM07994-01.
+22. Ganapathiraju M, Klein-Seetharaman J, Balakrishnan N, Reddy R:
+Characterization of protein secondary structure using latent
+This article has been published as part of BMC Bioinformatics Volume 9 Sup- semantic analysis. IEEE Signal Processing magazine 2004,
+plement 1, 2008: Asia Pacific Bioinformatics Network (APBioNet) Sixth 21(3):78-87.
+23. Chen CP, Rost B: Long membrane helices and short loops pre-
+International Conference on Bioinformatics (InCoB2007). The full contents
+dicted less accurately. Protein Sci 2002, 11(12):2766-2773.
+of the supplement are available online at http://www.biomedcentral.com/ 24. Ikeda M, Arai M, Lao DM, Shimizu T: Transmembrane topology
+1471-2105/9?issue=S1. prediction methods: a re-assessment and improvement by a
+consensus method using a dataset of experimentally-charac-
+References terized transmembrane topologies. In Silico Biol 2002,
+2(1):19-33.
+1. Wallin E, von Heijne G: Genome-wide analysis of integral mem- 25. Melen K, Krogh A, von Heijne G: Reliability measures for mem-
+brane proteins from eubacterial, archaean, and eukaryotic brane protein topology prediction algorithms. J Mol Biol 2003,
+organisms. Protein Sci 1998, 7(4):1029-1038. 327(3):735-744.
+2. Tseitin VM, Nikiforovich GV: Isolated transmembrane helices 26. Cuthbertson JM, Doyle DA, Sansom MS: Transmembrane helix
+arranged across a membrane: computational studies. Protein prediction: a comparative evaluation and analysis. Protein Eng
+Eng 1999, 12(4):305-311. Des Sel 2005, 18(6):295-308.
+3. Treutlein HR, Lemmon MA, Engleman DM, Brunger AT: Simulation 27. Krogh A, Larsson B, von Heijne G, Sonnhammer EL: Predicting
+of helix association in membranes: modeling the glycophorin transmembrane protein topology with a hidden Markov
+A transmembrane domain. System Sciences, 1993, Proceeding of model: application to complete genomes. J Mol Biol 2001,
+the Twenty-Sixth Hawaii International Conference on: 1993 1993, 305(3):567-580.
+701:708-714. 28. Hurwitz N, Pellegrini-Calace M, Jones DT: Towards genome-scale
+4. Filizola M, Perez JJ, Carteni-Farina M: BUNDLE: a program for structure prediction for transmembrane proteins. Philos Trans
+building the transmembrane domains of G-protein-coupled R Soc Lond B Biol Sci 2006, 361(1467):465-475.
+receptors. J Comput Aided Mol Des 1998, 12(2):111-118. 29. Kernytsky A, Rost B: Static benchmarking of membrane helix
+5. Ott CM, Lingappa VR: Integral membrane protein biosynthesis: predictions. Nucleic Acids Res 2003, 31(13):3642-3644.
+why topology is hard to predict. J Cell Sci 2002, 115(Pt 30. Hirokawa T, Boon-Chieng S, Mitaku S: SOSUI: classification and
+10):2003-2009. secondary structure prediction system for membrane pro-
+6. Kihara D, Shimizu T, Kanehisa M: Prediction of membrane pro- teins. Bioinformatics 1998, 14(4):378-379.
+teins based on classification of transmembrane segments. 31. Cserzo M, Wallin E, Simon I, von Heijne G, Elofsson A: Prediction
+Protein Eng 1998, 11(11):961-970. of transmembrane alpha-helices in prokaryotic membrane
+7. Sugiyama Y, Polulyakh N, Shimizu T: Identification of transmem- proteins: the dense alignment surface method. Protein Eng
+brane protein functions by binary topology patterns. Protein 1997, 10(6):673-676.
+Eng 2003, 16(7):479-488.
+Page 15 of 16
+(page number not for citation purposes)
+BMC Bioinformatics 2008, 9(Suppl 1):S4 http://www.biomedcentral.com/1471-2105/9/S1/S4
+32. Cserzo M, Eisenhaber F, Eisenhaber B, Simon I: TM or not TM:
+transmembrane protein prediction with low false positive
+rate using DAS-TMfilter. Bioinformatics 2004, 20(1):136-137.
+33. Jayasinghe S, Hristova K, White SH: MPtopo: A database of mem-
+brane protein topology. Protein Sci 2001, 10(2):455-458.
+34. Tusnady GE, Dosztanyi Z, Simon I: PDB_TM: selection and mem-
+brane localization of transmembrane proteins in the protein
+data bank. Nucleic Acids Res 2005:D275-278.
+35. TMHMM 1.0 model [http://www.binf.ku.dk/~krogh/TMHMM/
+TMHMM1.0.model]
+36. Landauer T, Foltx P, Laham D: Introduction to Latent Semantic
+Analysis. Discourse Processes 1998, 25:259-284.
+37. Rost B, Fariselli P, Casadio R: Topology prediction for helical
+transmembrane proteins at 86% accuracy. Protein Sci 1996,
+5(8):1704-1718.
+38. Hollier MJ, Dimmock NJ: The C-terminal tail of the gp41 trans-
+membrane envelope glycoprotein of HIV-1 clades A, B, C,
+and D may exist in two conformations: an analysis of
+sequence, structure, and function. Virology 2005,
+337(2):284-296.
+39. Bellegarda J: Exploiting Latent Semantic Information in Statis-
+tical Language Modeling. Proceedings of the IEEE 2000,
+88(8):1279-1296.
+40. Rabiner L, Juang B-H: Fundamentals of Speech Recognition.
+Pearson Education POD; 1993.
+41. Haykin S: Neural networks: A comprehensive foundation. 2nd
+edition. Prentice Hall; 1998.
+42. Franc V, Hlavac V: Statistical pattern recognition toolbox for
+MATLAB. 2004 [http://cmp.felk.cvut.cz/cmp/software/stprtool/
+index.html].
+43. Nabney IT: Netlab neural network toolbox: http://
+www.ncrg.aston.ac.uk/netlab/ (Electronic resourcce). Neural
+Computing Research Group, Aston University Birmingham, UK.
+44. Murphy KB: Bayes Net Toolbox for MATLAB, http://
+www.cs.ubc.ca/~murphyk/Software/BNT/bnt.html (Elec-
+tronic resource). .
+Publish with BioMed Central and e very
+scientist can read your work free of charge
+"BioMed Central will be the most significant development for
+disseminating the results of biomedical research in our lifetime."
+Sir Paul Nurse, Cancer Research UK
+Your research papers will be:
+available free of charge to the entire biomedical community
+peer reviewed and published immediately upon acceptance
+cited in PubMed and archived on PubMed Central
+yours — you keep the copyright
+Submit your manuscript here: BioMedcentral
+http://www.biomedcentral.com/info/publishing_adv.asp
+Page 16 of 16
+(page number not for citation purposes)

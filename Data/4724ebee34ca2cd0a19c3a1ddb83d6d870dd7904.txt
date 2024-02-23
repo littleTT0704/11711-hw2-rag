@@ -1,0 +1,1941 @@
+Few-shot Learning with Multilingual Generative Language Models
+XiVictoriaLin,TodorMihaylov,MikelArtetxe,TianluWang,ShuohuiChen,DanielSimig,
+**
+MyleOtt,NamanGoyal,ShrutiBhosale,JingfeiDu,RamakanthPasunuru,SamShleifer,
+PunitSinghKoura,VishravChaudhary,BrianO’Horo,JeffWang,
+LukeZettlemoyer,ZornitsaKozareva,MonaDiab,VeselinStoyanov,XianLi
+*
+MetaAI
+Abstract the training data of GPT-3 contains a small per-
+centage of non-English text (7%) allowing it to
+Large-scalegenerativelanguagemodelssuch achievesomepromisingcross-lingualgeneraliza-
+as GPT-3 are competitive few-shot learners.
+tion,themodelisalmostexclusivelydeployedfor
+While these models are known to be able to
+use cases in English. Multilingual masked and
+jointlyrepresentmultiplelanguages,theirtrain-
+sequence-to-sequencelanguagemodelshavebeen
+ingdataisdominatedbyEnglish, potentially
+studied, including mBERT, XLM-R, mT5, and
+limitingtheircross-lingualgeneralization. In
+thiswork,wetrainmultilingualgenerativelan- mBART(Devlinetal.,2019;Conneauetal.,2020;
+guagemodelsonacorpuscoveringadiverse Xue et al., 2020; Fedus et al., 2021; Goyal et al.,
+setoflanguages,andstudytheirfew-andzero- 2021a; Liu et al., 2020). These models are typi-
+shot learning capabilities in a wide range of
+callyfine-tunedonlargeamountoflabeleddatain
+tasks. Our largest model with 7.5 billion pa-
+downstreamtasks. Despitenotablerecentworkat
+rameters sets new state of the art in few-shot
+smaller scales (Zhao and Schu¨tze, 2021) and for
+learning in more than 20 representative lan-
+domain-specific tasks (Winata et al., 2021), the
+guages, outperforming GPT-3 of comparable
+size in multilingual commonsense reasoning multilingualfew-shotlearningcapabilitiesoflan-
+(with +7.4% absolute accuracy improvement guagemodelsarelesswellunderstood.
+in 0-shot settings and +9.4% in 4-shot set-
+Inthispaper,wetrainfourmultilingualgenera-
+tings)andnaturallanguageinference(+5.4%
+tivelanguagemodels(upto7.5billionparameters),
+ineachof0-shotand4-shotsettings). Onthe
+XGLM’s, and present a comprehensive study of
+FLORES-101machinetranslationbenchmark,
+multilingualzero-andin-contextfew-shotlearning.
+ourmodeloutperformsGPT-3counterpartson
+171outof182directionswith32trainingex- Wetrainthemodelsusingalarge-scalecorpusof
+amples, while surpassing the official super- 500Btokensthatcomprises30diverselanguages,
+vised baseline in 45 directions. We conduct up-samplingtheless-resourcedlanguagestoren-
+an in-depth analysis of different multilingual deramorebalancedlanguagerepresentation. We
+prompting approaches, showing in particular
+evaluatethemodelsonmultiplemultilingualnatu-
+thatstrongin-contextfew-shotlearningperfor-
+rallanguageunderstanding(NLU)tasks,machine
+mance across languages can be achieved via
+translation and a subset of English tasks demon-
+cross-lingual transfer through both templates
+anddemonstrationexamples.1 stratedinBrownetal.(2020).
+We found XGLM demonstrate strong cross-
+1 Introduction lingual capability where using English prompts
+togetherwithnon-Englishexamplesyieldscompet-
+Large autoregressive language models such as
+itivezero-andfew-shotlearningperformance. Our
+GPT-3 can be adapted, via few- and zero-shot
+largest model (XGLM ) achieves strong zero-
+7.5B
+learning, to a wide range of tasks with signifi-
+and few-shot learning performance on language
+cantlylesscostthanfullfine-tuning(Brownetal.,
+completionandinferencetasks(e.g. XStoryCloze:
+2020;Bommasanietal.,2021). Thesemodelshave
+65.4%0-shot,66.5%4-shot;XNLI:46.3%0-shot,
+been primarily developed for English. Although
+47.3% 4-shot). It also establishes a new state-of-
+* Equal contribution. Correspondence to: the-art on few-shot machine translation across a
+victorialin@meta.com,xianl@meta.com . large number of language pairs in the FLORES-
+⟨ ⟩
+1Ourcheckpoints,codeandnewdataset(XStoryCloze):
+101benchmark(Goyaletal.,2021b),significantly
+https://github.com/facebookresearch/
+fairseq/tree/main/examples/xglm. outperformingtheGPT-3modelofcomparablesize
+9019
+Proceedingsofthe2022ConferenceonEmpiricalMethodsinNaturalLanguageProcessing,pages9019-9052
+December7-11,2022©2022AssociationforComputationalLinguistics
+(6.7billionparameters). Ontheotherhand,mul- atedthroughunigramlanguagemodeling(Kudo,
+tilingualpre-trainingcausesperformancedropon 2018),usingtheSentencePiecelibrary(Kudoand
+English. On 8 English NLU tasks, XGLM Richardson, 2018). We train the unigram-LM
+7.5B
+underperforms GPT-3 by 10.9% on average modelusing10millionsentencesrandomlysam-
+6.7B
+in zero-shot learning. GPT-3 also surpasses pledfromthefiltereddata,accordingtothemulti-
+6.7B
+XGLM inmachinetranslationamongseveral nomialdistributiondefinedinLampleandConneau
+7.5B
+high-resourcelanguagepairs,includingWMT-14 (2019)with𝛼 = 0.3.
+en fr,WMT-16en deandWMT-19en zh.
+↔ ↔ ↔
+2.2 ModelsandTraining
+We conduct an in-depth analysis of different
+multilingualpromptingapproachesbyexamining We train decoder-only causal language models
+cross-lingualtransferthroughtemplateanddemon- withtheTransformerarchitecturesimilartoGPT-3
+strationexamplesrespectively. Weshowthenon- (Brown et al., 2020). This allows us to study the
+Englishpromptssometimesyieldunexpectedlow effect of scaling up model size along both width
+zero-andfew-shotlearningaccuracyevenifthey and depth dimensions. As a result, we compare
+are crafted by native speakers (§4.3). Both using fourmodelswith564M,1.7B,2.9Band7.5Bpa-
+the English template (§4.4) and adding demon- rameters,respectively. Thearchitecturedetailsare
+stration examples (§4.5) provide effective rem- summarized in Table 1. Our models match that
+edy. However,usingdemonstrationexamplesfrom ofGPT-3models3 exceptwiththeadditionalem-
+another language often cannot further improve beddingparametersfromalargervocabulary. All
+thezero-shotlearningperformancewhenastrong modelsaretrainedforupto500Btokens,withcon-
+promptinglanguage(e.g. Engilsh)isused,which textlengthof2048tokens. Furthertrainingdetails
+indicates room for improvement in cross-lingual aredescribedinAppendixA.
+pre-trainingandin-contexttransferapproaches.
+GPT-3 XGLM
+2 ModelsandPre-trainingData
+size 𝑙 ℎ size 𝑙 ℎ
+125M 12 768 —
+2.1 Pre-trainingData
+355M 24 1024 564M 24 1024
+Languageselectionandpre-processing. Weex- 760M 24 1536 —
+tendthepipelineusedforminingtheCC100cor- 1.3B 24 2048 1.7B 24 2048
+2.7B 32 2560 2.9B 48 2048
+pus(Conneauetal.,2020;Wenzeketal.,2020)to
+6.7B 32 4096 7.5B 32 4096
+generateCC100-XL,asignificantlylargermulti-
+lingualdatasetcovering68CommonCrawl(CC)
+Table1: Modeldetails. size: numberofparameters,𝑙:
+snapshots (from Summer 2013 to March/April
+layers,ℎ: hiddendimension. Modelswithinthesame
+2020)and134languages. Ourpretrainingdatain-
+rowhavecomparablesizes.
+clude30languagescovering16languagefamilies.
+The natural data distribution is skewed with the
+numberofEnglishtokensbeing6timesthatofthe 3 MultilingualIn-contextLearning
+secondlargestlanguage. Followingpreviouswork
+We measure the performance of our multilingual
+onmultilingualpre-training(Conneauetal.,2020;
+languagemodelsondownstreamtasksindifferent
+Liuetal.,2020),weup-sampledthemediumand
+languagesgiventhetasksandfew-shotdemonstra-
+lowresourcelanguagestocreateamorebalanced
+language distribution (Appendix F.1).2 Figure 1 tionsspecifiedviapromptswithoutfurtherparam-
+eterupdates(AppendixB).
+showsthelanguagedistributionofourpre-training
+databefore(blue)andafter(green)up-sampling.
+3.1 MultilingualandCross-lingualPrompting
+Jointsub-wordvocabulary. Weprocessalllan- Previous work on English in-context learning
+guages with a joint vocabulary of size 250k cre- has shown that performance heavily depends on
+2Weinadvertentlyover-sampledsomeofthelessresourced 3For XGLM 2.9B we used the optimal depth-to-width
+languageswhichisreflectedinthestatisticsofko,fi,th,bg, parameterallocationforGPT-3architecturesbasedonrank
+ca,hi,etlanguages,asshowninFigure1.Wedidnotablate bottleneckanalysis(Levineetal.,2020). Thisallocationis
+theeffectofthismistakeduetotheextremecomputational expectedtohaveimprovedtrainingefficiency.However,itdid
+cost. Studyingoptimallanguagebalancingisanimportant notconvergeforXGLM7.5Binourexperiments,andwefell
+areaforfuturework. backtotheoriginalGPT-3setup.
+9020
+1013
+# of tokens in XGLM pre-training data
+1011
+109
+107
+105
+en ru zh de es fr ja it pt el ko fi id tr ar vi th bg ca hi et bn ta ur sw te eu my ht qu
+10%
+XGLM pre-training and pre-sharding (en: 49.0%)
+8% XGLM pre-training and post-sharding(en: 32.6%)
+GPT-3 pre-training and pre-sharding (en: 92.6%)
+5%
+2%
+0%
+en ru zh de es fr ja it pt el ko fi id tr ar vi th bg ca hi et bn ta ur sw te eu my ht qu
+Figure1: The%ofeachlanguage𝑙(𝑙 = 1,2,...,30)inXGLM’spre-trainingdatapre-upsampling(blue),post-
+upsampling(green),anditscorresponding%inGPT-3’strainingdata(orange). Wetruncatethey-axisat10%to
+bettervisualizethetaildistribution.
+TaskCategory Dataset Template CandidateVerbalizer
+cause:{Sentence 1}because[Mask]
+XCOPA
+effect:{Sentence 1}so[Mask]
+Reasoning Identity
+XStoryCloze {Context}[Mask]
+XWinograd {Context}(with’_’replacedby[Mask])
+NLI XNLI {Sentence 1},right?[Mask],{Sentence 2} Entailment:Yes|Neural:Also|Contradiction:No
+Paraphrase PAWS-X {Sentence 1},right?[Mask],{Sentence 2} True:Yes|False:No
+Translation WMT,FLORES-101 {Source sentence}=[Mask] Identity
+Table2: Handcrafted(English)promptsformultilingualnaturallanguageunderstandingandtranslationtasks.
+the prompt construction, and it is challenging competitive,asaresultofthecross-lingualcapa-
+to find the optimal prompt for a given language bilityofthemodelafterbeingtrainedonadiverse
+model(Gaoetal.,2021;Perezetal.,2021). This setoflanguages.
+problemisfurthercomplicatedinthemultilingual
+setting,whereweneedtofindtheoptimalprompts 3.2 LearningfromCross-lingual
+forexamplesindifferentlanguages. Demonstrations
+In this work, we consider three approaches for Thecross-lingualnatureofmultilinguallanguage
+obtainingthepromptsfornon-Englishtasks. models further enable the possibility of learning
+from a different language in context without pa-
+Handcrafting prompts. The first approach is
+rameterupdates. Todosowesimplyappendexam-
+to ask native speakers of the target language to
+ples from another language as the demonstration
+handcraft the prompts. Prompts created this way
+examplesinthelanguagemodelcontext. Suchca-
+areexpectedtohavethemostnaturalsurfaceform.
+pabilityenablescheaptransferfromhigh-resource
+However,languageexpertiseisexpensiveandwe
+languagestothelow-resourcetargetlanguages.
+furtherconsidertwoalternatives.
+4 ExperimentsandResults
+TranslatingfromEnglishprompts. Weassume
+high-qualitypromptsofataskcanbeeasilysourced
+4.1 Tasks
+inEnglish(Sanhetal.,2021;Mishraetal.,2021).
+Non-verbal prompts do not contain words in any Weevaluatethezero-shotandin-contextfew-shot
+particularlanguage(e.g. theStoryClozeandWMT learningcapabilities(Brownetal.,2020)ofXGLM
+promptsshowninTable2),whileverbalprompts onaspectrumofdownstreamtasks(Table4).
+have different realizations in different languages
+Multilingualtasks. Weselectfourmultilingual
+(Table3). Ifthepromptisnon-verbal,wesimply
+tasksspanningcommonsensereasoning(XCOPA),
+apply it to the other languages. If the prompt is
+anaphora resolution (XWinograd), natural lan-
+verbal,wetranslateitintotheotherlanguagesusing
+guageinference(XNLI)andparaphrasing(PAWS-
+automatictranslationAPIs.
+X). We also created a new dataset, XStoryCloze,
+Cross-lingualprompting. Weconsiderthethird byprofessionallytranslatingthevalidationsplit4 of
+approachwhichdirectlyappliesthepromptsinEn-
+4Wefurthersplitthetranslateddataintotrainandtest(20%
+glish(oranotherhigh-resourcelanguage)tonon-
+vs.80%,respectively)foreachlanguage,keepingtheparallel
+Englishexamples. Weexpectthisapproachtobe sentencemappinginbothsplits.
+9021
+)elacs
+gol(
+snekot
+fo
+#
+)iegaugnal(rP %0.94 %6.23
+%6.29
+CandidateVerbalizer
+Task Lang Template
+Entailment Contradiction Neutral
+en {Sentence 1},right?[Mask],{Sentence 2} Yes No Also
+XNLI zh {Sentence 1}[Mask]，{Sentence 2} 由此可知， 所以，不可能 同时，
+es {Sentence 1},¿verdad?[Mask],{Sentence 2} Sí No Además
+en cause:{Sentence 1}because[Mask]|effect:{Sentence 1}so[Mask]
+XCOPA Identity
+zh cause:因为[Mask]，所以{Sentence 1}|effect:因为{Sentence 1}，所以[Mask]
+Table3: Handcraftedmultilingualprompts. English(en),Chinese(zh)andSpanish(es)forXNLI;English(en)and
+Chinese(zh)forXCOPA.
+TaskCategory Task Train Dev Test Non-EnSets Lang.
+| | | | | | | |
+XStoryCloze 361 – 1,511 translations 11
+♠
+Reasoning XCOPA (Pontietal.,2020a) 33,410+400 100 500 translations 11
+♠
+XWinograd(TikhonovandRyabinin,2021) – – 2,325† translations 6
+NLI XNLI (Conneauetal.,2018) – 2,490 5,010 translations 15
+♠
+Paraphrase PAWS-X(Yangetal.,2019) – 2,000 2,000 translations 7
+Table 4: Multilingual tasks used in our few-shot learning evaluation. All tasks use accuracy as the evaluation
+metrics. : InXWinograd,eachlanguagehasdifferentnumberoftestexamples: en: 2,325,jp: 959,ru: 315,pt:
+†
+263. : WeusetheCOPAreleaseinSuperGLUE(Wangetal.,2019). : Held-outtasks.
+‡
+♠
+theEnglishStoryClozedataset(Spring2016ver- multilingualtaskswithnoadditionalcalibrationor
+sion) to 10 other typologically diverse languages normalization. AppendixC.2detailstheselection.
+(ru, zh Simplified, es Latin American, ar, hi, id,
+te,sw,eu,my)5. Inaddition,weevaluateourmod- Few-shot learning evaluation. We focus on
+elsonmachinetranslation(§4.8)andmultilingual benchmarking the 0- and 4-shot learning perfor-
+socialvaluetasks(AppendixE.1). manceofthemodelsonalltasks. Forcross-lingual
+demonstration(§4.5),scalinglaw(§4.9)andtrans-
+Englishtasks. Wealsoevaluateourmodelson
+lation(§4.8)wealsoreported1-shotand32-shot
+EnglishcommonsensereasoningandQA,asubset
+performance. Wereporttheaverageresultsacross5
+of benchmark tasks used by Brown et al. (2020),
+runs,randomlysamplingadifferentsetoffew-shot
+and compare the performance to state-of-the-art
+exampleseachtime. Withoutfurtherspecification,
+English-centric few-shot learning models. The
+we use few-shot examples in the same language
+tasksaredetailedinTableA1.
+as the target example. Appendix C.3 details our
+completeevaluationprotocol.
+4.2 Setup
+Scoring function and calibration. We follow
+4.3 ComparingPromptingApproaches
+the guidelines suggested by Perez et al. (2021)
+andadoptacross-taskgeneralizationsetting(Tri- Wefirstcomparedifferentmultilingualprompting
+antafillouetal.,2020)toselectourscoringfunc- approachesproposedin§3.1usingXGLM 7.5B on
+tion. We reserve three held-out tasks (XNLI, XNLI and XCOPA6. Native speakers among the
+XCOPAandXStoryCloze)toperformtheselection authorshandcrafted7 thepromptsforthefollowing
+basedontheirdevelopmentsetperformance,and tasks: XNLI (en, zh, es and hi) and XCOPA (en,
+directlyapplytheselectedsettingstotherestofthe zh), as shown in Table 3. We compare the per-
+tasks. In the end, we use the averaged per-token formanceofthesehuman-writtenpromptstoEn-
+log-probabilities ignoring the common prefix of glish prompts, machine-translated (MT) prompts
+differentcandidatesasthescoringfunctionforall andhuman-translated(HT)prompts.
+Table5and6showtheperformanceofdifferent
+5ForallofourmultilingualNLUdatasets,thenon-English
+sectionsofthedataare(professionally)translatedfromtheEn-
+glishsection.Despitebeingthedominantapproachadoptedby 6TheoriginalXCOPArelease(Pontietal.,2020b)does
+thecommunity(Ruderetal.,2021),itwaspreviouslyshownto notcontaintheEnglishsection.WeaddedtheEnglishrelease
+introducedataartifactsthatinflatethemeasuredcross-lingual fromSuperGLUE(Wangetal.,2019)tofacilitatecross-lingual
+transferofmodels(Artetxeetal.,2020).Weleavecollecting experiments.
+nativemultilingualdatasetsthatincludenon-Englishdataas 7Thenativespeakerswereinstructedtocreateaprompt
+futurework,andstronglyencouragethecommunitytoalso thatconvertthetaskintoanaturalcloze-stylequestionintheir
+adoptthispractice. nativelanguagewithnofurtherrestrictions.
+9022
+Temp. en zh es hi Avg usingtheSpanishpromptyieldscompetitive0-and
+En(HW) 50.8/50.6 48.5/47.7 37.5/44.4 44.0/45.5 45.2/47.0 4-shotperformanceacrossalllanguages,withthe
+Zh(HW) 33.5/35.5 33.5/36.4 34.5/34.8 36.0/34.0 34.4/35.1 4-shot average performance being comparable to
+Es(HW) 39.2/49.9 44.8/45.3 46.2/48.2 41.5/43.5 42.9/46.7
+Hi(HW) 45.0/43.5 39.5/41.0 34.2/40.5 36.2/40.5 38.8/41.4 that of the English template. The Hindi template
+Multi.(HW) 50.8/50.6 33.5/36.4 46.2/48.2 36.2/40.5 41.7/43.9 also achieves significantly above random perfor-
+Multi.(MT) 50.8/50.6 35.8/39.5 36.5/45.0 41.0/39.9 41.0/43.8
+manceontheXNLItasksformostlanguages(espe-
+Multi.(HT) 50.8/50.6 38.5/41.2 46.0/48.1 37.5/38.9 43.1/44.7
+ciallyen). TheChinesetemplate,however,achieves
+Table5: 0/4-shotperformanceofXGLM ,evaluated close-to-randomperformanceforalllanguageson
+7.5B
+onthefirst400examplesofXNLI(developmentsetin XNLI,aswellasclose-to-randomforThai(0-shot)
+en,zh,esandhi)usingdifferentpromptingapproaches.
+andSwahili(0-shot)onXCOPA.Wehypothesize
+Top: eachtargetlanguageispromptedbythelanguage
+that the common sub-tokens and the amount of
+specifiedincolumn1. Bottom: eachtargetlanguageis
+code-switchingtextinthepre-trainingdataplaya
+promptedbyitself. HW:human-written. MT:machine-
+significantroleinenablingcross-lingualprompt-
+translated. HT:human-translated.
+ing. Andingeneral,high-resourcelanguageswith
+largeamountsofpre-trainingdataandvocabulary
+Temp. en zh th sw Avg
+overlapwithotherlanguagesactasbetteruniversal
+En(HW) 69.0/73.2 63.0/66.8 53.0/57.4 54.0/58.2 59.8/63.9
+Zh(HW) 63.0/71.0 69.0/67.6 50.0/57.8 47.0/54.2 57.2/62.6 promptinglanguages. Weleaveamoresystematic
+Multi.(HW) 69.0/73.8 69.0/67.6 – – – verificationofthishypothesistofuturework.
+Multi.(MT) 69.0/73.8 62.0/68.4 48.0/56.6 51.0/60.2 57.5/64.8
+Table6: 0/4-shotperformanceofXGLM ,evaluated 4.5 Cross-lingualTransferthrough
+7.5B
+onXCOPA(developmentsetinen,zh,thandsw). DemonstrationExamples
+We examine the capabilities of learning from
+promptingapproaches8. Englishtemplatesperform cross-lingual demonstration examples (§3.2) of
+thebestonaverageacrosslanguagesforbothtasks XGLM on XNLI. We examine two settings
+7.5B
+except for the 4-shot setting of XCOPA, where it foreachtrain-evallanguagepair: same-language-
+slightlyunderperformsthemachinetranslatedtem- prompting, where the prompt templates and the
+plates. On the XNLI task, the English template example are in the same language, and source-
+significantlyimprovestheperformanceofChinese languauge-promptingwheretheprompttemplates
+(zh)andHindi(hi)overtheirnativetemplatesand for both the demo and test examples are in the
+translatedtemplates. Similartrendsareobserved source language. We use the human-translated
+for Thai (th) and Swahili (sw) on XCOPA9. For promptsforsame-language-prompting.
+both tasks there exist languages where the native Table 7 shows results on a subset of language
+templates strongly outperforms the English tem- pairsofXNLI,whereweevaluatetransferthrough
+plates (Spanish (es) for XNLI and Chinese for demonstration examples from in-context demon-
+XCOPA), indicating significant room for future strationexamplesfromhigh-resourcelanguagesto
+workonlanguage-specificpromptengineering. lower-resourcedones,andbetweenlanguagesthat
+aretypologicallysimilar. Wereportthedifference
+4.4 Cross-lingualTransferthroughTemplates
+between the 32-shot learning results and the 0-
+We further examine if the ability of universal shotlearningresults. Thenon-Englishtemplatesin
+promptingisEnglishspecific,andinaddition,what thisexperimentareobtainedviahuman-translation.
+characterizealanguagepairforwhichcross-lingual Whiletheytypicallyunderperformthein-language
+prompting can work. To this end, we apply each few-shot setting (Figure A2), most cross-lingual
+ofthehuman-writtennon-Englishtemplatestothe few-shotsettingssignificantlyimproveoverthe0-
+restofthelanguages. AsshowninTable5and6, shot setting for the target language. Bulgarian is
+an exception as it does not benefit from Russian
+8AppendixD.1providesthecomparisonbetweenEnglish
+despite being in the same language family. An-
+promptsandtheMTandHTpromptsonthecompletedevsets
+otherlanguagethatdoesnotworkwellinthecross-
+ofXNLIandXCOPA.
+9The strong performance of English templates may be lingualsettingsisSwahili(lowresource),forwhich
+partiallycontributedtothefactthatthenon-Englishevaluation weexaminedtransferfromEnglish(highresource)
+data on XNLI and XCOPA are obtained from translation.
+and Arabic (medium resource). In contrast, Thai
+Testing how well the English templates perform on native
+non-Englishtestsetsisaninterestingfuturework. (medium) and Urdu (low resource) significantly
+9023
+high medium low
+en ru tr ar hi
+medium low medium low
+prompt bg el th tr vi hi sw ur bg ur sw ur
+Same-lang 2.55 0.98 2.16 1.27 2.23 2.51 -0.69 1.21 -2.49 -0.38 -1.64 3.31
+Source-lang -4.59 -2.44 7.87 -4.97 -1.08 2.01 -1.15 7.42 -1.43 6.67 -5.86 2.31
+Table7: Learningfromcross-lingualdemonstrationsonXNLI,evaluatedonthetestset. Theresultsaretheabsolute
+improvementoverthezero-shotperformancefortheevaluatedlanguageusinghuman-translatedprompts. Thefirst
+languagegroupreferstothesourcelanguageandthesecondonereferstothetargetlanguage. Same-langreferstoa
+settingtherethetemplateisintheexamplelanguageandsource-langreferstoasettingwherethetemplateisonlyin
+thesourcelanguage.
+Sourceprompt(instantiated) Targetprompt(instantiated)
+Same-lang ThebestthingthatmaybesaidofPodhoretzand Vâng,tôithậmchíkhôngnghĩvềđiềuđó,nhưngtôiđãrấtthất
+Decteristhattheirbiologicalclockscan’thavemany vọng,và,tôilạinóichuyệnvớianhtalầnnữa,đúngkhông?Đúng,
+moreminutesleftonthem,right?Yes,Decterisold. tôiđãkhôngnóichuyệnvớianhtanữa.
+Source-lang ThebestthingthatmaybesaidofPodhoretzand Vâng,tôithậmchíkhôngnghĩvềđiềuđó,nhưngtôiđãrấtthất
+Decteristhattheirbiologicalclockscan’thavemany vọng,và,tôilạinóichuyệnvớianhtalầnnữa,right?Yes,tôiđã
+moreminutesleftonthem,right?Yes,Decterisold. khôngnóichuyệnvớianhtanữa.
+Table8: XNLIexamplepromptsforcross-lingualtransferfromEnglish(en)toVietnamese(vi),withthesame-
+languageandsource-languagesettings. Theunderlinedtextshowstheverbalizedpartoftheprompt.
+benefitfromcross-lingualdemonstrations10. XGLM outperformsGPT-3 byalargemar-
+7.5B 6.7B
+We also observed the benefit of cross-lingual gin according to the average performance across
+transfer from demonstration examples is gener- languages, especially on medium, low and ex-
+ally canceled if a better prompt (e.g. the English tremelylowresourcelanguages. OnXNLI,GPT-
+prompt) is used for the target language. We re- 3 6.7B performs well on English and similar lan-
+port the crosslingual demonstration experiments guages,surpassingXGLM 7.5B onen,de(4-shot),
+betweenallpairsoflanguagesforXNLI,XCOPA es(4-shot), fr (0-shot). Apossibleexplanationis
+andXStoryClozeandprovidemorediscussionin that these languages have significant presence in
+AppendixD.2. the GPT-3 training data (fr: 1.8%, de: 1.5%, es:
+0.8%asshowninFigure1)andcanbenefitmore
+4.6 PerformanceonMulti-lingualTasks fromthelexicalcognatesfromEnglish.
+Using English as the universal prompting lan-
+guage, we characterize the zero- and few-shot Comparison to Translate-test Baseline. We
+alsocreateatranslate-testbaseline,wherewetrans-
+in-context learning capabilities of XGLM on
+7.5B
+latethenon-Englishexamplesofthemultilingual
+XNLI, XCOPA and XStoryCloze and compare
+taskstoEnglishusingtheGoogleCloudTransla-
+themtoEnglishcentriclanguagemodelsofcom-
+tion API12 and use GPT-3 repl., an in-house
+parablesize. 6.7B
+replicationofGPT-3 ,toperforminference. We
+6.7B
+ComparisontoGPT-3. WecompareXGLM foundthetranslate-testisastrongbaselineofmul-
+7.5B
+toGPT-3 onhigh,medium,lowandextremely tilingual zero- and few-shot learning as is shown
+6.7B
+low resources languages11. The results are sum- in Table 9 and 10. Across all three tasks, it sig-
+marized in Table 9 and 10. On all three tasks, nificantly narrows the performance gap between
+Englishandotherlanguages,especiallyonXNLI13.
+10BothThaiandUrduobtainedclose-to-randomzero-shot
+learningperformancesusingthetranslatedtemplates,which
+mightmakethemeasiertobefurtherimproved.Besides,there 12https://cloud.google.com/translate
+isinherentcodeswitchingintheselanguages(Englishpres- 13Theperformanceoftranslate-testbaselinesmightbein-
+enceinThaiandUrdubothlexicalandmorphological).Turk- flatedgivenMTsystemsareoftentrainedonbacktranslations
+ishandArabicalsohaveinfluenceonUrdu.Wehypothesize which makes it good at translating translationese (Edunov
+thatthesefactorsalsopositivelyimpactedthecross-lingual etal.,2019),whichcommonlyexistinnon-Englishevaluation
+in-contextlearningperformance. data. Besides, thetranslation-testapproachreliesonhigh-
+11We use GPT-3 Curie: https://blog.eleuther. quality machine translation (MT) systems trained on large
+ai/gpt3-model-sizes/ amountsofparalleldata.
+9024
+high medium low Avg.
+model #shot en de es fr ru zh ar bg el th tr vi hi sw ur
+GPT-36.7B 0 55.4 36.8 37.0 51.2 44.8 42.6 38.5 42.9 38.8 38.4 40.6 41.3 36.5 34.6 34.5 40.9
+4 53.0 46.4 48.5 48.3 44.3 45.8 38.2 41.7 42.1 36.8 38.7 42.3 34.3 33.7 34.5 41.9
+XGLM7.5B 0 55.3 42.3 39.1 50.8 48.4 44.8 48.1 49.1 46.4 46.8 45.5 47.6 43.4 45.5 41.9 46.3
+4 52.6 45.6 45.8 49.4 48.6 48.8 46.4 48.9 48.7 46.6 45.4 48.5 46.8 44.5 43.4 47.3
+Translate+GPT-36.7Brepl. 0 54.6 53.7 54.5 53.9 52.0 52.6 52.0 53.4 53.5 50.6 53.3 52.6 50.7 51.3 48.7 52.5
+4 54.1 52.4 49.2 50.3 53.2 51.1 50.5 53.7 53.0 48.2 51.8 52.8 49.8 50.2 47.2 51.2
+Table9: ComparisonofdifferentmodelsonXNLI.
+XStoryCloze XCOPA
+# high medium low ex-low Avg. high medium low ex-low Avg.
+model shot en es ru zh ar id hi sw te eu my zh id it th tr vi et sw ta ht qu
+GPT-36.7B 0 73.462.456.955.848.456.650.149.452.851.249.5 55.1 55.060.261.653.653.452.850.852.255.051.850.0 54.2
+4 74.462.256.454.747.755.449.649.352.851.149.5 54.8 57.860.864.554.252.954.851.852.054.951.549.7 55.0
+XGLM7.5B 0 75.068.171.066.658.370.160.965.061.762.360.7 65.4 62.466.660.856.856.861.461.657.656.257.047.4 58.6
+4 75.969.272.467.759.870.862.565.263.463.861.2 66.5 67.268.969.262.058.565.665.962.956.358.947.1 62.0
+Translate 0 81.275.675.472.971.571.270.570.066.970.572.7 72.6 75.073.276.053.872.472.272.463.867.265.0 -67.4†
++GPT-36.7Brepl. 4 82.675.075.373.171.872.071.671.068.472.272.0 73.2 78.575.880.657.773.776.073.667.269.967.0 -70.0†
+Table10: ComparisonofdifferentmodelsonXStoryClozeandXCOPA. GoogleTranslationAPIisnotavailable
+†
+forqu. Fortheaveragedtranslate-testresultswedirectlyusedtheGPT-3 repl. modelforquentry.
+6.7B
+4.7 PerformanceonEnglishTasks 4.8 PerformanceonMachineTranslation
+WealsobenchmarktheperformanceofXGLM We report machine translation results on popular
+7.5B
+on English tasks. Figure 2 shows the compari- WMTpairsinTable11,andasubsetofFLORES-
+sonbetweenXGLM ,GPT-3 andGPT-3 101 (Goyal et al., 2021b) in Table 12. We use
+7.5B 6.7B 6.7B
+repl. onasubsetofEnglishtasksusedbyBrown greedy decoding for both GPT-3 and our own
+etal.(2020). OurreplicationofGPT-3 ,GPT- model,andusethesame32examplesforfew-shot
+6.7B
+3 repl., performs better than or close to GPT- learningineachcase.
+6.7B
+3 onalltasks. WhileXGLM performscom- GPT-3yieldsstrongresultsonafewlanguages
+6.7B 7.5B
+petitively on all tasks, there remains a consider- that are best represented in its training data, nar-
+ableperformancegapcomparingtoGPT-3 and rowly surpassing our model on WMT French-
+6.7B
+GPT-3 repl.. On most tasks XGLM and English, German-English, and Chinese-English,
+6.7B 7.5B
+GPT-3 repl. showsimilarperformancetrendas aswellasafewpairstheFLORES-101set. GPT-
+6.7B
+𝑘 changes. Forexample,bothmodelsshowaper- 3isparticularlystrongwhenEnglishisthetarget
+formance dip at 1-shot on HellaSwag and PIQA, language,presumablyduetoitsstrongEnglishlan-
+and128-shotonCOPA. guagemodelingcapability. However,itdoespoorly
+TherearemultiplereasonswhyXGLM un- onthebroadersetofless-resourcedlanguages. For
+7.5B
+derperformsEnglishcentricmodelsontheEnglish instance,GPT-3failscompletelywhentranslating
+tasks. First, only 32.6% of XGLM ’s 500B- intoKorean,Arabic,Swahili,Hindi,Burmeseand
+7.5B
+tokentrainingdataisEnglishwhilebothEnglish- Tamil in FLORES-101, with a spBLEU score of
+centricmodelsaretrainedoncloseto300BEnglish 1.2inthebestcase.
+tokens. Second,themodelcapacityofXGLM In contrast, our model obtains solid results
+7.5B
+issharedby30languages,andthe“curseofmul- acrosstheboard. InadditiontosurpassingGPT-3
+tilinguality” can degrade the performance across in171outof182languagepairsintheFLORES-
+alllanguages(Conneauetal.,2020). Furtherscal- 101 set, our model is also competitive with the
+ing up the model capacity and training data can official supervised baseline for this dataset, even
+potentiallyclosethisgap. 14
+upsamplessuchhigh-qualitydata),XGLM istrainedsolely
+7.5B
+ondataextractedfromCommonCrawl.However,wedonot
+14Thedifferencesbetweenthetrainingcorporaofthethree expectthistobethemainimpactfactor. Scaoetal.(2022)
+models may have also contributed to the performance dif- conductedasimilarexperimentshowingthatamultilingual
+ference. While both English centric models incorporate model(1.3Bparameters)pre-trainedover13languagesalso
+high-qualityEnglishmonolingualcorporasuchasBookCor- significantlyunderperformsanEnglishmodeltrainedfrom
+pus(Zhuetal.,2019)intheirtrainingdata(GPT-3 also thesamedatasourceintermsofzero-shotgeneralization.
+6.7B
+9025
+Figure2: PerformanceonEnglishtasks. ForXGLM andGPT-3 repl.,weplottheconfidenceintervalfrom5
+7.5B 6.7B
+differentrunscorrespondingtodifferenttrainingsetswhen𝑘 >0. ForGPT-3 weusetheperformancereported
+6.7B
+byBrownetal.(2020).
+WMT-14 WMT-16 WMT-19 Avg.
+fr-en en-fr de-en en-de fi-en en-fi ru-en en-ru zh-en en-zh xx-en en-xx
+Ada 22.4 13.0 19.9 10.3 4.5 2.7 8.9 1.0 4.5 3.5 12.0 6.1
+GPT-3
+Babbage 29.8 22.4 30.5 16.9 12.3 5.4 20.8 4.1 12.3 9.1 21.1 11.6
+(API)
+Curie 35.3 28.7 36.1 23.7 18.4 9.9 28.6 9.8 17.6 17.4 27.2 17.9
+XGLM7.5B 33.2 28.5 34.6 23.5 20.2 15.5 29.3 18.7 16.7 17.4 26.8 20.7
+Table11: MachinetranslationresultsonWMT(detokenizedBLEU).Weuse32examplesfromthepreviousedition
+forfew-shotlearning. BLEUscorescomputedusingSacreBLEUwithdefaultsettings(Post,2018).
+en de fr ca fi ru bg zh ko ar sw hi my ta Avg.
+Supervised 24.0 21.0 20.4 19.1 17.5 18.6 20.2 15.5 14.9 16.1 16.6 16.2 7.2 4.8 16.6
+avgoutofxx GPT-36.7B 9.9 9.1 9.4 9.3 6.4 7.0 5.5 4.9 2.4 2.9 1.7 0.5 0.2 0.3 5.0
+XGLM7.5B 21.1 16.5 17.1 13.6 13.4 13.2 13.9 9.1 6.5 10.4 12.1 9.8 6.9 7.1 12.2
+Supervised 26.0 20.2 26.7 20.0 16.7 18.5 24.5 14.1 13.5 11.8 16.3 19.3 2.1 2.5 16.6
+avgintoxx GPT-36.7B 18.9 9.9 14.2 9.3 4.2 4.8 2.7 4.0 0.6 0.5 0.2 0.3 0.1 0.1 5.0
+XGLM7.5B 28.5 14.9 20.6 14.4 10.9 12.4 18.5 10.9 5.9 6.1 8.5 9.7 5.8 3.5 12.2
+Table12:MachinetranslationresultsonFLORES-101devtest(spBLEU).GPT-3 andXGLM use32examples
+6.7B 7.5B
+fromthedevsetforfew-shotlearning. SupervisedresultscorrespondtotheM2M-124615MmodelfromGoyal
+etal.(2021b). spBLEUcomputedusingtheimplementationfromGoyaletal.(2021b). FullresultsinAppendixD.3.
+surpassing it in 45 language pairs. This suggests grad),theperformanceofallmodelsincreasesas
+thatlarge-scalemultilinguallanguagemodelshave 𝑘 increases from 0 to 32. The performance gain
+agreatpotentialforbuildingmachinetranslation from demonstration examples also gets larger as
+systemsforlow-resourcelanguages,eveniflittleor the model size increases, indicating bigger mod-
+noparalleldataisavailable. elscanbetterleveragethein-contextexamples. On
+XNLI,theperformanceofallmodelsincreasesas𝑘
+4.9 ScalingupModelSize increasesfrom0to4,butdecreasesfor𝑘 at32and
+above. Withthesamenumberofdemonstrationex-
+Finally, we study the impact of scaling up the
+amples,largermodelsdonotalwaysbenefitmore.
+modelparametersizeonits0-andfew-shotlearn-
+PAWS-Xisataskwherein-contextlearningstrug-
+ingcapabilities. Figure3showstheperformance
+gles–theperformanceofallmodelsoscillatesnear
+(𝑘 = 0,4,32,128) of the four XGLM models
+random(50%)as𝑘 changes. Apossiblereasonis
+(564M,1.7B,2.9B,7.5B)onthefivemultilingual
+theadversarialnatureofPAWS-X,wherethepara-
+tasks. The𝑦-axisrepresentstheaverageaccuracy
+phrase and non-paraphrase pairs by design have
+acrosslanguagesforeachtask. Oncommonsense
+high lexical overlap. We expect scaling to be an
+reasoning tasks (XStoryCloze, XCOPA, XWino-
+9026
+(2021)evaluatesthein-contextfew-shotlearning
+abilitiesofseveralGPT-2,GPT andT5onthree
+NEO
+additional languages (de, es, fr) using multiple
+NLU tasks, considering monolingual prompts as
+well as cross-lingual prompts, demonstrating the
+multilingual in-context learning skills of the En-
+glish GPT and T5 models. Zhao and Schu¨tze
+(2021)evaluateddifferentfine-tuningandprompt-
+tuning (Liu et al., 2021) approaches on XLM-R
+and demonstrates the effectiveness of prompting
+in few-shot crosslingual transfer and in-language
+trainingofamultilingualmaskedlanguagemodel.
+Multilingual pre-training. Early multilingual
+pre-trainingworktrainwordembeddingsovermul-
+tilingual corpora (Mikolov et al., 2013). The
+multilingual versions of contextualized embed-
+ding models such as BERT (Devlin et al., 2019),
+RoBERTa(Liuetal.,2019),BART(Lewisetal.,
+2019) and T5 (Raffel et al., 2020) were also de-
+veloped: mBERT (Devlin et al., 2019), XLM-R
+(Conneauetal.,2020),mBART(Liuetal.,2020),
+and mT5 (Xue et al., 2020). Such models were
+Figure3: Zero-shotandin-languagefew-shotlearning trainedonasingle,multilingualtextcorpussuchas
+performanceasafunctionofmodelsize. Thelastplot mC4(Xueetal.,2020)orCC25(Liuetal.,2020).
+showstheaverageperformanceoverallfivetasksin0- Severalapproacheshavebeendevelopedtofa-
+and4-shotlearning. cilitatecross-lingualtransfer,includingsub-word
+tokenizerswhichenabledefficient,sharedvocabu-
+larylearningacrosslanguages(KudoandRichard-
+effectiverecipeforbuildingstrongermultilingual
+son, 2018), joint training for efficient knowledge
+languagemodels,giventhecurrenttrend.
+transferacrosslanguages(Piresetal.,2019;Jiang
+et al., 2020; Kassner et al., 2021), etc. A notable
+5 RelatedWork
+concurrentworkisBLOOM16,whichscalesmulti-
+Language model prompting. Brown et al. lingualpre-trainingto46languagesand175billion
+(2020)firstdemonstratedin-contextfew-shotlearn- parameters.
+ingusingtheGPT-3model. Thismethodremoves
+6 Conclusion
+theneedfortask-specificupdatestothemodelpa-
+rameters: the few-shot examples that one would Weintroducefourmultilingualgenerativelanguage
+normallyuseforfine-tuningareprovidedatinfer- models (XGLMs) at different scales, and study
+ence time to the same model for each task. On theirin-contextfew-andzero-shotlearningcapa-
+severalhigh-resourceLatinlanguagepairs,GPT-3 bilities. Weshowthatthefew-shotlearningcapa-
+achieves machine translation performance that is bilityofXGLMsteadilyimprovesasitscales. Our
+close to or better than state-of-the-art supervised largest model (7.5B parameters) sets a new state
+models,givenonlyahandfulofdemonstrationex- of the art for few-shot learning in more than 20
+amples.15 Such change in the learning paradigm languages (including mid- and low-resource lan-
+raisesnewquestionsaboutmultilinguality,which guages)oncommonsensereasoning,NLIandma-
+hasnotbeenstudiedasextensively. Winataetal. chinetranslationtasks. Anin-depthanalysisshows
+the models are highly cross-lingual, which leads
+15Studyshowsthatlanguagecontaminationinpre-training
+to strong few-shot learning performance in non-
+data can effectively boost the cross-lingual capability of
+English-centriclanguagemodels(BlevinsandZettlemoyer, Englishlanguages.
+2022).Withaheaviertailofdeliberatelyintroducedmultilin-
+gualdata,PALM-540B(Chowdheryetal.,2022)laterachieves 16https://bigscience.huggingface.co/
+evenstrongerfew-shotmachinetranslationperformance. blog/bloom
+9027
+Limitations modelwastrainedon54%oftheEnglishdata
+usedinEnglish-centricmodels);
+Although the multilingual language model is an
+importantsteptowardsbuildinginclusivegeneral-
+• Curse of multilinguality. Previous work in
+purpose foundation models, our current models
+multilingualtraininghasshownthatincreas-
+havethefollowinglimitations.
+ing the number of languages in model with
+shared parameters hurts performance on all
+TrainingData. Ourmodelsaretrainedonastatic
+training languages, e.g. English (Conneau
+multilingualcorpusextractedfromCommonCrawl,
+etal.,2020).
+with English text comprising 32.6% of the total
+numberoftokenscorrespondingto163Btokens.
+Additionalexperimentscontrollingforthesefactors
+TheEnglishdataportionofthecorpuscorresponds
+wouldshedmorelightontheobservedgap.
+toroughly54%onlyofGPT-3’strainingdata. We
+appliedseveraldatafilteringstrategiesasproxies Modelarchitectureandtrainingobjective. In
+fordataqualityassurance(seeacomprehensivelist thiswork,weonlyexperimentedwithcausallan-
+intheDataCardinAppendixF),suchasremoving guage models with a decoder-only architecture,
+duplicated documents and paragraphs by URLs, whichhadpreviouslydemonstratedpromisingfew-
+filteringoutparagraphswithhighratioofdigitsand shot learning capabilities (Brown et al., 2020).
+punctuation,removingparagraphswithprofanity, However,sucharchitectureandpretrainingobjec-
+filtering by max number of URLs and minimum tive do not leverage bidirectional context such as
+length, etc. Such filtering may potentially result thoseusedbymaskedlanguagemodels(MLM),or
+in bias of the remaining data used in pretraining, sequence-to-sequencearchitectureswithdenoising
+whichwouldneedfurtheranalysistounderstand. autoencoderpretrainingobjectives.
+Furthermore, therawdataweretakenfromstatic
+CommonCrawlsnapshots,whichmaynotinclude Modelevaluationviain-contextlearning. We
+entities and events beyond the time span of the compareourlanguagemodelstothebaselinespri-
+snapshots (till March 2020), such as COVID-19, marilyinthein-contextlearningparadigm,using
+etc. Assuchwealsonotethepotentialdifferencein the same prompts for all language models in the
+genresbetweenCommonCrawlandthegenresused comparison unless explicitly specified. Despite
+inGPT-3comprisinginadditiontoCommonCrawl, minimal effort engineering the prompts for any
+corporasuchasBookCorpusandWikipedia. model,itispossiblethatthepromptsworkbetter
+Moreover, GPT-3 is trained on 118 languages with some models than the others, which intro-
+despitethefactthat93%ofthedataisEnglish.17 ducesbiastotheevaluation. However,weexpect
+Incontrastourmodelsaretrainedon30languages this factor to have small impact and the relative
+afterrigorouslanguageidentificationandfiltering. strengthsofthemodelscanbereliablymeasured
+giventhevolumeoftaskstheywereevaluatedon.
+PerformanceonEnglishtasks. Asisshownin
+Section4.7andFigure2,ourmodelunderperforms Evaluation on social value tasks for more lan-
+English-centricmodelsoneighttasksrangingfrom guages. Weevaluateandanalyzethemodels’per-
+commonsensereasoningtoQA.Thereareseveral formanceonhatespeechdetectionandgenderbias
+factors which could be contributing to this gap, for professional occupations. These studies are
+suchas limited by the available evaluation datasets. We
+arelimitedinourstudyasweonlyinvestigatethis
+• Differenceintrainingdataquality(XGLMis problemspaceforsixlanguages(English,French,
+trainedonfilteredCommonCrawldataonly, Spanish,Italian,Portuguese,andPolish)wherea
+whiletheEnglish-centricmodelsaretrained majorityofthem(5)pertaintotheRomancelan-
+ondataincludingbothCommonCrawlaswell guagefamily. Itwouldbepertinenttoinvestigate
+ashigh-qualitycorporasuchasBookCorpus theimpactofmultilingualmodelsonsocialvalue
+andWikipedia)andquantity(asisdescribed tasks across a wider and more diversified set of
+in the previous paragraph, the multilingual languagesbeforedrawingsolidconclusions. More-
+over, we contend that studies on other tasks such
+17https://github.com/openai/gpt-3/blob/
+asstereotype(Nangiaetal.,2020;Nadeemetal.,
+master/dataset_statistics/languages_by_
+word_count.csv 2021),ethics(Hendrycksetal.,2020)wouldpro-
+9028
+videamorecomprehensiveviewofmodelbehavior duetotheinherentexpenseofobtaininghighqual-
+forsocialvaluetasks. ityannotateddata.
+EthicalConsiderations TransparencyandAccountability. Inthespirit
+oftransparencyandaccountabilityforlarge-scale
+Devisingmultilingualpre-trainedlanguagemodels
+languagemodelingweincludedetailedmodelcard
+canserveasapowerfultoolintheNLParsenalfor
+anddatacardwiththemodelandpaperrelease.
+multiplereasons.
+Energyandmaintenanceefficiency. Froman
+References
+engineeringperspective,XGLMpertainstoafam-
+ilyofmodelsthatrepresentsingleunifiedmodels MikelArtetxe,GorkaLabaka,andEnekoAgirre.2020.
+Translationartifactsincross-lingualtransferlearning.
+catering to many languages which have wide ap-
+InProceedingsofthe2020ConferenceonEmpirical
+plicationacrossmanyapplications. Suchaunified MethodsinNaturalLanguageProcessing,EMNLP
+singlemodelsavesoncarbonfootprintaswellas 2020,Online,November16-20,2020,pages7674–
+energyconsumption(comparingtothealternative: 7684.AssociationforComputationalLinguistics.
+separatemodelsfordifferentlanguages)leadingto
+YonatanBisk,RowanZellers,RonanLeBras,Jianfeng
+more energy efficiency. A single model, despite Gao,andYejinChoi.2020. PIQA:reasoningabout
+havingtheriskofbeingasinglepointoffailure,has physicalcommonsenseinnaturallanguage. InThe
+Thirty-FourthAAAIConferenceonArtificialIntelli-
+thepowerfulincentiveofbeingeasiertomaintain,
+gence,AAAI2020,TheThirty-SecondInnovativeAp-
+access,distribute,andtrack.
+plicationsofArtificialIntelligenceConference,IAAI
+2020, The Tenth AAAI Symposium on Educational
+Diversityandinclusion. ModelssuchasXGLM
+AdvancesinArtificialIntelligence,EAAI2020,New
+representaparadigmshiftfromtheAnglo-centric
+York,NY,USA,February7-12,2020,pages7432–
+viewoftheworldofNLPtobeingabletocaterto 7439.AAAIPress.
+alllanguagesonanequalfooting. Payingattention
+Terra Blevins and Luke Zettlemoyer. 2022. Lan-
+to the design of such models is critical to ensure
+guagecontaminationexplainsthecross-lingualca-
+equitabilityandinclusion,exemplifiedherebyat- pabilities of english pretrained models. CoRR,
+temptingtobalancelanguagerepresentation. The abs/2204.08110.
+further power of XGLM specifically is its ability
+Rishi Bommasani, Drew A Hudson, Ehsan Adeli,
+to perform comparably to Anglo-centric models
+Russ Altman, Simran Arora, Sydney von Arx,
+in zero to few shot settings. Possessing powerful MichaelSBernstein,JeannetteBohg,AntoineBosse-
+multilingualmodelsthatcanperformwellinsuch lut,EmmaBrunskill,etal.2021. Ontheopportuni-
+tiesandrisksoffoundationmodels. arXivpreprint
+settingsespeciallyformediumtoextremelylowre-
+arXiv:2108.07258.
+sourcelanguageshelpsalleviatetheburdenofcre-
+atingsuperviseddataforsuchlanguagesespecially Tom Brown, Benjamin Mann, Nick Ryder, Melanie
+Subbiah,JaredDKaplan,PrafullaDhariwal,Arvind
+foreconomicallychallengedlanguages(mediumto
+Neelakantan,PranavShyam,GirishSastry,Amanda
+low digital presence typically goes hand in hand
+Askell, Sandhini Agarwal, Ariel Herbert-Voss,
+witheconomicdisparities). Moreover,havingsuch Gretchen Krueger, Tom Henighan, Rewon Child,
+modelscateringtoscarcerlanguagesspursscien- AdityaRamesh,DanielZiegler,JeffreyWu,Clemens
+tific research in such languages leading to more Winter, ChrisHesse, MarkChen, EricSigler, Ma-
+teusz Litwin, Scott Gray, Benjamin Chess, Jack
+diversified NLP, and more diversified science in
+Clark,ChristopherBerner,SamMcCandlish,Alec
+thebroadersense. Radford, Ilya Sutskever, and Dario Amodei. 2020.
+Language models are few-shot learners. In Ad-
+Socialvalues. Wefurtherinvestigatetheimpact
+vances in Neural Information Processing Systems,
+of our models on social valued problems such as volume 33, pages 1877–1901. Curran Associates,
+hatespeechdetectionandbias(Appendix§E).De- Inc.
+spiteinconclusiveresultsoverall(borderingonneg-
+AakankshaChowdhery,SharanNarang,JacobDevlin,
+ative), we note that for the relatively scarcer data Maarten Bosma, Gaurav Mishra, Adam Roberts,
+setting(Polish)themultilingualmodelsoutperform Paul Barham, Hyung WonChung, Charles Sutton,
+the Anglo-centric models indicating that XGLM Sebastian Gehrmann, Parker Schuh, Kensen Shi,
+Sasha Tsvyashchenko, Joshua Maynez, Abhishek
+will be performant for less resourced languages.
+Rao, Parker Barnes, Yi Tay, Noam Shazeer, Vin-
+Thisisespeciallysignificantforsocialvaluetasks
+odkumar Prabhakaran, Emily Reif, Nan Du, Ben
+whereobtainingtrainingdataisquiteproblematic Hutchinson, Reiner Pope, James Bradbury, Jacob
+9029
+Austin, Michael Isard, Guy Gur-Ari, Pengcheng WilliamFedus,BarretZoph,andNoamShazeer.2021.
+Yin, Toju Duke, Anselm Levskaya, Sanjay Ghe- Switch transformers: Scaling to trillion parameter
+mawat, Sunipa Dev, Henryk Michalewski, Xavier models with simple and efficient sparsity. arXiv
+Garcia, Vedant Misra, Kevin Robinson, Liam Fe- preprintarXiv:2101.03961.
+dus, Denny Zhou, Daphne Ippolito, David Luan,
+HyeontaekLim,BarretZoph,AlexanderSpiridonov, Tianyu Gao, Adam Fisch, and Danqi Chen. 2021.
+RyanSepassi,DavidDohan,ShivaniAgrawal,Mark Makingpre-trainedlanguagemodelsbetterfew-shot
+Omernick,AndrewM.Dai,ThanumalayanSankara- learners. InProceedingsofthe59thAnnualMeet-
+narayana Pillai, Marie Pellat, Aitor Lewkowycz, ing of the Association for Computational Linguis-
+Erica Moreira, Rewon Child, Oleksandr Polozov, ticsandthe11thInternationalJointConferenceon
+KatherineLee,ZongweiZhou,XuezhiWang,Bren- NaturalLanguageProcessing,ACL/IJCNLP2021,
+nanSaeta,MarkDiaz,OrhanFirat,MicheleCatasta, (Volume1: LongPapers),VirtualEvent,August1-6,
+JasonWei,KathyMeier-Hellstern,DouglasEck,Jeff 2021,pages3816–3830.AssociationforComputa-
+Dean, Slav Petrov, and Noah Fiedel. 2022. Palm: tionalLinguistics.
+Scalinglanguagemodelingwithpathways. CoRR,
+abs/2204.02311. Aaron Gokaslan and Vanya Cohen. 2019. Open-
+webtext corpus. http://web.archive.org/
+PeterClark,IsaacCowhey,OrenEtzioni,TusharKhot,
+save/http://Skylion007.github.io/
+AshishSabharwal,CarissaSchoenick,andOyvind
+OpenWebTextCorpus.
+Tafjord.2018. Thinkyouhavesolvedquestionan-
+swering?tryarc,theAI2reasoningchallenge. CoRR,
+Andrew S. Gordon, Zornitsa Kozareva, and Melissa
+abs/1803.05457.
+Roemmele. 2012. Semeval-2012 task 7: Choice
+AlexisConneau,KartikayKhandelwal,NamanGoyal, of plausible alternatives: An evaluation of com-
+VishravChaudhary,GuillaumeWenzek,Francisco monsense causal reasoning. In Proceedings of the
+Guzmán, Edouard Grave, Myle Ott, Luke Zettle- 6thInternationalWorkshoponSemanticEvaluation,
+moyer, andVeselin Stoyanov.2020. Unsupervised SemEval@NAACL-HLT 2012, Montréal, Canada,
+cross-lingualrepresentationlearningatscale. InPro- June7-8,2012,pages394–398.TheAssociationfor
+ceedingsofthe58thAnnualMeetingoftheAssoci- ComputerLinguistics.
+ation for Computational Linguistics, pages 8440–
+8451, Online. Association for Computational Lin- NamanGoyal, JingfeiDu, MyleOtt, GiriAnanthara-
+guistics. man,andAlexisConneau.2021a. Larger-scaletrans-
+formersformultilingualmaskedlanguagemodeling.
+AlexisConneau,GuillaumeLample,RutyRinott,Ad-
+CoRR,abs/2105.00572.
+inaWilliams,SamuelR.Bowman,HolgerSchwenk,
+and Veselin Stoyanov. 2018. XNLI: evaluat-
+NamanGoyal,CynthiaGao,VishravChaudhary,Peng-
+ing cross-lingual sentence representations. CoRR,
+Jen Chen, Guillaume Wenzek, Da Ju, Sanjana Kr-
+abs/1809.05053.
+ishnan,Marc’AurelioRanzato,FranciscoGuzmán,
+and Angela Fan. 2021b. The FLORES-101 evalu-
+Maria De-Arteaga, Alexey Romanov, Hanna Wal-
+ationbenchmarkforlow-resourceandmultilingual
+lach, Jennifer Chayes, Christian Borgs, Alexandra
+machinetranslation. CoRR,abs/2106.03193.
+Chouldechova, Sahin Geyik, Krishnaram Kentha-
+padi,andAdamTaumanKalai.2019. Biasinbios:A
+casestudyofsemanticrepresentationbiasinahigh- KennethHeafield.2011. KenLM:Fasterandsmaller
+stakessetting. InproceedingsoftheConferenceon languagemodelqueries. InProceedingsoftheSixth
+Fairness, Accountability, and Transparency, pages WorkshoponStatisticalMachineTranslation,pages
+120–128. 187–197,Edinburgh,Scotland.AssociationforCom-
+putationalLinguistics.
+Jacob Devlin, Ming-Wei Chang, Kenton Lee, and
+Kristina Toutanova. 2019. BERT: Pre-training of DanHendrycks,CollinBurns,StevenBasart,Andrew
+deepbidirectionaltransformersforlanguageunder- Critch,JerryLi,DawnSong,andJacobSteinhardt.
+standing. InNorthAmericanAssociationforCom- 2020. Aligningaiwithsharedhumanvalues. arXiv
+putationalLinguistics(NAACL). preprintarXiv:2008.02275.
+SergeyEdunov,MyleOtt,Marc’AurelioRanzato,and
+XiaoleiHuang,LinziXing,FranckDernoncourt,and
+MichaelAuli.2019. Ontheevaluationofmachine
+MichaelPaul.2020. Multilingualtwittercorpusand
+translation systems trained with back-translation.
+baselines for evaluating demographic bias in hate
+arXivpreprintarXiv:1908.05204.
+speechrecognition. InProceedingsofthe12thLan-
+Hady Elsahar, Pavlos Vougiouklis, Arslen Remaci, guageResourcesandEvaluationConference,pages
+Christophe Gravier, Jonathon Hare, Frederique 1440–1448.
+Laforest, andElenaSimperl.2018. T-rex: Alarge
+scalealignmentofnaturallanguagewithknowledge ZhengbaoJiang,AntoniosAnastasopoulos,JunAraki,
+basetriples. InProceedingsoftheEleventhInterna- HaiboDing,andGrahamNeubig.2020. X-FACTR:
+tionalConferenceonLanguageResourcesandEval- MultilingualFactualKnowledgeRetrievalfromPre-
+uation(LREC2018). trainedLanguageModels. pages5943–5959.
+9030
+Nora Kassner, Philipp Dufter, and Hinrich Schu¨tze. TomasMikolov,QuocV.Le,andIlyaSutskever.2013.
+2021. MultilingualLAMA:investigatingknowledge Exploiting Similarities among Languages for Ma-
+inmultilingualpretrainedlanguagemodels. InPro- chineTranslation.
+ceedings of the 16th Conference of the European
+ChapteroftheAssociationforComputationalLin- Swaroop Mishra, Daniel Khashabi, Chitta Baral, and
+guistics: Main Volume, EACL 2021, Online, April HannanehHajishirzi.2021. Cross-taskgeneraliza-
+19 - 23, 2021, pages 3250–3258. Association for tionvianaturallanguagecrowdsourcinginstructions.
+ComputationalLinguistics. arXivpreprintarXiv:2104.08773.
+Taku Kudo. 2018. Subword regularization: Improv- NasrinMostafazadeh,NathanaelChambers,Xiaodong
+ingneuralnetworktranslationmodelswithmultiple He,DeviParikh,DhruvBatra,LucyVanderwende,
+subwordcandidates. InProceedingsofthe56thAn- PushmeetKohli,andJamesF.Allen.2016. Acorpus
+nualMeetingoftheAssociationforComputational andevaluationframeworkfordeeperunderstanding
+Linguistics, ACL2018, Melbourne, Australia, July ofcommonsensestories. CoRR,abs/1604.01696.
+15-20,2018,Volume1: LongPapers,pages66–75.
+AssociationforComputationalLinguistics. Moin Nadeem, Anna Bethke, and Siva Reddy. 2021.
+StereoSet: Measuringstereotypicalbiasinpretrained
+TakuKudoandJohnRichardson.2018. SentencePiece: languagemodels. InAssociationforComputational
+A simple and language independent subword tok- Linguistics(ACL).
+enizeranddetokenizerforNeuralTextProcessing.
+EMNLP2018-ConferenceonEmpiricalMethodsin Sebastian Nagel. 2016. Cc-news. http:
+NaturalLanguageProcessing: SystemDemonstra- //web.archive.org/save/http:
+tions,Proceedings,pages66–71. //commoncrawl.org/2016/10/
+news-dataset-available.
+GuillaumeLampleandAlexisConneau.2019. Cross-
+linguallanguagemodelpretraining. arXivpreprint Nikita Nangia, Clara Vania, Rasika Bhalerao, and
+arXiv:1901.07291. Samuel R Bowman. 2020. Crows-pairs: A chal-
+lengedatasetformeasuringsocialbiasesinmasked
+YoavLevine, NoamWies, OrSharir, HofitBata, and
+languagemodels. arXivpreprintarXiv:2010.00133.
+AmnonShashua.2020. Limitstodepthefficiencies
+ofself-attention. InAdvancesinNeuralInformation MyleOtt,SergeyEdunov,AlexeiBaevski,AngelaFan,
+ProcessingSystems33: AnnualConferenceonNeu- SamGross,NathanNg,DavidGrangier,andMichael
+ralInformationProcessingSystems2020,NeurIPS Auli.2019. FAIRSEQ: Afast,extensibletoolkitfor
+2020,December6-12,2020,virtual. sequence modeling. In North American Associa-
+tionforComputationalLinguistics(NAACL):System
+Mike Lewis, Yinhan Liu, Naman Goyal, Marjan
+Demonstrations.
+Ghazvininejad, Abdelrahman Mohamed, Omer
+Levy, Veselin Stoyanov, and Luke Zettlemoyer. EthanPerez,DouweKiela,andKyunghyunCho.2021.
+2019. BART:DenoisingSequence-to-SequencePre- Truefew-shotlearningwithlanguagemodels. CoRR,
+trainingforNaturalLanguageGeneration,Transla- abs/2105.11447.
+tion,andComprehension. pages7871–7880.
+FabioPetroni,TimRockta¨schel,PatrickLewis,Anton
+OpherLieber,OrSharir,BarakLenz,andYoavShoham.
+Bakhtin,YuxiangWu,AlexanderHMiller,andSe-
+2021. Jurassic-1: Technicaldetailsandevaluation.
+bastianRiedel.2019. Languagemodelsasknowledge
+Technicalreport,AI21Labs.
+bases? arXivpreprintarXiv:1909.01066.
+Xiao Liu, Yanan Zheng, Zhengxiao Du, Ming Ding,
+Telmo Pires, Eva Schlinger, and Dan Garrette. 2019.
+YujieQian,ZhilinYang,andJieTang.2021. GPT
+HowmultilingualisMultilingualBERT? ACL2019
+understands,too. CoRR,abs/2103.10385.
+-57thAnnualMeetingoftheAssociationforCompu-
+YinhanLiu,JiataoGu,NamanGoyal,XianLi,Sergey tationalLinguistics,ProceedingsoftheConference,
+Edunov, Marjan Ghazvininejad, Mike Lewis, and pages4996–5001.
+LukeZettlemoyer.2020. Multilingualdenoisingpre-
+EdoardoMariaPonti,GoranGlavas,OlgaMajewska,
+trainingforneuralmachinetranslation. Transactions
+QianchuLiu,IvanVulic,andAnnaKorhonen.2020a.
+of the Association for Computational Linguistics,
+XCOPA:Amultilingualdatasetforcausalcommon-
+8:726–742.
+sensereasoning. In Proceedingsofthe2020Con-
+YinhanLiu,MyleOtt,NamanGoyal,JingfeiDu,Man- ferenceonEmpiricalMethodsinNaturalLanguage
+dar Joshi, Danqi Chen, Omer Levy, Mike Lewis, Processing,EMNLP2020,Online,November16-20,
+Luke Zettlemoyer, and Veselin Stoyanov. 2019. 2020,pages2362–2376.AssociationforComputa-
+Roberta: Arobustlyoptimizedbertpretrainingap- tionalLinguistics.
+proach. arXivpreprintarXiv:1907.11692.
+EdoardoMariaPonti,GoranGlavasˇ,OlgaMajewska,
+TodorMihaylov,PeterClark,TusharKhot,andAshish QianchuLiu,IvanVulic´,andAnnaKorhonen.2020b.
+Sabharwal.2018. Canasuitofarmorconductelec- XCOPA:Amultilingualdatasetforcausalcommon-
+tricity? A new dataset for open book question an- sensereasoning. In Proceedingsofthe2020Con-
+swering. CoRR,abs/1809.02789. ferenceonEmpiricalMethodsinNaturalLanguage
+9031
+Processing(EMNLP),pages2362–2376,Online.As- youhaveonemillionGPUhours? InChallenges&
+sociationforComputationalLinguistics. PerspectivesinCreatingLargeLanguageModels.
+MattPost.2018. AcallforclarityinreportingBLEU Timo Schick and Hinrich Schu¨tze. 2021. Exploiting
+scores. InProceedingsoftheThirdConferenceon cloze-questionsforfew-shottextclassificationand
+MachineTranslation: ResearchPapers,pages186– natural language inference. In Proceedings of the
+191,Brussels,Belgium.AssociationforComputa- 16thConferenceoftheEuropeanChapteroftheAs-
+tionalLinguistics. sociationforComputationalLinguistics: MainVol-
+ume,EACL2021,Online,April19-23,2021,pages
+AlecRadford,JeffreyWu,RewonChild,DavidLuan,
+255–269.AssociationforComputationalLinguistics.
+DarioAmodei,andIlyaSutskever.2019. Language
+modelsareunsupervisedmultitasklearners. Techni-
+Rico Sennrich, Barry Haddow, and Alexandra Birch.
+calreport,OpenAI.
+2015. Neuralmachinetranslationofrarewordswith
+subwordunits. CoRR,abs/1508.07909.
+ColinRaffel,NoamShazeer,AdamRoberts,Katherine
+Lee,SharanNarang,MichaelMatena,YanqiZhou,
+WeiLi,andPeterJLiu.2020. Exploringthelimits Jo¨rg Tiedemann. 2012. Parallel data, tools and inter-
+oftransferlearningwithaunifiedtext-to-texttrans- faces in OPUS. In Proceedings of the Eighth In-
+former. TheJournalofMachineLearningResearch ternationalConferenceonLanguageResourcesand
+(JMLR),21:1–67. Evaluation(LREC’12),pages2214–2218,Istanbul,
+Turkey.EuropeanLanguageResourcesAssociation
+SebastianRuder,NoahConstant,JanBotha,AdityaSid- (ELRA).
+dhant, Orhan Firat, Jinlan Fu, Pengfei Liu, Junjie
+Hu,DanGarrette,GrahamNeubig,andMelvinJohn- AlexeyTikhonovandMaxRyabinin.2021. It’sallin
+son.2021. XTREME-R:towardsmorechallenging the heads: Using attention heads as a baseline for
+and nuanced multilingual evaluation. In Proceed- cross-lingualtransferincommonsensereasoning. In
+ingsofthe2021ConferenceonEmpiricalMethods FindingsoftheAssociationforComputationalLin-
+inNaturalLanguageProcessing,EMNLP2021,Vir- guistics: ACL/IJCNLP2021,OnlineEvent,August
+tualEvent/PuntaCana,DominicanRepublic,7-11 1-6,2021,volumeACL/IJCNLP2021ofFindings
+November, 2021, pages10215–10245.Association ofACL,pages3534–3546.AssociationforComputa-
+forComputationalLinguistics. tionalLinguistics.
+KeisukeSakaguchi,RonanLeBras,ChandraBhagavat-
+EleniTriantafillou,TylerZhu,VincentDumoulin,Pas-
+ula,andYejinChoi.2020. Winogrande: Anadver-
+calLamblin,UtkuEvci,KelvinXu,RossGoroshin,
+sarial winograd schema challenge at scale. In The
+CarlesGelada,KevinSwersky,Pierre-AntoineMan-
+Thirty-FourthAAAIConferenceonArtificialIntelli-
+zagol,andHugoLarochelle.2020. Meta-dataset: A
+gence,AAAI2020,TheThirty-SecondInnovativeAp-
+datasetofdatasetsforlearningtolearnfromfewex-
+plicationsofArtificialIntelligenceConference,IAAI
+amples. In8thInternationalConferenceonLearning
+2020, The Tenth AAAI Symposium on Educational
+Representations,ICLR2020,AddisAbaba,Ethiopia,
+AdvancesinArtificialIntelligence,EAAI2020,New
+April26-30,2020.OpenReview.net.
+York,NY,USA,February7-12,2020,pages8732–
+8740.AAAIPress.
+Trieu H Trinh and Quoc V Le. 2018. A simple
+methodforcommonsensereasoning. arXivpreprint
+VictorSanh,AlbertWebson,ColinRaffel,StephenH.
+arXiv:1806.02847.
+Bach, Lintang Sutawika, Zaid Alyafeai, Antoine
+Chaffin,ArnaudStiegler,TevenLeScao,ArunRaja,
+AlexWang,YadaPruksachatkun,NikitaNangia,Aman-
+Manan Dey, M Saiful Bari, Canwen Xu, Urmish
+preetSingh,JulianMichael,FelixHill,OmerLevy,
+Thakker,ShanyaSharmaSharma,ElizaSzczechla,
+andSamuelR.Bowman.2019. SuperGLUE:Astick-
+TaewoonKim,GunjanChhablani,NihalNayak,De-
+ierbenchmarkforgeneral-purposelanguageunder-
+bajyotiDatta,JonathanChang,MikeTian-JianJiang,
+standingsystems. arXivpreprint1905.00537.
+HanWang,MatteoManica,ShengShen,ZhengXin
+Yong, Harshit Pandey, Rachel Bawden, Thomas
+Wang,TrishalaNeeraj,JosRozen,AbheeshtSharma, GuillaumeWenzek,Marie-AnneLachaux,AlexisCon-
+Andrea Santilli, Thibault Fevry, Jason Alan Fries, neau, Vishrav Chaudhary, Francisco Guzmán, Ar-
+RyanTeehan,StellaBiderman,LeoGao,TaliBers, mand Joulin, and Edouard Grave. 2020. CCNet:
+ThomasWolf,andAlexanderM.Rush.2021. Multi- Extracting high quality monolingual datasets from
+taskpromptedtrainingenableszero-shottaskgener- web crawl data. In Proceedings of the 12th Lan-
+alization. guageResourcesandEvaluationConference,pages
+4003–4012,Marseille,France.EuropeanLanguage
+TevenLeScao,ThomasWang,DanielHesslow,Lucile ResourcesAssociation.
+Saulnier,StasBekman,MSaifulBari,StellaBider-
+man,HadyElsahar,JasonPhang,OfirPress,Colin GentaIndraWinata,AndreaMadotto,ZhaojiangLin,
+Raffel,VictorSanh,ShengShen,LintangSutawika, Rosanne Liu, Jason Yosinski, and Pascale Fung.
+Jaesung Tae, Zheng Xin Yong, Julien Launay, and 2021. Language models are few-shot multilingual
+Iz Beltagy. 2022. What language model to train if learners. CoRR,abs/2109.07684.
+9032
+LintingXue,NoahConstant,AdamRoberts,MihirKale,
+RamiAl-Rfou,AdityaSiddhant,AdityaBarua,and
+ColinRaffel.2020. mT5: Amassivelymultilingual
+pre-trainedtext-to-texttransformer. pages483–498.
+Yinfei Yang, Yuan Zhang, Chris Tar, and Jason
+Baldridge. 2019. PAWS-X: A cross-lingual adver-
+sarial dataset for paraphrase identification. CoRR,
+abs/1908.11828.
+Rowan Zellers, Ari Holtzman, Yonatan Bisk, Ali
+Farhadi, and Yejin Choi. 2019. Hellaswag: Can a
+machinereallyfinishyoursentence? InProceedings
+ofthe57thConferenceoftheAssociationforCompu-
+tationalLinguistics,ACL2019,Florence,Italy,July
+28-August2,2019,Volume1: LongPapers,pages
+4791–4800.AssociationforComputationalLinguis-
+tics.
+NingyuZhang,LuoqiuLi,XiangChen,ShuminDeng,
+Zhen Bi, Chuanqi Tan, Fei Huang, and Huajun
+Chen.2021. Differentiablepromptmakespre-trained
+language models better few-shot learners. CoRR,
+abs/2108.13161.
+JieyuZhao, SubhabrataMukherjee, SagharHosseini,
+Kai-Wei Chang, and Ahmed Hassan Awadallah.
+2020. Genderbiasinmultilingualembeddingsand
+cross-lingualtransfer. InProceedingsofthe58thAn-
+nualMeetingoftheAssociationforComputational
+Linguistics,pages2896–2907.
+Mengjie Zhao and Hinrich Schu¨tze. 2021. Discrete
+andsoftpromptingformultilingualmodels. CoRR,
+abs/2109.03630.
+Zihao Zhao, Eric Wallace, Shi Feng, Dan Klein, and
+SameerSingh.2021. Calibratebeforeuse: Improv-
+ing few-shot performance of language models. In
+Proceedings of the 38th International Conference
+onMachineLearning,ICML2021,18-24July2021,
+VirtualEvent,volume139ofProceedingsofMachine
+LearningResearch,pages12697–12706.PMLR.
+Yukun Zhu, Ryan Kiros, Richard Zemel, Ruslan
+Salakhutdinov, Raquel Urtasun, Antonio Torralba,
+andSanjaFidler.2019. Aligningbooksandmovies:
+Towards story-like visual explanations by watch-
+ing movies and reading books. arXiv preprint
+arXiv:1506.06724.
+9033
+A PretrainingDetails
+XGLM. AllmodelsaretrainedwiththeFairseqlibrary(Ottetal.,2019). WeuseAdamoptimizerwith
+𝛽 = 0.9,𝛽 = 0.98,𝜖 = 1𝑒 8. Weadjustthelearningratebasedonmodelsize,e.g. 1.5𝑒 3forthe
+1 2
+− −
+564Mand1.7Bmodel,7.5𝑒 4forthe2.9Bmodel,and1.2𝑒 4forthe7.5Bmodels. Learningrates
+− −
+wereadjustedwitha2000warm-upupdatesfollowedbyapolynomialdecayschedule. Allmodelsare
+trainedwithdataparallelandaneffectivebatchsizeof4Mtokens. TheXGLM7.5Bmodelwastrained
+on256A100GPUsforabout3weeks,ataspeedof311.6kwordspersecond18.
+GPT-3 repl.. WereplicatetheGPT-3 architectureandoptimizationhyperparameterstothebestof
+6.7B 6.7B
+ourknowledgefortrainingthismodel. ThemostsignificantdifferencebetweenthismodelandGPT-3
+6.7B
+isinthetrainingdata. ThetrainingdatausedbyGPT-3 repl. isacombinationofsixEnglish-language
+6.7B
+datasets,totaling453GBand112Btokens(whichweup-sampledto300Btokens):
+• BookCorpus(Zhuetal.,2019),adatasetconsistingofmorethan10Kunpublishedbooks(4GB);
+• EnglishWikipedia,excludinglists,tablesandheaders(12GB);
+• CC-News (Nagel, 2016), a dataset containing 63 millions English news articles crawled between
+September2016andFebruary2019(76GB);
+• OpenWebText(GokaslanandCohen,2019),anopensourcerecreationoftheWebTextdatasetusedto
+trainGPT-2(38GB);
+• CC-Stories(TrinhandLe,2018),adatasetcontainingasubsetofCommonCrawldatafilteredtomatch
+thestory-likestyleofWinogradschemas(31GB);
+• English CC100 (Wenzek et al., 2020), a dataset extracted from CommonCrawl snapshots between
+January2018andDecember2018,filteredtomatchthestyleofWikipedia(292GB).
+The data are encoded using the same Byte-Pair Encoding (BPE) as GPT-2 (Radford et al., 2019) and
+RoBERTa(Liuetal.,2019)withavocabularyof50Ksubwordunits.
+A.1 ValidationPerplexity
+Weusein-domainvalidationperplexitytovalidatetheconvergencestatusofthemodels. FigureA1shows
+theaverageperplexityofthefourmodelsevaluatedusingavalidationdatasetsampledfromCC100-XL.
+Thevalidationdatacontains30ksentencesforeachlanguagethatdonotoverlapwiththepre-training
+data. Wegrouptheresultsbyresourcelevel.
+20.0
+18.0 hi
+16.0 med
+lo
+14.0 ex-lo
+12.0
+10.0
+8.0
+1.0 2.0 3.0 4.0 5.0 6.0 7.0
+model params. (B)
+FigureA1: XGLMperplexityonCC100_XLvalidationsetasafunctionofmodelsize.
+18On256A100GPUs,theinferencespeedcanreach1.47millionwordspersecond. Besides,inferencecanbedonewith
+significantlylessresources.Forexample,using8v100GPUs,ittook 6hrstoevaluateXGLM7.5BonXStoryCloze.
+9034
+lpp
+dilav
+B MultilingualIn-contextLearningFormulation
+Weextendthein-contextlearningframeworkproposedbyBrownetal.(2020)tothemultilingualsetting.
+Let beacausallanguagemodeland beatask. = ( , )consistsofataskdescription anda
+ℳ 𝒟 𝒟 𝒫 ℰ 𝒫
+fewdemonstrationexamplesinoneormorelanguages
+|ℒ|
+= 𝑙.
+ℰ ℰ
+𝑙=1
+⋃︁
+We consider the setting where the task description comes in the form of a prompt = ( ,𝑣). is a
+𝒫 𝒯 𝒯
+cloze-styletemplatethatconvertsanexampleinput𝑥intoastring (𝑥)thatcontainsa[Mask]symbol.19
+𝒯
+Forclassificationandmultiple-choiceproblems, 𝑣 : isaverbalizerthatmapseachcandidate
+*
+𝒴 → 𝒱
+labelorchoice𝑦 intoastring𝑣(𝑦). Both (𝑥)and𝑣(𝑦)canbetokenizedintoasequenceofone
+∈ 𝒴 𝒯
+or more tokens in the language model vocabulary . An instantiated prompt (𝑥,𝑦) is obtained by
+𝒱 𝒫
+substitutingthe[Mask]symbolin (𝑥)with𝑣(𝑦). Table2showsthepromptsusedbyalltasksinour
+𝒯
+mainexperiments.
+Zero-shotlearning. Givenatestexample𝑥˜𝑡inanytargetlanguage𝑡,thezero-shotpredictionis𝑦^which
+maximizesalanguagemodelbasedscoringfunction(§C.2).
+𝑦^= argmax𝜎( , (𝑥˜𝑡,𝑦)). (1)
+ℳ 𝒫
+𝑦
+ThisgeneralformulationcancovermostNLPtasks. Forclassificationproblems,𝑣 isamappingfrom
+classestostrings;formultiple-choiceproblems,𝑣 isanidentityfunctionthatmapseachcandidatechoice
+toitself. Fortextgenerationproblems,𝑣 isidentityandwedecodefree-formtextfrom[Mask],whichin
+thiscaseispositionedattheendof (𝑥).
+𝒯
+Few-shotlearning. Supposewehave𝑘 demonstrationexamplesavailableinasourcelanguage:
+𝑠 = (𝑥𝑠,𝑦 ) 𝑘 .
+ℰ { 𝑖 𝑖 }𝑖=1
+Inthiscase,weconcatenatetheinstantiatedpromptsofthedemonstrationexamples (𝑥𝑠,𝑦 ) 𝑘 and
+{𝒫 𝑖 𝑖 }𝑖=1
+makeittheprefixoftheinputstringusedinthezero-shotlearningsettingtoformtheobjective:
+𝑦^= argmax𝜎( 𝒫(𝑥𝑠 1,𝑦 1)[Sep]... 𝒫(𝑥𝑠 𝑘,𝑦 𝑘)[Sep] 𝒫(𝑥˜𝑡,𝑦)), (2)
+𝑦
+where[Sep]isaseparatorsymbolchosenempirically.
+• When𝑠 = 𝑡,wehavethein-languagefew-shotlearningsetup.
+• When𝑠 = 𝑡,wehavethecross-lingualfew-shotlearningsetup.
+̸
+C EvaluationDetails
+C.1 EnglishEvaluationTasks
+TableA1showsalltheEnglishtasksusedinourevaluation.
+19WerelaxedthepromptformatofGPT-3byallowingthe[Mask]symboltoappearanywherein (𝑥)insteadofjustin
+𝒯
+theend.Havingthisadditionalflexibilityleadstobetterperformanceonsometasks.Thisisinspiredbythemaskedlanguage
+modelingpromptsconstructedbyrecentwork(SchickandSchu¨tze,2021;Zhangetal.,2021).
+9035
+StoryCloze(Mostafazadehetal.,2016) – 1,871 1,871 N/A 1
+Reasoning
+COPA‡(Gordonetal.,2012) 400 100 499 N/A 1
+WinoGrande(Sakaguchietal.,2020) 40,398 1,267 1,767 N/A 1
+HellaSwag(Zellersetal.,2019) 39,905 10,042 10,003 N/A 1
+ARC-easy(Clarketal.,2018) 2,251 570 2,376 N/A 1
+ARC-cha.(Clarketal.,2018) 1,119 299 1,172 N/A 1
+QA
+PIQA(Bisketal.,2020) 16,113 1,838 3,084 N/A 1
+OpenbookQA(Mihaylovetal.,2018) 4,957 500 500 N/A 1
+TableA1: Englishtasksusedinourfew-shotlearningevaluation. Alltasksuseaccuracyastheevaluationmetrics.
+C.2 ScoringFunctions
+Weconsideredthefollowingfunctionsforscoringaninstantiatedpromptusingalanguagemodel:
+(1) sumofper-tokenlogprobabilities;
+(2) averageofper-tokenlogprobabilities;
+(3) averageofper-tokenlogprobabilities,ignoringthecommonprefixofdifferentcandidates.
+WealsoconsideredthecalibrationapproachproposedbyZhaoetal.(2021)andcharacternormalization
+proposedbyLieberetal.(2021).
+Intheend,weusetheaverageofper-tokenlog-probabilitiesignoringthecommonprefixofdifferent
+candidatesasthescoringfunctionforallmultilingualtasks. Thisisselectedbasedonthedevelopmentset
+performanceofStoryClozeandXNLI.
+ForEnglishtasks,weusethesamemodelingchoicesasBrownetal.(2020). Specifically,weusethe
+taskpromptsasdetailedinAppendixGofBrownetal.(2020),andasinglenewlineastheseparatorfor
+few-shot learning. For WinoGrande, we take the log-likelihood of the common suffix of the different
+candidatesasthescoringfunction. ForARC-easy,ARC-challengeandOpenBookQA,wenormalizebythe
+𝑝(completioncontext)
+unconditionalprobabilityofeachcandidatebytaking | ,whereweusethestring
+𝑝(completionanswer_context)
+“Answer: ” asanswer_context. Foralltheothertasks,wetakethe| averageofper-tokenlog-probabilities,
+ignoringthecommonprefixofthedifferentcandidates.
+C.3 EvaluationProtocol
+Allfew-shotlearningresultsareobtainedwiththein-languagesetting(boththetrainingandtestexamples
+areinthesamelanguage)unlessotherwisespecified. Wereportresultsonthetestsetforallmultilingual
+tasks (including the held-out tasks). For English tasks, we report results on the test set for ARC-easy,
+ARC-challenge,OpenBookQAandStoryCloze,andonthedevelopmentsetfortherest,followingBrown
+et al. (2020). For few-shot learning, we report the average results across 5 runs, randomly sampling
+a different set of few-shot examples each time. For tasks with a training set, we sample the few-shot
+examples from the training set; for tasks with no training set, we sample from the dev set and report
+evaluationresultsonthetestset;fordev-setexamplesonXNLIandXCOPA,wesamplefew-shotexamples
+fromthetestset,sincethesetwotasksdonothavethetrainingsetsforalllanguages. WhileBrownetal.
+(2020)tunedthefew-shotvalue𝑘 asahyperparameteronthedevset,wepre-selectedafew𝑘 values(0,
+1,4,32,128)andreportthecorrespondingresults.
+C.3.1 ExampleTruncation
+FollowingBrownetal.(2020),wetruncatetheinputsuchthattheyfitthemaximumcontextlengthof
+XGLM(𝑛 = 2048)andpreserveonlythecompletedemonstrationexamplesaftertruncation. Foreach
+ctx
+task, wereport resultsup to the𝑘’s corresponding to themaximum fit.20 Table A2 shows the average
+numberofdemonstrationexamplesthatfitthemaximumcontextlengthofXGLM(𝑛 = 2048)foreach
+ctx
+taskinourexperiments.
+20XWinogradhasonlyatestsplit,andwesampledfew-shotexamplesdirectlyfromit,followingthepracticeusedbyBrown
+etal.(2020)forevaluatingGPT-3onWinograd.Asaresultweonlyreport0-,1-and4-shotresultsforXWinogradtominimize
+inflatingthefew-shotperformancebytrainingandtestingonthesameexamples.
+9036
+en zh ru es id ar hi sw te eu my
+XStoryCloze
+32.0 31.6 30.6 31.5 32.0 27.6 24.7 29.5 25.2 25.6 18.8
+en zh it id th vi tr et ta sw ht qu
+XCOPA
+100.0 100.0 98.0 100.0 100.0 99.4 100.0 100.0 75.2 97.9 95.4 84.9
+en ru ja pt
+XWinograd
+93.7 63.7 62.4 83.1
+en zh ru es de fr el th vi tr ar bg hi ur sw
+XNLI
+48.3 47.6 43.4 44.7 43.1 39.3 37.8 44.8 39.8 46.8 42.3 41.4 37.4 38.4 42.9
+en zh es ja de fr ko
+PAWS-X
+34.5 27.2 31.3 23.1 32.0 29.1 28.0
+en
+COPA 124.3
+Winogrande 84.6
+HellaSwag 21.4
+ARC-easy 62.9
+ARC-challenge 53.2
+PIQA 59.6
+OpenbookQA 106.4
+TableA2: Average#offew-shotexamplesthatfitthemaximumcontextlengthofXGLM(𝑛 = 2048)inour
+ctx
+few-shotevaluationbenchmark. Thelanguagesaresortedaccordingtotheamountofpre-trainingdata(hightolow).
+Representation Bias. We observe that the language model tend to fit more examples in a high-
+resource language in context compared to those in a low-resource language.21 English, as the highest
+resourcedlanguage(TableA10),alwaysfitthemostexamples. Thisreflectstheunequalrepresentation
+ofdifferentlanguagesinourjointmultilingualBPEvocabulary(§2.1). Withthisvocabularyinduction
+scheme(Sennrichetal.,2015),theunderrepresentedlanguagestendtohavesmallersub-wordunitsand
+higherfertility(definedasnumberofsubwordsperlinguisticword),makingitmorechallengingtolearn
+word- and higher-level semantics for such languages. Other factors can also impact the tokenization
+granularity. Forexample,sharingsub-stringswithotherhighresourcelanguagescanboostthegranularity
+of a language; and some languages have smaller tokenization granularity as a result of their alphabet
+system(e.g. Chinesehasanaveragesub-wordlengthof1.4,indicatingthedominanceofsingle-character
+tokens,despitebeingthethirdlargestlanguageinourpre-trainingdataaccordingtodisksize).
+D AdditionalResults
+D.1 ComparingMultilingualPromptingApproachesonXNLIandXCOPA
+WecomparetheperformanceofEnglishpromptsandMTandHTpromptsontwoofourheld-outtasks,
+XNLI and XCOPA, using their development sets. For MT prompts, we translate the English prompts
+intothetargetlanguagesusingtheGoogleCloudTranslationAPI.Weusetheexactpromptsasshown
+inTable2astheinputofthetranslationAPIandmanuallyrecovertheplaceholdersintheAPIoutput
+based on brackets markers (e.g. “{Sentence 1} because [Mask]” is translated to “{Sentence
+1}因为[Mask]”). Whenthecandidatesetisclosed,wereplace[Mask]witheachverbalizedlabeland
+translatethemseparately. Forexample,“{Sentence 1},right? Yes,{Sentence 2}”istranslated
+to “{Sentence 1}，对吗？是的，{Sentence 2}”. On XNLI, we also compared to prompts
+manuallytranslatedfromEnglishtoeliminatetheimpactoftranslationnoiseonthecomparison.22
+AsshowninTableA3andTableA4,thein-contextlearningperformanceissensitivetotheprompting
+choices across all languages. For both XNLI and XCOPA, using the English prompts on average
+yield significantly better performance than using the machine-translated prompts. For XNLI, human
+translated(HT)promptssignificantlyimproveovermachinetranslated(MT)promptsformostlanguages.
+Surprisingly,theperformanceofhumantranslatedpromptslagsbehindthatoftheEnglishpromptsinthe
+21XStoryCloze,XCOPA,XNLIandPAWS-Xallcontainparallelexamples,whichallowsustocomparethemaximumfitof
+thesamesetofexamplesacrossdifferentlanguages.
+22WeasknativespeakerstotranslatetheEnglishtemplateintozh,es,fr,el,hi,vi,arandbg.Fortherestofthelanguages,one
+oftheauthorsverifiedandcorrectedthemachinetranslatedtemplatesusingbilingualdictionaries.
+9037
+hi medium low
+#shot prompt en zh ru es de fr el th vi tr ar bg hi ur sw Avg.
+0 En 54.5 45.0 47.2 38.2 42.4 50.7 47.1 46.1 47.5 44.6 47.5 50.0 43.4 42.7 46.2 46.2
+MT 54.5 34.6 40.7 37.5 37.6 47.8 45.4 33.3 35.4 37.1 46.5 49.3 38.8 33.5 44.4 41.1
+HT 54.5 34.1 47.4 50.0 49.5 50.4 47.1 34.9 45.2 46.3 46.0 49.3 37.5 33.7 44.4 44.7
+4 En 51.8 48.0 48.2 45.1 45.2 49.2 48.4 46.3 48.2 45.1 46.4 49.1 46.6 43.5 44.9 47.1
+MT 51.8 39.8 45.1 45.8 43.6 49.4 44.3 33.7 41.9 35.0 45.5 48.6 39.9 35.4 43.5 42.9
+HT 51.8 39.8 50.0 49.9 49.8 45.7 44.0 37.3 41.9 47.0 45.7 48.6 40.2 35.0 43.5 44.7
+32 En 53.4 50.4 40.0 46.4 46.2 46.7 47.3 46.8 48.6 44.3 43.3 42.8 45.6 45.6 46.5 46.3
+MT 53.4 40.7 38.0 47.0 43.1 49.1 48.5 35.0 44.5 35.2 41.9 51.9 37.2 34.8 43.8 42.9
+HT 53.4 43.1 51.8 51.7 49.6 46.2 48.9 38.0 47.0 47.5 43.9 51.9 40.9 34.6 43.8 46.2
+TableA3: ComparisonbetweenEnglishprompts,MT(machine-translated)promptsandHT(human-translated)
+promptsfor0,4and32-shotlearningonXNLIdevsetusingXGLM .
+7.5B
+hi medium low ex-low
+#shot prompt zh ru it id th vi tr et ta sw ht qu Avg.
+0 En 63.0 64.0 59.0 54.0 53.0 63.0 65.0 63.0 59.0 54.0 57.0 70.0 60.3
+MT 62.0 59.0 69.0 51.0 48.0 64.0 64.0 60.0 59.0 51.0 60.0 69.0 59.7
+4 En 66.8 73.8 66.2 54.6 57.4 68.8 69.8 69.2 60.6 58.2 62.6 62.2 64.2
+MT 68.4 65.4 68.8 54.0 56.6 67.2 67.4 66.6 62.2 60.2 60.8 61.8 63.3
+TableA4: ComparisonbewtweenEnglishpromptsandMT(machine-translated)promptsfor0-shotand4-shot
+learningonXCOPAdevsetusingXGLM .
+7.5B
+0-shotand4-shotsettings.
+Further examination of the per-language performance reveals that the relative strengths of different
+promptingapproachesvaryacrosslanguages. Foresandde,HTpromptsofferlargegainscomparedto
+theMTpromptsandtheEnglishprompts. However,forzhandur,usingtranslatedprompts(eitherHTor
+MT)significantlyhurtstheperformance. Forzh,fr,vi,arandhi,usingnative-speakertranslatedprompts
+stillyieldssignificantlylowerperformancecomparedtousingtheEnglishpromptsinatleastonesetting,
+suggestingthattranslationerrorisnotthesolecauseoftheperformancedrop.
+D.2 FullResultsonLearningfromCross-lingualDemonstrations
+WeevaluatedXGLM onXNLIinthelearningfromcross-lingualdemonstrationsetting,usingboth
+7.5B
+thesame-language-promptingandEnglish-promptingsetups. Insame-language-prompting,theprompt
+fieldsandtheexamplesarealwaysinthesamelanguage. AndinEnglish-prompting,Englishpromptsis
+usedforallexamples. Allfew-shotperformancesinthissectionareobtainedusingthe𝑘-shotperlabel
+settingasdescribedin§D.4.
+As shown in Figure A2, for many language pairs transferring from source language demonstration
+cansignificantlyimproveoverthezero-shotperformanceinthetargetlanguagewhenhuman-translated
+templatesisused. TheimprovementisespeciallysignificantforlanguagessuchasChinese(zh), Thai
+(th)andUrdu(ur),whosezero-shotperformanceisclosetorandomwithhumantranslatedtemplates.
+However,wefoundthattheeffectofcross-lingualtransferfromtemplateandcross-lingualtransferfrom
+demonstration examples typically do not add up. As shown in Figure A3, using the English template
+significantlyimprovesthezero-shotperformanceofmostlanguages,includingChinese,ThaiandUrdu.
+Inthiscase,thedemonstrationexamplesingeneraldonothelpunlesstheyareinthesamelanguageasthe
+targetexample(diagonals).
+FigureA4showstheresultsonXCOPA.
+Figure A5 shows the results on XStoryCloze, where we observed almost no improvement for any
+languagepair. PossiblereasonsforthepoortransferresultsonXStoryClozeisthatitrequiresreasoning
+aboutimplicitrelationsbetweenmultiplesentenceswhichismuchhardertodoespeciallyinacross-lingual
+setting.
+9038
+(a)Same-languagepromptingwithhuman-translatedtemplates (b)Englishprompting
+FigureA2: Cross-lingualfew-shotin-contextlearningonXNLIdevelopmentset. Theleftmostcolumnshowsthe
+0-shotperformance(withhuman-translatedtemplates)ofeachlanguage. Therestofthematrixshowsthedifference
+between 4-shot (per label) and 0-shot (with human-translated templates) performance. Row: target language.
+Column: sourcelanguage.
+(a)Same-languagepromptingwithhuman-translatedtemplates (b)Englishprompting
+FigureA3: Cross-lingualfew-shotin-contextlearningonXNLIdevelopmentset. Theleftmostcolumnshowsthe
+0-shotperformance(withEnglishtemplates)ofeachlanguage. Therestofthematrixshowsthedifferencebetween
+4-shot(perlabel)and0-shot(withEnglishtemplates)performance. Row:targetlanguage. Column:sourcelanguage.
+9039
+(a)Samelanguagepromptingwithhuman-translatedtemplates (b)Englishprompting
+FigureA4: Cross-lingualfew-shotin-contextlearningonXCOPAdevelopmentset. Theleftmostcolumnshowsthe
+0-shot(withmachinetranslatedtemplates)performance. Therestofthematrixshowsthedifferencebetween4-shot
+(perlabel)and0-shot(withmachinetranslatedtemplates)performance. Row: targetlanguage. Column: source
+language.
+FigureA5: Cross-lingualfew-shotin-contextlearningonXStoryClozetestset. Thematrixshowsthedifference
+between4-shot(perlabel)and0-shotperformance. ForXStoryCloze,thereisnodifferencebetweensame-language
+promptingandEnglishpromptingsincethetaskdoesnotuseaverbalizedtemplate. Row: targetlanguage. Column:
+sourcelanguage.
+9040
+D.3 FullResultsinFLORES-101
+TableA5reportsourfullresultsinFLORES-101.
+en de fr ca fi ru bg zh ko ar sw hi my ta avg
+Supervised – 32.6 42.0 31.2 24.2 27.1 37.4 19.3 18.5 17.9 26.9 28.1 3.5 3.4 24.0
+en GPT-36.7B – 25.9 36.1 23.8 10.2 11.2 5.9 12.5 1.2 1.1 0.5 0.3 0.1 0.0 9.9
+XGLM7.5B – 27.6 36.0 34.0 23.3 24.2 33.1 15.6 12.0 11.5 18.0 19.9 11.0 8.5 21.1
+Supervised 35.8 – 35.5 25.8 22.6 24.6 31.5 17.2 16.6 14.8 21.0 23.4 2.3 2.3 21.0
+de GPT-36.7B 40.4 – 26.2 17.2 8.1 9.3 4.8 9.0 1.0 0.9 0.5 0.3 0.1 0.1 9.1
+XGLM7.5B 38.8 – 27.9 19.1 20.5 19.7 25.8 12.3 3.4 6.6 11.7 14.3 9.9 4.8 16.5
+Supervised 37.2 28.5 – 28.7 21.9 24.5 32.2 17.6 16.7 15.4 17.2 22.9 2.1 0.8 20.4
+fr GPT-36.7B 42.8 20.9 – 23.7 8.0 9.7 4.6 9.1 1.0 1.0 0.4 0.3 0.1 0.0 9.4
+XGLM7.5B 40.4 20.4 – 32.1 19.4 19.8 26.3 10.6 2.4 5.9 14.5 13.7 9.7 6.6 17.1
+Supervised 33.4 24.8 35.1 – 19.0 21.1 28.6 15.1 13.9 13.4 18.7 20.5 2.1 2.6 19.1
+ca GPT-36.7B 40.2 18.6 31.4 – 7.0 9.3 4.3 8.0 0.9 0.9 0.3 0.4 0.1 0.1 9.3
+XGLM7.5B 41.1 18.9 33.8 – 11.3 3.3 23.9 10.8 1.3 0.8 13.8 6.1 7.9 3.1 13.6
+Supervised 27.2 23.0 29.3 21.6 – 20.6 26.4 16.0 14.8 12.4 14.2 19.8 1.7 0.9 17.5
+fi GPT-36.7B 25.3 13.5 17.1 10.0 – 6.4 2.8 5.7 0.7 0.7 0.3 0.3 0.1 0.0 6.4
+XGLM7.5B 29.2 17.4 22.2 17.0 – 16.5 17.5 12.4 7.5 7.6 8.0 10.1 6.2 2.0 13.4
+Supervised 27.5 23.5 30.1 22.0 19.4 – 31.0 16.5 15.3 13.5 18.1 20.9 2.2 2.3 18.6
+ru GPT-36.7B 28.1 14.8 20.4 13.1 5.4 – 7.4 1.2 0.2 0.2 0.1 0.2 0.1 0.1 7.0
+XGLM7.5B 30.4 17.9 24.0 14.6 8.0 – 26.3 11.6 5.5 7.4 7.1 9.1 7.3 3.1 13.2
+Supervised 33.0 26.1 33.7 24.9 20.8 26.5 – 17.5 16.4 14.5 20.9 23.1 2.3 2.4 20.2
+bg GPT-36.7B 21.6 11.4 16.0 9.7 4.3 6.5 – 1.2 0.2 0.2 0.1 0.2 0.1 0.1 5.5
+XGLM7.5B 35.5 19.2 26.3 12.9 14.2 22.9 – 11.9 6.8 9.2 9.4 7.5 3.2 1.0 13.9
+Supervised 20.9 17.6 24.3 17.4 16.0 17.2 22.1 – 15.9 11.6 15.5 18.5 1.9 2.5 15.5
+zh GPT-36.7B 21.1 9.5 14.3 8.2 4.3 3.6 1.3 – 1.1 0.4 0.2 0.2 0.1 0.0 4.9
+XGLM7.5B 20.7 8.3 8.5 10.5 4.4 4.8 14.8 – 9.3 4.2 5.6 12.0 8.6 6.2 9.1
+Supervised 20.9 16.7 22.1 16.5 14.9 15.5 21.1 15.7 – 10.6 15.1 18.7 1.9 4.0 14.9
+ko GPT-36.7B 8.3 4.6 6.4 4.4 2.1 1.7 0.8 2.5 – 0.2 0.1 0.1 0.1 0.1 2.4
+XGLM7.5B 19.9 10.3 13.7 5.3 1.4 1.2 10.9 11.9 – 2.7 3.2 1.0 2.2 1.4 6.5
+Supervised 25.5 18.7 25.7 18.9 15.6 17.8 23.8 13.1 13.3 – 15.4 19.4 1.8 0.9 16.1
+ar GPT-36.7B 10.5 5.3 9.6 6.0 2.2 2.2 0.9 0.9 0.1 – 0.1 0.1 0.2 0.0 2.9
+XGLM7.5B 27.7 12.2 17.9 8.8 8.5 9.1 18.4 8.9 0.8 – 7.7 7.8 3.4 3.7 10.4
+Supervised 30.4 19.4 26.7 20.1 15.6 17.6 23.8 13.2 12.2 12.0 – 19.2 2.1 4.0 16.6
+sw GPT-36.7B 5.0 2.9 3.9 2.8 1.7 1.8 1.3 1.3 0.5 0.5 – 0.4 0.1 0.1 1.7
+XGLM7.5B 31.6 13.4 21.8 15.4 10.2 13.1 15.2 9.5 6.0 8.9 – 7.6 3.4 1.0 12.1
+Supervised 27.9 19.4 25.9 18.9 15.7 16.9 23.9 13.5 13.9 12.2 16.8 – 2.5 3.8 16.2
+hi GPT-36.7B 1.2 0.9 1.4 0.8 0.4 0.4 0.3 0.2 0.1 0.1 0.1 – 0.1 0.2 0.5
+XGLM7.5B 25.2 12.3 15.4 8.8 9.8 11.5 11.3 10.8 8.5 6.1 4.7 – 1.5 1.9 9.8
+Supervised 10.0 6.9 10.4 8.5 6.0 6.7 9.5 5.7 6.1 4.6 7.2 9.1 – 2.5 7.2
+my GPT-36.7B 0.5 0.3 0.4 0.4 0.2 0.1 0.2 0.0 0.0 0.0 0.1 0.2 – 0.1 0.2
+XGLM7.5B 14.1 7.6 10.1 3.8 5.7 7.1 8.9 7.1 6.9 3.6 3.5 8.9 – 2.6 6.9
+Supervised 8.3 4.9 6.8 5.8 5.0 4.7 7.0 2.5 2.3 1.1 5.2 6.9 1.2 – 4.8
+ta GPT-36.7B 1.0 0.5 0.8 0.5 0.2 0.3 0.3 0.1 0.2 0.1 0.1 0.2 0.0 – 0.3
+XGLM7.5B 16.3 8.4 10.3 5.1 5.2 8.1 7.6 8.1 6.2 5.4 2.8 7.2 0.9 – 7.1
+Supervised 26.0 20.2 26.7 20.0 16.7 18.5 24.5 14.1 13.5 11.8 16.3 19.3 2.1 2.5 16.6
+avg GPT-36.7B 18.9 9.9 14.2 9.3 4.2 4.8 2.7 4.0 0.6 0.5 0.2 0.3 0.1 0.1 5.0
+XGLM7.5B 28.5 14.9 20.6 14.4 10.9 12.4 18.5 10.9 5.9 6.1 8.5 9.7 5.8 3.5 12.2
+TableA5: MachinetranslationresultsonFLORES-101devtest(spBLEU).Sourcelanguageinrows,targetlanguage
+incolumns. GPT-3 andXGLM use32examplesfromthedevsetforfew-shotlearning. Supervisedresults
+6.7B 7.5B
+correspondtotheM2M-124615MmodelfromGoyaletal.(2021b). Underlinedenotesbetterthansupervised,bold
+denotesbestofGPT-3andXGLM.spBLEUcomputedusingtheimplementationfromGoyaletal.(2021b).
+D.4 MajorityLabelBias
+Inthemainpaper,wedefine𝑘-shotlearningaslearningfrom𝑘 uniqueexamplesrandomlydrawnfrom
+theentiretrainingpopulation. Thissettingmayleadtoskewedfew-shottrainingsets,especiallywhen𝑘 is
+small. AsshowninTableA6,theXNLItaskisathree-wayclassificationproblemwherethemodelneeds
+tojudgewhethertherelationshipbetweenapairofsentencesis“entailment”,“neurtral”or“contradiction”.
+While the original XNLI dev set has a uniform class distribution, the few-shot training sets randomly
+9041
+24-shot 48-shot
+Seed E N C E N C
+0 9 7 8 22 11 15
+1 6 11 7 12 16 20
+2 9 7 8 20 11 17
+3 8 11 5 16 16 16
+4 6 4 14 14 16 18
+TableA6: DistributionofXNLIfew-shottrainingsetsobtainedbyrandomlysamplingfromtheoriginaldevset. E:
+entailment,N:neutral,C:contradition.
+# high medium low
+shots en zh ru es de fr el th vi tr ar bg hi ur sw Avg Std
+54.0 50.0 41.5 47.1 46.1 47.7 48.8 47.8 48.8 44.8 45.4 44.4 45.8 45.6 46.4
+rand. 47.0 2.9
+24 ( 2.3) ( 1.9) ( 6.1) ( 4.0) ( 2.1) ( 4.1) ( 2.2) ( 2.7) ( 3.5) ( 2.0) ( 3.7) ( 4.8) ( 2.4) ( 1.4) ( 3.0)
+± ± ± ± ± ± ± ± ± ± ± ± ± ± ±
+56.0 52.1 42.9 47.6 49.2 49.2 50.9 48.0 50.2 47.5 47.3 47.0 49.4 46.6 47.4
+unif. 48.7 2.9
+( 1.4) ( 0.8) ( 1.2) ( 0.8) ( 1.0) ( 1.6) ( 1.6) ( 1.2) ( 1.5) ( 1.0) ( 0.8) ( 2.2) ( 1.2) ( 0.9) ( 0.8)
+± ± ± ± ± ± ± ± ± ± ± ± ± ± ±
+54.2 51.7 37.4 45.4 44.7 45.0 46.9 45.8 47.9 42.0 42.3 40.4 45.6 46.2 46.5
+rand. 45.5 4.1
+Max ( 2.2) ( 1.1) ( 1.3) ( 3.2) ( 3.2) ( 3.0) ( 2.6) ( 2.3) ( 2.7) ( 1.4) ( 1.8) ( 1.6) ( 2.2) ( 0.7) ( 2.2)
+± ± ± ± ± ± ± ± ± ± ± ± ± ± ±
+54.3 52.2 39.1 45.8 46.6 46.4 48.3 47.3 48.0 45.0 44.1 42.9 46.7 46.3 47.2
+unif. 46.7 3.5
+( 0.5) ( 0.4) ( 1.0) ( 0.9) ( 1.2) ( 1.8) ( 0.8) ( 0.9) ( 1.2) ( 2.3) ( 1.2) ( 2.1) ( 0.0) ( 0.0) ( 0.7)
+± ± ± ± ± ± ± ± ± ± ± ± ± ± ±
+Table A7: XGLM in-language few-shot learning performance of on XNLI dev set using training sets of
+7.5B
+uniformclassdistributionandrandomlysampledclassdistribution. Wereportthemeanandstandarddeviation(in
+parentheses)of5differenttrainingsetssampledviadifferentrandomseedsforeachsamplingstrategy.
+sampled23 fromitoftenhasamuchmoreskewedclassdistribution.
+Fora -wayclassificationtask,askewedtrainingsetdistributioncancausethemodeltoscorethe
+|𝒴|
+majorityclassasdisproportionatelymorelikelythantheotherclasses. ThiswasshownbyZhaoetal.
+(2021)asthemajoritylabelbiasproblem. Asaresult,previousworksuchasZhaoandSchu¨tze(2021)
+adoptsa𝑘-shotperclasssetting,where𝑘 uniqueexamplesarerandomlydrawnfromeachclasstoforma
+trainingsetofsize𝑘 .
+×|𝒴|
+Wecomparelearningfromauniformclassdistribution(randomlysampling𝑘 examplesperclass)to
+learningfromamoreskeweddistribution(randomlysampling𝑘 examplesfromthetotalpopulation)
+×|ℒ|
+on the XNLI task. We use the 24-shot and maximum fit (truncated 48-shot) settings. As shown in
+Table A7, for both settings, learning from a uniform class distribution leads to significantly higher
+accuracyinalllanguagescomparedtolearningfromtheskeweddistributions. de, tr, bg, hisufferthe
+mostlearningfromtheskeweddistributions(> 2absoluteaccuracygapinthe24-shotsetting), while
+essufferstheleast. Moreover,thevariancesamongfew-shottrialsusingdifferentrandomseedsshrink
+considerablywhenthetrainingsetclassdistributionisuniform. Theseresultshighlighttheseverenessof
+themajoritylabelbiasissueinthemultilingualin-contextlearningframework.
+D.5 KnowledgeProbing
+Weevaluatetowhatextentourmultilinguallanguagemodelcaneffectivelystorefactualknowledgein
+differentlanguages. Tothisend,weevaluateknowledgetripletcompletionusingthemLAMAdataset
+(Kassneretal.,2021),whichwastranslatedfromtheEnglishbenchmarkLAMA(Petronietal.,2019)
+usingGoogleTranslate. ThedataisfromTREx(Elsaharetal.,2018)withtriplesoftheformat object,
+⟨
+relation,subject . FollowingtheconventionofLAMA,triplesareconvertedtotemplatesforqueryingthe
+⟩
+languagemodel. Forexample,atriplelike Paris,capital-of,France isconvertedtotemplate“Parisisthe
+⟨ ⟩
+capitalof[MASK]". WhileeachqueryintheoriginalmLAMAdatasetcontainshundredsofcandidates
+onaverage,werestrictittothreecandidatesoneofwhichisthegroundtruthcandidateandtheothertwo
+candidatesarerandomlysampledtoensurefastinferenceandsaveAPIcost. Followingtheevaluation
+protocolofmLAMA,wereportprecision@1averagedoverallrelationsperlanguage.
+23Weimplementourrandomsamplingprocedureusingthenumpy.random.choicefunction:https://numpy.org/
+doc/stable/reference/random/generated/numpy.random.choice.html.
+9042
+Multilingual, 7.5B GPT-3 Curie
+0.8
+0.7
+0.6
+0.5
+0.4
+en id pt it ca es fi de fr vi et th tr bg ko ru el ja ar zh eu ur bn hi ta
+FigureA6: Knowledgeprobingon25languages. Theperformanceofarandombaselineis0.33sincewedown-
+sampledthecandidatesetofeachquerytocontainthreecandidates.
+Weevaluateonthe25languagescoveredinXGLM’spre-trainingdata. WecomparetotheGPT-3
+6.7B
+model. AsshowninFigureA6,bothourmultilingualmodelandGPT-3CurieperformwellonEnglish.
+For non-English languages, our multilingual model maintains performance (above 0.6) while GPT-3
+Curie drops drastically especially for medium and low resource languages. Overall, compared to an
+English-centriclanguagemodel,ourmultilinguallanguagemodelarebetteratretainingfactualknowledge
+onawiderrangeoflanguageswith+7.1pointsonaverage.
+E SafetyandBiasAnalysis
+GiventhecentralityoflargescaleLanguagemodels,itisimportanttoensuresuchpowerfulmodelsare
+usedresponsibly. Accordingly,wefurtherexamineXGLM’sbehaviorontwotasks:
+• Hatespeechdetection: Asafetytasktotestlanguagemodels’abilitytoidentifyhatefulandoffensive
+text;
+• OccupationIdentification: Abiastasktostudylanguagemodels’performancedisparitybetween
+differentgendergroupsonthetaskofoccupationidentification.
+Throughextensiveexperiments,wehavefollowingfindings: First,hatespeechdetectioninanin-context
+learning setting is quite challenging. Moreover, language models are not effectively leveraging few-
+shot examples to improve the performance. Second, although language models have relatively good
+performanceontheoccupationidentificationtask,theyruntheriskofexhibitingstronggenderbiasfor
+certainoccupations.
+E.1 HateSpeechDetection
+E.1.1 Setup
+Datasets. We adopt datasets introduced by Huang et al. (2020) that include hate speech data from
+Twitterinfivelanguages: English,Italian,Portuguese,PolishandSpanish. Allhyperlinks,usernames
+andhashtagsarereplacedwithgenericsymbols(URL,USER,HASHTAG)toanonymizeuserinformation.
+We remove tweets containing more than 2 generic symbols to encourage more informative examples.
+Wefurtherfilterouttweetsoflengthlessthan5tokensormorethan30tokens. Inthespiritofcreating
+balanceddata,werandomlysample500eachpositive(hatespeech)negative(nothatespeech)examples
+foreachlanguage. Forfurthercomparison,wetranslatenon-EnglishdataintoEnglishbyusingGoogle
+TranslateandthenevaluateEnglishmodelsperformanceonthetask.
+Prompts. We evaluate two approaches to prompting, similar to Section ??. For English prompts,
+we prefix “The sentence is <candidate>” to the input sentence to form a prompt. We consider 10
+verbalizationcandidatesincluding5negative(normal.,common.,ok.,usual.,acceptable.) corresponding
+toclassificationofnothatespeechand5positive(sexist.,racist.,offensive.,abusive.,hateful.) representing
+classificationofhatespeech. Forcode-switchedprompt,wetranslatetheEnglishprefixandcandidates
+intothecorrespondingtargetlanguagebyusingGoogleTranslate. Forexample,“Thesentenceisnormal”
+is translated into “Questa frase è normale.” for Spanish. For few-shot learning, we randomly draw
+examplesfromthetrainingdataandreporttheaverageperformanceacross5runs.
+9043
+1@cerp
+Model languagecondition #shot English Italian Portuguese Polish Spanish
+Accuracy
+0 54.5 54.3 57.0 51.3 52.5
+GPT-36.7Brepl. codeswitched
+4 55.5* 53.4 48.5 52.5 52.2
+0 59.2 61.8 55.8 58.7 55.6
+GPT-36.7B codeswitched
+4 53.6 54.8 53.2 54.5 53.7
+0 56.0 60.4 50.8 47.0 53.1
+XGLM7.5B codeswitched
+4 50.4 50.7 56.8 51.0 50.7
+0 - 50.5 60.2 50.1 52.4
+GPT-36.7Brepl. samelanguage
+4 - 51.0 47.2 50.9 50.7
+0 - 57.5 41.8 50.0 53.1
+XGLM7.5B samelanguage
+4 - 53.2 56.5 51.1 52.7
+GPT-36.7Brepl. English 0
+4
+-
+-
+5 55 2. .8
+5
+5 47 9. .5
+2
+6 52 3. .8 9* 5 55 2. .0
+8
+Recall
+0 57.0 90.2 67.0 21.6 77.0
+GPT-36.7Brepl. codeswitched
+4 73.0* 76.7* 72.5 65.4 77.1*
+0 62.4 88.6 51.5 49.0 76.4
+GPT-36.7B codeswitched
+4 65.7 69.2 59.6 58.5 61.1
+XGLM7.5B codeswitched 0
+4
+7 17 4. .2 9* 9 15 8. .4 8* 18 80 ..4
+8
+5 13 5. .8
+8
+9 15 9. .8 5*
+0 - 1.4 9.1 0.2 11.6
+GPT-36.7Brepl. samelanguage
+4 - 50.0 66.1 77.8 33.4
+0 - 87.4 39.5 0.0 79.4
+XGLM7.5B samelanguage
+4 - 39.0 24.9 55.8 44.6
+GPT-36.7Brepl. English 40 -
+-
+9 73 2. .8
+4
+7 77 1. .8
+2
+7 74 5. .8 7* 7 77 3. .6
+7
+TableA8: AccuracyandrecallscoresofourmultilingualmodelandotherEnglishmodelsontheHateSpeech
+Detectiontask.Weevaluatefivetargetlanguages.Foreachtargetlanguage,weboldthehighestnumberforzero-shot
+andfour-shotrespectively. *indicatesthenumberissignificantlyhigherthanothers. Forlanguagecondition,we
+consider three cases: “code switched” means the prefix, candidates are in English and tweets are in the target
+language;“samelanguage”meansprefix,candidatesandtweetsareinthetargetlanguage;“English”meansprefix,
+candidatesandtweetsareinEnglish,i.e. notethat,“samelanguage"and“English"reducetothesameexperimental
+conditionwhenthetargetlanguageisEnglish.
+Metrics. Wecomputeprecision,recallandaccuracyforallexperimentalconditions. Sincethetestdata
+isbalanced,theaccuracyofarandombaselineis50%.
+E.1.2 Results
+WeshowaccuracyandrecallscoresinTableA8. Boldedresultsarethehighestinthetableandthosewith
+an(*)arestatisticallysignificantlybetterthanothercomparableconditions. Hatespeechdetectionisa
+challengingtaskforallmodels. Weobservethatacrossthefivelanguages,in-contextlearningresultsare
+onlyslightlybetterthanrandom(50%). Theresultsarealsounstableandsensitivetopromptchanging.
+Overall,theXGLM modelhasbetterrecallcomparedtotheEnglish-centricmodels. Forexample,the
+7.5B
+XGLM En-onlymodelhasverylowrecallscoreinthezero-shotsettingwiththelanguagecondition
+6.7B
+setas“samelanguage”,indicatingthatitblindlypredictsalmosteverythingasnegative(nothatespeech).
+Anotherinterestingobservationisthatmostfew-shotresultsareworsethanzero-shot,whichindicatesthat
+withtheprefixdescribedabove,languagemodelsarenotabletoutilizeexamples. Interestingly,wealso
+findthatinone-shotexperimentsmodelstendtocopythelabelofthegivenexampleinsteadofpredicting
+basedontheinputtweet. Thisfurtherdemonstratesthatlanguagemodelsarestrugglingwithlearning
+fromfew-shotexamplesinthistask.
+9044
+English Spanish French
+Model Avg. |Diff| Avg. |Diff| Avg. |Diff|
+↑ ↓ ↑ ↓ ↑ ↓
+XGLM 6.7BEn-only 90.73 3.19 91.23 2.65 83.46 4.85
+GPT-3 6.7B 90.42 3.53 86.91 5.18 90.85 2.30
+XGLM 7.5B 86.49 2.83 82.93 4.28 76.55 2.95
+XGLM En-only+translate - 3.19 91.18 3.75 90.07 2.35
+6.7B
+Table A9: Accuracy and bias scores of our multilingual model and other English models on the occupation
+identificationtask. “|Diff|”standsfortheaverageabsoluteaccuracygapbetweenmaleandfemalegroupsaggregated
+acrossalloccupations. Weboldthehighestaccuracyscoreforeachlanguage.
+E.2 GenderBiasinOccupationIdentification
+E.2.1 Setup
+Datasets We use the English bio dataset introduced in (De-Arteaga et al., 2019) to study gender bias
+basedonidentifyingaperson’soccupationfromtheirbios. Formultilingualbiodatasetsweusethose
+createdby(Zhaoetal.,2020). Originallythereare28occupationsinEnglish,69occupationsinSpanish
+and27occupationsinFrench. Toensurewehaveplentyoftestdataforeachoccupation,weonlykeep
+occupationswithatleast1000maleexamplesand1000femaleexamples. Thisleadsto16occupationsin
+English,6occupationsinSpanishand4occupationsinFrench. Wefollowthesetupin (Zhaoetal.,2020)
+wherepeople’snamesandpronounsareremovedfromthebios. Wethenprefix“Theoccupationofthis
+personis<candidate>”totheinputbiotoformaprompt. Thecandidatesetconsistsoffiveoccupations,
+includingthegroundtruthoneandfourotherrandomlysampledmaleandfemaleoccupations(twomale
+and two female). Male (female) occupations refer to ones having predominantly more male (female)
+samples.
+MetricsSimilartothemetricforHateSpeechdetection,wefirstobtainthescoresfor5candidatesand
+considerapredictioncorrectifthegroundtruthcandidateyieldsthehighestscoreamongfivecandidates.
+Wethencomputethebiasscoreastheabsolutegapbetweentheaccuracyscoresonthemaleandfemale
+samples,24 averagedacrossalloccupations. Alowerbiasscoreindicatesthatamodelhaslessdivergence
+inidentifyingoccupationsformenandwomen.
+E.2.2 Results
+Wepresenttheoverallaccuracyscoresandthebiasscores(|Diff|)inTableA9. Resultsindicatethatthe
+XGLM En-onlymodelachievesthebestperformanceonEnglishandSpanish,whiletheGPT-3
+6.7B 6.7B
+model achieves the best performance on French. XGLM model, instead, falls behind on all three
+7.5B
+languages,especiallyforSpanishandFrench. Wethinkthisispotentiallyduetothatallpronounsand
+people’snamesareremovedfromthetestdatabutnottrainingdata. ThetrainingdataforXGLM
+7.5B
+containsmoreSpanishandFrenchcomparedtotheothertwomodels. Thus,XGLM mayhavemore
+7.5B
+severemorphologicalmismatchonSpanishandEnglish. Regardingthebiasscore,theGPT-3 model
+6.7B
+isthemostbiasedmodelonbothEnglishandSpanishbutleastbiasedonFrench. XGLM En-only
+6.7B
+andXGLM exhibittheleastbiasonSpanishandEnglish,respectively.
+7.5B
+F DataCard
+WefollowtherecommendationsofGebruetal. (2018)andprovideadatacardforthedatasetusedtotrain
+XGLM,whichisasubsetofCC100-XL,alargermultilingualdatasetwecurated.
+F.1 DataSources
+Followingtherecentsuccessofmultilingualself-supervisedpre-training(Devlinetal.,2019;Lampleand
+Conneau,2019;Conneauetal.,2020;Xueetal.,2020;Goyaletal.,2021a;Liuetal.,2020), wetrain
+our language models on a mixture of monolingual text of different languages. We extend the pipeline
+usedforminingtheCC100corpus(Conneauetal.,2020;Wenzeketal.,2020)togenerateCC100-XL,
+24Weonlyconsidergapsthatarestatisticallysignificant.
+9045
+a significantly larger multilingual dataset covering 68 Common Crawl (CC) snapshots (from Summer
+2013toMarch/April2020)and134languages. Asthefirststeptobalancethelanguagedistribution,we
+sampled30%ofthedatafromthelanguagesthatcontainmorethan15billiontokensandmorethan20
+milliondocuments. Thisresultedina8.4TBmultilingualcorpuswith1.9trilliontokens.
+F.2 Motivation
+• For what purpose was the dataset created? Was there a specific task in mind? Was there
+a specific gap that needed to be filled? Please provide a description. The CC100-XL dataset
+wascollectedtocreateahighqualitymonolingualdatasetforatleast100languages. Itwasmainly
+usedfortrainingfoundationmultilinguallanguagemodelswhichmaybeappliedtoabroadlistof
+languagetasks,includingneuralmachinetranslation,speechtranslation,questionanswering,etc.
+CC100-XLinvolvessentencelevelfiltering,preservescontext,improvesthefilteringmechanism,
+andpavesawayformining200+languages.
+• Whocreatedthedataset(e.g.,whichteam,researchgroup)andonbehalfofwhichentity(e.g.,
+company,institution,organization)? MetaAI.
+• Who funded the creation of the dataset? If there is an associated grant, please provide the
+nameofthegrantorandthegrantnameandnumber. MetaAI.
+• Anyothercomments? No.
+F.3 Composition
+• Whatdotheinstancesthatcomprisethedatasetrepresent(e.g.,documents,photos,people,
+countries)? Aretheremultipletypesofinstances(e.g.,movies,users,andratings;peopleand
+interactionsbetweenthem;nodesandedges)? Pleaseprovideadescription. Theinstancesare
+textualdocumentssampledfromCommoncrawlsnapshots.
+• How many instances are there in total (of each type, if appropriate)? The training dataset of
+XGLMcontains1.74billiondocumentsintotal.
+• Does the dataset contain all possible instances or is it a sample (not necessarily random) of
+instancesfromalargerset? Ifthedatasetisasample,thenwhatisthelargerset? Isthesample
+representative of the larger set (e.g., geographic coverage)? If so, please describe how this
+representativeness was validated/verified. If it is not representative of the larger set, please
+describe why not (e.g., to cover a more diverse range of instances, because instances were
+withheld or unavailable). The dataset is a subset of CC100-XL. For each language, the data is
+eitherafullsetorarandomsubsetofCC100-XLdata. Especially,themedium-andlow-resource
+languagesareupsampled. Intermsoflanguagerepresentation,theCC100-XLdatasetcontains134
+languagesextractedusingfasttext25 fromCommonCrawlsnapshots. Wefurtherselectedasubset
+of30languagestotrainXGLM,takinggeo-location,languagefamilyandtypologydiversityofthe
+languagesintoaccount.
+• What data does each instance consist of? “Raw” data (e.g., unprocessed text or images) or
+features? Ineithercase,pleaseprovideadescription. Eachinstanceconsistsofrawtextdata.
+• Istherealabelortargetassociatedwitheachinstance? Ifso,pleaseprovideadescription. No.
+• Is any information missing from individual instances? If so, please provide a description,
+explaining why this information is missing (e.g., because it was unavailable). This does not
+includeintentionallyremovedinformation,butmightinclude,e.g.,redactedtext. No.
+25https://fasttext.cc/docs/en/language-identification.html
+9046
+ISOcode Language Tokens(M) Size(GiB) ISOcode Language Tokens(M) Size(GiB)
+en English 803,527 3,324.45 - ArabicRomanized 685 1.65
+ru Russian 147,792 1,007.38 mn Mongolian 681 4.26
+zh Chinese 132,770 485.32 la Latin 635 2.20
+de German 89,224 369.30 ne Nepali 600 5.32
+es Spanish 87,303 363.83 si Sinhalese 524 3.96
+fr French 77,420 303.76 mr Marathi 458 3.59
+ja Japanese 66,054 293.39 kn Kannada 446 3.41
+it Italian 41,930 170.76 so Somali 436 1.56
+pt Portuguese 36,586 147.12 cy Welsh 398 1.27
+el Greek 28,762 180.37 jv Javanese 389 1.23
+ro Romanian 24,176 93.63 ps Pashto 387 1.97
+uk Ukrainian 23,723 156.68 uz Uzbek 332 1.64
+hu Hungarian 22,718 89.87 gu Gujarati 327 2.10
+ko Korean 20,002 79.08 km Khmer 272 2.14
+pl Polish 19,293 73.59 - UrduRomanized 245 0.73
+no Norwegian 17,600 70.89 am Amharic 169 0.85
+nl Dutch 17,163 68.36 - BengaliRomanized 166 0.48
+fi Finnish 16,804 67.28 pa Punjabi 153 0.93
+da Danish 16,274 64.74 gl Galician 137 0.50
+id Indonesian 15,424 67.51 ha Hausa 124 0.42
+hr Croatian 14,455 54.27 mg Malagasy 116 0.38
+tr Turkish 12,413 51.51 sa Sanskrit 107 0.42
+ar Arabic 12,249 64.34 eu Basque 105 0.35
+vi Vietnamese 11,199 50.45 my Burmese 101 0.74
+th Thai 10,842 99.86 su Sundanese 91 0.30
+bg Bulgarian 9,704 61.10 or Oriya 91 0.62
+fa Persian 9,355 57.46 ht Haitian 87 0.28
+sv Swedish 9,169 36.54 lo Lao 84 0.59
+ms Malay 9,106 38.57 ky Kyrgyz 70 0.34
+he Hebrew 8,637 42.13 br Breton 57 0.16
+cs Czech 8,616 32.46 ga Irish 49 0.15
+sk Slovak 8,251 30.70 yo Yoruba 48 0.14
+ca Catalan 7,076 26.90 eo Esperanto 47 0.14
+lt Lithuanian 4,847 18.38 - TamilRomanized 40 0.13
+sl Slovene 4,029 14.97 zu Zulu 40 0.14
+hi Hindi 3,448 26.63 ti Tigrinya 40 0.19
+et Estonian 3,287 12.18 - TeluguRomanized 37 0.11
+lv Latvian 2,815 10.67 ku Kurdish 36 0.10
+tl Tagalog 2,389 8.13 om Oromo 27 0.09
+sq Albanian 2,382 8.76 xh Xhosa 26 0.09
+sr Serbian 2,101 12.68 gd ScottishGaelic 19 0.05
+- HindiRomanized 2,045 6.60 ig Igbo 18 0.06
+az Azerbaijani 1,904 8.41 as Assamese 17 0.10
+bn Bengali 1,627 11.19 lg Ganda 15 0.05
+ta Tamil 1,477 12.36 wo Wolof 14 0.03
+ur Urdu 1,352 7.77 fy WesternFrisian 12 0.04
+kk Kazakh 1,278 8.40 tn Tswana 11 0.03
+hy Armenian 1,261 7.16 ff Fula 11 0.03
+ka Georgian 1,261 10.48 gn Guaraní 10 0.03
+is Icelandic 1,163 4.21 sd Sindhi 8 0.04
+be Belarusian 1,004 5.81 ln Lingala 7 0.02
+bs Bosnian 950 4.00 bm Bambara 6 0.02
+ml Malayalam 935 8.08 iu Inuktitut 6 0.03
+mk Macedonian 927 6.05 kg Kongo 4 0.01
+sw Swahili 908 3.19 qu Quechua 3 0.01
+af Afrikaans 819 3.04 ss Swati 2 0.01
+te Telugu 689 5.28 - Unassigned 503 2.30
+TableA10: LanguagesandstatisticsofthetrainingdatasetselectedfromCC100XLcorpus.
+9047
+• Arerelationshipsbetweenindividualinstancesmadeexplicit(e.g.,users’movieratings,social
+network links)? If so, please describe how these relationships are made explicit. A small
+percentageofdocumentinstances(<2%)areduplicated. Otherthanthat,therearenorelationships
+betweenindividualinstances.
+• Are there recommended data splits (e.g., training, development/validation, testing)? If so,
+pleaseprovideadescriptionofthesesplits,explainingtherationalebehindthem. Thisdataset
+issplitintotrainingandvalidationonly. Foreachhighresourcelanguage,atleast5,000randomly
+selecteddocumentsand30,000linesweresplitintovalidationset,andtherestdocumentsarefor
+training;forlow-resourcelanguages,atleast100randomlyselecteddocumentsand1,000lines(a
+coupleofverylowresourcelanguagescontain 80documents)weresplitintovalidsetandleavethe
+restfortraining. Thereare3.5millionlinesoftextintotalforthevalidationset. Thissplitismainly
+toensureagoodsizeofvalidationdatawiththecoverageandbalanceoveralllanguages,meanwhile,
+thevalidationsizeisnottoolargetoaffecttheoveralltrainingspeed.
+• Arethereanyerrors,sourcesofnoise,orredundanciesinthedataset? Ifso,pleaseprovide
+adescription. 10%ofRussiansamplewerelostduringinternaldatatransferring. Therefore,we
+endeduptaking26.7%randomsubsetofthewholeRussiandatafromCC100-XL.
+• Is the dataset self-contained, or does it link to or otherwise rely on external resources (e.g.,
+websites,tweets,otherdatasets)? It’sself-contained.
+• Doesthedatasetcontaindatathatmightbeconsideredconfidential(e.g.,datathatisprotected
+bylegalprivilegeorbydoctor-patientconfidentiality,datathatincludesthecontentofindivid-
+uals’non-publiccommunications)? Ifso,pleaseprovideadescription. CC100-XLisexclusively
+extractedfromCommonCrawl;andtheinformationinitisnotconsideredconfidential.
+• Doesthedatasetcontaindatathat,ifvieweddirectly,mightbeoffensive,insulting,threatening,
+ormightotherwisecauseanxiety? Ifso,pleasedescribewhy. CC100-XLisasubsetofpublic
+Common Crawl data, which could contain sentences that, if viewed directly, might be offensive,
+insulting,threatening,ormightotherwisecauseanxiety.
+• Doesthedatasetrelatetopeople? Ifnot,youmayskiptheremainingquestionsinthissection.
+Somedocumentsofthisdatarelatetopeople,suchasnewsarticles,Wikipediadescriptions,etc.
+• Doesthedatasetidentifyanysubpopulations(e.g.,byage,gender)? Ifso,pleasedescribehow
+thesesubpopulationsareidentifiedandprovideadescriptionoftheirrespectivedistributions
+withinthedataset. No.
+• Is it possible to identify individuals (i.e., one or more natural persons), either directly or
+indirectly(i.e.,incombinationwithotherdata)fromthedataset? Ifso,pleasedescribehow
+Otherthantheindividualswhoarecelebrities,politicians,etc,andhavetheirWikipediapages;it
+is possible to identify other individuals by their names, twitter account names, etc. But we built
+personallyidentifiableinformation(PII)identificationtoolsfollowingtheguidelinesofGeneralData
+ProtectionRegulation(GDPR)andNationalInstituteofStandardsandTechnology(NIST)andrun
+againstthisdataset,wedidnotfoundhighlysensitivePIIinformation,suchasU.S.socialsecurity
+number,logincredentials,etc.
+• Does the dataset contain data that might be considered sensitive in any way (e.g., data that
+reveals racial or ethnic origins, sexual orientations, religious beliefs, political opinions or
+unionmemberships,orlocations;financialorhealthdata;biometricorgeneticdata;forms
+ofgovernmentidentification,suchassocialsecuritynumbers;criminalhistory)? Ifso,please
+provideadescription. Weuseacuratedspecialwordlistof100languageswhichcoversprofanities,
+hatespeech,bullinglanguage,commonslangsandprofanemulti-wordexpressions(MWEs)totag
+paragraphsandremovethedocscontainingthem. Giventhesizeofthisdata,itcouldstillcontain
+9048
+such sensitive information (as the above lists may not be exhaustive) but should be a very small
+percentofinstances.
+• Anyothercomments? No
+F.4 CollectionProcess
+• Howwasthedataassociatedwitheachinstanceacquired? Wasthedatadirectlyobservable
+(e.g., raw text, movie ratings), reported by subjects (e.g., survey responses), or indirectly
+inferred/ derived from other data (e.g., part-of-speech tags, model-based guesses for age or
+language)? Ifdatawasreportedbysubjectsorindirectlyinferred/derivedfromotherdata,
+wasthedatavalidated/verified? Ifso,pleasedescribehow. Pleaserefertothemaindocumentfor
+details.
+• Whatmechanismsorprocedureswereusedtocollectthedata(e.g.,hardwareapparatusor
+sensor,manualhumancuration,softwareprogram,softwareAPI)?Howwerethesemechanisms
+orproceduresvalidated? Pleaserefertothemaindocumentfordetails.
+• Ifthedatasetisasamplefromalargerset,whatwasthesamplingstrategy(e.g.,deterministic,
+probabilisticwithspecificsamplingprobabilities)? Pleaserefertothemaindocumentfordetails.
+• Who was involved in the data collection process (e.g., students, crowdworkers, contractors)
+andhowweretheycompensated(e.g.,howmuchwerecrowdworkerspaid)? Thisdataismined,
+filteredandsampledbymachines.
+• Overwhattimeframewasthedatacollected? Doesthistimeframematchthecreationtimeframe
+ofthedataassociatedwiththeinstances(e.g.,recentcrawlofoldnewsarticles)? Ifnot,please
+describethetimeframeinwhichthedataassociatedwiththeinstanceswascreated. Thedata
+wascollectedfrom68CommonCrawl(CC)snapshots(fromSummer2013toMarch/April2020).
+Therefore,itdoesnotcontainalotofinformationaboutrecenteventssuchasCOVID-19.
+• Were any ethical review processes conducted (e.g., by an institutional review board)? If so,
+pleaseprovideadescriptionofthesereviewprocesses,includingtheoutcomes,aswellasalink
+orotheraccesspointtoanysupportingdocumentation. No.
+• Doesthedatasetrelatetopeople? Ifnot,youmayskiptheremainderofthequestionsinthis
+section. No.
+• Didyoucollectthedatafromtheindividualsinquestiondirectly,orobtainitviathirdparties
+orothersources(e.g.,websites)? N/A
+• Weretheindividualsinquestionnotifiedaboutthedatacollection? Ifso,pleasedescribe(or
+showwithscreenshotsorotherinformation)hownoticewasprovided,andprovidealinkor
+otheraccesspointto,orotherwisereproduce,theexactlanguageofthenotificationitself. N/A
+• Did the individuals in question consent to the collection and use of their data? If so, please
+describe (or show with screenshots or other information) how consent was requested and
+provided, and provide a link or other access point to, or otherwise reproduce, the exact
+languagetowhichtheindividualsconsented. N/A
+• Ifconsentwasobtained,weretheconsentingindividualsprovidedwithamechanismtorevoke
+theirconsentinthefutureorforcertainuses? Ifso,pleaseprovideadescription,aswellasa
+linkorotheraccesspointtothemechanism(ifappropriate). N/A
+• Hasananalysisofthepotentialimpactofthedatasetanditsuseondatasubjects(e.g.,adata
+protectionimpactanalysis)beenconducted? Ifso,pleaseprovideadescriptionofthisanalysis,
+includingtheoutcomes,aswellasalinkorotheraccesspointtoanysupportingdocumentation.
+SomeresponsibleAIrelatedevaluationswereperformed. Pleaserefertothemaindocument.
+9049
+• Anyothercomments? No
+F.5 Preprocessing/cleaning/labeling
+• Was any preprocessing/cleaning/labeling of the data done (e.g., discretization or bucketing,
+tokenization,part-of-speechtagging,SIFTfeatureextraction,removalofinstances,processing
+ofmissingvalues)? Ifso,pleaseprovideadescription. Ifnot,youmayskiptheremainderof
+thequestionsinthissection. Yes,thedetailedstepsareasbelow:
+– DownloadingandShardingCommoncrawlSnapshotsWedownloaded68Commoncrawlsnap-
+shotsanddividedthedatain240shardsbasedonweb-domain. Atthisstage,textualdatagets
+extractedfromtheWETfilesprovidedbyCommonCrawlwhichinvolvescleaningexcessive
+tabsandnewlines.
+– LanguageIdentification(LID)atDocumentLevelForthisstage,weusedthefastTextlanguage
+identification (LID) model on the entire document which helped further divide the data by
+language. InadditiontotheoriginallanguagessupportedbyfastText,wealsoaddedsupportfor
+28romanizedlanguages. Intotal,thedataforeachlanguagecontains240shards.
+– DeduplicatingDocumentsbasedonURLWeaggregatedthedatabasedonURLwhichyields
+60%reductioninvolume. IncasetwodocumentshadthesameURL,weselectedthedocument
+havingmorerecenttextcontent.
+– DocumentSplittingandLIDatParagraphLevelWesegmentedthedocumentsbasedonnewline
+andalsostoredtheinformationabouttheorderinwhichtheparagraphswereappearinginthe
+original document (i.e. seq_num). Next, we performed LID at the paragraph level again in
+ordertodividetheoriginaldocumentsintoclustersofparagraphswhereeachclusterrepresents
+sentencesbelongingtoaparticularlanguage.
+– Deduplicating Paragraphs Data extracted from Commoncrawl snapshots still have a lot of
+duplicatetextevenifthedocumentisdifferent. Inordertotacklethis,weappliedthenormal-
+izationfunctionfromCCNet(Wenzeketal.,2020)andthencomputedaSHA-1hashofthe
+normalizedtext. Thishelpedinreducingthecontentby 88%. Choosingwhich<paragraph,
+url>combinationtokeepcanbetrickyasitcanleadtoalotoffragmenteddocuments. Sowe
+devisedastrategytochoosedocumentsbasedonsorted<url,seq_num>orderwhichwould
+helpinpreventingfragmentationasmuchaspossible.
+– LanguageModelScoresWescoredeveryparagraphusingaLanguageModeltrainedondata
+collectedfromOPUS(Tiedemann,2012)(monolingualdatacollectedfromtheavailblebitexts)
+using a 4-gram KenLM (Heafield, 2011). Note that since the LMs were not trained on data
+belongingtoaspecificdomain,thisfeaturehelpedineliminatinggeneralnon-fluentsentences.
+– HeuristicbasedapproachesWeusethefollowingtechniquestofurtherrefinethefilteringstep
+(especiallyusefulforLowresourcelanguageshavingnoorpoorqualityLM)
+* Ratioofdigit+punctuationtototalcharacters(currentthreshold<0.25)
+* MaximumnumberofURLspersentence(currentvalue1)
+* Type-tokenratio(currentthreshold>0.6+removingbottom1%perlanguage)
+* Minimum number of tokens per sentence (current value 3; not applied for agglutinative
+languages)
+– Taggingprofanewordsandremovinginstancescontainingsuchwords
+• Wasthe“raw”datasavedinadditiontothepreprocessed/cleaned/labeleddata(e.g.,tosupport
+unanticipatedfutureuses)? Ifso,pleaseprovidealinkorotheraccesspointtothe“raw”data.
+The“raw”dataispublicllyavailableininhttps://commoncrawl.org/the-data.
+• Isthesoftwareusedtopreprocess/clean/labeltheinstancesavailable? Ifso,pleaseprovidea
+linkorotheraccesspoint. ThesoftwareisproprietarytoMetaPlatformsandcurrentlyunavailable
+publicly.
+• Anyothercomments? No
+9050
+F.6 Uses
+• Hasthedatasetbeenusedforanytasksalready? Ifso,pleaseprovideadescription. Yes,this
+datasetanditsprecursorCC100datahavebeenusedtotrainmachinetranslationsandmultilingual
+languagemodels,whicharefoundationtomanydownstreamlanguagetasks.
+• Istherearepositorythatlinkstoanyorallpapersorsystemsthatusethedataset? Ifso,please
+providealinkorotheraccesspoint. No.
+• What(other)taskscouldthedatasetbeusedfor? Thisdatacanbeusedtopretrainmultilingual
+languagemodels,whicharefoundationtomanycurrentandfuturelanguagetasks.
+• Is there anything about the composition of the dataset or the way it was collected and pre-
+processed/cleaned/labeled that might impact future uses? For example, is there anything
+thatafutureusermightneedtoknowtoavoidusesthatcouldresultinunfairtreatmentof
+individualsorgroups(e.g.,stereotyping,qualityofserviceissues)orotherundesirableharms
+(e.g.,financialharms,legalrisks)Ifso,pleaseprovideadescription. Isthereanythingafuture
+usercoulddotomitigatetheseundesirableharms? Thepipelineforcreatingthisdatasetpavesa
+wayforbuildingascalableinfrastructureforminingdatasetstobebeusedfortraininglarge-scale
+models.
+• Aretheretasksforwhichthedatasetshouldnotbeused? Ifso,pleaseprovideadescription.
+No.
+• Anyothercomments? No.
+F.7 Distribution
+• Willthedatasetbedistributedtothirdpartiesoutsideoftheentity(e.g.,company,institution,
+organization)onbehalfofwhichthedatasetwascreated? Ifso,pleaseprovideadescription.
+No.
+• How will the dataset will be distributed (e.g., tarball on website, API, GitHub)? Does the
+datasethaveadigitalobjectidentifier(DOI)?N/A
+• Whenwillthedatasetbedistributed? No.
+• Willthedatasetbedistributedunderacopyrightorotherintellectualproperty(IP)license,
+and/orunderapplicabletermsofuse(ToU)?Ifso,pleasedescribethislicenseand/orToU,and
+providealinkorotheraccesspointto,orotherwisereproduce,anyrelevantlicensingtermsor
+ToU,aswellasanyfeesassociatedwiththeserestrictions. No.
+• HaveanythirdpartiesimposedIP-basedorotherrestrictionsonthedataassociatedwiththe
+instances? Ifso,pleasedescribetheserestrictions,andprovidealinkorotheraccesspointto,
+orotherwisereproduce,anyrelevantlicensingterms,aswellasanyfeesassociatedwiththese
+restrictions. No.
+• Doanyexportcontrolsorotherregulatoryrestrictionsapplytothedatasetortoindividual
+instances? Ifso,pleasedescribetheserestrictions,andprovidealinkorotheraccesspointto,
+orotherwisereproduce,anysupportingdocumentation. N/A
+• Anyothercomments? No.
+F.8 Maintenance
+• Whoissupporting/hosting/maintainingthedataset? MetaAI.
+• Howcantheowner/curator/managerofthedatasetbecontacted(e.g.,emailaddress)? Referto
+themaindocument.
+9051
+• Isthereanerratum? Ifso,pleaseprovidealinkorotheraccesspoint. Currentlyno.
+• Will the dataset be updated (e.g., to correct labeling errors, add new instances, delete in-
+stances)? Ifso,pleasedescribehowoften,bywhom,andhowupdateswillbecommunicatedto
+users(e.g.,mailinglist,GitHub)? Noplanforupdating.
+• Ifthedatasetrelatestopeople,arethereapplicablelimitsontheretentionofthedataassociated
+withtheinstances(e.g.,wereindividualsinquestiontoldthattheirdatawouldberetainedfor
+afixedperiodoftimeandthendeleted)? Ifso,pleasedescribetheselimitsandexplainhow
+theywillbeenforced. N/A
+• Willolderversionsofthedatasetcontinuetobesupported/hosted/maintained? Ifso,please
+describehow. Ifnot,pleasedescribehowitsobsolescencewillbecommunicatedtousers. N/A
+• Ifotherswanttoextend/augment/buildon/contributetothedataset,isthereamechanismfor
+themtodoso? Ifso,pleaseprovideadescription. Willthesecontributionsbevalidated/verified?
+Ifso,pleasedescribehow. Ifnot,whynot? Isthereaprocessforcommunicating/distributing
+thesecontributionstootherusers? Ifso,pleaseprovideadescription. No.
+• Anyothercomments? No.
+9052

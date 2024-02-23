@@ -1,0 +1,782 @@
+The Risk of Racial Bias in Hate Speech Detection
+MaartenSap♦ DallasCard♣ SaadiaGabriel♦ YejinChoi♦♥ NoahA.Smith♦♥
+♦PaulG.AllenSchoolofComputerScience&Engineering,UniversityofWashington,Seattle,USA
+♣MachineLearningDepartment,CarnegieMellonUniversity,Pittsburgh,USA
+♥AllenInstituteforArtificialIntelligence,Seattle,USA
+msap@cs.washington.edu
+Abstract
+Non-toxic tweets Wussup, PerspectiveAPI
+We investigate how annotators’ insensitivity n*gga!
+(per Spears, 1998) Toxicity score
+to differences in dialect can lead to racial
+crowdsourcing
+bias in automatic hate speech detection mod- Wussup,
+90%
+n*gga!
+els, potentially amplifying harm against mi-
+nority populations. We first uncover unex- What's
+7%
+pected correlations between surface markers up, bro!
+of African American English (AAE) and rat-
+I saw him
+ings of toxicity in several widely-used hate 6%
+yesterday.
+speech datasets. Then, we show that models
+trainedonthesecorporaacquireandpropagate I saw his ass classifier 95%
+yesterday.
+thesebiases,suchthatAAEtweetsandtweets
+byself-identifiedAfricanAmericansareupto
+Figure1:PhrasesinAfricanAmericanEnglish(AAE),
+two times more likely to be labelled as of-
+their non-AAE equivalents (from Spears, 1998), and
+fensive compared to others. Finally, we pro- toxicity scores from PerspectiveAPI.com. Per-
+pose dialect and race priming as ways to re-
+spective is a tool from Jigsaw/Alphabet that uses a
+ducetheracialbiasinannotation,showingthat
+convolutionalneuralnetworktodetecttoxiclanguage,
+when annotators are made explicitly aware of
+trained on crowdsourced data where annotators were
+an AAE tweet’s dialect they are significantly
+askedtolabelthetoxicityoftextwithoutmetadata.
+lesslikelytolabelthetweetasoffensive.
+1 Introduction
+more toxic than general American English equiv-
+Toxiclanguage(e.g.,hatespeech,abusivespeech, alents,despitetheirbeingunderstoodasnon-toxic
+or other offensive speech) primarily targets mem- byAAEspeakers(Spears,1998,see§2).
+bers of minority groups and can catalyze real- In this work, we first empirically characterize
+lifeviolencetowardsthem(O’Keeffeetal.,2011; theracialbiaspresentinseveralwidelyusedTwit-
+Cleland, 2014; Mozur, 2018). Social media ter corpora annotatedfor toxic content, and quan-
+platforms are under increasing pressure to re- tify the propagation of this bias through models
+spond (Trindade, 2018), but automated removal trained on them (§3). We establish strong asso-
+of such content risks further suppressing already- ciations between AAE markers (e.g., “n*ggas”,
+marginalized voices (Yasin, 2018; Dixon et al., “ass”) and toxicity annotations, and show that
+2018). Thus, great care is needed when develop- models acquire and replicate this bias: in other
+ingautomatictoxiclanguageidentificationtools. corpora, tweets inferred to be in AAE and tweets
+Thetaskisespeciallychallengingbecausewhat from self-identifying African American users are
+is considered toxic inherently depends on social morelikelytobeclassifiedasoffensive.
+context (e.g., speaker’s identity or dialect). In- Second, through an annotation study, we intro-
+deed, terms previously used to disparage com- duce a way of mitigating annotator bias through
+munities (e.g., “n*gga”, “queer”) have been re- dialect and race priming. Specifically, by design-
+claimed by those communities while remaining ing tasks that explicitly highlight the inferred di-
+offensivewhenusedbyoutsiders(Rahman,2012). alect of a tweet or likely racial background of its
+Figure 1 illustrates how phrases in the African author, we show that annotators are significantly
+AmericanEnglishdialect(AAE)arelabelledbya lesslikelytolabelanAAEtweetasoffensivethan
+publicly available toxicity detection tool as much whennotshownthisinformation(§4).
+Our findings show that existing approaches to category count AAEcorr.
+toxic language detection have racial biases, and
+hatespeech 1,430 −0.057
+that text alone does not determine offensiveness.
+offensive 19,190 0.420
+Therefore, we encourage paying greater atten-
+none 4,163 −0.414
+tion to the confounding effects of dialect and a
+total 24,783
+speaker’ssocial identity(e.g., race) soas toavoid
+unintendednegativeimpacts. hateful 4,965 0.141
+abusive 27,150 0.355
+2 RaceandDialectonSocialMedia
+spam 14,030 −0.102
+Since previous research has exposed the potential none 53,851 −0.307
+for other identity-based biases in offensive lan- total 99,996
+guage detection (e.g., gender bias; Park et al.,
+Table1: Numberoftweetsineachcategory,andcor-
+2018), here we investigate racial bias against
+relationwithAAE(Pearsonr, p (cid:28)0.001). Weassign
+speech by African Americans, focusing on Twit-
+tweetstocategoriesbasedonthelabelforFDCL18,and
+terasitisaparticularlyimportantspaceforBlack
+majorityclassfor DWMW17. Correlationsarecolored
+activism(WilliamsandDomoszlai,2013;Freelon
+forinterpretability.
+etal.,2016;Andersonetal.,2018). Raceisacom-
+plex, multi-faceted social construct (Sen and Wa-
+sow, 2016) that has correlations with geography, etal.,2018;Waseemetal.,2018).3 Differentpro-
+status,dialect,andmore. AsTwitteraccountstyp- tocolswereusedtocollectthetweetsinthesecor-
+ically do not have self-reported race information, pora, but both were annotated by Figure-Eight4
+researchers rely on various correlates of race as crowdworkersforvarioustypesoftoxiclanguage,
+proxies. WeusetheAfricanAmericanEnglishdi- showninTable1.
+alect (AAE)asaproxyforrace. AAEisawidely
+useddialectofEnglishthatiscommonamong,but DWMW17 (Davidson et al., 2017) includes an-
+notuniqueto,thosewhoidentifyasAfricanAmer- notations of 25K tweets as hate speech, offensive
+ican,1 and is often used in written form on social (but not hate speech), or none. The authors col-
+media to signal a cultural identity (Green, 2002; lecteddatafromTwitter,startingwith1,000terms
+Edwards,2004;Florini,2014). fromHateBase(anonlinedatabaseofhatespeech
+terms) as seeds, and crowdsourced at least three
+Dialect estimation In this work, we infer di-
+annotationspertweet.
+alect using a lexical detector of words associated
+with AAE or white-aligned English. We use the FDCL18 (Founta et al., 2018) collects 100K
+topic model from Blodgett et al. (2016), which tweets annotated with four labels: hateful, abu-
+was trained on 60M geolocated tweets and relies sive, spam or none. Authors used a bootstrapping
+on US census race/ethnicity data as topics. The approach tosampling tweets, which werethen la-
+model yields probabilities of a tweet being AAE belledbyfivecrowdsourceworkers.
+(p )orWhite-alignedEnglish(p ).2
+AAE white
+3.1 DataBias
+3 BiasesinToxicLanguageDatasets
+Toquantifytheracialbiasthatcanariseduringthe
+Tounderstandtheracialanddialecticbiasintoxic annotation process, we investigate the correlation
+language detection, we focus our analyses on two betweentoxicityannotationsanddialectprobabil-
+corpora of tweets (Davidson et al., 2017; Founta itiesgivenbyBlodgettetal.(2016).
+et al., 2018) that are widely used in hate speech Table 1 shows the Pearson r correlation be-
+detection(Parketal.,2018;vanAkenetal.,2018; tween p AAE and each toxicity category. For both
+Kapoor et al., 2018; Alorainy et al., 2018; Lee datasets, we uncover strong associations between
+1Ofcourse,manyAfricanAmericansmightnotuseAAE 3Our findings also hold for the widely used data from
+in every context, or at all. For further discussion of AAE, WaseemandHovy(2016). However,becauseofseverelimi-
+pleaserefertoBlodgettetal.(2016). tationsofthatdataset(seeSchmidtandWiegand,2017;Klu-
+2The model yields AAE, Hispanic, Asian/Other and bikaandFernandez,2018),werelegatethoseanalysestosup-
+White-aligneddialectprobabilities,butforthepurposeofour plementary(§A.3).
+studyweonlyfocusonAAEandWhite-aligneddialects. 4www.figure-eight.com
+71WMWD
+81LCDF
+Withindatasetproportions ProportionsonDEMOGRAPHIC16 ProportionsonUSERLEVELRACE18
+None Offensive Hate None Offensive Hate
+%falseidentification
+AAE 58.1 38.7 AA 77.1 20.0
+Group Acc. None Offensive Hate
+White 79.3 18.5 White 84.2 13.5
+AAE 94.3 1.1 46.3 0.8
+White 87.5 7.9 9.0 3.8 Overall 74.0 23.3 Overall 83.0 14.5
+Overall 91.4 2.9 17.9 2.3
+0 25 50 75 100 0 25 50 75 100
+%falseidentification Spam None Abusive Hateful Spam None Abusive Hateful
+AAE 56.8 24.6 AA 70.6 10.8
+Group Acc. None Abusive Hateful
+AAE 81.4 4.2 26.0 1.7 White 77.9 11.4 White 75.5 7.4
+White 82.7 30.5 4.5 0.8 Overall 72.1 14.4 Overall 74.6 7.9
+Overall 81.4 20.9 6.6 0.8
+0 25 50 75 100 0 25 50 75 100
+Figure2: Left: classificationaccuracyandper-classratesoffalsepositives(FP)ontestdataformodelstrainedon
+DWMW17 and FDCL18, wherethegroupwithhighestrateofFPisbolded. Middleandright: averageprobabil-
+itymassoftoxicityclassesin DEMOGRAPHIC16 and USERLEVELRACE18, respectively, asgivenbyclassifiers
+trained on DWMW17 (top) and FDCL18 (bottom). Proportions are shown for AAE, White-aligned English, and
+overall(alltweets)forDEMOGRAPHIC16,andforself-identifiedWhiteauthors,AfricanAmericanauthors(AA),
+andoverallforUSERLEVELRACE18.
+inferredAAEdialectandvarioushatespeechcat- USERLEVELRACE18(Preot¸iuc-PietroandUn-
+egories, specifically the “offensive” label from gar,2018) isacorpusof5.4Mtweets,collected
+DWMW17 (r = 0.42) and the “abusive” label from 4,132 survey participants (3,184 White, 374
+from FDCL18 (r = 0.35),providingevidencethat AA)whoreportedtheirrace/ethnicityandTwitter
+dialect-based bias is present in these corpora. As user handle. For this dataset, we compare differ-
+additional analyses, we examine the interaction encesintoxicitypredictionsbyself-reportedrace,
+between unigrams indicative of dialect and hate insteadofinferringmessage-leveldialect.6
+speechcategories,shownin§A.1. Foreachofthetwotoxiclanguagecorpora, we
+train a classifier to predict the toxicity label of a
+3.2 BiasPropagationthroughModels tweet. Using a basic neural attention architecture
+(Wang et al., 2016; Yang et al., 2016), we train a
+To further quantify the impact of racial biases in
+classifierinitializedwithGloVevectors(Penning-
+hatespeechdetection,weinvestigatehowthesebi-
+ton et al., 2014) to minimize the cross-entropy of
+ases are acquired by predictive models. First, we
+theannotatedclassconditionalontext,x:
+report differences in rates of false positives (FP)
+p(class | x) ∝ exp(W h+b ), (1)
+between AAE and White-aligned dialect groups o o
+withh = f(x),wheref isaBiLSTMwithatten-
+for models trained on DWMW17 or FDCL18.
+tion, followed by a projection layer to encode the
+Then, we apply these models to two reference
+tweets into an H-dimensional vector.7 We refer
+Twittercorpora,describedbelow,andcomputeav-
+thereadertotheappendixforexperimentaldetails
+erageratesofreportedtoxicity,showinghowthese
+biasesgeneralizetootherdata.5 andhyperparameters(§A.2).
+Results Figure 2 (left) shows that while both
+DEMOGRAPHIC16(Blodgettetal.,2016) con-
+models achieve high accuracy, the false positive
+tains 56M tweets (2.8M users) with dialect es-
+rates (FPR) differ across groups for several toxic-
+timated using a demographic-aware topic model
+itylabels. TheDWMW17classifierpredictsalmost
+that leverages census race/ethnicity data and geo-
+50%ofnon-offensiveAAEtweetsasbeingoffen-
+coordinates of the user profile. As recommended,
+sive,and FDCL18 classifiershowshigherFPRfor
+we assign dialect labels to tweets with dialect
+probabilitiesgreaterthan80%. 6NotethatlexicaldialectinferencesofAAE(p AAE)sig-
+nificantly correlate with both the AAE group from DEMO-
+GRAPHIC16(Pearsonr=0.61,p(cid:28)0.001)andself-reported
+5Weassumeapriorithattheaveragetweetisnotinher- AAracefromUSERLEVELRACE18(Pearsonr=0.21,p(cid:28)
+entlymoretoxicinaparticulardialect.Assessingtheveracity 0.001).
+of this assumption requires a deep understanding of socio- 7Inpreliminaryexperiments,ourfindingsheldregardless
+culturalnormsofprofaneandtoxicspeech. ofourchoiceofclassifier.
+71WMWD
+81LCDF
+tcelaiD
+tcelaiD
+ecar
+detroper-fleS
+ecar
+detroper-fleS
+the “Abusive” and “Hateful” categories for AAE
+control 32.3 25.1 42.5
+t t dw e in se cde ret es n p. c aiA nes cd itd eoi st li ao inbn ea Flll W Py R, hb io t aet ch rt owc sl e sa es t gs si rfi a ose ur p“s n ss oh vno ie ow ” l. as tT etr ho e tn hsg e
+e
+e v is n e ffoe n o y n a
+o
+t
+dia rl ae cc et 44 14 .4.1 2 22 8. .7
+4
+3 33 0.1
+.1
+equality of opportunity criterion, indicating dis-
+criminatoryimpact(Hardtetal.,2016). control 60.6 12.5 26.9
+We further quantify this potential discrimina- e v is nu o y dialect 64.0 12.8 23.2
+tioninourtworeferenceTwittercorpora. Figure2 e ffo o t
+(middle and right) shows that the proportions of race 67.0 15.0 18.0
+tweets classified as toxic also differ by group in
+0 20 40 60 80 100
+thesecorpora. Specifically,in DEMOGRAPHIC16,
+no maybe yes
+AAE tweets are more than twice as likely to be
+Figure 3: Proportion (in %) of offensiveness annota-
+labelledas“offensive”or“abusive”(byclassifiers
+tionsofAAEtweetsincontrol,dialect,andraceprim-
+trained on DWMW17 and FDCL18, respectively).
+ingconditions.Resultsshowthatdialectandraceprim-
+WeshowsimilareffectsonUSERLEVELRACE18,
+ingsignificantlyreducesanAAEtweet’slikelihoodof
+wheretweetsbyAfricanAmericanauthorsare1.5 beinglabelledoffensive(p(cid:28)0.001).
+times more likely to be labelled “offensive”. Our
+findingscorroboratetheexistenceofracialbiasin
+Despite the inherent subjectivity of these ques-
+thetoxiclanguagedatasetsandconfirmthatmod-
+elspropagatethisbiaswhentrainedonthem.8 tions,workersfrequentlyagreedaboutatweetbe-
+ingoffensivetoanyone(76%pairwiseagreement,
+4 EffectofDialect κ =0.48)ortothemselves(74%p.a.,κ =0.30).
+To study the effect of dialect information on rat- Results Figure 3 shows that priming workers to
+ings of offensiveness, we run a small controlled think about dialect and race makes them signifi-
+experiment on Amazon Mechanical Turk where cantly less likely to label an AAE tweet as (po-
+we prime annotators to consider the dialect and tentially) offensive to anyone. Additionally, race
+race of Twitter users. We ask workers to deter- priming makes workers less likely to find AAE
+minewhetheratweet(a)isoffensivetothem,and tweetsoffensivetothem.
+(b) could be seen as offensive to anyone. In the Toconfirmtheseeffects,wecomparethemeans
+dialect priming condition, we explicitly include of the control condition and treatment condi-
+the tweet’s dialect as measured by Blodgett et al. tions,11 and test significance with a t test. When
+(2016),aswellasextrainstructionsprimingwork- rating offensiveness to anyone, the mean for con-
+ers to think of tweet dialect as a proxy for the au- trol condition (M c = 0.55) differs from dialect
+thor’s race. In the race priming condition, we en- (M d = 0.44) and race (M r = 0.44) conditions
+courageworkerstoconsiderthelikelyracialback- significantly (p (cid:28) 0.001). For ratings of offen-
+ground of a tweet’s author, based on its inferred siveness to workers, only the difference in means
+dialect (e.g., an AAE tweet is likely authored by forcontrol(M c =0.33)andrace(M d =0.25)con-
+anAfricanAmericanTwitteruser;see§A.5forthe ditionsissignificant(p (cid:28)0.001).
+taskinstructions). Foralltasks,weaskannotators Additionally, we find that overall, annotators
+tooptionallyreportgender,age,race,andpolitical aresubstantiallymorelikelytorateatweetasbe-
+leaning.9 ing offensive to someone, than to rate it as offen-
+With a distinct set of workers for each condi- sive to themselves, suggesting that people recog-
+tion, we gather five annotations apiece for a sam- nizethesubjectivityofoffensivelanguage.
+ple of 1,351 tweets stratified by dialect, toxicity Our experiment provide insight into racial bias
+category, and dataset (DWMW17 and FDCL18).10 in annotations and shows the potential for re-
+ducing it, but several limitations apply, includ-
+8AsnotedbyChung(2019),thePerspectiveAPIdisplays
+ing the skewed demographics of our worker pool
+similarracialbiasesshownintheappendix(§A.4).
+(75%self-reportedWhite). Additionally,research
+9This study was approved by the Institutional Review
+Board(IRB)attheUniversityofWashington. suggests that motivations to not seem prejudiced
+10Annotations in the control setting agreed moderately
+withtoxicitylabelsin DWMW17 and FDCL18 (Pearsonr = 11Weconverttheoffensivenesslabelstorealnumbers(0:
+0.592andr=0.331,respectively;p(cid:28)0.001). “no”,0.5:“maybe”,1:“yes”).
+could buffer stereotype use, which could in turn References
+influence annotator responses (Plant and Devine,
+Betty van Aken, Julian Risch, Ralf Krestel, and
+1998;MoskowitzandLi,2011).
+Alexander Lo¨ser. 2018. Challenges for toxic com-
+ment classification: An in-depth error analysis.
+5 RelatedWork CoRR,abs/1809.07572.
+A robust body of work has emerged trying to ad- Wafa Alorainy, Pete Burnap, Han Liu, and Matthew
+dresstheproblemofhatespeechandabusivelan- Williams. 2018. Cyber hate classification: ’other-
+guage on social media (Schmidt and Wiegand, ing’ language and paragraph embedding. CoRR,
+abs/1801.07495.
+2017). Many datasets have been created, but
+mostareeithersmall-scalepilots(∼100instances;
+Monica Anderson, Skye Toor, Lee Rainie, and
+Kwok and Wang, 2013; Burnap and Williams, Aaron Smith. 2018. Activism in the social media
+2015; Zhang et al., 2018), or focus on other ages. http://www.pewinternet.org/
+2018/07/11/activism-in-the-social-
+domains (e.g., Wikipedia edits; Wulczyn et al.,
+media-age/. Accessed: 2019-03-01.
+2017). In addition to DWMW17 and FDCL18,
+published Twitter corpora include Golbeck et al. Su Lin Blodgett, Lisa Green, and Brendan O’Connor.
+(2017), which uses a somewhat restrictive defini- 2016. Demographicdialectalvariationinsocialme-
+dia: A case study of African-American english. In
+tion of abuse, and Ribeiro et al. (2018), which is
+EMNLP.
+focusedonnetworkfeatures,ratherthantext.
+Past work on bias in hate speech datasets has Pete Burnap and Matthew L. Williams. 2015. Cyber
+exclusively focused on finding and removing bias hate speech on Twitter: An application of machine
+against explicit identity mentions (e.g., woman, classificationandstatisticalmodelingforpolicyand
+decisionmaking. Policy&Internet,7:223–242.
+atheist, queer; Park and Fung, 2017; Dixon et al.,
+2018). Incontrast,ourworkshowshowinsensitiv-
+Anna Chung. 2019. How automated tools dis-
+itytodialectcanleadtodiscriminationagainstmi- criminate against black language. https://
+norities,evenwithoutexplicitidentitymentions. onezero.medium.com/how-automated-
+tools-discriminate-against-black-
+6 Conclusion language-2ac8eab8d6db. Accessed: 2019-
+03-02.
+We analyze racial bias in widely-used corpora
+JamieCleland.2014. Racism,footballfans,andonline
+of annotated toxic language, establishing corre-
+messageboards: Howsocialmediahasaddedanew
+lations between annotations of offensiveness and
+dimensiontoracistdiscourseinEnglishfootball. J.
+the African American English (AAE) dialect. We SportSoc.Issues,38(5):415–431.
+show that models trained on these corpora prop-
+ThomasDavidson,DanaWarmsley,MichaelW.Macy,
+agate these biases, as AAE tweets are twice as
+and Ingmar Weber. 2017. Automated hate speech
+likelytobelabelledoffensivecomparedtoothers.
+detectionandtheproblemofoffensivelanguage. In
+Finally, we introduce dialect and race priming, ICWSM.
+twowaystoreduceannotatorbiasbyhighlighting
+LucasDixon,JohnLi,JeffreySorensen,NithumThain,
+the dialect of a tweet in the data annotation, and
+andLucyVasserman.2018. Measuringandmitigat-
+show that it significantly decreases the likelihood
+ing unintended bias in text classification. In Pro-
+of AAE tweets being labelled as offensive. We ceedingsofConferenceonAI,Ethics,andSociety.
+findstrongevidencethatextraattentionshouldbe
+paid to the confounding effects of dialect so as to WalterF.Edwards.2004. AfricanAmericanVernacu-
+larEnglish: phonology. InAHandbookofVarieties
+avoid unintended racial biases in hate speech de-
+ofEnglish: MorphologyandSyntax.
+tection.
+Sarah Florini. 2014. Tweets, tweeps, and signifyin’:
+Acknowledgments Communicationandculturalperformanceon“Black
+Twitter”. Television&NewMedia,15(3):223–237.
+The authors thank Dan Jurafsky, Emily Bender,
+EmilyGade,TalAugust,WesleyMcClean,Victor Antigoni-Maria Founta, Constantinos Djouvas, De-
+Zhong, and Laura Vianna, as well as anonymous spoina Chatzakou, Ilias Leontiadis, Jeremy Black-
+burn, Gianluca Stringhini, Athena Vakali, Michael
+reviewers,forhelpfulfeedback. Thisworkwasin
+Sirivianos, and Nicolas Kourtellis. 2018. Large
+partsupportedbyNSFgrantIIS-1714566.
+scale crowdsourcing and characterization of twitter
+abusivebehavior. InICWSM.
+Deen Freelon, Charlton D. McIlwain, and Ji Ho Park, Jamin Shin, and Pascale Fung. 2018. Re-
+Meredith D. Clark. 2016. Beyond the hash- ducinggenderbiasinabusivelanguagedetection. In
+tags. http://cmsimpact.org/wp- EMNLP.
+content/uploads/2016/03/beyond_
+the_hashtags_2016.pdf. Accessed: 2019- Jeffrey Pennington, Richard Socher, and Christo-
+03-01. pherD.Manning.2014. GloVe: Globalvectorsfor
+wordrepresentation. InEMNLP.
+JenniferGolbeck,ZahraAshktorab,RashadO.Banjo,
+E. Ashby Plant and Patricia G. Devine. 1998. Inter-
+Alexandra Berlinger, Siddharth Bhagwan, Cody
+nalandexternalmotivationtorespondwithoutprej-
+Buntain, Paul Cheakalos, Alicia A. Geller, Quint
+udice. J.Pers.Soc.Psychol.,75(3):811–832.
+Gergory, Rajesh Kumar Gnanasekaran, Raja Ra-
+jan Gunasekaran, Kelly M. Hoffman, Jenny Hot-
+Daniel Preo¸tiuc-Pietro and Lyle Ungar. 2018. User-
+tle, Vichita Jienjitlert, Shivika Khare, Ryan Lau,
+levelraceandethnicitypredictorsfromTwittertext.
+Marianna J. Martindale, Shalmali Naik, Heather L.
+InCOLING.
+Nixon, Piyush Ramachandran, Kristine M. Rogers,
+Lisa Rogers, Meghna Sardana Sarin, Gaurav Sha- JacquelynRahman.2012. TheNword: Itshistoryand
+hane, Jayanee Thanki, Priyanka Vengataraman, Zi- useintheAfricanAmericancommunity. Journalof
+jian Wan, and Derek Michael Wu. 2017. A large EnglishLinguistics,40(2):137–171.
+labeled corpus for online harassment research. In
+WebSci,pages229–233.ACM. Manoel Horta Ribeiro, Pedro H. Calais, Yuri A. San-
+tos, Virg´ılio A. F. Almeida, and Wagner Meira Jr.
+Lisa Green. 2002. African American English: A Lin- 2018. Characterizinganddetectinghatefuluserson
+guisticIntroduction,8.3.2002editionedition. Cam- Twitter. InICWSM.
+bridgeUniversityPress.
+AnnaSchmidtandMichaelWiegand.2017. Asurvey
+Moritz Hardt, Eric Price, and Nati Srebro. 2016. onhatespeechdetectionusingnaturallanguagepro-
+Equality of opportunity in supervised learning. In cessing. InProceedingsoftheWorkshoponNLPfor
+NeurIPS. SocialMedia.
+Raghav Kapoor, Yaman Kumar, Kshitij Rajput, Ra- Maya Sen and Omar Wasow. 2016. Race as a bundle
+jiv Ratn Shah, Ponnurangam Kumaraguru, and ofsticks: Designsthatestimateeffectsofseemingly
+Roger Zimmermann. 2018. Mind your language: immutablecharacteristics. AnnualReviewofPoliti-
+Abuseandoffensedetectionforcode-switchedlan- calScience,19.
+guages. CoRR,abs/1809.08652.
+Arthur K Spears. 1998. African-American language
+FilipKlubikaandRaquelFernandez.2018. Examining use:Ideologyandso-calledobscenity. InSalikokoS
+a hate speech corpus for hate speech detection and Mufwene, John R Rickford, Guy Bailey, and John
+popularityprediction. InLREC. Baugh, editors, African-American English: Struc-
+ture, History and Use, pages 226–250. Routledge
+IreneKwokandYuzhouWang.2013. Locatethehate: NewYork.
+Detectingtweetsagainstblacks. InAAAI.
+Luiz Vale´rio P Trindade. 2018. On the frontline:
+Younghun Lee, Seunghyun Yoon, and Kyomin Jung. The rise of hate speech and racism on social
+2018. Comparativestudiesofdetectingabusivelan- media. https://discoversociety.org/
+guageontwitter. CoRR,abs/1808.10245. 2018/09/04/on-the-frontline-the-
+rise-of-hate-speech-and-racism-on-
+Gordon B. Moskowitz and Peizhong Li. 2011. Egali-
+social-media/. Accessed: 2018-12-6.
+tarian goals trigger stereotype inhibition: A proac-
+tive form of stereotype control. J. Exp. Soc. Psy- Yequan Wang, Minlie Huang, xiaoyan zhu, and
+chol.,47(1):103–116. Li Zhao. 2016. Attention-based LSTM for aspect-
+levelsentimentclassification. InEMNLP.
+Paul Mozur. 2018. A genocide incited on Face-
+book, with posts from Myanmar’s military. Zeerak Waseem and Dirk Hovy. 2016. Hateful sym-
+https://www.nytimes.com/2018/10/ bols or hateful people? Predictive features for hate
+15/technology/myanmar-facebook- speechdetectiononTwitter. InNAACLStudentRe-
+genocide.html. Accessed: 2018-12-6. searchWorkshop.
+Gwenn Schurgin O’Keeffe, Kathleen Clarke-Pearson, Zeerak Waseem, James Thorne, and Joachim Bingel.
+and Council on Communications and Media. 2011. 2018. Bridging the gaps: Multi task learning for
+Theimpactofsocialmediaonchildren,adolescents, domaintransferofhatespeechdetection. InJennifer
+andfamilies. Pediatrics,127(4):800–804. Golbeck, editor, Online Harassment, pages 29–55.
+SpringerInternationalPublishing,Cham.
+JiHoParkandPascaleFung.2017. One-stepandtwo-
+stepclassificationforabusivelanguagedetectionon Apryl Williams and Doris Domoszlai. 2013. Black-
+Twitter. InProceedingsoftheWorkshoponAbusive Twitter: anetworkedculturalidentity. HarmonyIn-
+LanguageOnline. stitute.
+Ellery Wulczyn, Nithum Thain, and Lucas Dixon.
+2017. Ex machina: Personal attacks seen at scale.
+InWWW.
+Zichao Yang, Diyi Yang, Chris Dyer, Xiaodong He,
+AlexanderJ.Smola,andEduardH.Hovy.2016. Hi-
+erarchicalattentionnetworksfordocumentclassifi-
+cation. InNAACL.
+Danyaal Yasin. 2018. Black and banned:
+Who is free speech for? https:
+//www.indexoncensorship.org/2018/
+09/black-and-banned-who-is-free-
+speech-for/. Accessed: 2018-12-6.
+Ziqi Zhang, David Robinson, and Jonathan A. Tep-
+per. 2018. Detecting hate speech on Twitter using
+a convolution-GRU based deep neural network. In
+ProceedingsofESWC.
+(FDCL18 –abusive) (FDCL18 –hateful)
+(DWMW17 –offensive) (DWMW17 –hatespeech)
+Figure4: Featureweightslearnedbyl -regularizedmulticlasslogisticregressionmodelswithunigramfeatures,
+2
+plottedagainstp foreachterm,basedonBlodgettetal.(2016). Top: weightsforpredictingabusive(left)and
+AAE
+hateful(right)fromamodeltrainedon FDCL18. Bottom: weightsforpredictingoffensive(left)andhatespeech
+(right)fromamodeltrainedonDWMW17. Labelsareshownforthemostheavily-weightedterms,withlabelsize
+proportionaltothelogcountoftheterminvalidationdata. Note: “c*nt”,“n*gger,”“f*ggot,”andtheirvariations
+areconsideredsexist,racist,andhomophobicslurs,respectively,andarepredictiveofhatespeechDWMW17.
+A Appendix for each individual vocabulary term in isolation.
+While this does not completely explain the corre-
+We present further evidence of racial bias in hate
+lations observed in section §3.1, it does allow us
+speechdetectioninthisappendix.
+toidentifyindividualwordsthatarebothstrongly
+Disclaimer: duetothenatureofthisresearch,fig-
+associatedwithAAE,andhighlypredictiveofpar-
+uresandtablescontainpotentiallyoffensiveorup-
+ticularcategories.
+setting terms (e.g. racist, sexist, or homophobic
+Figure 4 shows the feature weights and p
+slurs). We do not censor these terms, as they are AAE
+illustrativeofimportantfeaturesinthedatasets.
+for each word in the models for FDCL18 (top)
+and DWMW17 (bottom), with the most highly
+A.1 LexicalExplorationofDataBias weighted terms identified on the plots. The size
+ofwordsindicateshowcommontheyare(propor-
+To better understand the correlations between in-
+tionaltothelogofthenumberoftimestheyappear
+ferred dialect and the annotated hate speech cat-
+inthecorpus).
+egories (abusive, offensive, etc.) we use simple
+linearmodelstolookforinfluentialterms. Specifi- These results reveal important limitations of
+cally,wetrainl -regularizedmulticlasslogisticre- these datasets, and illustrate the potential for dis-
+2
+gression classifiers operating on unigram features criminatory impact of any simple models trained
+foreachofDWMW17andFDCL18(tuningthereg- on this data. First, and most obviously, the most
+ularization strength on validation data). We then highlyweightedunigramsforpredicting“hateful”
+usetheBlodgettetal.(2016)modeltoinferp
+AAE
+in FDCL18 are “n*gga” and “n*ggas”, which are
+onDEMOGRAPHIC16 onUSERLEVELRACE18
+None Sexism Racism None Sexism Racism
+WH16 %falseidentification
+AAE 81.1 17.5 AA 88.9 10.0
+Group Acc. Racism Sexism None
+White 90.5 8.2 White 90.5 8.4
+AAE 83.8 0.9 2.8 32.5
+White 83.5 3.2 2.7 34.6 Overall 88.8 9.9 Overall 90.3 8.6
+Overall 84.1 2.7 3.0 35.9
+0 25 50 75 100 0 25 50 75 100
+Figure5: Left: classificationaccuracyandper-classratesoffalsepositives(FP)ontestdataforthemodeltrained
+onWH16. Middleandright: averageprobabilitymassoftoxicityclassesinDEMOGRAPHIC16andUSERLEVEL-
+RACE18, respectively, as givenby the WH16 classifier. As in Figure2, proportions areshown forAAE, White-
+aligned English, and overall (all tweets) for DEMOGRAPHIC16, and for self-identified White authors, African
+Americanauthors(AA),andoverallforUSERLEVELRACE18.
+strongly associated with AAE (and their offen- category count AAEcorr.
+siveness depends on speaker and context; Spears,
+racism 1,976 −0.117
+1998). Because these terms are both frequent and
+sexism 3,430 0.168
+highlyweighted,anysimplemodeltrainedonthis
+none 11,501 −0.064
+data would indiscriminately label large numbers
+total 16,907
+oftweetscontainingeitherofthesetermsas“hate-
+ful”.
+Table2:DatastatisticsinWH16,aswellasthePearson
+Bycontrast,thetermsthatarehighlypredictive
+rcorrelationswiththelabelsandinferredAAEdialect.
+of “hate speech” in DWMW17 (i.e., slurs) partly
+Allcorrelationsarep(cid:28)0.001.
+reflect the HateBase lexicon used in constructing
+this dataset, and the resulting emphasis is differ-
+ple annotations per instance, we use the majority
+ent. (Wealsoseeartefactsofthedatasetconstruc-
+classasthelabel,droppinginstancesthataretied.
+tion in the negative weights placed on “charlie”,
+For both datasets, we preprocess the text using
+“bird”, and “yankees” — terms which occur in
+anadaptedversionofthescriptforTwitterGloVe
+HateBase,buthaveharmlessprimarymeanings.)
+vectors.12 Inourexperiments,wesetH = 64,and
+To verify that no single term is responsible for
+useavocabularysizeof|V| = 19kand|V| = 74k
+the correlations reported in section §3.1, we con-
+for DWMW17 and FDCL18, respectively, and ini-
+sider each word in the vocabulary in turn, and
+tialize the embedding layer with 300-dimensional
+compute correlations excluding tweets containing
+GloVe vectors trained on 840 billion tokens. We
+thatterm. Theresultsofthisanalysis(notshown)
+experimented with using ELMo embeddings, but
+find that almost all of the correlations we observe
+foundthattheydidnotboostperformanceforthis
+are robust. For example, the correlation between
+task. WeoptimizethesemodelsusingAdamwith
+p
+AAE
+and“abusive”inFDCL18increasesthemost
+alearningrateof0.001,andabatchsizeof64.
+if we drop tweets containing “fucking” (highly
+positively weighted, but non-AAE aligned), and A.3 BiasinWaseemandHovy(2016)
+decreases slightly if we drop terms like “ass” or
+Wereplicateouranalysesin§3onthewidelyused
+“bitch”. The one exception is the correlation be-
+dataset by Waseem and Hovy (2016, henceforth,
+tween “hateful” and p
+AAE
+in FDCL18: if we ex-
+WH16), which categorizes tweets in three hate
+clude tweets which contain “n*gga” or “n*ggas”,
+speech categories: racist, sexist, or none, shown
+the correlation drops to r=0.047. However, this
+inTable2,alongwiththeircorrelationswithAAE.
+also causes the correlation between p and
+AAE
+Thisdatasetsuffersfromseveresamplingbiasthat
+“abusive”toincreasetor=0.376.
+limit the conclusions to be drawn from this data:
+70% of sexist tweets were written by two users,
+A.2 ExperimentalDetailsforClassification
+and 99% of racist tweets were written by a single
+For each dataset, we randomly split the data into user (Schmidt and Wiegand, 2017; Klubika and
+train/dev./testsets(73/12/15%),andperformearly Fernandez,2018).
+stoppingwhenclassificationaccuracyondev.data
+12https://nlp.stanford.edu/projects/
+stopsincreasing. For DWMW17,whichhasmulti- glove/preprocess-twitter.rb
+tcelaiD
+ecar
+detroper-fleS
+Full Instructions (Expand/Collapse)
+Instructions
+You will read a tweet, and describe whether it could be considered toxic/disrespectful, to you or to anyone.
+Read a potentially toxic post from the internet and tell us why it's toxic (this should take approx. 5 minutes). Note: You can complete
+Note: we will assume that MTurk workers only have good intentions when annotating these posts.
+as many HIT's in this batch as you want! But if your responses tend to be very different from what we're looking for, we might put a
+qAu ontao toen o tnh er ancuem/beetrh onfi cHitIyT' so fy othue c atwn edeo ti na ufutthuorre batches. Also note: this is a pilot task, more HITs will be available in the future.
+PWaert aiclsipoa ptrioovnid ree satnr iecsttiiomna:t ep roofv tidheer tsw/teuertk edrias lefocrt ,t hasis dteatsekr mcainnendo tb cyu arrne nAtIl ys ybset eemm.p Ploreyveido ubsy roers eaa srtcuhd heanst saht otwhee dU nthivaet rdsiiatyle ocfts of
+WEansghliisnhg taorne. strongly associated to a speaker's racial or ethnic identity. Additionally, certain words are usually less toxic when used by
+a minority (e.g., the word "n*gga" or the suffix "-ass" are considered harmless in African American English), therefore it's useful to
+know the dialect a tweet is in before labelling it for toxic content. Our AI system detects the following dialects:
+Full Instructions (Expand/Collapse)
+General American English (gen Eng): associated with generic newscaster English.
+African-American English (Afr-Am Eng): dialect spoken usually by African-American or Black folks.
+Latino American English (Lat Eng): dialect spoken usually by Latino/a folks both in New York and California, Texas, Chicago, etc.
+You will read a tweet, and describe whether it could be considered toxic/disrespectful, to you or to anyone.
+Note: we will assume that MTurk workers only have goo(dd iinatelnetciotnps rwihmenin agn)notating these posts.
+A note on race/ethnicity of the tweet author
+We also provide an estimate of the Twitter user's r ace or ethnicity, as inferred by our AI system. Note that certain words are usually
+less toxic when used by a minority (e.g., the word "n*gga" or the suffix "-ass" are considered harmless when spoken by Black folks),
+therefore it's useful to know the identity of a Tweeter before labelling it for toxic content.
+(racepriming)
+Annotation instructions Background on our research project
+F1i.gau)reTe6ll :usA wdhdeitthioern tahlisi ntwsetreut csteieomnssshowntoworkersintheAdti athlee cUtnaivnedrsirtya coef Wparsimhiningtgo.n,I wnet'rhee pdasiasiloencattec oabnoduittion, we
+ptrooxvici/dheatleifnukl/sdistoresthpeecdtfuial lteoc ytoWu.ikipediapages. understanding how potentially toxic or disrespectful language or
+Our purpose is to understand how disrespect/offense can show stereotypes can be used against certain demographics/groups of
+up in language, we are not making statements about the actual people (e.g. racism, sexism, etc.). Although there is no direct
+content of the posts. benefit to you for participating, we very much appreciate your
+InFigure5 (left), weshowhow modelstrained A.5 DialectPrimingExperimentalDetails
+help in identifying and explaining such language/stereotypes,
+1.b) Considering a wide set of perspectives, tell us whether this
+o cn out ldh i bs
+e
+cd oa nt sa ids ee rt edh ta ov xie c/hs al ti eg fh ult /l dy isrh esi pg eh ce tfr
+ul
+f ta ol ose thep ro ss .itive sWincee cthoisll ies cstoemdetahninng octoamtpioutnastiofnraol mmod1e1ls0 ha(7ve6 n%o cWluehite),
+rTartye tso oafnssweexr itshmis qounestAionAs Ewhtiwle ecoentssi,dearnindg oa fbrtohaed s“ent o onfe” a 1b 4o 3ut.
+(
+7W 7e
+%
+do Wnot
+h
+a ig tere )e
+,
+w anith
+d
+a 8n 1y o (f
+7
+t 2he
+%
+co Wnte hn it t/ est )er weo oty rp ke es
+rsin
+presented to you, but it's important that we gather these
+lapeboepllef forormW dihffeitreentt wbaecekgtsroucnodms, pnaotr ejudst tyoouAr oAwEn.tweets.
+athnneotcaotionntsr ofolr, rdesieaalreccht p,uarpnodsersa.ce priming conditions,
+W1.hc)enTelpl urse dwihcettihnegr thoen twoeeutr wraes fientreennticonealclyo orfpfeonrsaive( oFrig-
+respectively. Figure 6 shows the instruction snip-
+not. Data collection & sharing
+u Ir
+t
+e
+ca
+5
+n
+, bem hi ad rdd l te
+o
+ia nfn ed
+r
+thr eig inh tt e) n,
+t
+w bee hins de ae sA tatA emE ent tw
+,
+be ue tts (or
+Wpee twrilel nlaott eadsk tyooud fioar lyeocutr naanmde,r aancde thseh doawta ncotlloectwedo irnk tehriss
+twsoemeettsimbesy pAosftrs iacraen cleAarmly eorffiecnasnivse) joakrees,l ianbsuelltsle, dsnoabsissme,x- study will be made unidentifiable to the best of our extent. We
+inthetwotreatmentconditions. Additionally,Fig-
+condescension, profanity, back-handed compliments, name will securely store the data on our servers and only share with
+ist more than White-aligned tweets or tweets by
+calling, bullying, intimidation, or aggression. quuraelif7ieds hreosweasrchtheres (aen.gn. owthaot iwoannti ntot efurrftahcere t,hwe sittuhdy( ao)f haanted
+W 2)h Ii ft e theu ps oe sr ts c. onA taig na
+s
+i sn e, xud au
+l
+ce ont to ent
+t
+h (ee xps la icm itlyp oli rn ing nui es ns du oe ),s, swpeitehcho udettepcrtiiomn)i.n Igf y(obu, cla)t.er decide that you do not want your
+thexepslaeinr ewshuiclht spasrht.ouldbeinterpretedcautiously. responses included in this study, please email so we can exclude
+Sexual content can be used in disrespectful language, either
+your work.
+If you have questions about your rights as a research participant, or wish to
+Aov.4ertly Toro hxidicdietny. Uasne dtheA fAirsEt teixnt btohxe toP deersscrpibeec wtihvicehA paPrtIs
+obtain information, ask questions or discuss any concerns about this study with
+of the post contain euphemism, double entendre or explicit someone other than the researcher(s), please contact the University of
+Wseexucaol cmonpteanrte. Tthheen,t uosxei tchiet ysedcoentde ctetxiot bnoxr atote esxpflraoinm whoyur Washington Human Subjects Division at 206-543-0098 (for international calls
+try aou
+in
+a en dsw mer oed
+d
+eth li ss;
+t
+otry
+t
+hto
+o
+e sx epl oa fin
+P
+w eh ra st pth ee
+c
+tp ih vr eas Ae Pm Ie ,a1n3s a, w Jh igat
+-
+include the US Calling Code: +1-206-543-0098).
+it refers to, what the double-entendre is about, etc.
+Content Warning: posts were found on the (uncensored)
+saw/Alphabet initiative to detect hate speech on-
+3) Indicate your gender, age, race, political leaning, and internet; while it's crucial for us to annotate them, we do not
+liwnhee.thWer eyoou bidteanitnifyT aOs Xa ImCinIoTrYity s(cthoisr ewsill froemraailnl tweets in endorse any of the stereotypes or offensive/immoral/rude
+Dc YWo on uf rMi d oe W wn nt1 ia p7l e) r. sa on nd
+al
+bF aD ckC gL ro1 u8 nd, aa ns
+d
+w exe pl el riea ns cef so ir nf1 lu0 en0 cK
+e
+wr ha an t- m haa vt ee r cia ol n. cY eo ru
+n
+sm
+,
+qay
+u
+ef sin tid
+o
+ns so ,m oe
+r
+o stf rt oh ne
+g
+c no en gte an tit
+v
+eu p rs ee at ct ti in og n.
+s
+I tf
+o
+y o sou
+me
+d yo om u tht inw ke oe f t as s dfr iso rem speD ctfEuMl oOr oGffRenAsiPveH. IWCe1 c6 ollea cn t d thiU s SER- of the content, please either email us (Maarten Sap at
+LinEfoVrmEaLtiRonA tCo Eac1co8u.nt Wfore alsl htyopwes ocf obrarceklgarotiuonndss th(aPtearson msap@cs.washington.edu, or Professor Yejin Choi at
+MTurkers come from in our research. If you answered this yejin@cs.washington.edu) or reach out if in crisis.
+r)betweendialects/groupsinourdatasetsandthe
+question once, you can skip it in subsequent HITs.
+Perspective TOXICITY scores. Allcorrelationsare
+signifiEcxaanmt (pple(cid:28)s 0 [-. ]0 0 le1 s,
+s
+H exo al mm p- lc eo srrected for multi-
+ple comparisons) which indicates potential racial
+Sentence Race/Ethnicity Toxic Intentional Sex
+biasforalldatasets.
+You only got the job because you're a woman. White Yes Yes No
+The movie with the all-muslim cast was a box White Yes Probably No
+ofdfiactea bseotmb. dialect/group TOXICITYcorr.
+I got my black ass handeWd thoi tmee during this −0B.l3a2ck0 No No No
+DbWasMkeWtb1al7l game.
+AAE 0.310
+A white woman called police on black people White No No (statement) No
+b Fa Drb Ce Lc1ui8ng. White −0.340
+This nigga tried to call meA tAhrEee times during 0 B. l4 a5 ck3 No No No
+my shift smh White −0.096
+DEMOGRAPHIC16
+AAE 0.056
+White −0.046
+USERLYoEuV aErLeR aA MCOER1O8N. White Yes Yes No
+AA 0.042
+Cause of dem stupid traffic lights I almost miss Latino/Latina Yes Yes No
+the beginning of my shift lololol
+13ThWehAPtId(httpt:ll//tpierspdecf tiivietapi.com)Wwhaitsac- Y Y N
+cessedinDecember2018
+A Twitter user tweeted:
+I swear I saw him yesterday.
+1.a) Does this post seem 1.b) Could this post be considered
+offensive/disrespectful to you? offensive/disrespectful to anyone?
+Yes Yes
+Maybe Maybe
+No No
+Post doesn't make sense/is just a
+link
+(a)
+A Twitter user tweeted:
+I swear I saw his ass yesterday.
+which our AI system thinks is in African American English.
+The AI prediction seems wrong.
+(b)
+1.a) Does this post seem offensive or 1.b) Could this post be considered
+disrespectful to you? offensive or disrespectful to anyone?
+Yes Yes
+A Tw iMtatyebre user that is likely Black/Afric aMnay bAemerican tweeted:
+No No
+I swear I saw his ass yesterday.
+Post doesn't make sense/is just a
+link
+The AI prediction for the user's race/ethnicity seems wrong.
+(c)
+Figure 7: Interface for the controlled experiment. (a) shows the control condition along with the offensiveness
+1.a) Does this post seem 1.b) Could this post be considered
+questions. (b)and(c)showthechangestothetreatmentinterfaceinthedialectandraceprimingconditions.
+offensive/disrespectful to you? offensive/disrespectful to anyone?
+Yes Yes
+Maybe Maybe
+No No
+Post doesn't make sense/is just a
+link

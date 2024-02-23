@@ -1,0 +1,1232 @@
+The Change that Matters in Discourse Parsing:
+Estimating the Impact of Domain Shift on Parser Error
+KatherineAtwell†(cid:70), AnthonySicilia‡(cid:70), SeongJaeHwang§, MaliheAlikhani†‡
+†DepartmentofComputerScienceand‡IntelligentSystemsProgram,UniversityofPittsburgh
+§DepartmentofArtificialIntelligence,YonseiUniversity
+{kaa139, anthonysicilia}@pitt.edu,
+seongjae@yonsei.ac.kr, malihe@pitt.edu
+Abstract
+Discourse analysis allows us to attain infer-
+ences of a text document that extend beyond
+the sentence-level. The current performance
+of discourse models is very low on texts out-
+sideofthetrainingdistribution’scoverage,di-
+minishingthepracticalutilityofexistingmod-
+els. There is need for a measure that can in-
+Figure1: Solid/hollowshapesindicatetraining/testset,
+form us to what extent our model generalizes
+while circles/squares indicate the correct labels. (A)
+fromthetrainingtothetestsamplewhenthese
+Verticalshiftiseasilyidentified,buttheclassifier(dot-
+samples may be drawn from distinct distribu-
+tedline)doeswellonbothdomains. (B)Inthefeature
+tions. While this can be estimated via distri-
+space, shift is imperceptible, but the classifier assigns
+bution shift, we argue that this does not di-
+theincorrectrelationlabeltoeachpointinthetestset.
+rectlycorrelatewithchangeintheobserveder-
+In both, identifiable shift does not correlate with the
+ror of a classifier (i.e. error-gap). Thus, we
+classifier’sabilitytocorrectlypredictthediscoursere-
+propose to use a statistic from the theoretical
+lation
+domain adaptation literature which can be di-
+rectly tied to error-gap. We study the bias of
+this statistic as an estimator of error-gap both
+discourseframework,whereinthediscoursestruc-
+theoreticallyandthroughalarge-scaleempiri-
+cal study of over 2400 experiments on 6 dis- ture and how the discourse units are connected
+course datasets from domains including, but areidentifiedandlabeled. Somediscourseframe-
+not limited to: news, biomedical texts, TED works(Miltsakakietal.,2004;Prasadetal.,2008;
+talks, Reddit posts, and fiction. Our results Webberetal.,2019)focusonshallowrelationsbe-
+not only motivate our proposal and help us
+tweentwoindividualdiscourseunits,whileothers
+to understand its limitations, but also provide
+(Carlsonetal.,2001;LascaridesandAsher,2008)
+insight on the properties of discourse models
+focus on learning a more hierarchical structure.
+and datasets which improve performance in
+Discourse models have been shown to improve
+domainadaptation. Forinstance, wefindthat
+non-news datasets are slightly easier to trans- performance in several fundamental NLP tasks,
+fertothannewsdatasetswhenthetrainingand such as summarization (Marcu, 1999, 2000; Co-
+testsetsareverydifferent. Ourcodeandanas- hanetal.,2018),sentimentanalysis(Bhatiaetal.,
+sociatedPythonpackageareavailabletoallow 2015),machinecomprehension(Narasimhanand
+practitioners to make more informed model
+Barzilay,2015),andmachinetranslation(Guzmán
+anddatasetchoices.1
+et al., 2014). However, in some cases, using dis-
+courserelationsthemselveshasbeenfoundnotto
+1 Introduction
+improve,oreventohurt,performanceinothertasks
+Coherenceanalysisoftextisakeyareaofnatural whenlearningthecoherencestructureoftextseems
+language processing. Discourse parsing models critical(Zhongetal.,2020;Feng,2015). Thereare
+are trained on a dataset annotated according to a several possible reasons for this: due to the diffi-
+cultyoftheannotationtask,datasetslabeledwith
+(cid:70)K.AtwellandA.Siciliacontributedequally.
+these discourse relations are typically small, and
+§WorkdonewhileatUniversityofPittsburgh.
+themostwidelyuseddatasetsconsistonlyofnews
+1https://github.com/anthonysicilia/change-that-matters-
+ACL2022 texts. As a result, the performance of discourse
+2202
+raM
+12
+]LC.sc[
+1v71311.3022:viXra
+models trained on these datasets is very low, and interpretthemtoprovideinsightontheuseofthis
+evenslightdomainshifthasbeenshowntoworsen statistic in practice. In particular, we show that a
+theperformance(Atwelletal.,2021). Thus,forthe small h-discrepancy often means the practitioner
+taskofdiscourseparsing,itisespeciallyimportant can be confident in transferring the model from
+tobecognizantoftheeffectsofdomainshift,and the train- to the test-set. Our theoretical analysis
+choosemodelsandtrainingdatasetsthatarelikely motivates our hypothesis that the h-discrepancy
+togeneralizewellonthetargetdomain. shouldoutperformcommontwo-samplestatistics.
+Next,weempiricallystudytheaforementioned
+Toestimatetheextentofamodel’sgeneralizabil-
+hypothesis. We compare correlation of the h-
+ityonaparticulartrain/testpair,commonproposals
+discrepancy with performance in domain adap-
+suggestusingtwo-samplestatisticswhichcapture
+tation against correlation of various two-sample
+distributionalshiftinthefeaturespace(Rabanser
+statistics across multiple discourse datasets. As
+etal.,2019). However,theworkinghypothesisof
+we are aware, this large-scale comparison has
+this paper is that changes in feature-distribution
+never been done for discourse relation classifica-
+do not necessarily equate to changes in a classi-
+tion. Asmentionedabove,theresultsofthisanal-
+fier’serror;i.e.,fromtraintotestsample. Figure1
+ysis provide support for our hypothesis that the
+captures this idea by illustrating some examples
+h-discrepancyisthebestestimatorofperformance
+insimple2D-spacewheredomainshiftmayoccur
+changesunderdomainshift. Assuch,wearguethat
+withouthigherror,andviceversa,inthecontextof
+computational discourse practitioners should use
+discourseparsing.
+thisstatistictodeterminethemodel/datasetlikely
+Motivatedbythishypothesis,welooktoexist-
+tomaximizeperformanceunderdomainshift.
+ing theoretical domain adaptation literature. We
+Wealsoperformaregressionanalysisoftheesti-
+proposetouseastatisticwhichhasnotonlybeen
+mationerrorsoftheh-discrepancyasanestimator
+designedtoincorporateinformationabouttheclas-
+fordomainadaptationperformance. Thisanalysis
+sifierwewouldliketotransfer,buthasalsobeen
+allowsustounderstandthepropertiesandpitfalls
+shown (theoretically) to directly relate to model
+ofourestimator. Further,itallowsustogainuseful
+performance on the test set. Namely, we con-
+insightsintohowdifferenttypesofdatasets,genres,
+sidergeneralizationofthesource-guideddiscrep-
+featurerepresentations,andmodelsinfluencethe
+ancy (Kuroki et al., 2019) which we call the h-
+generalizabilityofdiscourseparsers. Weenumer-
+discrepancy defined for any classifier h (we in-
+atetheseinsightsanddiscusstheirimplicationsfor
+troduce and define this metric in Section 4). We
+discourseresearchersinSection5.
+providenoveltheoreticalanalysisoftheerrorsof
+In the sections below, we further discuss and
+thisstatisticinestimatingadaptationperformance
+motivate the need for domain-adaptation bounds
+and, based on this, hypothesize this statistic will
+tied directly to the error gap for more informed
+correlate more substantially with the classifiers’
+insightsintoperformancegapsunderdomainshift.
+generalizationabilitythanthetwo-samplestatistics
+Wehopethatdiscourseresearchersuseourresults,
+previouslymentioned. Wesupportthishypothesis
+and our code, as a starting point for model and
+byillustratingthesecorrelationsacrossseveraldif-
+datasetselectionintheirownstudies.
+ferentwidely-useddiscoursedatasets(describedin
+Section 3). We also provide a detailed empirical
+2 RelatedWork
+analysisoftheestimationerrorofthisstatisticin
+predictingadaptationperformanceusingaregres- 2.1 DiscourseandDomainShift
+sionmodel. Indoingso,weprovideinsightsonthe
+Computationalanalysisofdiscoursehasbeenthe
+effectofvariouspropertiesofdifferentdiscourse
+focus of several shared tasks (Xue et al., 2015,
+models and datasets on performance in domain
+2016; Zeldes et al., 2019, 2021), and there have
+adaptation,whichweenumerateinSection6. We
+beenseveraldiscourse-annotatedcorporaformulti-
+expandonthesecontributionsnext.
+plelanguages(ZeyrekandWebber,2008;Meyer
+First, we contribute a new theoretical analysis et al., 2011; Danlos et al., 2012; Zhou and Xue,
+to characterize the bias of the h-discrepancy as 2015; Zeyrek et al., 2020; da Cunha et al., 2011;
+anestimatorofperformanceindomainadaptation. DasandStede,2018;Afantenosetal.,2012). De-
+Althoughthisdiscrepancyistypicallybiased,we spite their widespread use, implicit sense classi-
+provide upper and lower bounds on this bias and fication remains a challenging task (Liang et al.,
+2020),anddiscoursemodelshavebeenshownnot divergence)thatdependsonthesetofclassifiersH;
+to perform well under even gradual domain shift this statistic can be directly related to adaptation
+(Atwell et al., 2021), which may be the result of performancethroughafinitesamplebound. Man-
+thelimitedtimeframeanddistributionofthearti- souretal.(2009)extendthisdiscussionfromclas-
+clescontainedinthemostcommonlyusedEnglish sification error to general loss functions. Certain
+discourse datasets, the Penn Discourse Treebank two-samplestatisticscanalsoberelatedtoadapta-
+(Miltsakakietal.,2004;Prasadetal.,2008;Webber tionperformancethroughfinitesamplebounds,but
+etal.,2019)andtheRSTDiscourseTreebank(RST- onlyunderstringentassumptionsonthespaceof
+DT)(Carlsonetal.,2001). Thesedatasetsareboth classifiersandthecomputationofthetwo-sample
+made up of Wall Street Journal articles spanning statistic(Fukumizuetal.,2009;Grettonetal.,2012;
+athree-yearperiod,andthusdonotcontainmuch Longetal.,2015;Redkoetal.,2020).
+variationwithrespecttolinguisticdistribution. Assumptions, in general, play a large role in
+Severalworkshavequantifieddomainshiftinthe successful domain adaptation. In fact, common
+contextofnaturallanguageprocessing,mostlyin adaptationalgorithmscanactuallyworsenperfor-
+thetaskofsentimentanalysis. Forinstance,Plank manceifimportantassumptionsarenotmet(Zhao
+and van Noord (2011) use word frequencies and et al., 2019; Wu et al., 2019). Different assump-
+topicmodelstomeasuredomainsimilarity,while tionshaveledtodiversetheoriesdisjointfromthe
+Wu and Huang (2016) use sentiment graphs. In H-divergence,includingproposalsofLiptonetal.
+contrast, ours is the first to consider quantifying (2018), Johansson et al. (2019), and Tachet des
+domain shift in discourse analysis. With respect Combes et al. (2020). Under certain strict and
+toourmethodology,someworkstakeasimilarap- untestable assumptions, it is even possible to de-
+proach. Blitzeretal.(2007)andElsaharandGallé riveunbiasedestimatorsofadaptationperformance
+(2019)alsouseastatisticfromdomainadaptation (Sugiyamaetal.,2007;Youetal.,2019). Welater
+theory, employingtheH-divergencetoanalyzea discussourownassumptionsontheadaptabilityλ
+sentiment classification task on the Amazon Re- whicharetypicalwhenusingtheH-divergenceand
+views dataset, while Ruder et al. (2017) use H- its descendants. We find these assumptions to be
+divergencetoselectthesourcedatasetsfortransfer. comparativelymild. Incomparisontosomeothers,
+However,noneoftheseworkshavestudiedtheh- they have also been theoretically argued to be of
+discrepancywestudyhere,whichisdependenton vitalimportance(Ben-Davidetal.,2010b).
+theclassifierusedforinference. Incomparison,the
+3 Methods
+H-divergenceignoresinformationaboutthemodel
+we would like to transfer, and therefore, will be Data OurEnglishdatasetsareallbasedoneither
+lesssensitive(e.g.,inmodel-selectioncontexts). the RST Discourse Treebank or Penn Discourse
+Tothebestofourknowledge,noworkshaveyet Treebank frameworks, which we describe in Ap-
+studiedthecorrelationofstatisticsfromthetheo- pendixA.Table1summarizesdifferencesbetween
+reticaldomainadaptationliteraturewiththeadapta- thedatasetsweuseinourexperiments.
+tionperformanceofdiscourseparsers. Thisisespe-
+Features Foreachdiscourserelation,weencode
+ciallytruegiventhewidearrayofdifferentdatasets
+theargumentpairasfeatures. FortheRST-DTand
+anddistributionalshiftsweconsideraswellasthe
+GUMcorpus,wethusonlyusediscourserelations
+theoreticalandempiricaltoolsweproposetocon-
+between two EDUs. To encode argument pairs,
+duct our study. Both our novel theoretical result
+weconcatenateandtokenizethemusingtheBERT
+(Theorem1)andourlarge-scaleregressionanaly-
+(Devlinetal.,2019)tokenizer. Wethenfeedthese
+sis(Section5),providenew,practicalinsightson
+tokens through the pretrained base BERT model
+domain-shiftindiscourseparsing.
+andexperimentwithtwodifferentwaysofcaptur-
+ingthemodeloutput: usingthepooledoutput,e.g.
+2.2 DomainAdaptationTheory
+the output of the [CLS] token, and averaging the
+Statistics that relate to domain adaptation perfor- hidden states. We will refer to these encodings
+mance have long been studied in the theoretical as P-BERT and A-BERT respectively. We also
+literature. Kifer et al. (2004); Ben-David et al. experimentwithencodingourargumentpairsus-
+(2007, 2010a) initiate this investigation with a ingSentenceBERT(ReimersandGurevych,2019)
+modificationofthetotalvariationdistance(theH- whichwewillrefertoasS-BERT.
+Dataset Genre Label disjointsetsofabout5Kexamples. ThepairS and
+schema
+T aretakenfromthesetofthesesplitsusingeach
+RST-DT(Carlsonetal.,2001) News RST-
+ofthedifferentBERTrepresentations. Werestrict
+DT
+PDTB2.0(Prasadetal.,2008) News PDTB thepairtohaveacommonsetofdiscourselabels.
+PDTB3.0(Webberetal.,2019) News PDTB For example, we only transfer from S using the
+BioDRB (Ramesh and Yu, Bio PDTB
+PDTBlabelschematoT usingthesameschema.
+2010)
+TED-MDB(Zeyreketal.,2020) TED PDTB ForexperimentsinvolvingPDTBlabelschema,
+talks
+we consider single-source domain adaptation,
+GUM(Zeldes,2017) Multiple RST-
+DT whichsimplypairsonedatasplitS withanotherT.
+For instance, the first half of the TED-MDB and
+Table1: Characteristicsofeachdiscoursedatasetused
+thesecondhalfoftheBioDRB,or,thefirsthalfof
+inourstudy. The"multiple"domainsintheGUMcor-
+BioDRBandthesecondhalfofBioDRB.
+pus are as follows: Academic, Biography, Fiction, In-
+For experiments involving RST-DT label
+terview,News,Reddit,Travel,andHow-toguides.The
+main distinction between the PDTB-2 and PDTB-3 is schema, we use both single-source and multi-
+thepresenceofintra-sententialimplicitdiscourserela- sourcedomainadaptationsetups. Weusethemulti-
+tionsinthePDTB-3. sourcesetupfordomainsintheGUMcorpus. Here,
+T isderivedfromasingledomainandSfromallof
+theotherdomainscontainedinthecorpus(i.e.,S
+Label Set For the datasets with the PDTB la-
+wouldcontain7oftheGUMdomainsandT would
+belschema,weuseonlythetop-levelsenselabels
+containtheremainingone). Althoughwecontinue
+(Expansion,Contingency,Comparison,andTem-
+tosplitthedomainsinhalf,weonlyuseoneofthe
+poral). Weusethetop-levelRST-DTclassesforthe
+halvesinthiscasetopreventsamplesfromthetar-
+datasetswiththeRST-DTlabelschema,andmap
+getdistributionfromappearinginthesource. We
+theGUMcorpusclassestotheRST-DTclassesus-
+usethesingle-sourcesetupforRSTitself. Here,S
+ingBraudetal.(2017). Werecognizethismapping
+isonesplitofRSTwhileT isanother.
+will not be perfect, as mappings between frame-
+Importantly,experimentingwiththisvarietyof
+worksrarelyare,butwefollowthemappingwith
+setupsallowsustosimulatevariabilityarisingfrom
+empiricalsupportfromDembergetal.(2017)and
+samplingaswellasstudydifferentdegreesofdo-
+focusonthepredictingtop-levelrelationsbetween
+main shift. Accounting for each pair and each
+twodiscourseunits. Asaconsequence,weexpect
+random seed for model training, the number of
+to observe distinct labeling functions (i.e., anno-
+(S,T,h)tripleswestudytotalsmorethan2400.
+tatordecisions)acrossdomainsfromseparatedis-
+courseframeworks. 4 QuantifyingMeaningfulDomainShift
+Experiments Eachdatapointinallofourresults Identifyingandquantifyingdomainshiftisaclassi-
+(e.g.,whencomputingcorrelationordoingregres- calproblem. Perhaps,themostwidelyusedmech-
+sion analysis) corresponds to a particular experi- anism for this task is the two-sample test; i.e., a
+mentdoneonasource(train)datasetS andtarget testdesignedtoindicatedifferenceofdistribution
+(test)datasetT usingaclassifierh. Theclassifier between two samples. We begin this section by
+histrainedonthesourceS andevaluatedontar- discussingafewofthestatisticsusedinthesetests.
+getT. Thisismeanttomimicacommondomain Weobserveacommonprobleminusingthesestatis-
+adaptationscenarioinwhichtheNLPpractitioner ticstopredictadaptationperformance,andfollow-
+wouldliketotransferapre-traineddiscourseclassi- ingthis,discusstheaforementionedh-discrepancy.
+ficationmodeltoanewunlabeleddataset(i.e.,this
+4.1 CommonTwo-SampleTestStatistics
+is discussed again in Section 4). For each exper-
+iment, h is trained using a standard optimization We now informally discuss some common statis-
+proceduretohavelowerroronS. Wediscussthis ticsusedintwo-sampletests. Thesestatisticscan
+procedureanditscompetitivenesswithrespectto beeasilyadaptedtoinferadaptationperformance
+thestate-of-the-artinSection5. undertheassumptionthatchangesindistribution
+Foreachdataset,werandomlysplitthedataset perfectlycorrelatewithchangesinerror. Asmen-
+in half based on 3 different seeds. For example, tionedearlier,wedonotagreewiththishypothesis.
+PDTB2.0(10Kexamples)israndomlysplitintoto Still,thesetypesofstatisticsserveasagoodpoint
+of comparison. In our experiments, we compute T. ForsampleS = (X ,Y )n , weinsteadwrite
+i i i=1
+each of these statistics using the PyTorch library R (h) =
+n−1(cid:80)
+1[h(X ) (cid:54)= Y ]where1[·]isthe
+S i i i
+torch_two_sample(Cruceruetal.,2020). indicatorfunction. Tocomputeeachstatisticwhich
+• FRS: (Friedman and Rafsky, 1979) counts wewouldliketousetoinfertheerror-gap,weas-
+edgesfromS toT inagraphrepresentation. sumeaccesstothementionedsampleS drawni.i.d
+• Energy: (SzékelyandRizzo,2013)compares fromsomedistributionS. Wealsoassumeaccess
+dissimilarityofpointswithin/acrossS andT. to a new unlabeled sample T = (X˜ )m drawn
+X i i=1
+• MMD:(Grettonetal.,2012)comparessimi- i.i.d from the X-marginal T of the distribution
+X
+larityofpointswithin/acrossS andT. T. Ingeneral,wedonotknowwhetherT (cid:54)= Sor
+• BBSD:(Liptonetal.,2018)appliedMMDto T = S,butmayhavereasontosuspectT (cid:54)= S.
+softmaxoutput(i.e.,scores)ofclassifierh.
+Roadmap Inthenextpart,wegivethestatistic
+Formorecomputationaldetails,seeAppendixC.
+wewouldliketousetopredictadaptationperfor-
+A Common Problem The majority of these mance. Wethenquantifyitsbiasasanestimatorfor
+statistics share the common trait that they were theerror-gapwithatheoreticalresult. Wealsopro-
+originally designed to test differences in feature poseatechniquetostudytherelationshipbetween
+distribution – not differences in hypothesis error. thisstatisticandtheerror-gapempiricallythrough
+Assuch,whilewedoexpectthemtobesensitive a regression analysis. Finally, we show how this
+tochangesinerror–insofaraschangesinfeature techniquecanbeusedtostudytheimpactcertain
+distributionrelatetochangesinerror–wehaveno attributesofamodelordatasethaveonerror-gap.
+theoreticalreasontoexpectthisshouldbethecase.
+Source-Guided Discrepancy The source-
+AswesawinFigure1,thesetwochangescanbe
+guideddiscrepancywasproposedbyKurokietal.
+verydifferent: largechangestothedistributionof
+(2019) with a similar conceptualization given
+features may not hurt performance in every case
+independently by Zhang et al. (2019). These
+and imperceptible changes to the distribution of
+statistics improve upon a long history of domain
+features can have large impact when the labeling
+adaptation statistics (Kifer et al., 2004; Blitzer
+functionchanges. Infact, mostofthesestatistics
+et al., 2007; Ben-David et al., 2007, 2010a),
+donotevenincorporateinformationabouttheclas-
+specifically, by incorporating information on the
+sifierweuseforinference. WhileBBSDdoes,we
+source-labels. We consider a generalization of
+arenotawareofanytheoreticalargumentslinking
+the source-guided discrepancy which we call the
+ittoadaptationperformanceinthesamewayasthe
+h-discrepancy, defined for any classifier h. For
+h-discrepancy(discussednext).
+samples S and T , a binary label space Y, a
+X
+spaceofclassifiersHoverX ×Y,andany2 fixed
+4.2 IdentifyingtheChangethatMatters
+classifierh ∈ H,itisdefinedas:
+Contrary to those statistics described above, the
+statistic we give in this section is directly related D=max g∈H|R U(g)−R V(g)| where
+(2)
+to adaptation performance by theoretical means. U =((X ,h(X ))n , V =((X˜ ,h(X˜ ))m ,
+i i i=1 i i i=1
+Beforebeginningourdescriptionofthismetric,we
+need to formalize our mathematical setup and a and recall, S X = (X i) i and T X = (X˜ i) i. In the
+particularnotionofadaptationperformance. binarycase,Kurokietal.(2019)showthatthismay
+be approximated by learning a classifier (i.e., g)
+Mathematical Setup We measure adaptation whichagreeswithhonthesourcesampleS and
+X
+performance through the error-gap which is de- disagrees with h on the target sample T . Their
+X
+fined: procedureextendsnaturallytothemulti-classcase
+∆ h(S,T)=|R S(h)−RT(h)| (1)
+as well, but we must disambiguate between the
+whereS isasampleandTisadistribution–both possiblewaysinwhichg candisagreewithh. In
+overaspaceX ×Y. Inthispaper,X isusuallythe ourexperiments,wedosobytrainingg topickthe
+spaceofreal-valuedvectors(i.e.,BERTrepresen- next most likely label according to the scores of
+tations for argument pairs) and Y corresponds to h. Forabetterapproximation,oneshouldcompute
+asetofpossiblediscourselabels. hisaclassifier D again,reversingtherolesofS/T andtakingthe
+h : X → Y andtheriskRD(h)isdefinedfordistri-
+2Thesource-guideddiscrepancyoriginallyproposedby
+butionTasRT(h) = Pr(h(X˜) (cid:54)= Y˜), (X˜,Y˜) ∼ Kurokietal.(2019)considersonlyoneparticularh.
+largerofthevaluesasthefinalresult. Withbinary weareaware,thetwo-samplestatisticsdiscussed
+labels,thetwovalueswilloftencoincide,butthis previouslydonothavesuchadescription.
+shouldnotbeassumedinmulti-classsettings.
+RegressionAnalysisofErrorsofD FromThe-
+Theoretical Motivation Here, we provide our orem 1, we do not expect the random estimation
+primarymotivationfortheh-discrepancyasanes- error D − ∆ h(S,T) to be zero. So, in our ex-
+timatoroferror-gap. Ourresultmakesuseofthe perimentation, we propose to study this quantity
+work of Crammer et al. (2007), Ben-David et al. through a regression analysis. Namely, suppose
+(2010a),andKurokietal.(2019). Itdistinguishes X ∈ RN×p is some fixed, non-singular design
+itselffromthesefinitesampleboundsinthatitex- matrix whose rows each represent one of N ex-
+plicitlyconcernsitselfwiththebiasofDasanesti- perimentsandwhosecolumnsrepresentoneofp
+matoroferror-gap. ProofisgiveninAppendixD. featuresforeachexperiment. Anexperimentcor-
+respondstoan(S,T,h)tripleasdisucssedinSec-
+Theorem 1. Let Y be a binary space and let H
+tion3. Thefeaturesaredependentonpropertiesof
+be a subset of classifiers in YX. Then, for any
+thedatasetsandmodelsusedineachexperimentas
+realizationofS,forallh ∈ H,
+wellasrealizationsofh-discrepancy,adaptability,
+−E [λ]≤E [D]−∆ (S,T)≤E [D] (3) andtrainingerror. Then,weassume
+T T h T
+Y=Xβ+(cid:15) (4)
+whereλ = min R (h(cid:48))+R (h(cid:48)).
+h(cid:48)∈H S T
+where the randomness in the outcome Y comes
+Notice, when E[λ] is small and E[D] is also from (cid:15) i. ∼i.d. N(0,σ2), σ > 0. The response
+i
+small we know the bias must be small because it Y = (D −∆ (S,T) )N are realizations of es-
+i h i i=1
+is“sandwiched”betweenthesetwo. Inthissitua- timation error across N experiments.4 We give
+tion,thepractitionercanveryconfidentlytransfer
+modeldiagnosticsanddetailsofthedesignmatrix
+h from S to T. In practice we cannot compute λ
+XinAppendixE;itisselectedmanuallyusingdo-
+sinceitrequireslabelsfromT,stillweoftenexpect
+mainknowledgeandtomeetmodelassumptions.
+E[λ] to be small. In particular, this term is often
+Regression analysis is particularly useful be-
+calledtheadaptabilityasitcapturesirreconcilable
+causestandardtechniquesallowustounderstand
+differencesbetweenthesourceandtargetlabeling
+andisolatetheimpactofindividualcolumns(i.e.,
+functions. In discourse, such differences are pri-
+features) in X on the estimation errors of D. In
+marilydeterminedbythediscourseframeworkand
+particular,wecanusethismodeltodeterminethe
+annotator. As first observed by Ben-David et al.
+expectedchangeinestimationerrorasafunctionof
+(2010a)(i.e.,concerningasimilarterm),λissmall
+aparticularfeature,whilecontrolling(i.e.,holding
+whenever there is any classifier in H which does
+constant)allotherfeaturesinX:
+wellonS andT simultaneously. IfS andT come
+E[Y |X =x]−E[Y |X =x(cid:48)] (5)
+from the same discourse framework, this should i i i i
+not be difficult for sufficiently complex H. Even wherexisanysettingofthefeaturesandx(cid:48)isiden-
+if S and T come from distinct discourse frame- tical to x except every component involving the
+works,thisisstillnotanoverlystrongrequirement featureofinterestismodified(e.g.,increased)sys-
+becauseneural-networks,forexample,havebeen tematically. ForaspecificexampleusingEq.(5),
+showntoperfectlyfitevenrandomlabeling(Zhang considerinspectingthechangeinestimationerror
+etal.,2016). Thus,inmanycases,3 weareprimar- asafunctionofincreaseinh-discrepancy(control-
+ily concerned with the positive bias of D. When ling for all other features). In this case, Eq. (5)
+E[D] is larger, the positive bias of D can also be evaluates to a polynomial5 in the coefficients β
+larger. Intuitively,D mighthavemore“falseposi- andcomponentsofx(cid:48),sowecanestimatethisre-
+tives”whereitreportsahighvaluebuttheerror-gap sultinanunbiasedmannerusingtheOLSestimate
+isactuallycomparativelysmall. Inthissense,itis βˆ= (XTX)−1XTY. Toempiricallyvalidateour
+aconservativestatistic. Itplaysthingsonthe“safe theoretical analysis, we might check if this poly-
+side.” So, while D will possibly have some bias, nomialisanincreasing,positivefunction;i.e.,be-
+it is at least described by the above bounds. As causeourtheorypredictsincreasesintheexpected
+h-discrepancyallowforincreasesinbias.
+3Oneshouldbecautiousofbroadgeneralizationsinadapta-
+tion,sincefailuretocarefullyconsiderλcanbedisastrousfor 4WedonothaveaccesstoT,soweusesampleT instead.
+algorithmdesign(Zhaoetal.,2019;Johanssonetal.,2019). 5Fordetails,pleaseseeAppendixF,Example1.
+Regression Analysis of Error-Gap Given X abilityofeachstatistictodiscernscenarioswhere
+andβ,rearrangingEq.(4)letsusalsowrite domainadaptationperformancemaybeeithergood
+orbad. Inpractice,astatisticwithgoodrankcor-
+∆ (S,T) =D −X β+(cid:15) (6)
+h i i i i
+relationcanbeusedinmodel-selectionor(source)
+where X i is the ith row of X; i.e., the features of datasetselection. Astatisticwithgoodlinearcor-
+theith experiment. Similartobefore,thistypeof relation may also be used and will be easier to
+analysisletsusdrawinterestinginsights. Inpartic- interpretsinceweexpectchangesinthestatisticto
+ular,wecanisolatetheimpactoffeaturesinXon beproportionaltochangesintheerror-gap.
+theerror-gap. SinceourdesignmatrixXcontrols
+fortrainingerror,theerror-gapcanbeinterpreted ComparisonofStatistics h-discrepancyiscon-
+toactasameasureofperformanceindomainadap- sistently,moststronglycorrelatedwitherror-gap.
+tation(DA).Thosefeatureswhicharepositivelyas- Theoverarchingtrendisthattheh-discrepancyis
+sociatedwitherror-gapcanbesaidtobeworsefor farbetterthaneveryotherstatisticwithregardsto
+DA.Likewise,thosewithnegativeassociationare bothtypesofcorrelation. Infact,thelinearcorrela-
+“better”forDA.Asbefore, weisolatetheimpact tionsarenotmuchworsethantherankcorrelations
+of a feature by checking the change in error-gap (insomecasestheyareevenbetter). Thisvalidates
+as a function of change in this feature (i.e., sim- ouropeninghypothesisthatdomain-shiftdoesnot
+ilar to Eq. 5). Appendix F Example 2 uses this always correlate with domain adaptation perfor-
+techniquetoisolatetheimpactofdifferentBERT mance(i.e.,error-gap). Itisimportanttoalsocon-
+representationsonerror-gap. sidertheclassifierweuse. Still,BBSD–another
+statisticthatreliesontheclassifier–isalsosome-
+5 Results
+what ineffective compared to the h-discrepancy.
+Importantly, despite depending on the classifier,
+5.1 AnalysisofTransferError
+BBSD was still designed with identification of
+ComparisontoOtherWork Ourexperimental
+feature-distribution shift in mind. In some sense,
+setupproducesresultscomparabletocurrentdis-
+this observation validates our theoretical motiva-
+coursemodels. InAppendixB,Figure3showsthe
+tionsfortheh-discrepancy(i.e.,Theorem1)which
+distributionoftheerrorrateswhentransferringon
+directlyrelatesittoerror-gap. Ourresultsindicate
+within-andout-of-distributiondatasets. Tovalidate
+that, at least for the task of discourse parsing, h-
+whetheroursetupiscomparabletootherdiscourse
+discrepancy is the most effective statistic to use
+parsing models, we compare error rates to cur-
+withregardstopredictingerror-gap.
+rentimplicitsenseclassifiers;e.g.,Kishimotoetal.
+(2020)whoachieveanerrorrateof≈ 0.38undera
+Additional Trends Experiments using RST-DT
+comparablesetup. OurPDTBwithin-distribution
+labelschemasandnon-newstargetsshowverylow
+resultsoftenimproveuponthis.
+correlationbetweendistributionalshiftanderror-
+ErrorAnalysisacrossGenres FictionandHow- gap. Ifwelookatparticularexperimentsubsets,we
+ToGuidesarethemostdifficulttotransferto,while alsoseesomeinterestingtrends. First,moststatis-
+AcademicJournalsandBiographiesaretheeasiest. tics are better correlated with error-gap datasets
+Figure 4 in Appendix B shows the error rates for thatusethePDTBlabelschemathanthosethatuse
+multi-sourceadaptationontheGUMcorpusacross the RST-DT label schema. The difference is less
+S-BERT,P-BERT,andA-BERT.Althoughtheer- pronouncedfortheh-discrepancythanfortheother
+ror rates differ across these three representations, statistics,suggestingthatitisespeciallyimportant
+therelativeorderoftheGUMcorpusdomainswith tousestatisticstieddirectlytotheerror-gapwhen
+respecttotransfererrorisfairlyconsistentacross workingwithdatasetsthatusetheRST-DTschema.
+all of them. For all three, the highest mean error Thesameistruewhenthetestdatasetiscomprised
+rateoccurredintheHow-toGuideandFictiondo- ofnewsarticlesinsteadofothertypesoftext.
+mains,andthelowestmeanerrorrateoccurredin Theh-discrepancyhashighestlinearcorrelation
+theAcademicandBiographydomains. onsimilardistributions. Weobservemuchstronger
+linear correlation between theh-discrepancy and
+5.2 AnalysisofCorrelations
+error-gaponwithin-distributionadaptationscenar-
+In Table 2, we show linear and rank correlation ios(WD)ascomparedtoout-of-distributionadap-
+ofeachstatisticwiththeerror-gap. Thisteststhe tationscenarios(OOD).Webelievethisisbecause
+Spearman(Rank)Correlation Pearson(Linear)Correlation
+Split FRS Energy MMD BBSD h-disc FRS Energy MMD BBSD h-disc
+All 0.5394 0.6059 0.5051 0.4054 0.8299 0.4986 0.4396 0.3413 0.4004 0.7628
+PDTB 0.5451 0.6359 0.5472 0.4746 0.8265 0.5295 0.4704 0.3709 0.4274 0.7642
+RST-DT 0.2166 0.3059 -0.0011 0.2087 0.7625 0.2853 0.1660 -0.1605 0.1677 0.7599
+News 0.5262 0.6356 0.5507 0.5759 0.8517 0.7079 0.6302 0.5558 0.5386 0.8890
+Other 0.3760 0.4517 0.2767 0.1737 0.8386 0.3420 0.2791 0.1760 0.2051 0.7072
+WD 0.0884 0.5735 -0.0324 0.2368 0.7890 0.1075 0.5831 -0.0515 0.4853 0.9519
+OOD 0.4597 0.5249 0.3917 0.2813 0.7666 0.4342 0.3909 0.2761 0.3745 0.6976
+Table2: Correlationswitherror-gapforeachstatistic. Datasplitsindicatethesubsetofdataused. h-discrepancy
+consistentlyyieldsthelargestcorrelationwitherror-gap;i.e.,differenceinPearsoncorrelationsareallsignificant
+atlevelα=0.001usingtestofSteiger(1980)implementedbyDiedenhofenandMusch(2015).
+Figure2: (Left, 1-4)Expectedchangeinerror-gapwhenchangingpropertiesofthedatasetormodel. Shownas
+a function of discrepancy and controls for all other features of the experiment. Reference category is indicated
+in title. (Right, 5-6) Expected change in estimation error of h-discrepancy shown as a function of λ (5th) and
+discrepancy(6th). LeftassumesuseofA-BERTandFCNonaGUMnon-newstarget,buttrendsareconsistentin
+othercases.
+theh-discrepancyistypicallysmallwhenS andT 5.4 RegressionAnalysisofError-Gap
+followasimilardistribution. AsTheorem1notes,
+Figure2alsoshowsexpectedchangeinerror-gap
+the bias of the h-discrepancy as an estimator for
+whenmodifyingcategoricalfeaturesoftheexper-
+error-gapcanbenearzeroifbothE[D]andE[λ]
+iment; e.g., use of S-BERT vs. A-BERT. Trend
+aresmall;i.e.,weexpectthelinearcorrelationofa
+linesindicateexpectedchangeasafunctionofh-
+nearlyunbiasedestimatortobefairlyhigh.
+discrepancyandarecomputedusingasimilartech-
+nique for regression analysis as described in Ap-
+pendixFExample2. Sincewecontrolfortraining
+5.3 RegressionAnalysisofEstimationError
+set error, positive changes in error-gap indicate a
+Figure2showsexpectedchangeinestimationerror settingisbetterfordomainadaptation,whilenega-
+of h-discrepancy (used as an estimator for error- tiveindicatestheopposite. Thisregressionanalysis
+gap). Trend lines indicate expected change as a alsocontrolsforchangesindiscourseframework
+functionoftheadaptabilityλandthediscrepancy usingexplicitindicatorvariablesaswellastheterm
+D comparedtothecasewhereeachis0.6 Trends λ(seediscussionafterTheorem1).
+arecomputedusingasimilartechniqueforregres-
+BERT features S-BERT is better for similar
+sion analysis as described in Appendix F Exam-
+trainandtestsets,whileA-BERTisbetterformore
+ple1. Thetakeawayisthattheseempiricalresults
+divergent sets. As a function of discrepancy, S-
+areconsistentwithourtheoreticaldiscussionsur-
+BERT is better for DA when the discrepancy is
+rounding Theorem 1. As λ increases, the estima-
+small. As the difference between the train and
+tionerrordecreases. Similarly,Theorem1predicts
+test set increases, the reference category (i.e., A-
+thepossibilityofnegativebiaswhenλislarge. As
+BERT)isbetterforDA.ComparingP-BERTtoA-
+D increases, the estimation error does the same.
+BERTwedonotseelargedifferences;marginally,
+Theorem1agreesheretoo,predictingthepossibil-
+A-BERTisbetterasdiscrepancyincreases. These
+ityofpositivebiaswhenD islarge.
+results are consistent with typical rules of thumb
+on model complexity. A more complex feature
+6Note,ifbothare0inexpectation,Disunbiased. representation(i.e.,S-BERTorP-BERT)isbenefi-
+cialwhentrainingandtestdistributionsalign,but theh-discrepancyisespeciallyusefulforpredict-
+allowsforoverfittingwhendiscrepancyincreases. ingtheeffectsofdomainshiftinthesecases.
+Additionally,wefindthat: (1)increasedvariabil-
+Classifier Linearclassifiersperformmarginally
+ity in the target domain appears to make domain
+worse than neural-networks. In general, fully-
+adaptation more difficult, even if the training set
+connectednetworks(FCNs)appeartobeslightly
+containsasimilarlevelofvariability;(2)S-BERT
+betterfordomainadaptation. Possibly,thisisdue
+isbetterthanA-BERTwhendomainsaresimilar,
+toincreasedmodellingcapacity. Thisbenefitwanes
+but A-BERT outperforms S-BERT when the do-
+asthediscrepancybetweenthetraining/testsample
+mainsfurtherdiverge;(3)non-newstexts(suchas
+increases. Asbefore,thecausemaybeoverfitting
+those in the BioDRB) are easier to adapt to than
+since overfitting and class imbalance are known
+newstexts(suchasthoseinthePDTB).
+problemsindiscourseparsing(Atwelletal.,2021).
+This is the first computational and empirical
+NewsTestSet Itisslightlyhardertotransferto study that looks at distribution shifts across dif-
+news datasets. We consider a “news” corpus to ferentdiscoursedatasetsandevaluatestheperfor-
+beanyofPDTB,RST-DT,orthenewsdomainof manceofvariousmodelsundertheseshifts. This
+GUM. When the target (test) dataset consists of isalsothefirstworkthatexaminestheefficacyof
+news texts, we see adaptation performance con- differenttwo-sampletestsforpredictingtheerror-
+sistent with non-news targets for small discrep- gapwhencomparedtoametricthatistheoretically
+ancy. Asthediscrepancybetweentrainingandtest tied to error gap. Future work can extend these
+setgrows,thenon-newstargetsareactuallybetter results by using the h-discrepancy metric to pre-
+suitedfordomainadaptation;i.e.,itisslightlyeas- dicttheerror-gapforotherNLPtasksorforother
+iertotransfertoanon-newstarget. Possibly,thisis componentsneededfordiscourseparsing,suchas
+relatedtothelengthandcomplexityofnewstexts. constructingtheRST-DTdataset.
+Dataset Increased variability in the target do- 7 Ethics
+main results in a more difficult task, even when
+Ourexperimentsdonothaveanysignificantethical
+addingvariabilityduringtraining. Ingeneral,we
+concerns,aswedonotworkwithanysensitiveor
+seethattheGUMdatasetpresentsamorechalleng-
+personaldata,nordoweworkwithhumansubjects;
+ing adaptation task than the other datasets. This
+the datasets we use for our experiments are the
+issensibleduetothelargerselectionoftargetdo-
+PDTB 2.0 and 3.0, the RST Discourse Treebank,
+mainsinGUM.Inourresults,increasedvariability
+theGUMcorpus,theTED-MDB,andtheBioDRB.
+attrain-timedoesnotappeartocounteractthisis-
+Our work depends on pretrained models such as
+sue,becauseadaptationexperimentsintheGUM
+word embeddings. These models are known to
+corpus are multi-source. For PDTB, as the dis-
+reproduceandevenmagnifysocietalbiaspresent
+crepancy increases, performance is more similar
+intrainingdata.
+toGUM.Ontheotherhand,RST-DTpresentsthe
+easiestadaptationtask. Thisisexpectedasalltest
+Acknowledgements
+sets in the RST-DT experiments are drawn from
+thesamenewscorpus. WewouldliketothankAmirZeldesforhishelpful
+feedback. ThankstoPittCyberandDARPAgrant
+6 Conclusion
+primeOTANo. HR00112290024(subcontractNo.
+AWD00005100andSRA00002145)forpartlysup-
+Thisworkprovidesastatisticformodelanddataset
+portingthisproject. WealsoacknowledgetheThe
+selection, that we also use to conduct large-scale
+CenterforResearchComputingattheUniversity
+analysisofmodeltransferindiscourseparsing. Our
+of Pittsburgh for providing the computational re-
+analysisprovidesusefulinsightsforthepractitioner.
+sources for many of the results within this paper.
+Forone,thecorrelationsindicatethat,fordatasets
+Anyopinions,findingsandconclusionsorrecom-
+withtheRST-DTannotationframework,thestatis-
+mendationsexpressedinthismaterialarethoseof
+ticsthatquantifydistributionalshiftwithoutbeing
+theauthor(s)anddonotnecessarilyreflecttheposi-
+directlytiedtoerror-gap(whereerror-gaprefersto
+tionorpolicyoftheU.S.AirForceResearchLab,
+theperformancegapbetweentrainandtestsplits)
+DARPA,DoDandSRIInternationalandnoofficial
+are very weakly correlated with error-gap. This
+endorsementshouldbeinferred.
+alsoholdsfornon-newstargets,andindicatesthat
+References Lynn Carlson, Daniel Marcu, and Mary Ellen
+Okurovsky. 2001. Building a discourse-tagged cor-
+Stergos Afantenos, Nicholas Asher, Farah Bena- pusintheframeworkofRhetoricalStructureTheory.
+mara, Myriam Bras, Cécile Fabre, Mai Ho-dac, InProceedingsoftheSecondSIGdialWorkshopon
+Anne Le Draoulec, Philippe Muller, Marie-Paule DiscourseandDialogue.
+Péry-Woodley, Laurent Prévot, Josette Rebeyrolles,
+Ludovic Tanguy, Marianne Vergez-Couret, and Arman Cohan, Franck Dernoncourt, Doo Soon Kim,
+LaureVieu.2012. Anempiricalresourcefordiscov- Trung Bui, Seokhwan Kim, Walter Chang, and Na-
+eringcognitiveprinciplesofdiscourseorganisation: zli Goharian. 2018. A discourse-aware attention
+theANNODIScorpus. InProceedingsoftheEighth model for abstractive summarization of long docu-
+International Conference on Language Resources ments. In Proceedings of the 2018 Conference of
+andEvaluation(LREC’12),pages2727–2734,Istan- the North American Chapter of the Association for
+bul, Turkey. European Language Resources Associ- ComputationalLinguistics: HumanLanguageTech-
+ation(ELRA). nologies, Volume 2 (Short Papers), pages 615–621,
+New Orleans, Louisiana. Association for Computa-
+KatherineAtwell,JunyiJessyLi,andMaliheAlikhani. tionalLinguistics.
+2021. Where are we in discourse relation recogni-
+tion? In Proceedings of the 22nd Annual Meeting Koby Crammer, Michael Kearns, and Jennifer Wort-
+oftheSpecialInterestGrouponDiscourseandDia- man. 2007. Learning from multiple sources. In
+logue,pages314–325,SingaporeandOnline.Asso- AdvancesinNeuralInformationProcessingSystems,
+ciationforComputationalLinguistics. pages321–328.
+Shai Ben-David, John Blitzer, Koby Crammer, Alex CalinCruceru,BradyNeal,andGithubUserjosipd.
+Kulesza, Fernando Pereira, and Jennifer Wortman 2020. Torchtwosamplepackage(commit23aa002).
+Vaughan. 2010a. A theory of learning from differ- Github.
+entdomains. Machinelearning,79(1-2):151–175.
+Iria da Cunha, Juan-Manuel Torres-Moreno, and Ger-
+ardo Sierra. 2011. On the development of the RST
+ShaiBen-David,JohnBlitzer,KobyCrammer,andFer-
+Spanishtreebank. InProceedingsofthe5thLinguis-
+nandoPereira.2007. Analysisofrepresentationsfor
+ticAnnotationWorkshop,pages1–10,Portland,Ore-
+domainadaptation. InAdvancesinNeuralInforma-
+gon, USA. Association for Computational Linguis-
+tionProcessingSystems,pages137–144.
+tics.
+ShaiBen-David, TylerLu, TeresaLuu, andDavidPal.
+Laurence Danlos, Diégo Antolinos-Basso, Chloé
+2010b. Impossibility theorems for domain adapta-
+Braud, and Charlotte Roze. 2012. Vers le FDTB
+tion. InProceedingsoftheThirteenthInternational
+: French discourse tree bank (towards the FDTB :
+Conference on Artificial Intelligence and Statistics,
+Frenchdiscoursetreebank)[inFrench]. InProceed-
+volume 9 of Proceedings of Machine Learning Re-
+ings of the Joint Conference JEP-TALN-RECITAL
+search, pages 129–136, Chia Laguna Resort, Sar-
+2012, volume 2: TALN, pages 471–478, Grenoble,
+dinia,Italy.PMLR.
+France.ATALA/AFCP.
+Parminder Bhatia, Yangfeng Ji, and Jacob Eisenstein.
+Debopam Das and Manfred Stede. 2018. Developing
+2015. Better document-level sentiment analysis
+thebanglarstdiscoursetreebank. InProceedingsof
+from RST discourse parsing. In Proceedings of
+theEleventhInternationalConferenceonLanguage
+the 2015 Conference on Empirical Methods in Nat-
+ResourcesandEvaluation(LREC2018).
+ural Language Processing, pages 2212–2218, Lis-
+bon, Portugal. Association for Computational Lin-
+Vera Demberg, Fatemeh Torabi Asr, and Merel Schol-
+guistics.
+man.2017. Howcompatibleareourdiscourseanno-
+tations? insightsfrommappingrst-dtandpdtbanno-
+JohnBlitzer,MarkDredze,andFernandoPereira.2007. tations. arXivpreprintarXiv:1704.08893.
+Biographies,Bollywood,boom-boxesandblenders:
+Domain adaptation for sentiment classification. In Jacob Devlin, Ming-Wei Chang, Kenton Lee, and
+Proceedings of the 45th Annual Meeting of the As- Kristina Toutanova. 2019. BERT: Pre-training of
+sociation of Computational Linguistics, pages 440– deep bidirectional transformers for language under-
+447,Prague,CzechRepublic.AssociationforCom- standing. In Proceedings of the 2019 Conference
+putationalLinguistics. of the North American Chapter of the Association
+for Computational Linguistics: Human Language
+ChloéBraud,MaximinCoavoux,andAndersSøgaard. Technologies, Volume 1 (Long and Short Papers),
+2017. Cross-lingualRSTdiscourseparsing. InPro- pages4171–4186,Minneapolis,Minnesota.Associ-
+ceedings of the 15th Conference of the European ationforComputationalLinguistics.
+Chapter of the Association for Computational Lin-
+guistics: Volume 1, Long Papers, pages 292–304, BirkDiedenhofenandJochenMusch.2015. cocor: A
+Valencia,Spain.AssociationforComputationalLin- comprehensive solution for the statistical compari-
+guistics. sonofcorrelations. PLOSone,10(4):1–12.
+Hady Elsahar and Matthias Gallé. 2019. To annotate LiLiang,ZhengZhao,andBonnieWebber.2020. Ex-
+or not? predicting performance drop under domain tending implicit discourse relation recognition to
+shift. In Proceedings of the 2019 Conference on the PDTB-3. In Proceedings of the First Work-
+EmpiricalMethodsinNaturalLanguageProcessing shop on Computational Approaches to Discourse,
+andthe9thInternationalJointConferenceonNatu- pages 135–147, Online. Association for Computa-
+ralLanguageProcessing(EMNLP-IJCNLP),pages tionalLinguistics.
+2163–2173, Hong Kong, China. Association for
+ComputationalLinguistics. Zachary Lipton, Yu-Xiang Wang, and Alexander
+Smola. 2018. Detecting and correcting for label
+WeiVanessaFeng.2015. RST-stylediscourseparsing shift with black box predictors. In International
+and its applications in discourse analysis. Univer- conference on machine learning, pages 3122–3130.
+sityofToronto(Canada). PMLR.
+Jerome H Friedman and Lawrence C Rafsky. 1979. Mingsheng Long, Yue Cao, Jianmin Wang, and
+Multivariate generalizations of the Wald-Wolfowitz Michael Jordan. 2015. Learning transferable fea-
+andSmirnovtwo-sampletests. TheAnnalsofStatis- tures with deep adaptation networks. In Interna-
+tics,pages697–717. tional conference on machine learning, pages 97–
+105.PMLR.
+KenjiFukumizu,ArthurGretton,GertLanckriet,Bern-
+hard Schölkopf, and Bharath K. Sriperumbudur. Yishay Mansour, Mehryar Mohri, and Afshin Ros-
+2009. Kernel choice and classifiability for RKHS tamizadeh.2009. Domainadaptationwithmultiple
+embeddings of probability distributions. In Ad- sources. InAdvancesinneuralinformationprocess-
+vances in Neural Information Processing Systems, ingsystems,pages1041–1048.
+volume22.CurranAssociates,Inc.
+Daniel Marcu. 1999. Discourse trees are good indica-
+Arthur Gretton, Karsten M Borgwardt, Malte J Rasch, tors of importance in text. Advances in automatic
+BernhardSchölkopf,andAlexanderSmola.2012. A textsummarization,293:123–136.
+kernel two-sample test. The Journal of Machine
+LearningResearch,13(1):723–773. DanielMarcu.2000. TheTheoryandPracticeofDis-
+courseParsingandSummarization. MITpress.
+Francisco Guzmán, Shafiq Joty, Lluís Màrquez, and
+PreslavNakov.2014. Usingdiscoursestructureim- Thomas Meyer, Andrei Popescu-Belis, Sandrine Zuf-
+proves machine translation evaluation. In Proceed- ferey, andBrunoCartoni.2011. Multilingualanno-
+ingsofthe52ndAnnualMeetingoftheAssociation tation and disambiguation of discourse connectives
+forComputationalLinguistics(Volume1: LongPa- formachinetranslation. InProceedingsoftheSIG-
+pers),pages687–698. DIAL 2011 Conference, pages 194–203, Portland,
+Oregon.AssociationforComputationalLinguistics.
+Fredrik D Johansson, David Sontag, and Rajesh Ran-
+ganath. 2019. Support and invertibility in domain- Eleni Miltsakaki, Rashmi Prasad, Aravind Joshi, and
+invariantrepresentations. InThe22ndInternational Bonnie Webber. 2004. The Penn Discourse Tree-
+Conference on Artificial Intelligence and Statistics, bank. In Proceedings of the Fourth International
+pages527–536.PMLR. ConferenceonLanguageResourcesandEvaluation
+(LREC’04), Lisbon, Portugal. European Language
+Daniel Kifer, Shai Ben-David, and Johannes Gehrke. ResourcesAssociation(ELRA).
+2004. Detecting change in data streams. In VLDB,
+volume4,pages180–191. Karthik Narasimhan and Regina Barzilay. 2015. Ma-
+chine comprehension with discourse relations. In
+Yudai Kishimoto, Yugo Murawaki, and Sadao Kuro- Proceedings of the 53rd Annual Meeting of the
+hashi. 2020. Adapting BERT to implicit discourse Association for Computational Linguistics and the
+relationclassificationwithafocusondiscoursecon- 7th International Joint Conference on Natural Lan-
+nectives. In Proceedings of the 12th Language Re- guage Processing (Volume 1: Long Papers), pages
+sources and Evaluation Conference, pages 1152– 1253–1262,Beijing,China.AssociationforCompu-
+1158, Marseille, France. European Language Re- tationalLinguistics.
+sourcesAssociation.
+Barbara Plank and Gertjan van Noord. 2011. Effec-
+Seiichi Kuroki, Nontawat Charoenphakdee, Han Bao, tive measures of domain similarity for parsing. In
+Junya Honda, Issei Sato, and Masashi Sugiyama. Proceedings of the 49th Annual Meeting of the As-
+2019. Unsupervised domain adaptation based on sociation for Computational Linguistics: Human
+source-guided discrepancy. In Proceedings of the LanguageTechnologies,pages1566–1576,Portland,
+AAAI Conference on Artificial Intelligence, vol- Oregon, USA. Association for Computational Lin-
+ume33,pages4122–4129. guistics.
+AlexLascaridesandNicholasAsher.2008. Segmented Rashmi Prasad, Nikhil Dinesh, Alan Lee, Eleni Milt-
+discourserepresentationtheory:Dynamicsemantics sakaki, Livio Robaldo, Aravind Joshi, and Bon-
+with discourse structure. In Computing meaning, nie Webber. 2008. The Penn Discourse TreeBank
+pages87–124.Springer. 2.0. In Proceedings of the Sixth International
+ConferenceonLanguageResourcesandEvaluation Yifan Wu, Ezra Winston, Divyansh Kaushik, and
+(LREC’08), Marrakech, Morocco. European Lan- Zachary Lipton. 2019. Domain adaptation with
+guageResourcesAssociation(ELRA). asymmetrically-relaxed distribution alignment. In
+International Conference on Machine Learning,
+Stephan Rabanser, Stephan Günnemann, and Zachary pages6872–6881.PMLR.
+Lipton. 2019. Failing loudly: An empirical study
+of methods for detecting dataset shift. Advances NianwenXue,HweeTouNg,SameerPradhan,Rashmi
+inNeuralInformationProcessingSystems,32:1396– Prasad,ChristopherBryant,andAttapolRutherford.
+1408. 2015. The CoNLL-2015 shared task on shallow
+discourse parsing. In Proceedings of the Nine-
+Balaji Polepalli Ramesh and Hong Yu. 2010. Iden-
+teenth Conference on Computational Natural Lan-
+tifying discourse connectives in biomedical text.
+guageLearning-SharedTask,pages1–16,Beijing,
+In AMIA Annual Symposium Proceedings, volume
+China.AssociationforComputationalLinguistics.
+2010, page657.AmericanMedicalInformaticsAs-
+sociation.
+Nianwen Xue, Hwee Tou Ng, Sameer Pradhan, At-
+tapolRutherford,BonnieWebber,ChuanWang,and
+Ievgen Redko, Emilie Morvant, Amaury Habrard,
+Hongmin Wang. 2016. CoNLL 2016 shared task
+Marc Sebban, and Younès Bennani. 2020. A
+on multilingual shallow discourse parsing. In Pro-
+survey on domain adaptation theory. ArXiv,
+ceedings of the CoNLL-16 shared task, pages 1–
+abs/2004.11829.
+19,Berlin,Germany.AssociationforComputational
+Linguistics.
+Nils Reimers and Iryna Gurevych. 2019. Sentence-
+bert: Sentence embeddings using siamese bert-
+Kaichao You, Ximei Wang, Mingsheng Long, and
+networks. InProceedingsofthe2019Conferenceon
+Michael Jordan. 2019. Towards accurate model
+EmpiricalMethodsinNaturalLanguageProcessing
+selection in deep unsupervised domain adaptation.
+andthe9thInternationalJointConferenceonNatu-
+In International Conference on Machine Learning,
+ralLanguageProcessing(EMNLP-IJCNLP),pages
+pages7124–7133.PMLR.
+3982–3992.
+Sebastian Ruder, Parsa Ghaffari, and John G Bres- Amir Zeldes. 2017. The GUM corpus: Creating mul-
+lin. 2017. Data selection strategies for multi- tilayer resources in the classroom. Language Re-
+domain sentiment analysis. arXiv preprint sourcesandEvaluation,51(3):581–612.
+arXiv:1702.02426.
+AmirZeldes,DebopamDas,ErickGalaniMaziero,Ju-
+James H Steiger. 1980. Tests for comparing elements lianoAntonio,andMikelIruskieta.2019. TheDIS-
+of a correlation matrix. Psychological bulletin, RPT2019sharedtaskonelementarydiscourseunit
+87(2):245. segmentationandconnectivedetection. InProceed-
+ingsoftheWorkshoponDiscourseRelationParsing
+Masashi Sugiyama, Matthias Krauledat, and Klaus- andTreebanking2019,pages97–104,Minneapolis,
+Robert Müller. 2007. Covariate shift adaptation by MN.AssociationforComputationalLinguistics.
+importance weighted cross validation. Journal of
+MachineLearningResearch,8(5).
+AmirZeldes,YangJanetLiu,MikelIruskieta,Philippe
+Muller, Chloé Braud, and Sonia Badene, editors.
+Gábor J Székely and Maria L Rizzo. 2013. En-
+2021. Proceedings of the 2nd Shared Task on Dis-
+ergy statistics: A class of statistics based on dis-
+course Relation Parsing and Treebanking (DISRPT
+tances. Journalofstatisticalplanningandinference,
+2021). Association for Computational Linguistics,
+143(8):1249–1272.
+PuntaCana,DominicanRepublic.
+RemiTachetdesCombes,HanZhao,Yu-XiangWang,
+Deniz Zeyrek, Amália Mendes, Yulia Grishina, Mu-
+and Geoffrey J Gordon. 2020. Domain adaptation
+rathan Kurfalı, Samuel Gibbon, and Maciej Ogrod-
+with conditional distribution matching and general-
+niczuk. 2020. TED Multilingual Discourse Bank
+ized label shift. In Advances in Neural Informa-
+(TED-MDB): a parallel corpus annotated in the
+tion Processing Systems, volume 33, pages 19276–
+PDTB style. Language Resources and Evaluation,
+19289.CurranAssociates,Inc.
+54(2):587–613.
+Bonnie Webber, Rashmi Prasad, Alan Lee, and Ar-
+avind Joshi. 2019. The Penn Discourse Treebank Deniz Zeyrek and Bonnie Webber. 2008. A discourse
+3.0annotationmanual. resource for Turkish: Annotating discourse connec-
+tivesintheMETUcorpus. InProceedingsofthe6th
+Fangzhao Wu and Yongfeng Huang. 2016. Sentiment WorkshoponAsianLanguageResources.
+domain adaptation with multiple sources. In Pro-
+ceedingsofthe54thAnnualMeetingoftheAssocia- Chiyuan Zhang, Samy Bengio, Moritz Hardt, Ben-
+tionforComputationalLinguistics(Volume1: Long jamin Recht, and Oriol Vinyals. 2016. Understand-
+Papers), pages301–310, Berlin, Germany.Associa- ingdeeplearningrequiresrethinkinggeneralization.
+tionforComputationalLinguistics. arXiv:1611.03530v2.
+Yuchen Zhang, Tianle Liu, Mingsheng Long, and
+Michael Jordan. 2019. Bridging theory and algo-
+rithm for domain adaptation. In International Con-
+ferenceonMachineLearning,pages7404–7413.
+HanZhao,RemiTachetDesCombes,KunZhang,and
+Geoffrey Gordon. 2019. On learning invariant rep-
+resentationsfordomainadaptation. InInternational
+ConferenceonMachineLearning,pages7523–7532.
+PMLR.
+Yang Zhong, Chao Jiang, Wei Xu, and Junyi Jessy Li.
+2020. Discourse level factors for sentence deletion
+in text simplification. In Proceedings of the AAAI
+Conference on Artificial Intelligence, volume 34,
+pages9709–9716.
+Yuping Zhou and Nianwen Xue. 2015. The Chinese
+discoursetreebank:aChinesecorpusannotatedwith
+discourserelations. LanguageResourcesandEvalu-
+ation,49(2):397–431.
+A Frameworks
+The Penn Discourse Treebank (Miltsakaki et al.,
+2004;Prasadetal.,2008;Webberetal.,2019)con-
+sists of Wall Street Journal articles labeled with
+both explicit and implicit shallow discourse rela-
+tions (relations between only two text units). Ex-
+plicitdiscourserelationsareonesinwhichacon-
+nectivebetweentheargumentsprovidessomeindi-
+cationofthecorrectdiscoursesenselabel. Implicit
+discourserelations,whichwefocusoninthispa-
+per,areonesinwhichaconnectivecanbeinserted
+thatindicatesthecorrectsense.
+The RST Discourse Treebank (Carlson et al.,
+2001) is a corpus containing Wall Street Journal
+articlesannotatedinthestyleofRhetoricalStruc-
+tureTheory,whereadocumentissplitintoelemen-
+tary discourse units (EDUs) and relations made
+upoftheseEDUsformatreestructure. TheRST
+DiscourseTreebankdoesnotdifferentiatebetween
+explicit and non-explicit discourse relations, nor
+doesitlabeldiscourseconnectives.
+B ModelTrainingandTransferResults
+Optimization Parameters We use SGD on an
+NLL loss with momentum set to 0.9 to train all
+of our models. We use a batch size of 250. We
+starttrainingwithalearningof1×10−2 for100
+epochsandthentrainforanother50epochsusing
+alearningrateof1×10−3. Ifamodelachievesa
+trainingerrorlowerthan5×10−4,westoptraining.
+Figure3: Transfererrorwithinandoutofdistributionforeachdataset
+Figure4: TransfererrorforeachtopicwithintheGUMcorpus
+C Two-SampleStatistics (Grettonetal.,2012)maybecomputedasbelow
+Here, we describe in detail the common two- (cid:80) K(X ,X ) (cid:80) K(X˜ ,X˜ )
+M = i(cid:54)=j i j + i(cid:54)=j i j
+sample statistics listed in Section 4 and studied n(n−1) m(m−1)
+(8)
+inSection5 − 2 (cid:88) K(X ,X˜ )
+nm i,j i j
+Friedman-RafskyTestStatistic TheFriedman- whereK : X ×X → R isthekernelforsome
+≥0
+Rafsky Test Statistic R (Friedman and Raf-
+RKHS. In our experiments, we use an Gaussian
+sky, 1979) is computed by forming a minimum- RBF kernel and select σ to be an approximate7
+spanning tree (MST) using the pooled sample
+mediandistanceofthepooledsampleasdoneby
+P = (X | (X ,Y ) ∈ S) + (X˜ | X˜ ∈ T )
+i i i c i i X Rabanser et al. (2019). Intuitively, K behaves as
+ofmarginalfeatures. Here,+ istheconcatenation
+c a similarity metric between points in X and, in
+operation. To form the tree, we form a weighted
+thissense,theMMDstatisticcomparessamplesin
+graph G by treating each point Z ∈ P as ver-
+P i muchthesamewaythattheenergystatisticdoes.
+tex and assigning an edge between each pair of
+Ratherthandissimilarity,theMMDstatisticlooks
+verticeswhoseweightisthedistancebetweenthe
+at similarity of points within and across samples,
+data-points. When X = Rd for some d, this is
+modifyingtheorderofthesummandsappropriately
+usually the Euclidean distance or L2 norm. The
+toretaindirectproportionalitywiththedifference
+MSTisthenpreciselytheMSTofG . Thestatis-
+P insamples.
+tic R is computed as the number of edges whose
+endpointsoriginallybelongedtothesamesample. D ProofofTheorem1
+Forexample,Rincreasesby1foreachedgewhose
+Proof. Weusethetriangleinequalityofclassifica-
+endpointsbothoriginallybelongtoT . Likewise,
+X
+tionerror(Crammeretal.,2007;Ben-Davidetal.,
+R increases by 1 for each edge whose endpoints
+2007). For any realization of the sample S and
+are both the features of points in S. When end-
+anydistributionToverX ×Y,foranyclassifiers
+points originally belonged to distinct samples, R
+h,h(cid:48) ∈ H,thetriangleinequalityyields8
+remainsunmodified. Wereportmodifiedstatistic
+belowwhichisnormalizedtoaccountforsample RT(h)−R S(h) ≤ R S(h(cid:48))+RT(h(cid:48))
+(10)
+size R normed = R/(n+m−2). Since the size +|R S(h,h(cid:48))−RT(h,h(cid:48))|
+of the MST is n+m−1 and there is always at
+leastoneedgebetweenS andT ,thisstatistichas whereforToverX ×Y wehave
+X
+amaximumvalueof1.
+RT(h,h(cid:48)) = Pr (h(X˜) (cid:54)= h(cid:48)(X˜)) (11)
+EnergyStatistic GivensamplesS andT asbe-
+X˜∼T
+X
+X
+fore,theenergystatisticmaybecomputedasbelow andforS = (X ,Y )n wehave
+i i i=1
+n
+(cid:88)
+E = 2 (cid:88) ||X −X˜ ||− 1 (cid:88) ||X −X || R S(h,h(cid:48)) = n−1 1[h(X i) (cid:54)= h(cid:48)(X i)]. (12)
+nm i,j i j n2 i,j i j i=1
+(7)
+− m1
+2
+(cid:88) i,j||X˜ i−X˜ j|| InterchangingrolesofTandS inEq.(10)and
+usingthedefinitionoftheabsolutevalue,wesee
+where ||·|| gives the Euclidean norm (distance).
+OriginallyproposedbySzékelyandRizzo(2013),
+∆ h(S,T) ≤R S(h(cid:48))+RT(h(cid:48))
+(13)
+thestatisticismotivatedbyNewton’spotentialen- +|R S(h,h(cid:48))−RT(h,h(cid:48))|.
+ergy between heavenly bodies. Intuitively, it is
+7Specifically,weuseasmallerrandomsampleof100data
+fairly easy to understand as a comparison of dis-
+pointstocomputethismedian.
+similarity within samples and across samples. If 8AfullderivationofEq.(10)maybefoundbyfollowing
+thedissimilarityacrosssamples(i.e.,thefirstterm) stepsasintheproofofTheorem2ofBen-Davidetal.(2010a):
+is much higher than the dissimilaritywithin sam-
+ples, then the two samples are likely drawn from
+RT(h)≤RT(h,h(cid:48))+RT(h(cid:48))
+differentdistributions. ≤R S(h,h(cid:48))+RT(h(cid:48))+|RT(h,h(cid:48))−R S(h,h(cid:48))|
+≤R S(h)+R S(h(cid:48))+RT(h(cid:48))+|RT(h,h(cid:48))−R S(h,h(cid:48))|
+Maximum Mean Discrepancy (MMD) Given (9)
+samples S and T as before, the MMD statistic
+X
+Forbrevity,foranydistributionD,set
+ξ(D) = |R S(h,h(cid:48))−RD(h,h(cid:48))|. (14)
+Then,usingthecommon“additionofzero”trick,
+wearriveat
+∆ h(S,T) ≤ R S(h(cid:48))+RT(h(cid:48))
+−R (h(cid:48))+R (h(cid:48))+ξ(T) (15)
+T T
+−ξ(T)+ξ(T).
+Then,bymonotonicityandlinearityoftheexpecta-
+tionwehave
+(cid:104) (cid:105)
+∆ (S,T) ≤ E R (h(cid:48))+R (h(cid:48)) Figure5: Quantile-Quantileplot. Redlineshowsideal:
+h T S T
+samplequantilesshouldbethesameasthetheoretical
+(cid:2) (cid:3)
++E ξ(T)
+T quantilesofanormaldistributionwithsamevariance.
+(16)
+(cid:104) (cid:105)
++RT(h(cid:48))−E
+T
+R T(h(cid:48))
++ξ(T)−E (cid:2) ξ(T)(cid:3) . UsingthesetwofactsinconjunctionwithEq.(16)
+T
+yields
+Let us consider some of these terms individually.
+(cid:104) (cid:105)
+Using linearity of expectation and the correspon- ∆ h(S,T) ≤ E T R S(h(cid:48))+R T(h(cid:48))
+(21)
+dencebetweenprobabilityandtheexpectationof (cid:2) (cid:3)
++E ξ(T) .
+T
+anindicatorfunction,wehave
+(cid:34) m (cid:35) UsinghasinEq.(2)todefinethestatisticD,for
+E (cid:104) R (h(cid:48))(cid:105) = E m−1(cid:88) 1[h(X˜ ) (cid:54)= Y˜] any h(cid:48) ∈ H, we know ξ(T) ≤ D (i.e., by defini-
+T T i i
+tion of max). So, monotonicity and linearity of
+i=1
+=
+m−1(cid:88)m
+E(cid:2) 1[h(X˜ ) (cid:54)= Y˜](cid:3)
+e ax ppp re oc pta rt ii ao ten ci hm op icli ees ofE hT (cid:48),[ξ w( eT t) h] e≤ nhE avT e[D]. For an
+i i
+i=1
+m ∆ (S,T) ≤ E (cid:2) λ(cid:3) +E (cid:2) D(cid:3) . (22)
+= m−1(cid:88) Pr (cid:0) h(X˜ ) (cid:54)= Y˜(cid:1) h T T
+i i
+i=1(X˜ i,Y˜ i)∼T
+Rearranging terms gives the lowerbound and the
+(cid:88)m upperboundfollowsimmediatelyfromthefactthat
+= m−1 RT(h) ∆ (S,T)isnon-negative.
+h
+i=1
+= RT(h).
+(17) E RegressionDiagnostics
+Additionally,wehave Normal Errors Assumption Here, we give di-
+agnosticsfortheregressionmodelusedtoanalyze
+(cid:104) (cid:105)
+E (cid:2) ξ(T)(cid:3) = E |R (h,h(cid:48))−R (h,h(cid:48))| datainthemaintext. Primarily,wewouldliketo
+T T S T
+≥ |R
+(h,h(cid:48))−E(cid:2)
+R
+(h,h(cid:48))(cid:3)
+|
+check the assumptions that our error terms (i.e.,
+S T (cid:15)) are all identically and independently normally
+= ξ(T).
+distributed. TheJarque-Bera(JB)testusesastatis-
+(18) ticbasedontheskewandkurtosisoftheobserved
+errorstostudythishypothesis. Assumingtheresid-
+Here, thesecondlinefollowsbyJensen’sInqual-
+ualsarei.i.d. normal,theprobabilityofobserving
+ity and linearity of the expectation. The last line
+aJBstatisticasextremeasobservedis≈ 0.25. So,
+follows using a similar derivation as in Eq. (17).
+we fail to reject the hypothesis that the residuals
+Then,
+arei.i.dnormalatsignificancelevelα = 0.05. The
+ξ(T)−E [ξ(T)] ≤ 0 (19)
+T
+assumptionthaterrortermsarenormaldistributed
+and mayalsobevisuallycheckedusingtheqq-plot,his-
+(cid:104) (cid:105)
+RT(h(cid:48))−E T R T(h(cid:48)) = 0. (20) togramoferrors,andtheresidualplotscontainedin
+Example 1. Let column j of X contain the real-
+izationsoftheh-discrepancyforeachexperiment
+andletcolumnk containthetrainerror. Suppose
+column(cid:96)isthe(element-wise)productofcolumns
+k andj, columnq isthesquareofcolumnj, and
+columnr istheproductofcolumnsq andk. Then,
+controllingforallotherfeaturesinX,theexpected
+change in estimation error per δ > 0 increase in
+theh-discrepancyis
+E[Y |X =x]−E[Y |X =x(cid:48)]=β δ+β δx(cid:48)
+i i i i j (cid:96) k
++β (δ2+2δx(cid:48))+β (δ2x(cid:48) +2δx(cid:48)x(cid:48))
+q j r k j k
+(23)
+Figure 6: Histogram of realized error terms. Horizon-
+wherex(cid:48) isafixedrow-vectoroffeaturesandxis
+tal axis shows value of error term, while vertical axis
+showscount. definedby
+
+x(cid:48) +δ ifp = j,
+  p
+Figures5,6,and7,respectively. Wedonotseepar-   x(cid:48)(x(cid:48) +δ) ifp = (cid:96),
+ticularlystrongevidencethattheresidualsarenot   k j
+x = (x(cid:48) +δ)2 ifp = q, . (24)
+i.i.d. normal. Albeit,somepatterningintheresid- p j
+
+ual plots and skew in the histogram of residuals    x(cid:48) k(x(cid:48) j +δ)2 ifp = r,
+
+maybeofconcern. x(cid:48) else
+p
+OtherPossibleAssumptions Inanycase,even Ifthisfunctionofδ ispositive,weknowincreasing
+ifthenormalityassumptiondoesnothold,ouranal- theh-discrepancyincreasesthebiasassuggested
+ysis can still be interpreted using more loose as- byourtheory.
+sumptions. Themostimportantassumptionisthat
+Example 2. Let column j of X be 1 if we use S-
+the error terms all have mean 0. Empirically, we
+BERTrepresentationsand0otherwise. Letcolumn
+find this to be the case with the average residual
+k of X indicate use of P-BERT in the same way
+being≈ 2.4×10−15. Infact,Figure7showsthe
+andsupposethereferencecategory9 fortheBERT
+line-of-bestfitthroughtheresiduals(whichistypi-
+representationsisA-BERT.Letcolumn(cid:96)ofXcon-
+callyclosetothezeroline). Aslongastheassump-
+tain discrepancy D for each experiment and let
+tion that the error terms have common mean 0 is i
+columnq betheelement-wiseproductofcolumns
+true,theOLSestimatesweuseforthecoefficients
+j and(cid:96); i.e.,interactionterms. Then,controlling
+willbeunbiased. Theonlypossibleshort-coming
+for allother featuresin X, theexpected increase
+of the OLS estimate is that it could have larger
+inerror-gapusingS-BERTinsteadofA-BERTis
+variancethansomeotherestimate. Inouranalysis,
+wearemostconcernedwiththeunbiasedproperty E[D −Y |X =x]−E[D −Y |X =x(cid:48)]
+i i i i i i
+(25)
+of our coefficient estimates, but a larger variance =−(β +β D )
+j q i
+inourestimatordecreasesourconfidencethatthis
+particularexperimentproducesestimatescloseto wherex(cid:48) isafixedrow-vectoroffeaturessuchthat
+thetruth. Eitherway,underourrelaxedassumption x(cid:48) (cid:96) = D i and x(cid:48) j = x(cid:48) k = 0. The row-vector x is
+of only a common mean 0 in the errors, we can definedbyx r = {1if r = j, x(cid:48) (cid:96)if r = q, x(cid:48) r else}.
+expect our analysis in the main text to reveal the WhenthisfunctionofD i ispositive,weknowusing
+truthacrossrepeatedexperiments. S-BERTisexpectedtoincreasetheerror-gap.
+F RegressionAnalysisExamples
+Inthissection,wegivedetailedexamples(i.e.,Ex-
+ampled 1 and 2) to clarify how we compute esti- 9Inregression,thereferenceisthesinglecategoryfrom
+matesinFigure2. Asnoted,weusetheunbiased anygroupofcategorieswhichisnotexplicitlyincludedinX.
+OLSestimateβˆ= (XTX)−1XTY inplaceofβ Itservesasapointofcomparisonfortheothercategories.For
+technicalreasons,apointofcomparisonistypicallyneededto
+asisstandard. analyzeimpactofcategoricalfeatures(i.e.,soXisfullrank).
+Dep. Variable: est. error R-squared: 0.944
+Model: OLS Adj. R-squared: 0.944
+Method: LeastSquares F-statistic: 1949.
+Prob(F-statistic): 0.00
+Log-Likelihood: 3347.1
+No. Observations: 2428 AIC: -6650.
+DfResiduals: 2406 BIC: -6523.
+DfModel: 21
+coef stderr t P> |t| [0.025 0.975]
+Intercept -0.0206 0.034 -0.606 0.545 -0.087 0.046
+hspace[T.lin] -0.0239 0.006 -3.817 0.000 -0.036 -0.012
+group[T.pdtb] 0.0536 0.016 3.340 0.001 0.022 0.085
+group[T.rst] 0.0600 0.018 3.256 0.001 0.024 0.096
+bert[T.pooled] 0.0034 0.006 0.601 0.548 -0.008 0.015
+bert[T.sentence] 0.0250 0.009 2.872 0.004 0.008 0.042
+news[T.notnews] -0.0029 0.010 -0.289 0.773 -0.022 0.017
+train_error 0.3262 0.080 4.054 0.000 0.168 0.484
+lamb -0.0150 0.048 -0.312 0.755 -0.109 0.079
+hdisc 0.1545 0.081 1.906 0.057 -0.004 0.313
+bert[T.pooled]:hdisc -0.0313 0.009 -3.622 0.000 -0.048 -0.014
+bert[T.sentence]:hdisc -0.1370 0.013 -10.600 0.000 -0.162 -0.112
+hspace[T.lin]:hdisc 0.0194 0.009 2.159 0.031 0.002 0.037
+group[T.pdtb]:hdisc -0.0210 0.021 -1.002 0.316 -0.062 0.020
+group[T.rst]:hdisc 0.0671 0.028 2.410 0.016 0.013 0.122
+news[T.notnews]:hdisc 0.0320 0.013 2.529 0.012 0.007 0.057
+hdisc:train_error 1.9665 0.196 10.052 0.000 1.583 2.350
+np.power(hdisc,2) 0.4831 0.052 9.323 0.000 0.381 0.585
+train_error:np.power(hdisc,2) -1.6867 0.152 -11.074 0.000 -1.985 -1.388
+lamb:train_error -0.5861 0.122 -4.803 0.000 -0.825 -0.347
+np.power(lamb,2) -0.1346 0.071 -1.892 0.059 -0.274 0.005
+train_error:np.power(lamb,2) 0.4043 0.100 4.029 0.000 0.208 0.601
+Omnibus: 2.707 Durbin-Watson: 1.548
+Prob(Omnibus): 0.258 Jarque-Bera(JB): 2.718
+Skew: -0.046 Prob(JB): 0.257
+Kurtosis: 3.136 Cond. No. 463.
+Warnings:
+[1]StandardErrorsassumethatthecovariancematrixoftheerrorsiscorrectlyspecified.
+Table3: Fulldescriptionoftheregressionmodelincludingallfeatures, estimatedcoefficients, andrelevanttests
+for diagnosis and inference. Tests involving standard errors (std err) are only valid if the model errors follow
+the assumed distribution. We believe most variables are self-explanatory, but we do provide some assistance to
+reader:lambcorrespondstoλ,hdisccorrespondstotheh-discrepancy,train_errorcorrespondstotheerroronthe
+sourcesample,np.power((cid:5),2)correspondstothesquareofthefeature(cid:5),presenceof: indicatesamultiplication
+of features (i.e., an interaction-term), and hspace corresponds to the type of classifier used (i.e., linear model or
+fully-connectednetwork).
+Figure7:Residualplots.Verticalaxesshowrealizederrorterms,whilehorizontalaxesshowvalueofsomefeature
+thatmayormaynotbeinourdesignmatrix. Significantpatternsmayindicateamissingterminourmodel. While
+some patterning may exist, we choose not to include additional terms for reason of interpretability and to meet
+other(quantifiable)modelassumptions.

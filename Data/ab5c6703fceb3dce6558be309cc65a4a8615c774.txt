@@ -1,0 +1,688 @@
+Accurate and Fast Retrieval for Complex Non-Metric
+Data via Neighborhood Graphs(cid:63)
+LeonidBoytsov1andEricNyberg2
+1 CarnegieMellonUniversity,Pittsburgh,PA,srchvrs@cs.cmu.edu
+2 CarnegieMellonUniversity,Pittsburgh,PA,enh@cs.cmu.edu
+Abstract. Wedemonstratethatagraph-basedsearchalgorithm—relyingonthe
+constructionofanapproximateneighborhoodgraph—candirectlyworkwithchal-
+lengingnon-metricand/ornon-symmetricdistanceswithoutresortingtometric-
+spacemappingand/ordistancesymmetrization,which,inturn,leadtosubstantial
+performance degradation. Although the straightforward metrization and sym-
+metrizationisusuallyineffective,wefindthatconstructinganindexusingamodi-
+fied,e.g.,symmetrized,distancecanimproveperformance.Thisobservationpaves
+awaytoanewlineofresearchofdesigningindex-specificgraph-construction
+distancefunctions.Thisisanarchivalversion,thepublisher’sversionisavailable
+atSpringer.com.
+Keywords: k-NNsearch,non-metricdistance,neighborhoodgraph
+1 IntroductionandProblemDefinition
+Inthispaperwefocusonk nearestneighbor(k-NN)search,whichisawidelyused
+computertechnologywithapplicationsinmachinelearning,datamining,information
+retrieval, and natural language processing. Formally, we assume to have a possibly
+infinitedomaincontainingobjectsx,y,z,...,whicharecommonlycalleddatapoints
+or simply points. The domain—sometimes called a space—is equipped with with a
+distancefunctiond(x,y),whichisusedtomeasuredissimilarityofobjectsxandy.The
+valueofd(x,y)isinterpretedasadegreeofdissimilarity.Thelargerisd(x,y),themore
+dissimilarpointsxandyare.
+Some distances are non-negative and become zero only when x and y have the
+highestpossibledegreeofsimilarity.Themetricdistancesareadditionallysymmetric
+andsatisfythetriangleinequality.However,ingeneral,wedonotimposeanyrestrictions
+onthevalueofthedistancefunction(exceptthatsmallervaluesrepresentmoresimilar
+objects).Specifically,thevalueofthedistancefunctioncanbenegativeandnegative
+distancevaluesindicatehighersimilaritythanpositiveones.
+WefurtherassumethatthereisadatasubsetDcontainingafinitenumberofdomain
+pointsandasetofqueriesthatbelongstothedomainbutnottoD.Wethenconsidera
+standardtop-kretrievalproblem.Givenaqueryqitconsistsinfindingkdatasetpoints
+(cid:63)This work was accomplished while Leonid Boytsov was a PhD student at CMU. Authors
+gratefullyacknowledgethesupportbytheNSFgrant#1618159:“MatchingandRankingvia
+ProximityGraphs:ApplicationstoQuestionAnsweringandBeyond”.
+9102
+tcO
+8
+]RI.sc[
+1v43530.0191:viXra
+2 L.BoytsovandE.Nyberg
+{x }withsmallestvaluesofdistancestothequeryamongalldatasetpoints(tiesare
+i
+brokenarbitrarily).Datapoints{x }arecallednearestneighbors.Asearchshouldreturn
+i
+{x }intheorderofincreasingdistancetothequery.Ifthedistanceisnotsymmetric,
+i
+twotypesofqueriescanbeconsidered:leftandrightqueries.Inaleftquery,adatapoint
+comparedtothequeryisalwaysthefirst(i.e.,theleft)argumentofd(x,y).Henceforth,
+forsimplicityofexpositionweconsideronlythecaseofleftqueries.
+Exactmethodsdegeneratetoabrute-forcesearchforjustadozenofdimensions[35].
+Duetodiversityofproperties,non-metricspaceslackcommonandeasilyidentifiable
+structuralpropertiessuchasthetriangleinequality.Thereis,therefore,littlehopethat
+fullygenericexactsearchmethodscanbedevised.Thus,wefocusontheapproximate
+versionoftheproblemwherethesearchmaymisssomeoftheneighbors,butitmaynot
+changetheorder.Theaccuracyofretrievalismeasuredviarecall(equaltotheaverage
+fractionofneighborsfound).Wecannotrealisticallydevisefastexactmethods,butwe
+stillhopethatourapproximatemethodsarequiteaccuratehavingarecallcloseto100%.
+Therehasbeenastaggeringamountofeffortinvestedindesigningnewandimprov-
+ingexistingk-NNsearchalgorithms(seee.g.,[8,29,30,34]).Thisefforthasbeenplaced
+disproportionatelyontechniquesforsymmetricmetricdistances,inparticular,onsearch
+methodsfortheEuclideanspace.Yet,searchmethodsforchallengingnon-symmetric
+andnon-metricspacesreceivedverylittleattention.Afilter-and-refineapproachisa
+commonwaytodealwithanunconventionaldistance.Tothisendonewouldmapdata
+to a low-dimensional Euclidean space. The goal is to find a mapping without large
+distortionoftheoriginalsimilaritymeasure[17,14].Jacobsetal.[17]reviewvarious
+projectionmethodsandarguethatsuchacoercionisoftenagainstthenatureofasimi-
+laritymeasure,whichcanbe,e.g.,intrinsicallynon-symmetric.Yet,theydonotprovide
+experimentalevidence.Wefillthisgapanddemonstratethatbothmetriclearningand
+distancesymmetrizationare,indeed,suboptimalapproaches.
+Alternativelythemetricdistancecanbelearnedfromscratch[3].Inthat,Chechiket
+al.[9]contendedthatinthetaskofdistancelearningenforcingsymmetryandmetricity
+isusefulonlyasameanstopreventoverfittingtoasmalltrainingset.However,when
+trainingdataisabundant,itcanbemoreefficientandmoreaccuratetolearnthedistance
+function in an unconstrained bilinear form. Yet, this approach does not necessarily
+resultsinasymmetricmetricdistance[9].We,inturn,demonstratethatagraph-based
+retrievalalgorithm—relyingontheconstructionofapproximateneighborhood/proximity
+graphs—candealwithchallengingnon-metricdistancesdirectlywithoutresortingtoa
+low-dimensionalmappingorfullsymmetrization.Inthat,unlikepriorwork[24,25],as
+weshowin§3,severalofourdistancesaresubstantiallynon-symmetric.
+Whereasthefilter-and-refinesymmetrizationapproachisdetrimental,wefindthat
+constructinganindexusingthesymmetrizeddistancecanimproveresults.Furthermore,
+we show that the index construction algorithm can be quite sensitive to the order of
+distancefunctionarguments.Inmostcases,changingtheargumentorderisdetrimental.
+However,thisisnotauniversaltruth:Quitesurprisingly,weobservesmallimprovements
+insomecasesbybuildingthegraphusingtheargument-reverseddistancefunction.We
+believe this observations motivates the line of research to design indexing distance
+functions—differentfromoriginaldistancefunctions—thatresultinbetterperformance.
+SearchingNon-MetricDataviaNeighborhoodGraphs 3
+The remaining paper contains the description of employed retrieval algorithms and
+relatedexperimentalresults.
+2 MethodsandMaterials
+2.1 RetrievalAlgorithms
+Weconsidertwotypesofretrievalapproaches:thefilter-and-refinemethodusingbrute-
+forcesearchandindexingusingthegraph-basedretrievalmethodSmallWorldGraph
+(SW-graph)[22].Inthefilter-and-refineapproach,weuseaproxydistancetogeneratea
+listofk candidateentries(closesttothequerywithrespecttotheproxydistance)via
+c
+thebrute-force,i.e.,exhaustive,search.Fork candidateentriesx wecomputethetrue
+c i
+distancevaluesd(x ,q)—ord(q,x )forrightqueries—andselectkclosestentries.
+i i
+The filter-and-refine approach can be slow even if the proxy distance is quite
+cheap[24],whereasindexingcandramaticallyspeedupretrieval.Inparticular,state-of-
+the-artperformancecanbeachievedbyusinggraph-basedretrievalmethods,whichrely
+ontheconstructionofanexactorapproximateneighborhoodgraph(see,e.g.,[2,24]).
+The neighborhood graph is a data structure in which data points are associated with
+graphnodesandsufficientlyclosenodesareconnectedbyedges.Asearchalgorithmisa
+graph-traversalroutineexploitingaproperty“theclosestneighborofmyclosestneighbor
+ismyneighboraswell.”Theneighborhoodgraphisoftendefinedasadirectedgraph
+[12,11],wheretheedgesgofromavertextoitsneighbors(orviceversa),butundirected
+edges have been used too [22,20] (undirected nodes were also quietly introduced in
+kgraph3).Inarecentstudy,theuseofundirectedneighborhoodgraphsleadtoabetter
+performance[20].
+Constructing an exact neighborhood graph is hardly feasible for a large high-
+dimensionaldataset,because,intheworstcase,thenumberofdistancecomputations
+isO(n2),whereninthenumberofdatapoints.Anapproximateneighborhoodgraph
+canbeconstructedsubstantiallymoreefficiently[22,11].Toimproveperformance,one
+canusevariousgraphpruningmethods[20,23,13]:Inparticular,itisnotusefultokeep
+neighborsthatareclosetoeachother[20,13].
+Neighborhoodgraphshavealonghistory.Toussaintpublishedapioneeringpaper
+whereheintroducedneighborhoodgraphsontheplanein1980[33].AryaandMount
+were first to apply neighborhood graphs to the problem of k-NN search in a high-
+dimensionalspace[1].HouleandSakumaproposedthefirsthierarchical,i.e.,multi-
+layer,variantoftheneighborhoodgraphcalledSASH,wheredatapointsatlayeriare
+connected only to the nodes at layer i+1 [15]. Malkov and Yashunin proposed an
+efficientmulti-layerneighborhood-graphmethodcalledaHierarchicalNavigableSmall
+World(HNSW)[23].Itisageneralizationandimprovementofthepreviouslyproposed
+method navigable Small World (SW-graph) [22], which has been shown to be quite
+efficientinthepast[22,24]
+Although there are different approaches to construct a neighborhood graphs, all
+retrievalstrategiesknowntousrelyonasimplesemi-greedygraph-traversalalgorithm
+with(possibly)multiplerestarts.Suchanalgorithmkeepsapriorityqueueofelements,
+3https://github.com/aaalgo/kgraph
+4 L.BoytsovandE.Nyberg
+Name max.#ofrec. Dimensionality Source
+RandHist-d 0.5×106 d∈{8,32} Histogramssampleduniformlyfromasimplex
+RCV-d 0.5×106 d∈{8,128} d-topicLDA[4]RCV1[19]histograms
+Wiki-d 2×106 d∈{8,128} d-topicLDA[4]Wikipediahistograms
+Manner 1.46×105 1.23×105 QuestionandanswersfromL5collectionin
+YahooWebScope
+Table1:Datasets
+whichrankscandidatesintheorderofincreasingdistancetothequery.Ateachstep,the
+searchretrievesoneormoreelementsfromthequeuethatareclosesttothequeryand
+explorestheirneighborhoods.Previouslyunseenelementsmaybeaddedtothequeue.
+Forarecentexperimentalcomparisonofseveralretrievalapproachessee[32].
+Although,HNSWispossiblythebestretrievalmethodforgenericdistances[23,20],
+inourworkweuseamodifiedvariantofSW-graph,whereretrievalstartsfromasingle
+point(whichisconsiderablymoreefficientcomparedtomultiplestartingpoints).The
+mainadvantageofHNSWovertheolderversionofSW-graphisdueto(1)introduction
+of pruning heuristics, (2) using a single starting point during retrieval. We want to
+emphasizethatcomparisonofHNSWagainstSW-graphin[23]isnotcompletelyfair,
+because it basically uses an undertuned SW-graph. Furthermore, gains from using a
+hierarchyoflayersarequitesmall:seeFig.3-5from[23].Atthesametimepruning
+heuristics introduce another confounding factor in measuring the effect of distance
+symmetrization(andproxying),becausesymmetrizationmethodusedinthepruning
+approach can be different from the symmetrization method used by k-NN search
+employedatindextime.Thus—aswecareprimarilyaboutdemonstratingusefulness(or
+lackthereof)ofdifferentdistancemodificationsduringconstructionofthegraphrather
+thanmerelyachievingmaximumretrievalefficiency—weexperimentwithasimpler
+retrieval algorithm SW-graph. The employed algorithm has three main parameters.
+ParameterNNinfluences(butdoesnotdefinedirectly)thenumberofneighborsinthe
+graph.ParametersefConstructionandefSearchdefinethedepthofthepriority
+queueusedduringindexandretrievalstages,respectively.
+2.2 DatasetsandDistances
+Inourexperiments,weusethefollowingdistances(seeTable2):KL-divergence,the
+Itakura-Saitodistance,theRe´nyidivergence,andBM25similarity[28].Thefirstthree
+distancesarestatisticaldistancesdefinedoverprobabilitydistributions.Statisticaldis-
+tancesingeneraland,KLdivergenceinparticular,playanimportantroleinML[7,31].
+BoththeKL-divergenceandtheItakura-Saitodistanceswereusedinpriorwork[7].
+BM25similarityisapopularandeffectivesimilaritymetriccommonlyusedininforma-
+tionretrieval.ItisavariantofaTF×IDFsimilaritycomputedas
+(cid:88)
+TF (x )·TF (y )·IDF(y ), (1)
+q i d i i
+xi=yi
+SearchingNon-MetricDataviaNeighborhoodGraphs 5
+Denotation/Name d(x,y) Notes
+Kullback-Leibler
+(cid:80)m
+x
+ilogx
+yi
+diverg.(KL-div.)[18] i=1 i
+m (cid:104) (cid:105)
+Itakura-Saitodistance (cid:80) xi −logxi −1
+[16] i=1
+yi yi
+(cid:20)m (cid:21)
+Re´nyidiverg.[27] 1 log (cid:80) xαy1−α ,0<α<∞ Weuseα∈0.25,0.75,2
+α−1 i i
+i=1
+(cid:80)
+BM25similarity[28] − xi=yiTF q(x i)·TF d(y i)·IDF(y i) TF q(x)andTF d(y)are
+(possiblyscaled)term
+frequenciesinaqueryand
+document.
+Table2:DistanceFunctions
+where TF (x) and TF (y) are term frequencies of terms x and y in a query and a
+q d
+document,respectively.IDFisaninversedocumentfrequency(see[28]formoredetails).
+WhenweuseBM25asadistance,wetakethenegativevalueofthissimilarityfunction.
+AlthoughBM25isexpressedasaninnerproductbetweenqueryanddocumentTF×IDF
+vectors,thisdistanceisnotsymmetric.Termfrequenciesarecomputeddifferentlyfor
+queriesanddocumentsandthevalueofthesimilaritynormallychangeswhenweswap
+functionarguments.
+The Re´nyi divergence is a single-parameter family of distances, which are not
+symmetricwhentheparameterα (cid:54)= 0.5.Bychangingtheparameterwecanvarythe
+degree of symmetry. In particular, large values of α as well as close-to-zero values
+resultinhighlynon-symmetricdistances.Thisflexibilityallowsustostress-testretrieval
+methodsbyapplyingthemtochallengingnon-symmetricdistances.
+ThedatasetsarelistedinTable1.Wiki-dandRCV-ddatasetsconsistsofdense
+vectorsoftopichistogramswithdtopics.RCV-dsetarecreatedbyCayton[7]fromthe
+RCV1newswirecollection[19]usingthelatentDirichletallocation(LDA)method[4].
+Thesedatasetshaveonly500Kentries.Thus,wecreatedlargersetsfromWikipediafol-
+lowingasimilarmethodology.RandHist-disasyntheticsetoftopicssampleduniformly
+fromad-dimensionalsimplex.
+TheMannerdatasetisacollectionofTF×IDFvectorsgeneratedfromdatasetL5
+inYahooWebScope4.L5isasetofmanner,e.g.,how-to,questionspostedontheYahoo
+answerswebitetogetherwithrespectiveanswers.Notethatwekeeponlyasinglebest
+answer—asselectedbyacommunitymember—foreachquestion.
+3 Experiments
+We carry out two experimental series. In the first series, we test the efficacy of the
+filter-and-refine approach (using collection subsets) where the distance function is
+obtainedviametrizationorsymmetrizationoftheoriginaldistance.Oneoftheimportant
+4https://webscope.sandbox.yahoo.com
+6 L.BoytsovandE.Nyberg
+objectives of this experimental series is to demonstrate that unlike some prior work
+[24,25]wedealwithsubstantiallynon-symmetricdata.Inthesecondseries,wecarry
+outafully-fledgedretrievalexperimentusingSW-graph[22]withdifferentindex-and
+query-timesymmetrizationapproaches.Overall,wehave31combinationofdatasets
+anddistancefunctions(see§2.2).However,duetospacelimitations,wehadtoomit
+someexperimentalresultsandminorsetupdetails.Afullerdescriptionisavailablein
+§2.3.2oftheunpublishedtechreport[5].
+Proxying Distance via Metrization and Symmetrization In this section, we use a
+proxydistancefunctiontogeneratealistofk candidates,whicharecompareddirectly
+c
+tothequery.Thecandidategenerationstepemploysanexactbrute-forcek-NNsearch
+withtheproxydistance.Ononehand,thelargerisk ,themorelikelywefindalltrue
+c
+nearestneighbors.Ontheotherhand,increasingk entailsahighercomputationalcost.
+c
+Weconsidertwotypesofproxydistances:alearneddistance(whichisametricinfour
+outoffivecases),andasymmetrizedversionoftheoriginalnon-symmetricdistance.
+Distance learning We considered five approaches to learn a distance and a pseudo-
+learningapproachwherewesimplyusetheEuclideanL distanceasaproxy.Computing
+2
+L betweendatapointsisastrongbaseline,whichsometimesoutperformstruedistance
+2
+learningmethods,especiallyforhigh-dimensionaldata.Fourofthedistance-learning
+methods[36,10,26,21]learnagloballineartransformationofthedata,whichiscom-
+monly referred to as the Mahalanobis metric learning. The value of the L distance
+2
+betweentransformedvectorsisusedasaproxydistancefunction.Thelearneddistance,
+isclearlyametric.Wealsouseanon-linearRandomForestDistance(RFD)method
+that employs a random-forest classifier [37] and produces generally non-metric, but
+symmetric,distance.NotethatwedonotlearnadistancefunctionfortheMannerdata
+setthatcontainsextremelyhighdimensionalsparseTF×IDFvectors.
+Inallcases,thedistanceistrainedasaclassifierthatlearnstodistinguishbetween
+closeanddistantdatapoints.Morespecifically,wecreatesetsofpositiveandnegative
+examples. A positive example set contains pairs of points that should be treated as
+similar,i.e., nearpoints, while thenegative example setcontains pairs ofpoints that
+should be treated as dissimilar ones. The underlying idea is to learn a distance that
+(1)pullstogetherpointsfromthepositiveexamplesetand(2)pushespointsfromthe
+negativeexamplesetapart.Moredetailsaregivenin[5].
+Symmetrization Givenanon-symmetricdistance,therearetwofolkloreapproachesto
+makeitsymmetric,whichusethevalueoftheoriginaldistanced(x,y)aswellasthe
+valueofthedistancefunctionobtainedbyreversingarguments:d (x,y)=d(y,x).
+reverse
+Informally,wecallthelatteranargument-reverseddistance.Inthecaseofanaverage-
+based symmetrization, we compute the symmetrized distance as an average of the
+originalandargument-reverseddistances:
+d(x,y)+d (x,y) d(x,y)+d(y,x)
+d = reverse = (2)
+sym 2 2
+Inthecaseofamin-basedsymmetrization,weusetheirminimum:
+d =min(d(x,y),d (x,y))=min(d(x,y),d(y,x)) (3)
+sym reverse
+SearchingNon-MetricDataviaNeighborhoodGraphs 7
+Distance
+Dataset Distance Symmetrization
+learning
+k Recall k Recall
+c c
+(cand.k)reached (cand.k)reached
+Wiki-8 Itakura-Saito 20 99 2560 99
+Wiki-8 KL-div. 40 99 640 99
+Wiki-8 Re´nyidiv.α=0.25 20 100 640 100
+Wiki-8 Re´nyidiv.α=2 20 99 640 99
+RCV-128 Itakura-Saito 80 99 20480 58
+RCV-128 KL-div. 40 100 20480 94
+RCV-128 Re´nyidiv.α=0.25 80 100 5120 99
+RCV-128 Re´nyidiv.α=2 80 99 20480 66
+Wiki-128 Itakura-Saito 20 99 20480 80
+Wiki-128 KL-div. 40 99 20480 99
+Wiki-128 Re´nyidiv.α=0.25 160 99 5120 99
+Wiki-128 Re´nyidiv.α=2 80 99 20480 87
+RandHist-32 Itakura-Saito 5120 96 20480 99
+RandHist-32 KL-div. 160 100 2560 99
+RandHist-32 Re´nyidiv.α=0.25 20 100 1280 100
+RandHist-32 Re´nyidiv.α=2 2560 99 20480 100
+Manner BM25 1280 100 N/A N/A
+Table3:Lossofeffectivenessduetosymmetrizationanddistancelearningfor10-NN
+search(usingatmost200Kpointsfordistancelearningandatmost500Kpointsfor
+symmetrization)
+SymmetrizationtechniquesgivenbyEq.(2)andEq.(3)aresuboptimalinthesense
+thatasinglecomputationofthesymmetrizeddistanceentailstwocomputationsofthe
+originaldistance.Wecanbemoreefficientwhenadistancefunctionpermitsamore
+naturalsymmetrization,inparticular,inthecaseofBM25(seeEq.1)wecancompute
+the query term frequency using the same formula as the document term frequency.
+Furthermore, we can “share” a value of IDF between the query and the document
+√i
+vectorsby“assigning”eachvectorthevalue IDF .Althoughtheresultingfunction
+i
+issymmetric,itisnotequivalenttotheoriginalBM25.Moreformally,inthis“shared”
+(cid:112)
+setting a query vector is represented by the values TF(x ) · IDF(x ), whereas a
+i i
+(cid:112)
+documentvectorisrepresentedbythevaluesTF(y )· IDF(y ).Thepseudo-BM25
+i i
+similarityiscomputedastheinnerproductbetweenqueryanddocumentvectorsinthe
+followingway:
+(cid:88) (cid:16) (cid:112) (cid:17) (cid:16) (cid:112) (cid:17)
+d(x,y)=− TF(x ) IDF(x ) · TF(y ) IDF(y ) (4)
+i i i i
+xi=yi
+DiscussionofResults AllthecodeinthissectionisimplementedinPython.Thus,for
+efficiencyreason,welimitthenumberofdatapointsto200Kinthesymmetrization
+8 L.BoytsovandE.Nyberg
+experimentandto500Kinthedistancelearningexperiment.Experimentalresultsfor
+k =10arepresentedinTable3,wherewemeasurehowmanycandidatesk weneedto
+c
+achieveanearlyperfectrecallwithrespecttotheoriginaldistance(wetestallk =k·2i,
+c
+i≤7).Weemployseveralsymmetrizationanddistancelearningmethods:Yet,inthe
+table,weshowonlythebestrecallforagivenk .Morespecifically,wepostthefirst
+c
+k forwhichrecallreaches99%.Ifwecannotreach99%,wepostthemaximumrecall
+c
+reached. We omit most low-dimensional results, because they are similar to Wiki-8
+results(again,see[5]foramoredetailedreport).
+FromTable3wecanimmediatelyseethatdistancelearningresultsinamuchworse
+approximationoftheoriginaldistancethansymmetrization.Forhigh-dimensionaldata,
+it is not always possible to achieve the recall of 99% for 10-NN search. When it is
+possibleweneedtoretrievefromonethousandto20thousandcandidateentries!Even
+for the low-dimensional Wiki-8 data set, achieving such high recall requires at least
+640 candidate entries. We conclude that using distance learning is not a promising
+direction,becauseretrievingthatmanycandidateentriesaccuratelyishardlypossible
+withoutresortingtothebruteforcesearchwiththeproxydistance(whichis,inturn,not
+efficient).
+Incontrast,inthecaseofsymmetrization,thenumberofrequiredcandidateentries
+isreasonablysmallexceptforMannerandRandHist-32datasets.We,therefore,explore
+varioussymmetrizationapproachesinmoredetailsinthefollowingsection.Alsonote
+thatKL-divergencecanbesymmetrizedwithlittlelossinaccuracy,i.e.,onthehistogram-
+likedataKL-divergenceisonlymildlynon-symmetric.Thereispriorworkonnon-metric
+k-NN searchthatdemonstratedgoodresultsspecificallyforKL-divergence[24,25]for
+Wiki-dandRCV-ddatasets.However,asourexperimentsclearlyshow,thisworkdoes
+notuseasubstantiallynon-symmetricdistance.
+ExperimentswithIndex-andQuery-TimeSymmetrizationforSW-graph Inthis
+section, we evaluate the effect of the distance symmetrization in two scenarios (for
+10-NNsearch):
+– Asymmetrizeddistanceisusedforbothindexingandretrieval.Wecallthisafull
+symmetrizationscenario.ThesearchprocedureiscarriedoutusinganSW-graph
+index[22](see§2.1).Thissearchgeneratesalistofk candidates.Then,candi-
+c
+datesarecomparedexhaustivelywiththequery.Thisfilter-and-refineexperimentis
+analogoustotheprevious-subsectionexperimentsexcepthereweuseapproximate
+insteadoftheexactbrute-forcesearch.
+– Thesecondscenarioreliesonapartial,i.e.,index-timeonly,symmetrization.Specif-
+ically,thesymmetrizeddistanceisusedonlytoconstructaproximity/neighborhood
+graphviaSW-graph.Then,thesearchprocedureusestheoriginal,non-symmetrized
+distanceto“guide”thesearchthroughtheproximitygraph.
+Overall,wehave31combinationsofdatasetsanddistances,butinthispaperwe
+presenttheresultsformostinterestingcases(againsee[5]foracompletesetofplots).
+Werandomlysplitdatathreetimesintoqueriesandindexabledatasetpoints.Forall
+distancesexceptRe´nyidivergenceweuse1Kqueriesforeachsplit,i.e.,thetotalnumber
+ofqueriesis3K.BecauseRe´nyidivergenceisslowtocompute,weuseonly200queries
+persplit(i.e.,theoverallnumberofqueriesis600).
+SearchingNon-MetricDataviaNeighborhoodGraphs 9
+SW-graph(none-none) SW-graph(avg-none) SW-graph(min-none)
+SW-graph(reverse-none) SW-graph(l2-none) SW-graph(natural-none)
+SW-graph(avg-avg) SW-graph(min-min)
+102 102 102
+101 101
+101
+0.2 0.4 0.6 0.8 1 0.6 0.7 0.8 0.9 1 0.2 0.4 0.6 0.8 1
+Recall@10 Recall@10 Recall@10
+(a)RCV-8(Itakura-Saito) (b)Wiki-8(Itakura-Saito) (c)RandHist-8(Itakura-Saito)
+102 102 102
+101
+101
+101
+0.5 0.6 0.7 0.8 0.9 1 0.8 0.85 0.9 0.95 1 0.5 0.6 0.7 0.8 0.9 1
+Recall@10 Recall@10 Recall@10
+(d)RCV-8(KL-div.) (e)Wiki-8(KL-div.) (f)RandHist-8(KL-div.)
+102.5 102.5 102.5
+102
+102
+102
+101.5
+101.5
+0.5 0.6 0.7 0.8 0.9 1 0.85 0.9 0.95 1 0.5 0.6 0.7 0.8 0.9 1
+Recall@10 Recall@10 Recall@10
+(g)RCV-8(Re´nyidiv.α=0.25) (h)Wiki-8(Re´nyidiv.α=0.25) (i)RandHist-8(Re´nyidiv.α=0.25)
+102.5 102.5 102.5
+102
+102
+102
+101.5
+101.5
+0.6 0.7 0.8 0.9 1 0.85 0.9 0.95 1 0.5 0.6 0.7 0.8 0.9 1
+Recall@10 Recall@10 Recall@10
+(j)RCV-8(Re´nyidiv.α=0.75) (k)Wiki-8(Re´nyidiv.α=0.75) (l)RandHist-8(Re´nyidiv.α=0.75)
+Fig.1: Efficiency/effectivenesstrade-offsofsymmetrizationin10-NNsearch(partI).
+Thenumberofdatapointsisatmost500K.Bestviewedincolor.
+)elacs.gol(ycneicffieni.vorpmI
+)elacs.gol(ycneicffieni.vorpmI
+)elacs.gol(ycneicffieni.vorpmI
+)elacs.gol(ycneicffieni.vorpmI
+)elacs.gol(ycneicffieni.vorpmI
+)elacs.gol(ycneicffieni.vorpmI
+)elacs.gol(ycneicffieni.vorpmI
+)elacs.gol(ycneicffieni.vorpmI
+)elacs.gol(ycneicffieni.vorpmI
+)elacs.gol(ycneicffieni.vorpmI
+)elacs.gol(ycneicffieni.vorpmI
+)elacs.gol(ycneicffieni.vorpmI
+10 L.BoytsovandE.Nyberg
+SW-graph(none-none) SW-graph(avg-none) SW-graph(min-none)
+SW-graph(reverse-none) SW-graph(l2-none) SW-graph(natural-none)
+SW-graph(avg-avg) SW-graph(min-min)
+103
+102
+102 102
+101
+101 101
+100
+100
+100
+0 0.2 0.4 0.6 0.8 1 0 0.2 0.4 0.6 0.8 1 0 0.2 0.4 0.6 0.8 1
+Recall@10 Recall@10 Recall@10
+(a)RCV-128(Itakura-Saito) (b)Wiki-128(Itakura-Saito) (c)RandHist-32(Itakura-Saito)
+103 103
+102
+102 102 101
+100
+0.2 0.4 0.6 0.8 1 0.4 0.6 0.8 1 0 0.2 0.4 0.6 0.8 1
+Recall@10 Recall@10 Recall@10
+(d)RCV-128(Re´nyidiv.α=0.25)(e)Wiki-128(Re´nyidiv.α=0.25) (f)Manner(BM25)
+103 103
+103
+102
+102 102
+101
+0.2 0.4 0.6 0.8 1 0.2 0.4 0.6 0.8 1 0 0.2 0.4 0.6 0.8 1
+Recall@10 Recall@10 Recall@10
+(g)RCV-128(Re´nyidiv.α=0.75)(h)Wiki-128(Re´nyidiv.α=0.75)(i) RandHist-32 (Re´nyi div. α =
+0.75)
+103 103
+102 102
+102
+101
+101
+101
+0 0.2 0.4 0.6 0.8 1 0 0.2 0.4 0.6 0.8 1
+100
+0 0.2 0.4 0.6 0.8 1
+Recall@10 Recall@10 Recall@10
+(j)RCV-128(Re´nyidiv.α=2) (k)Wiki-128(Re´nyidiv.α=2) (l)RandHist-32(Re´nyidiv.α=2)
+Fig.2: Efficiency/effectivenesstrade-offsofsymmetrizationin10-NNsearch(partII).
+Thenumberofdatapointsisatmost500K.Bestviewedincolor.
+)elacs.gol(ycneicffieni.vorpmI
+)elacs.gol(ycneicffieni.vorpmI
+)elacs.gol(ycneicffieni.vorpmI
+)elacs.gol(ycneicffieni.vorpmI
+)elacs.gol(ycneicffieni.vorpmI
+)elacs.gol(ycneicffieni.vorpmI
+)elacs.gol(ycneicffieni.vorpmI
+)elacs.gol(ycneicffieni.vorpmI
+)elacs.gol(ycneicffieni.vorpmI
+)elacs.gol(ycneicffieni.vorpmI
+)elacs.gol(ycneicffieni.vorpmI
+)elacs.gol(ycneicffieni.vorpmI
+SearchingNon-MetricDataviaNeighborhoodGraphs 11
+Experimentsarecarriedoutusinganmslib4a bigger rerunsbranch5ofNM-
+SLIB[6].WedidnotmodifythestandardNMSLIBcodeforSW-graph:Instead,we
+createdanewimplementation(filesmall world rand symm.cc).
+Inthesecondscenario,weexperimentwithindex-andquery-timesymmetrizationin
+anactualindexingalgorithmSW-graphratherthanrelyingonthebrute-forcesearch.This
+approachgeneratesafinallistofknearestneighborsratherthank candidates.Nofurther
+c
+re-rankingisnecessary.Weusetwoactualsymmetrizationstrategies(theminimum-and
+theaverage-basedsymmetrization)aswellastwotypesofquasi-symmetrization.For
+thefirstquasi-symmetrizationtype,webuildtheproximitygraphusingtheEuclidean
+distance between vectors. The second quasi-symmetrization consists in building the
+proximitygraphusingtheargument-reverseddistance(seep.6).
+Weverifiedthatnoneofthesequasi-symmetrizationapproacheswouldproducea
+betterlistofcandidatesinthefilter-and-refinescenario(wherethebrute-forcesearch
+isusedtoproduceacandidatelist).Forexample,forWiki-128andKL-divergence,it
+takesk =40candidatestoexceeda99%recallina10-NNsearchfortheminimum-
+c
+basedsymmetrization.FortheL -basedsymmetrization,ittakesasmanyask =320
+2 c
+candidates.Theresultsareevenworseforthefilteringbasedontheargument-reversed
+distance:Byusingasmanyask =1280candidatesweobtainarecallofonly95.6%.
+c
+Itclearlydoesnotmakesensetoevaluatethesequasi-symmetrizationmethodsinthe
+completefilter-and-refinescenario.Yet,weneedtocheckifitisbeneficialtobuildthe
+graphusingadistancedifferentfromtheoriginalone.
+DiscussionofResults Experimentswererunonalaptop(i7-4700MQ@2.40GHzwith
+16GBofmemory).ResultsarepresentedinFig.1(low-dimensionaldata)andFig.2
+(high-dimensionaldata).Theseareefficiency-effectivenessplots:Recall@10isshown
+onthex-axis,improvementinefficiency—i.e.,thespeedupoverthebrute-forcesearch—
+isshownonthey-axis.Higherandtotherightisbetter.Wetestseveralmodificationsof
+SW-grapheachofwhichhasanadditionalmarkerintheform:a-b,whereadenotesa
+typeofindex-timesymmetrizationandbdenotesatypeofquery-timesymmetrization.
+RedplotsrepresenttheoriginalSW-graph,whichislabeledasSW-graph(none-none).
+Black plots represent modifications, where symmetrization is used only during
+indexing:SW-graph(avg-none),SW-graph(min-none),SW-graph(l2-none),SW-graph
+(reverse-none),andSW-graph(natural-none).Thefirsttwotypesofsymmetrizationare
+average-andminimum-based.SW-graph(l2-none)isaquasi-symmetrizationapproach
+that builds the graph using L , but searches using the original distance. SW-graph
+2
+(reverse-none)buildsthegraphusingthereversed-argumentdistance,butsearchesusing
+theoriginaldistance.SW-graph(natural-none)isanaturalsymmetrizationofBM25
+describedbyEq.(4),whichisusedonlyforManner.
+Blueplotsrepresentthecaseoffull(bothquery-andindex-time)symmetrization.
+Theindexisusedtocarryoutak -NNsearch,whichproducesalistofk candidatesfor
+c c
+furtherverification.Dependingonwhichsymmetrizationapproachwasmoreeffective
+in the the first series experiments (with brute-force search), we use either SW-graph
+(min-min) or SW-graph (avg-avg), which stand for full minimum- or average-based
+symmetrization.Becausewedonotknowanoptimumnumberofcandidaterecords,we
+5https://github.com/nmslib/nmslib/tree/nmslib4a bigger reruns
+12 L.BoytsovandE.Nyberg
+experimentwithk = k·2i forsuccessiveintegervaluesi.Thelargerisi,themore
+c
+accurateisthefilteringstepandthelessefficientisretrieval.However,itdoesnotmake
+sensetoincreaseibeyondthepointwherethefilteringaccuracyreaches99%.Forthis
+reason,theminimumvalueofk iskandthelargestvalueofk istakenfromTable3.
+c c
+For the remaining parameters of SW-graph we choose values that are known to
+performwellinotherexperiments:NN=15,efConstruction=100,andefSearch
+=2j for0≤j ≤12.Analogoustothefirstscenario(withbrute-forcesearch),weuse31
+combinationofdatasetsanddistances.Ineachtest,werandomlysplitdata(intoqueries
+andindexabledata)threetimesandaverageresultsoverthreesplits.
+FromFigures1-2,wecanseethatinsomecasesthereislittledifferenceamongbest
+runswiththefullysymmetrizeddistance(amethodSW-graph(min-min)orSW-graph
+(avg-avg))therunsproducedbymethodswithtrueindex-timesymmetrization(SW-graph
+(min-none),SW-graph(avg-none)),andtheoriginalunmodifiedsearchalgorithm(SW-
+graph(none-none)).Furthermore,wecanseethatthereisoftennodifferencebetween
+SW-graph (min-none), SW-graph (avg-none), and SW-graph (none-none). However,
+sometimesallfully-symmetrizedruns(forallvaluesofk )arenoticeablylessefficient
+c
+(see,e.g.,Panels1hand1k).Thisdifferenceismorepronouncedinthecaseofhigh-
+dimensional data. Here, full symmetrization leads to a substantial (up to an order of
+magnitude)lossinperformanceinmostcases.
+Effectivenessofindex-timesymmetrizationvariesfromcasetocaseandthereisno
+definitivewinner.First,wenotethatinfourcasesindex-timesymmetrizationisbeneficial
+(Panels2a,2b,2j,2k).Inparticular,inPanels2a,2b,2k,thereisanupto10×speedup.
+Notethatitcansometimesbeachievedbyusinganargument-reverseddistance(Panels
+2a, 2b) or L (2k). This a surprising finding given that these quasi-symmetrization
+2
+approaches do not perform well in the re-ranking–filter-and-refine—experiments. In
+particular,forL andWiki-128reachinga99%recallrequiresk =640comparedto
+2 c
+k = 80 for min-based symmetrization. For the Itakura-Saito distance and data sets
+c
+RCV-128 and Wiki-128, it takes k ≤ 80 to get a 99% recall. However, using the
+c
+argument-reverseddistance,wedonotevenreachtherecallof60%despiteusingalarge
+k =1280.Itisworthnoting,however,thatinseveralcasesusingargument-reversed
+c
+distanceatindextimeleadstosubstantialdegradationinperformance(see,e.g.,Panels
+1band2f).
+To conclude the section, we emphasize that in all cases the best performance is
+achievedusingeithertheunmodifiedSW-graphortheSW-graphwithanindex-time
+proxydistance.However,thereisnotasinglecasewhereperformanceisimprovedby
+using the fully symmetrized distance (at both indexing and querying steps). Further-
+more,inthreeespeciallychallengingcases:Itakura-SaitodistancewithRandHist-32,
+Re´nyidivergencewithRandHist-32,andBM25withManner,SW-graphhasexcellent
+performance.Inallthreecases(seePanels2c,2l,2f),thereismorethana10×speed
+up at 90% recall compared to the brute-force search. Note that in these three cases
+dataissubstantiallynon-symmetric:Dependingonthecase,toaccuratelyretrieve10
+nearestneighborswithrespecttotheoriginalmetric,itrequirestoobtain1-5Knearest
+neighborsusingitssymmetrizedvariant(seeTable3).Thus,inthesechallengingcases,
+abrute-forcefilter-and-refinesymmetrizationsolutionwouldbeparticularlyineffective
+orinefficientwhereasSW-graphhasstrongperformance.
+SearchingNon-MetricDataviaNeighborhoodGraphs 13
+4 Conclusion
+Wesystematicallyevaluateeffectsofdistancemetrization,symmetrizationandquasi-
+symmetrizationonperformanceofbrute-forceandindex-basedk-NN search(witha
+graph-basedretrievalmethodSW-graph).Unlikepreviouswork[24,25]weexperiment
+withsubstantiallynon-symmetricdistances.Coercionofthenon-metricdistancetoamet-
+ricspaceleadstoasubstantialperformancedegradation.Distancesymmetrizationcauses
+alesserperformanceloss.However,inallthecasesafullfilter-and-refinesymmetriza-
+tionisalwaysinferiortoeitherapplyingthegraph-basedretrievalmethoddirectlytoa
+non-symmetricdistanceortobuildinganindex(whichisaneighborhoodgraph)witha
+modified,e.g.symmetrized,distance.Quitesurprisingly,sometimesthebestperforming
+index-timedistanceisneithertheoriginaldistancenoritssymmetrization.Thisobser-
+vationmotivatesanewlineofresearchofdesigningindex-specificgraph-construction
+distancefunctions.
+Acknowledgments ThisworkwasdonewhileLeonidBoytsovwasaPhDstudentat
+CMU.AuthorsgratefullyacknowledgethesupportbytheNSFgrant#1618159.
+References
+1. Arya,S.,Mount,D.M.:Approximatenearestneighborqueriesinfixeddimensions.In:SODA.
+vol.93,pp.271–280(1993)
+2. Aumu¨ller,M.,Bernhardsson,E.,Faithfull,A.:ANN-benchmarks:Abenchmarkingtoolfor
+approximatenearestneighboralgorithms.InformationSystems(2019)
+3. Bellet,A.,Habrard,A.,Sebban,M.:Asurveyonmetriclearningforfeaturevectorsand
+structureddata.CoRRabs/1306.6709(2013)
+4. Blei,D.M.,Ng,A.Y.,Jordan,M.I.:Latentdirichletallocation.JournalofMachineLearning
+Research3,993–1022(2003)
+5. Boytsov,L.:Efficientandaccuratenon-metrick-NNsearchwithapplicationstotextmatching.
+Ph.D.thesis,CarnegieMellonUniversity(2017)
+6. Boytsov,L.,Naidan,B.:Engineeringefficientandeffectivenon-metricspacelibrary.In:In
+SISAP2013.vol.8199,pp.280–293.Springer(2013)
+7. Cayton,L.:Fastnearestneighborretrievalforbregmandivergences.In:Proceedingsofthe
+25thinternationalconferenceonMachinelearning.pp.112–119.ACM(2008)
+8. Cha´vez,E.,Navarro,G.,Baeza-Yates,R.A.,Marroqu´ın,J.L.:Searchinginmetricspaces.
+ACMComput.Surv.33(3),273–321(2001)
+9. Chechik,G.,Sharma,V.,Shalit,U.,Bengio,S.:Largescaleonlinelearningofimagesimilarity
+throughranking.JournalofMachineLearningResearch11,1109–1135(2010)
+10. Davis,J.V.,Kulis,B.,Jain,P.,Sra,S.,Dhillon,I.S.:Information-theoreticmetriclearning.In:
+ProceedingsofICML2007.pp.209–216.ACM(2007)
+11. Dong,W.,Moses,C.,Li,K.:Efficientk-nearestneighborgraphconstructionforgeneric
+similaritymeasures.In:ProceedingsofWWW2011.pp.577–586.ACM(2011)
+12. Hajebi,K.,Abbasi-Yadkori,Y.,Shahbazi,H.,Zhang,H.:Fastapproximatenearest-neighbor
+searchwithk-nearestneighborgraph.In:IJCAI/AAAI2011.pp.1312–1317(2011)
+13. Harwood, B., Drummond, T.: FANNG: Fast approximate nearest neighbour graphs. In:
+ProceedingsofCVPR.pp.5713–5722(2016)
+14. Hjaltason,G.R.,Samet,H.:Propertiesofembeddingmethodsforsimilaritysearchingin
+metricspaces.IEEETrans.PatternAnal.Mach.Intell.25(5),530–549(2003)
+14 L.BoytsovandE.Nyberg
+15. Houle,M.E.,Sakuma,J.:Fastapproximatesimilaritysearchinextremelyhigh-dimensional
+datasets.In:ICDE2005.pp.619–630(2005)
+16. Itakura,F.,Saito,S.:Analysissynthesistelephonybasedonthemaximumlikelihoodmethod.
+In:Proceedingsofthe6thInternationalCongressonAcoustics.pp.C17–C20(1968)
+17. Jacobs, D.W., Weinshall, D., Gdalyahu, Y.: Classification with nonmetric distances: Im-
+ageretrievalandclassrepresentation.IEEETransactionsonPatternAnalysisandMachine
+Intelligence22(6),583–600(2000)
+18. Kullback,S.,Leibler,R.A.:Oninformationandsufficiency.Ann.Math.Statist.22(1),79–86
+(031951)
+19. Lewis, D.D., Yang, Y., Rose, T.G., Li, F.: RCV1: A new benchmark collection for text
+categorizationresearch.JournalofMachineLearningResearch5,361–397(2004)
+20. Li,W.,Zhang,Y.,Sun,Y.,Wang,W.,Zhang,W.,Lin,X.:Approximatenearestneighbor
+searchonhighdimensionaldata-experiments,analyses,andimprovement(v1.0).CoRR
+abs/1610.02455(2016)
+21. Liu,E.Y.,Guo,Z.,Zhang,X.,Jojic,V.,Wang,W.:Metriclearningfromrelativecomparisons
+byminimizingsquaredresidual.In:IEEEICDM2012.pp.978–983.IEEE(2012)
+22. Malkov, Y., Ponomarenko, A., Logvinov, A., Krylov, V.: Approximate nearest neighbor
+algorithmbasedonnavigablesmallworldgraphs.Inf.Syst.45,61–68(2014)
+23. Malkov,Y.A.,Yashunin,D.A.:Efficientandrobustapproximatenearestneighborsearchusing
+hierarchicalnavigablesmallworldgraphs.CoRRabs/1603.09320(2016)
+24. Naidan,B.,Boytsov,L.,Nyberg,E.:Permutationsearchmethodsareefficient,yetfaster
+searchispossible.PVLDB8(12),1618–1629(2015)
+25. Ponomarenko,A.,Avrelin,N.,Naidan,B.,Boytsov,L.:Comparativeanalysisofdatastruc-
+turesforapproximatenearestneighborsearch.In:DATAANALYTICS2014,TheThird
+InternationalConferenceonDataAnalytics.pp.125–130(2014)
+26. Qi,G.,Tang,J.,Zha,Z.,Chua,T.,Zhang,H.:Anefficientsparsemetriclearninginhigh-
+dimensionalspacevial -penalizedlog-determinantregularization.In:In:ICML2009.pp.
+1
+841–848.ACM(2009)
+27. Re´nyi,A.:Onmeasuresofentropyandinformation.In:ProceedingsoftheFourthBerkeley
+SymposiumonMathematicalStatisticsandProbability.vol.1,pp.547–561(1961)
+28. Robertson,S.:Understandinginversedocumentfrequency:ontheoreticalargumentsforIDF.
+JournalofDocumentation60(5),503–520(2004)
+29. Samet,H.:FoundationsofMultidimensionalandMetricDataStructures.MorganKaufmann
+PublishersInc.,SanFrancisco,CA,USA(2005)
+30. Skopal,T.,Bustos,B.:Onnonmetricsimilaritysearchproblemsincomplexdomains.ACM
+Comput.Surv.43(4), 34(2011)
+31. Sutherland, D.J.: Scalable, Flexible and Active Learning on Distributions. Ph.D. thesis,
+CarnegieMellonUniversity(2016)
+32. Tellez,E.S.,Ruiz,G.,Cha´vez,E.,Graff,M.:Localsearchmethodsforfastnearneighbor
+search.CoRRabs/1705.10351(2017),http://arxiv.org/abs/1705.10351
+33. Toussaint,G.T.:Therelativeneighbourhoodgraphofafiniteplanarset.PatternRecognition
+12(4),261–268(1980)
+34. Wang, J., Shen, H.T., Song, J., Ji, J.: Hashing for similarity search: A survey. CoRR
+abs/1408.2927(2014)
+35. Weber,R.,Schek,H.J.,Blott,S.:Aquantitativeanalysisandperformancestudyforsimilarity-
+searchmethodsinhigh-dimensionalspaces.In:VLDB.vol.98,pp.194–205(1998)
+36. Weinberger,K.Q.,Blitzer,J.,Saul,L.K.:Distancemetriclearningforlargemarginnearest
+neighborclassification.In:NIPS2005.pp.1473–1480(2005)
+37. Xiong, C., Johnson, D.M., Xu, R., Corso, J.J.: Random forests for metric learning with
+implicitpairwisepositiondependence.In:KDD2012.pp.958–966.ACM(2012)

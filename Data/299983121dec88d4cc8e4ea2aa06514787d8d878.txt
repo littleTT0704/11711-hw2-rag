@@ -1,0 +1,617 @@
+TheThirty-SixthAAAIConferenceonArtificialIntelligence(AAAI-22)
+Retrieve, Caption, Generate: Visual Grounding for Enhancing Commonsense in
+Text Generation Models
+StevenY.Feng1,KevinLu2,ZhuofuTao3,MaliheAlikhani4,TerukoMitamura1,EduardHovy1,
+VarunGangal1
+1LanguageTechnologiesInstitute,CarnegieMellonUniversity2UniversityofWaterloo
+3UniversityofCalifornia,LosAngeles4SchoolofComputingandInformation,UniversityofPittsburgh
+syfeng@cs.cmu.edu,kevin.lu1@uwaterloo.ca,z24tao@g.ucla.edu,malihe@pitt.edu
+teruko@cs.cmu.edu,hovy@cs.cmu.edu,vgangal@cs.cmu.edu
+Abstract {stand,hold,umbrella,street} {food,eat,hand,bird}
+Weinvestigatetheuseofmultimodalinformationcontained
+inimagesasaneffectivemethodforenhancingthecommon-
+senseofTransformermodelsfortextgeneration.Weperform
+experimentsusingBARTandT5onconcept-to-textgenera-
+tion,specificallythetaskofgenerativecommonsensereason-
+ing,orCommonGen.WecallourapproachVisCTG:Visually baseline:Aholdsanumbrellawhilestandingonthestreet baseline:handofabirdeatingfood
+GroundedConcept-to-TextGeneration.VisCTGinvolvescap- Vca isp Ct: Ta Gw :o Am wan omw aa nlk si tn ag ndd sow onn aa ss tt rr ee ee tt hh oo ll dd ii nn gg aa nn uu mm bb rr ee ll ll aa . capt V: ia sCpe Trs Go :n Aho bl id ri dng eaa tssm foa ol dlb fri ord min at hh ae nir d.hand
+tioningimagesrepresentingappropriateeverydayscenarios, {cat,bed,pet,lay} {fence,jump,horse,rider}
+andusingthesecaptionstoenrichandsteerthegenerationpro-
+cess.Comprehensiveevaluationandanalysisdemonstratethat
+VisCTGnoticeablyimprovesmodelperformancewhilesuc-
+cessfullyaddressingseveralissuesofthebaselinegenerations,
+includingpoorcommonsense,fluency,andspecificity.
+1 Introduction baseline:Acatislayingonabedandpettingit. baseline:Ariderjumpsoverafence.
+capt:acatlayingonabedwithastuffedanimal capt:ahorseisjumpingoverawoodenfence
+Transformer-basedmodelshaveseenincreasingpopularity VisCTG:Acatlayingonabedbeingpetted. VisCTG:Ariderjumpsafenceonahorse.
+for NLP tasks and applications. This includes SOTA text Table1:Examplesofretrievedimages,captions,baselineand
+generation models such as BART (Lewis et al. 2020) and VisCTG(ourmodel’s)generations.Theimagesandcaptions
+T5(Raffeletal.2020).Largercorporaandbetterpretrain- areusedasanintermediarytoguidethefinalgenerationand
+inglossesaremajorreasonsdrivingthesegains.However, itneednotbefaithfultothem.E.g.nobodyispettingthecat
+despiteincreasingattentiononthecommonsenseofmodels intheimage,butsincetheVisCTGoutputisconditionedon
+throughworkslikeCOMET(Bosselutetal.2019),studies boththeconceptsetandcaption,itincludesbeingpetted.
+haveshownthatevenlargepretrainedmodelsstillstruggle
+with commonsense tasks that humans can reason through
+very easily (Talmor et al. 2020). We believe that there is
+bethoughtofasconcepts,orhigh-levelwordsorstructures,
+commonsense information in other modalities like vision,
+thatplayanimportantroleinthegeneratedtext.Multimodal
+beyondwhatisreported(GordonandVanDurme2013)in
+workhasseenincreasingpopularity,butitsexplorationfor
+text,whichcanpossiblyaugmentcommonsenseandenhance
+constrainedanddata-to-textNLGhasbeenlimited(Baltru-
+decision-makingprocessesoftextgenerationmodels. saitis,Ahuja,andMorency2019;Gaoetal.2020).1
+Inthispaper,weshowthisistruebyimprovingtheper-
+Weinvestigatethetaskofgenerativecommonsenserea-
+formanceofTransformer-basedtextgenerationmodelson
+soning, or CommonGen (Lin et al. 2020), which involves
+concept-to-textgenerationusingvisualgrounding,whichwe
+generatingsentencesthateffectivelydescribeeverydaysce-
+call VisCTG: Visually Grounded Concept-to-Text Genera-
+nariosfromconceptssets,whicharewordsthatmustappear
+tion.Concept-to-textgenerationisahigh-levelformulation
+intheoutput.CommonGenischallengingaseffectiverela-
+ofseveralconstrainedtextgenerationanddata-to-textnatu-
+tional reasoning ability using commonsense knowledge is
+rallanguagegeneration(NLG)tasks.Thesearechallenging
+required.Modelsmustalsopossessthecompositionalgen-
+tasksthathaveseenincreasinginterest,andinvolvegener-
+eralizationcapabilitiestopiecetogetherdifferentconcepts.
+atingnaturallanguageoutputsgivencertainpre-conditions,
+CommonGenisaneffectivebenchmarkforconstrainedtext
+e.g. specific words in the outputs, and structured or semi-
+generation and commonsense as its task formulation and
+structuredinputs.Theytypicallyinvolveconvertingasetof
+evaluationmethodologyareratherbroadlyapplicable.
+inputsintonaturallanguagetext.Theseinputscannormally
+WeexperimentonCommonGenusingBARTandT5.An
+Copyright©2022,AssociationfortheAdvancementofArtificial
+Intelligence(www.aaai.org).Allrightsreserved. 1Code:https://github.com/styfeng/VisCTG
+10618
+DatasetStats Train Dev Test Dev Test Model\Metrics BLEU-4 CIDEr SPICE
+CG O O CG CG
+#conceptsets 32,651 993 1,497 240 360 ReportedBART-large 27.50 14.12 30.00
+size=3 25,020 493 - 120 - ReportedT5-base 18.00 9.73 23.40
+size=4 4,240 250 747 60 180 ReportedT5-Large 30.60 15.84 31.80
+size=5 3,391 250 750 60 180 OurBART-base 28.30 15.07 30.35
+OurBART-large 30.20 15.72 31.20
+Table2:StatisticsofCommonGendatasetsplits. OurT5-base 31.00 16.37 32.05
+OurT5-large 33.60 17.02 33.45
+initialanalysis(§3.1)ofbaselinegenerationsshowsseveralis- Table 3: Comparing dev performance of our re-
+O
+suesrelatedtocommonsense,specificity,andfluency.Wehy- implementedmodelstothoseinLinetal.(2020).Boldrep-
+pothesizethatthesecanbeaddressedthroughimagecaptions resents where we reach/exceed reported numbers. Results
+(§3.2).Imagesrepresentingeverydayscenariosarecommon- averagedovertwoseedsforourmodels.Linetal.(2020)did
+place,andtypicallylogicalandgroundedincommonsense. notreportBART-base.SeeAppendixAforallmetrics.
+Captioning models can also normally produce decent cap-
+tionsforeverydayimages,whichcanbeusedtoguideand
+enhancethegenerationprocess.SeeTable1forexamples. tam,LawrenceZitnick,andParikh2015),SPICE(Anderson
+Expoundingonthis,weuseapretrainedimagecaptioning etal.2016),andcoverage(cov).These(otherthancov)as-
+modelonMSCOCOcaptions(Linetal.2014)tocaptionthe sesssimilaritybetweenhumanreferencesandgenerations.
+topretrievedimagesforeachconceptset(§4.1,4.2).Weuse Inparticular,CIDErcapturesacombinationofsentencesim-
+thesecaptionsasadditionalinformationtoaugmentinputs ilarity,grammaticality,saliency,importance,andaccuracy.
+toourgenerationmodels(§4.3).Extensiveevaluation(§6) SPICEmapstextstosemanticscenegraphsandcalculatesan
+demonstratesthatVisCTGimprovesmodelperformanceand F-scoreoverthesegraphs’tuples.Linetal.(2020)notethat
+commonsensewhileaddressingthebaselineinadequacies. SPICEcorrelateshighestwithhumanjudgmentforCommon-
+Gen.Covmeasurestheaveragepercentageofinputconcepts
+2 Dataset,Models,andMetrics coveredbytheoutputtextinanyform.
+WealsouseBERTScore(Zhangetal.2019)andPerplex-
+2.1 CommonGenDataset
+ity(PPL).BERTScoremeasuresBERT(Devlinetal.2019)
+TheoriginalCommonGendatasetismadeupof35,141con-
+embeddingssimilaritybetweenindividualtokens,servingas
+cept sets (consisting of 3 to 5 keywords each) and 79,051
+amoresemanticratherthansurface-levelsimilaritymeasure.
+sentences,splitintotrain,dev,andtestsplits.Sincetheorig-
+Wemultiplyby100whenreportingBERTScore.PPLserves
+inaltestsetishidden,wepartitiontheoriginaldevsetinto
+asameasureoffluency,withlowervaluesrepresentinghigher
+newdevandtestsplitsforthemajorityofourexperiments.
+fluency.WeuseGPT-2(Radfordetal.2019)forPPL.Forall
+Wedo,however,asktheCommonGenauthorstoevaluateour
+metricsotherthanPPL,highermeansbetterperformance.
+bestVisCTGmodelsontheoriginaltestset(morein§6).The
+trainingsetremainsthesame.Werefertotheoriginaldevand
+3 InitialAnalysisandMotivation
+testsetsasdev andtest ,andthesenewsplitsastrain ,
+O O CG
+dev ,andtest .Table2containsinformationaboutthese 3.1 BaselineModelGenerations
+CG CG
+splits.Theirrelativesizesanddistributionofconceptsetsizes Weconductaninitialanalysisofthebaselinemodeloutputs,
+withineacharekeptsimilartotheoriginals. and observe that several lack fluency. Some are more like
+phrasesthanfullcoherentsentences,e.g.“bodyofwateron
+2.2 Models:T5andBART araft”.Othersmissimportantwords,e.g.“Alisteningmusic
+WeusepretrainedtextgenerationmodelsT5andBART,both anddancinginadarkroom”missesanounbeforelistening.
+thebaseandlargeversions.Bothareseq2seqTransformer A large portion of generations are generic and bland, e.g.
+models.T5hasstrongmultitaskpretraining.BARTispre- “Someonesitsandlistenstosomeonetalk”.Thismaybean
+trainedasadenoisingautoencodertoreproduceoriginalfrom instance of the dull response problem faced by generation
+noisedtext.WeusetheirHuggingFaceimplementations. models(DuandBlack2019;Lietal.2016),wheretheyprefer
+Wetraintwoseededversionsofeachmodelontrain safeandfrequentresponsesindependentoftheinput.
+CG
+andevaluatetheirperformanceondev .Theseserveasthe Manygenerationsalsolackcommonsense.Forexample,
+O
+baselinesforourexperiments.UsingthenumbersinLinetal. “bodyofwateronaraft”isillogicalasthephrases“bodyof
+(2020)ascomparison,wevalidateourimplementations.We water”and“araft”arepiecedtogetherincorrectly.Asimilar
+usethehyperparametersfromLinetal.(2020),beamsearch issue occurs with the {horse, carriage, draw} example in
+fordecoding,andselectthefinalepochastheonereaching Table 4. At times the models also cannot understand what
+maximumROUGE-2(LinandHovy2003)onthedevsplit. certainnounscando,e.g.“Adogcheckinghisphoneona
+FromTable3,weobservethatourre-implementationsreach pier.”SeveralotherexamplesofthiscanbefoundinTable4.
+orexceedreportedresultsinLinetal.(2020)onmostmetrics.
+3.2 ImagesandCaptions
+2.3 EvaluationMetrics
+Imagesthatrepresenteverydayscenariosarequiteprevalent
+Weuseseveralevaluationmetrics,includingthoseinLinetal. foralmostanyreasonableconceptset.Further,theimagesare
+(2020)suchasBLEU(Papinenietal.2002),CIDEr(Vedan- typicallygroundedincommonsense.Forexample,searching
+10619
+ConceptSet BaselineGeneration HumanReference
+{horse,carriage,draw} horsedrawninacarriage Thecarriageisdrawnbythehorse.
+{dog,house,eat} Adogeatshayinahouse Thedogeatsfoodinsidethehouse.
+{cow,horse,lasso} Acowislassoingahorse. Agroupofmenridinghorseslassoingacow.
+Table4:Examplegenerationsfromourbaselinemodelsversushumanreferences.
+yieldsimagesoffanswatchingasportsgameonGoogleim-
+ages,butimagesofhandwatchesonBingandDuckDuckGo.
+Wequeriedinputconceptsetsbyconcatenatingkeywords
+withplussigns(+),andusedsimple-image-scraper2toobtain
+URLsofthetop30results.Theimagewasscrapedonlyif
+theURLendedin.png,.jpeg,.jpg,or.gif.Thereceivedcon-
+tentwasverifiedtobevalidimagesusingpillow3,otherwise
+skipped.Retrievedimagesweretypicallyofhighqualityand
+correspondedwelltotheconcepts.SeeTable1forexamples.
+4.2 ImageCaptioning
+Afterretrievingimages,weuseaPyTorch-basedimplemen-
+tation4 oftheFCimagecaptioningmodel(Luoetal.2018;
+Figure1:Graphdisplayingtheaveragecoverage(outof100) Rennieetal.2017),whichgeneratesacaptionviaanLSTM
+bythetopNTCcaptionsinaggregateperconceptset. initializedwithapseudotokenobtainedbyfeedingtheimage
+intoadeepCNNfollowedbyalinearprojection.Weusea
+pretrainedFCmodeltrainedontheMSCOCOdatasetwith
+{cow,horse,lasso}willresultinmanyimagesofcowboys pretrained Resnet-101 image features.5 As most of our re-
+riding horses and lassoing cows, rather than the illogical trievedimagesrepresenteverydayscenariosandarerelatively
+situation of “A cow is lassoing a horse.” described by the similartothoseinMSCOCO,thepretrainedmodelperforms
+baselinegenerationinTable4.Manyeverydayimagesare quitewell.SeeexamplecaptionsinTable1.
+relativelysimilartothoseinimagecaptioningdatasetssuch
+asMSCOCO,sopretrainedcaptioningmodelsshouldwork 4.3 CaptionSelectionandInputAugmentation
+quiteeffectively.Wethushypothesizethatusingimagesand
+AfterwehavecaptionsS ={c ,c ,...,c }foreachconcept
+theircaptionstovisuallygroundconcept-to-textgeneration c 1 2 n
+setinallthreesplits,wereorderthembydescendingcoverage
+canpotentiallydealwithissuesmentionedin3.1.Retrieved
+to the concept set to obtain S = {c′,c′,...,c′ }. If two
+imageswithcorrespondingcaptionsgeneratedbyapretrained c′ 1 2 n
+captionsaretiedforcoverage,wekeepthemintheiroriginal
+image captioning model (see §4.2) and final baseline and
+searchresultorder.Thisallowsustoselectthecaptionsthat
+VisCTGgenerationsforselectconceptsetsareinTable1.
+havehighestcoverageandaremostrelevant.
+Textualcorporaalsosufferfromreportingbias(Gordon
+Sincemostretrievedimagesandcorrespondingcaptions
+andVanDurme2013),whereeveryday,commonsensealbeit
+coveronlyafractionoftheentireconceptset,andthequality
+“uninteresting”actions(walking),objects(bench)andfacts
+ofeachvaries,wehypothesizethatusingmultiplecaptions
+(bananasareyellow)areunderrepresentedcomparedtoreal-
+forgenerationmayleadtomorerobustandhigher-quality
+worldfrequency,while“newsworthy”actions(murdering),
+outputswithmorecoverage.Themodelsmaylearntopiece
+objects(spaceships)andfacts(blueGMObananas)areexag-
+togetherinformationfromcaption(s)whilegeneratingfinal
+gerated.Thisseepsintolargepretrainedtextmodels(Shwartz
+texts.Hence,wetryexperimentsusingdifferentnumbersof
+andChoi2020).Usingvisualdataandmodelsdampensthis
+topcaptionswithinS ,aparameterwecallNTC (Number
+bias,likelyimprovingthecommonsenseofgenerations. c′
+of Top Captions). We try NTC = 1,2,3,5,7,10, and do
+notgoaboveNTC = 10asFigure1showsthatcoverage
+4 Methodology
+gainsfrom10→30areminor.Figure1alsoillustratesthat
+captionshaverelativelylowindividualcoverage,especially
+4.1 ImageRetrieval
+comparedwithoutputsfrommodelstrainedonCommonGen,
+Wefirstobtainimagesforeachconceptsetinourthreesplits. whichiswhywedonotusethemasabaseline.
+ImagecaptioningdatasetssuchasMSCOCOandFlickrare Thecaptionsareconcatenatedtogetherandontothecon-
+typicallytoosmallandfocusedtobeeffectiveforourpur- cept set using <s> separator tokens. These serve as aug-
+posessincewemustcovernumerousdifferentconceptsets. mentedinputstoBARTandT5.Theylearntoconvertthese
+Further,asearchengineismoregeneralizable.
+WedecidetouseGoogleImages.Onasampleofconcept 2https://pypi.org/project/simple-image-download/
+sets,theretrievedimagesusingothersearchengineswerein- 3https://pypi.org/project/Pillow/
+appropriate;theydidnotincorporatemostinputkeywordsnor 4https://github.com/ruotianluo/self-critical.pytorch
+handlehomonymswell.Forexample,“sports+fan+watch” 5SeeAppendixBforfurthercaptioningmodeldetails.
+10620
+AugmentedInput→FinalGeneration
+wavefallboardsurfer<s>asurferridingawaveonasurfboard→Asurferisfallingoffhisboardintothewaves.
+dancestagefrontcrowd<s>acrowdofpeoplewatchingamanonastage<s> amanisholdingamicrophoneinfrontofa
+crowd→Amandancesinfrontofacrowdonstage.
+standholdumbrellastreet<s>awomanwalkingdownastreetholdinganumbrella<s>awomanwalkingdownastreetholding
+anumbrella<s>agirlholdingapinkumbrellainacity<s>amanholdinganumbrellainacity<s>agroupofpeoplestanding
+underaumbrella→Agroupofpeoplestandingonastreetholdingumbrellas.
+Table5:ExamplesofaugmentedinputsandfinalgenerationsforvaryingvaluesofNTC.
+augmentedinputstohumanreferencesduringtraining,and 6 ResultsandAnalysis
+are fed the augmented inputs (corresponding to the value
+Automaticevaluationresultsontest areinTables6and7,
+CG
+of NTC) during validation and testing. Some examples of andresultsontest inTable8.8GraphsdisplayingBLEU-4,
+O
+augmentedinputsandgenerationscanbefoundinTable5.
+CIDEr,andSPICE(themetricsontheCommonGenleader-
+board9)ontest overdifferentNTCvaluesareinFigure2.
+CG
+5 Experiments Humanevaluationresultsontest areinTables9and 10.
+CG
+OptimalNTCvaluesforBART-base,BART-large,T5-base,
+5.1 ModelTrainingandSelection
+andT5-largeare5,2,2,and1,respectively.Thesearethe
+For training VisCTG models, we mainly follow baseline VisCTGresultsreportedintheaforementionedtables.Table
+hyperparameters,barringlearningrate(LR)whichistuned 11containsqualitativeexamples,withmoreinAppendixE.
+per NTC value, and the maximum encoder length which
+ischosendependingonthetokenizerandvalueofNTCto 6.1 AnalysisofAutomaticEvaluationResults
+ensuretheentireinputsequencecanfitontotheencoder.We
+We see from Tables 6 and 7 that VisCTG outperforms the
+traintwoseedspermodel.SeeAppendixCformoredetails.
+baselinesonallmetricsacrossthemodelsontest .Perfor-
+CG
+For each model, we choose the epoch corresponding to
+mancegainsarestrongandstatisticallysignificantforBART-
+highestROUGE-2ondev ,andusebeamsearchforde-
+CG base,BART-large,andT5-base.VisCTGappearsrelatively
+coding. NTC itself is a hyperparameter, so while we train
+less effective for T5-large which is the strongest baseline,
+separateversionsofeachmodelcorrespondingtodifferent
+andhenceimprovingitsperformancemaybemoredifficult.
+NTCvalues,thefinalchosenmodelscorrespondtotheNTC
+FromTable8,weseethatVisCTGmodelssubstantially
+values that performed best on dev when averaged over
+CG outperform corresponding baselines reported in Lin et al.
+bothseeds.Wethenusethefinalchosenmodelstogenerate
+(2020)ontest .T5-baseVisCTGoutperformsthereported
+O
+onbothtest andtest ,andreporttheresultsin§6.
+CG O T5-baseandlargebaselinesacrossmetrics,andBART-base
+VisCTGperformssimilarlytothereportedBART-largebase-
+5.2 HumanEvaluation
+line.BART-largeVisCTGoutperformsthereportedbaseline,
+Weconducttwohumanevaluations:oneusingAmazonMe- EKI-BART(Fanetal.2020),andKG-BART(Liuetal.2021).
+chanicalTurk(AMT),andoneusinganexpertlinguist.6For TheseareSOTApublishedCommonGenBARTmodelsthat
+the AMT study, we ask annotators to evaluate 86 test useexternalknowledgefromcorporaandKGs.Weshowthat
+CG
+examples per model. Our evaluation is based on pairwise visualgroundingismoreeffective,andBART-largeVisCTG
+comparisonofVisCTGandbaselinemodeloutputs.Weask places high on the leaderboard.9 T5-large VisCTG outper-
+humanannotatorstochoosewhichamongstthetwooutputs forms the reported baseline, but lags behind SAPPHIRE
+(presentedinarandomorderperexample)hasbetterOverall (Fengetal.2021b)andRE-T5(Wangetal.2021).
+Quality. There are 3 choices - O1: VisCTG is better, O2: Figure2showsthatasNTCincreases,metricsincreaseto
+baselineisbetter,O3:bothareindistinguishable.Toaggre- a peak and taper offafter. As we saw in Figure 1, the rate
+gatemultipleannotationsperexample,wefindthefraction ofincreaseofcoveragedeclineswithlargerNTC.Thelatter
+ofresponsestowardseachoutcomevalueastheper-example images and captions are thus of diminishing quality, and
+distribution.Wethenfindthesamplemeanofthisoutcome henceusingtoomanynegativelyaffectsmodelperformance.
+distributionoverallexamples.Forsamplemeanandsignifi- WealsocomputedROUGEbetweencaptionsandoutputs
+cancetesting,weareinterestedinthevaluesforO1vs.O2. over test . ROUGE1/2/L = 36.2/12.3/33.5 are mod-
+CG
+Fortheexpertlinguiststudy,ourexpertisanativeEnglish estlyvalued.Ourmodelsdonotsimplycopycaptioncontent.
+speakerwithagraduatedegreeinlinguisticsfromaNorth
+Americanuniversity.Theexpertisaskedtoannotatethree 6.2 AnalysisofHumanEvaluationResults
+aspectsfor50BART-large7test CGexamples-OverallQual- Table9showsthatVisCTGoutperformsthebaselineonall
+ity (Overall), Commonsense Plausibility (Commonsense), four models based on human annotators (with high IAA).
+andFluency(Fluency).Forallaspects,wehaveapairwise- Annotators,onaverage,preferVisCTGoutputsoverbaseline
+comparisonevaluationsetupsimilartothatforAMT. outputsonoverallquality,especiallyforBART-large.Table
+6SeeAppendixDforfurtherhumanevaluationdetails. 8EvaluatedbytheCommonGenauthorsontheirhiddentestset.
+7SincethisisthebestperformingVisCTGmodel-see§6. 9https://inklab.usc.edu/CommonGen/leaderboard.html
+10621
+BART-base(NTC =5) BART-large(NTC =2)
+Metrics Baseline VisCTG p-value Baseline VisCTG p-value
+ROUGE-1 43.96±0.03 45.44±0.08 1.58E-05 45.67±0.25 46.91±0.31 1.58E-05
+ROUGE-2 17.31±0.02 19.15±0.21 1.58E-05 18.77±0.04 20.36±0.05 1.58E-05
+ROUGE-L 36.65±0.00 38.43±0.07 1.58E-05 37.83±0.29 39.23±0.01 1.58E-05
+BLEU-1 73.20±0.28 75.65±0.78 6.94E-05 74.45±0.21 78.80±0.28 6.94E-05
+BLEU-2 54.50±0.14 59.05±0.07 6.94E-05 56.25±0.78 61.60±0.85 6.94E-05
+BLEU-3 40.40±0.14 44.90±0.42 6.94E-05 42.15±0.49 47.00±0.71 6.94E-05
+BLEU-4 30.10±0.14 34.10±0.57 3.82E-03 32.10±0.42 36.25±0.78 2.08E-04
+METEOR 30.35±0.35 31.95±0.07 6.94E-05 31.70±0.14 34.00±0.14 6.94E-05
+CIDEr 15.56±0.10 16.84±0.05 6.94E-05 16.42±0.09 18.35±0.13 6.94E-05
+SPICE 30.05±0.07 31.80±0.28 6.94E-05 31.85±0.21 34.60±0.28 6.94E-05
+BERTScore 59.19±0.32 61.44±0.02 1.58E-05 59.95±0.29 62.85±0.30 1.58E-05
+Coverage 90.43±0.17 90.66±1.39 0.33* 94.49±0.53 96.49±0.24 1.58E-05
+PPL 80.39±3.65 72.45±0.79 1.58E-05 80.37±4.51 68.46±5.90 1.58E-05
+Table6:AutoevalresultsforBARTontest overtwoseeds.Boldcorrespondstobestperformance.Weincludep-values(from
+CG
+Pitman’spermutationtest(Pitman1937))forVisCTGcomparedtothebaseline.Insignificantones(α=0.1)markedwith*.
+T5-base(NTC =2) T5-large(NTC =1)
+Metrics Baseline VisCTG p-values Baseline VisCTG p-values
+ROUGE-1 44.63±0.13 46.26±0.07 1.58E-05 46.32±0.26 46.93±0.22 7.26E-04
+ROUGE-2 18.40±0.14 19.78±0.30 1.58E-05 19.59±0.12 20.01±0.23 0.02
+ROUGE-L 37.60±0.16 38.91±0.27 1.58E-05 39.20±0.21 39.52±0.43 0.06
+BLEU-1 73.60±0.85 76.80±0.28 6.94E-05 77.55±0.35 78.65±0.21 4.65E-03
+BLEU-2 57.00±0.71 60.30±0.28 6.94E-05 60.80±0.28 61.55±0.35 0.07
+BLEU-3 42.75±0.49 46.25±0.64 6.94E-05 46.50±0.00 47.10±0.57 0.11*
+BLEU-4 32.70±0.42 36.10±0.85 6.94E-05 36.20±0.14 36.40±0.28 0.21*
+METEOR 31.05±0.49 32.70±0.00 6.94E-05 33.20±0.00 33.65±0.49 0.49*
+CIDEr 16.26±0.25 17.65±0.02 6.94E-05 17.79±0.01 17.94±0.25 0.23*
+SPICE 31.95±0.07 33.40±0.28 6.94E-05 33.90±0.42 34.55±0.21 0.03
+BERTScore 61.40±0.34 62.42±0.17 1.58E-05 62.67±0.09 62.72±0.03 0.34*
+Coverage 90.96±1.77 94.48±1.39 1.58E-05 94.40±0.02 95.95±0.45 1.58E-05
+PPL 83.04±1.62 77.50±3.86 3.16E-05 81.78±4.63 73.41±4.32 1.58E-05
+Table7:AutoevalresultsforT5ontest overtwoseeds.Boldcorrespondstobestperformance.Weincludep-values(from
+CG
+Pitman’spermutationtest(Pitman1937))forVisCTGcomparedtothebaseline.Insignificantones(α=0.1)markedwith*.
+10illustratesthatVisCTGoutperformsthebaselinemodel captions.Thishighlightstheusefulnessofvisualgrounding,
+for BART-large based on an expert linguist’s perspective. astheimagespacecanprovideadditionalcommonsensein-
+VisCTGoutputsarehighlypreferred,onaverage,overthe formationnotpresentinthetext(e.g.toysareassociatedwith
+baselineonallthreeaspectsofoverallquality,commonsense, children/boys).Forex.2,thebaselineoutputtreats“handofa
+andfluency.Thisalignswithourautomaticresultsin§6.1. bird”asasingleentity,thesubject.Captionsseparate“bird”
+and“hand”intotwo,likelyguidingtheVisCTGoutputtodo
+6.3 QualitativeAnalysis so.Forex.3,thebaselinemisplaces“bus”assubject.Cap-
+Table11showsseveralbaselineoutputsthatcontainissues tionsareofform“{X}sittingonabench{Y}”,where{X}is
+from§3.1,e.g.incompleteand/orillogicalsentences.Human alogicalsubjectand{Y}isanexpression.TheVisCTGout-
+references are all fluent and logical. VisCTG can usually puthasthisstructure,withcorrectsubjectandcommonsense,
+generatemuchhigher-qualitytextthanthebaselines. andhighercoverage.Overall,weseethatvisualgrounding
+Thebaselineoutputsforex.1-2arephraseslackingargu- guidesthemodeltolearnwhichnouns/subjectscanperform
+ments,andallillogicalforex.1-3.Usingcaptions,VisCTG whichactions(e.g.“hands”cannotsitonachairbuta“boy”
+successfully adjusts semantic roles of entities, replaces in- can),whichisamajorbaselinedeficiencydiscussedin§3.1.
+correct subjects, fixes dependency structure, and grounds Forex.4,thebaselineoutputlacksasubjectthatthecap-
+generationsincommonsense.Forex.1,captionsareofthe tionscontain,likelyguidingtheVisCTGoutputtocontain
+form“{X}sittingonachairwith{Y}”,where{X}isasub- one:“aman”.Forex.5,thebaselineoutputisgenericdue
+jectand{Y}anobject.VisCTGoutputhassimilarstructure, tousesof“someone”.VisCTG’soutputismorespecificand
+beingfluentandlogicalwithhighercoverage.Thebaseline refersto“man”,likelybecausethecaption(thoughnotvery
+outputalsohasanincorrectsubjectof“hands”.OurVisCTG fitting)includesa“man”subject.Evenforcaptionsthatfit
+outputcontainsanadditionalentity(notpresentintheinput theconceptsless,structureandfluencycanstillbeexploited.
+set) of “boy” as subject, likely since it is a subject in the Overall,weseethatthebaselinessimplytrytopieceto-
+10622
+Models\Metrics ROUGE-2/L BLEU-3/4 METEOR CIDEr SPICE Coverage
+T5-base(reportedbaseline) 14.63 34.56 28.76 18.54 23.94 9.40 19.87 76.67
+T5-large(reportedbaseline) 21.74 42.75 43.01 31.96 31.12 15.13 28.86 95.29
+BART-large(reportedbaseline) 22.02 41.78 39.52 29.01 31.83 13.98 28.00 97.35
+EKI-BART(Fanetal.2020) - - - 35.945 - 16.999 29.583 -
+KG-BART(Liuetal.2021) - - - 33.867 - 16.927 29.634 -
+SAPPHIRE(T5-large)(Fengetal.2021b) - - - 37.119 - 16.901 29.751 -
+RE-T5(Wangetal.2021) - - - 40.863 - 17.663 31.079 -
+T5-baseVisCTG 22.83 44.98 45.749 34.722 31.809 16.173 28.808 92.92
+T5-largeVisCTG 23.83 45.76 47.376 36.409 33.012 16.815 29.629 95.54
+BART-baseVisCTG 21.73 43.43 43.235 32.291 30.86 15.187 27.403 88.98
+BART-largeVisCTG 23.68 45.07 48.031 36.939 33.215 17.199 29.973 94.86
+Table8:AutoevalresultsofVisCTGontest ,evaluatedbyCommonGenauthors.Wecomparetoreportedbaselinenumbersin
+O
+Linetal.(2020)(theydidnotevaluateBART-base),andmodelsontheirleaderboard9withpublicationsattimeofwriting.Their
+leaderboardreportsBLEU-4,CIDEr,andSPICE.Boldcorrespondstobestperformance(forthosethree)permodeltype+size.
+Figure2:BLEU-4,CIDEr,andSPICEontest overdifferentvaluesofNTCforBART-baseandT5-base.
+CG
+Model O1 O2 O3 IAA thevisualgroundingimprovesthecommonsenseofthegen-
+BART-base 0.45 0.33 0.22 0.72 erations. The images inherently capture commonsense by
+BART-large 0.62 0.18 0.20 0.55
+representingeverydayscenarios,andthiscommonsenseinfo
+T5-base 0.46 0.33 0.21 0.72
+israrelyexplicitlyincludedintext.Hence,largetext-based
+T5-large 0.46 0.34 0.20 0.74
+models such as our baselines tend to not know this info,
+whereasVisCTGmodelslearnitthroughthegrounding.
+Table9:Avg.AMTevalresultsontest foroverallquality.
+CG
+VisCTGis,however,imperfect.Forex.6,itsoutputisless
+O1:VisCTGwins,O2:baselinewins,O3:indistinguishable.
+logicalandlowercoveragethanthebaseline’s.Thecaptions
+Allresultsarestatsigbasedonpairedtwo-tailedt-testsand
+areallsimplisticandlowcoverage;thefirstisillogical,and
+α=0.1.Inter-annotatoragreement(IAA)istheavg.direct
+some others are of the form “a bunch of apples {...} on a
+fractionalagreement(bothannotatorschooseO1orO2)over
+tree”,likelynegativelyimpactingthegeneration.Ex.4’shu-
+allexamples.See§5.2andAppendixDforfurtherdetails.
+manreferenceiscreative,whichisanareawhereVisCTG
+still lacks in comparison. For ex. 5, while VisCTG edits
+Model Aspect O1 O2 O3 “someone”to“man”,itisunabletomergethetwoinstances
+Overall 0.44 0.24 0.32 of“man”oradjustthesentencetobemorecoherent.These
+BART-large Commonsense 0.32 0 0.68 weaknessesarelikelybecausecaptionstendtobesimplis-
+Fluency 0.56 0.12 0.32
+tic (due to the captioning model’s training data), limiting
+VisCTG’sabilitytomakeheavieredits.VisCTG,unsurpris-
+Table 10: Avg. expert linguist eval results on test for
+CG ingly,appearstodependquiteheavilyonthecaptions,and
+BART-large.O1:VisCTGwins,O2:baselinewins,O3:in-
+hencethequalityoftheimagesandcaptioningmodel.
+distinguishable.See§5.2andAppendixDforfurtherdetails.
+7 RelatedWork
+gethertheinputconceptsintoaformofEnglishsyntax,often Constrained Text Generation: There have been several
+failing to do so effectively. VisCTG models can produce works on constrained text generation. Miao et al. (2019)
+moregrammatical,fluent,andlogicaltextbyexploitingthe useMetropolis-HastingssamplingtodetermineLevenshtein
+syntacticanddependencystructuresofthecaptions.Further, edits per generation step. Feng, Li, and Hoey (2019) pro-
+10623
+Method Text
+Conceptset {sit,chair,toy,hand}(example1)
+Captions alittlegirlsittingonachairwithateddybear<s>asmallchildsittingonachairwithateddybear<s>a
+youngboysittingonachairwithaskateboard<s>amansittingonachairwitharemote
+BART-base-BL handssittingonachair
+BART-base-VisCTG Aboysittingonachairwithatoyinhishand.
+Humanreference Ababysitsonachairwithatoyinoneofitshands.
+Conceptset {food,eat,hand,bird}(example2)
+Captions abirdisperchedonabranchwithahand<s>apersonholdingasmallbirdintheirhand
+BART-large-BL handofabirdeatingfood
+BART-large-VisCTG Abirdeatsfoodfromahand.
+Humanreference Asmallbirdeatsfoodfromsomeone’shand.
+Conceptset {bench,bus,wait,sit}(example3)
+Captions amansittingonabenchwithabook<s>apersonsittingonabenchwithalaptop
+T5-base-BL Abussitsonabench.
+T5-base-VisCTG Amansitsonabenchwaitingforabus.
+Humanreference Themansatonthebenchwaitingforthebus.
+Conceptset {jacket,wear,snow,walk}(example4)
+Captions ayoungboyinaredjacketisstandinginthesnow<s>amaninaredjacketisstandinginthesnow
+BART-large-BL walkinginthesnowwearingafurryjacket
+BART-large-VisCTG Amaniswalkinginthesnowwearingajacket.
+Humanreference JamietookawalkoutintothesnowwithonlyaTshirtonandinstantlywentbackinsidetowearhisjacket.
+Conceptset {hold,hand,stand,front}(example5)
+Captions amanholdingapairofscissorsinfrontofawall
+T5-large-BL Someonestandsinfrontofsomeoneholdingahand.
+T5-large-VisCTG Amanstandsinfrontofamanholdingahand.
+Humanreference Amanstandsandholdshishandsoutinfrontofhim.
+Conceptset {bag,put,apple,tree,pick}(example6)
+Captions apersonholdingaappleinatree<s>abunchofapplesaregrowingonatree<s>acloseupofagreenapple
+withatree<s>abunchofapplesaregrowingonatree
+BART-base-BL Amanisputtingapplesinabagandpickingthemupfromthetree.
+BART-base-VisCTG Amanputsabagofapplesonatree.
+Humanreference Ipickedanapplefromthetreeandputitinmybag.
+Table11:Qualitativeexamplesfortest .BLstandsforbaseline.ConceptsetreferstotheinputkeywordsandCaptionsrefers
+CG
+tothecaptions(separatedby<s>)usedbytheVisCTGmodelforthatparticularexampletoproduceitsfinalgeneration.
+poseSemanticTextExchangetoadjusttopic-leveltextse- ViLBERT(Luetal.2019):mainlyencodersthatjointlyrep-
+mantics.Gangaletal.(2021)introducenarrativereordering resentimagesandtextratherthanseq2seqmodels.Further,
+(NAREOR)toeditthetemporalityofnarratives. unlikethesemodelswhicharepretrained,VisCTGexploits
+per-examplevisualinfotofixspecificissuesperconceptset.
+Data-to-text NLG: E2E-NLG (Dusˇek, Novikova, and
+Rieser 2018) and WebNLG (Gardent et al. 2017) are two
+8 ConclusionandFutureWork
+popularNLGbenchmarkswithstructuredinputs-meaning
+representation(MR)andtriplesequences,respectively.
+In conclusion, we motivated and explored the use of vi-
+sual grounding for improving the commonsense of Trans-
+CommonsenseInjectionandIncorporation: Onecom-
+formermodelsfortextgeneration.Weinvestigatedthisfor
+monsenseknowledgegraph(KG)isCOMET,trainedonKG
+concept-to-textgeneration,callingourmethodVisCTG:Visu-
+edges. EKI-BART (Fan et al. 2020) and KG-BART (Liu
+allyGroundedConcept-to-TextGeneration.Extensiveexper-
+etal.2021)useexternalknowledgetoimproveCommonGen
+imentsonBARTandT5showeditsefficacyontheCommon-
+performance.Distinctly,VisCTGusesvisualgroundingand
+Gen task. Comprehensive evaluation and analysis showed
+showshigherperformance(see§6).VisualCommonsense
+thatVisCTGboostsmodelperformanceandcommonsense
+Reasoning(VCR)(Zellersetal.2019)involvesanswering
+whileaddressingbaselinedeficiencies.Potentialfuturework
+commonsense-relatedMCquestionsaboutimages.Ourwork
+includesusingastrongercaptioningmodel,e.g.onebased
+focusesoninjectingcommonsenseintotextgenerators.
+onCLIP(Radfordetal.2021).Videocaptioningandimage
+MultimodalMachineLearningandNLP: Therehasbeen generation can also be explored. Further, VisCTG can be
+moreworkonmultimodality,inareaslikerepresentationand investigatedforotherdata-to-textNLGtasks,e.g.WebNLG,
+videocaptioning,butlittleforconstrainedanddata-to-text andapplicationslikedataaugmentationfortextgeneration
+NLG (Baltrusaitis, Ahuja, and Morency 2019; Gao et al. (Fengetal.2020,2021a),andenhancingthecommonsense
+2020).Thereisworkonpretrainedmultimodalmodelslike reasoningofpersonalizeddialogueagents(Lietal.2020).
+10624
+References Gangal, V.; Feng, S. Y.; Hovy, E.; and Mitamura, T. 2021.
+NAREOR: The Narrative Reordering Problem. arXiv
+Anderson,P.;Fernando,B.;Johnson,M.;andGould,S.2016.
+preprintarXiv:2104.06669.
+Spice:Semanticpropositionalimagecaptionevaluation. In
+Europeanconferenceoncomputervision,382–398.Springer. Gao,J.;Li,P.;Chen,Z.;andZhang,J.2020. ASurveyon
+DeepLearningforMultimodalDataFusion. NeuralCompu-
+Baltrusaitis,T.;Ahuja,C.;andMorency,L.-P.2019. Multi-
+tation,32(5):829–864.
+modalMachineLearning:ASurveyandTaxonomy. IEEE
+Trans.PatternAnal.Mach.Intell.,41(2):423–443. Gardent, C.; Shimorina, A.; Narayan, S.; and Perez-
+Beltrachini,L.2017. TheWebNLGchallenge:Generating
+Bosselut,A.;Rashkin,H.;Sap,M.;Malaviya,C.;Celikyil-
+textfromRDFdata. InProceedingsofthe10thInternational
+maz,A.;andChoi,Y.2019. COMET:CommonsenseTrans-
+ConferenceonNaturalLanguageGeneration,124–133.
+formersforAutomaticKnowledgeGraphConstruction. In
+Proceedingsofthe57thAnnualMeetingoftheAssociation Gordon, J.; and Van Durme, B. 2013. Reporting bias and
+forComputationalLinguistics,4762–4779.Florence,Italy: knowledgeacquisition. InProceedingsofthe2013workshop
+AssociationforComputationalLinguistics. onAutomatedknowledgebaseconstruction,25–30.
+Devlin,J.;Chang,M.-W.;Lee,K.;andToutanova,K.2019. Lewis,M.;Liu,Y.;Goyal,N.;Ghazvininejad,M.;Mohamed,
+BERT:Pre-trainingofDeepBidirectionalTransformersfor A.;Levy,O.;Stoyanov,V.;andZettlemoyer,L.2020. BART:
+LanguageUnderstanding. InProceedingsofthe2019Con- Denoising Sequence-to-Sequence Pre-training for Natural
+ferenceoftheNorthAmericanChapteroftheAssociationfor LanguageGeneration,Translation,andComprehension. In
+ComputationalLinguistics:HumanLanguageTechnologies, Proceedingsofthe58thAnnualMeetingoftheAssociation
+Volume1(LongandShortPapers),4171–4186.Minneapolis, forComputationalLinguistics,7871–7880.Online:Associa-
+Minnesota:AssociationforComputationalLinguistics. tionforComputationalLinguistics.
+Du,W.;andBlack,A.W.2019. BoostingDialogResponse Li, A. W.; Jiang, V.; Feng, S. Y.; Sprague, J.; Zhou, W.;
+Generation.InProceedingsofthe57thAnnualMeetingofthe andHoey,J.2020. ALOHA:ArtificialLearningofHuman
+AssociationforComputationalLinguistics,38–43.Florence, Attributes for Dialogue Agents. Proceedings of the AAAI
+Italy:AssociationforComputationalLinguistics. ConferenceonArtificialIntelligence,34(05):8155–8163.
+Dusˇek, O.; Novikova, J.; and Rieser, V. 2018. Findings Li,J.;Galley,M.;Brockett,C.;Gao,J.;andDolan,B.2016.
+of the E2E NLG Challenge. In Proceedings of the 11th ADiversity-PromotingObjectiveFunctionforNeuralCon-
+InternationalConferenceonNaturalLanguageGeneration, versationModels. InProceedingsofthe2016Conferenceof
+322–328.TilburgUniversity,TheNetherlands:Association theNorthAmericanChapteroftheAssociationforComputa-
+forComputationalLinguistics. tionalLinguistics:HumanLanguageTechnologies,110–119.
+SanDiego,California:AssociationforComputationalLin-
+Fan, Z.; Gong, Y.; Wei, Z.; Wang, S.; Huang, Y.; Jiao, J.;
+guistics.
+Huang, X.; Duan, N.; and Zhang, R. 2020. An Enhanced
+KnowledgeInjectionModelforCommonsenseGeneration. Lin,B.Y.;Zhou,W.;Shen,M.;Zhou,P.;Bhagavatula,C.;
+InProceedingsofthe28thInternationalConferenceonCom- Choi,Y.;andRen,X.2020. CommonGen:AConstrained
+putational Linguistics, 2014–2025. Barcelona, Spain (On- Text Generation Challenge for Generative Commonsense
+line):InternationalCommitteeonComputationalLinguistics. Reasoning. InFindingsoftheAssociationforComputational
+Linguistics:EMNLP2020,1823–1840.Online:Association
+Feng,S.Y.;Gangal,V.;Kang,D.;Mitamura,T.;andHovy,
+forComputationalLinguistics.
+E.2020. GenAug:DataAugmentationforFinetuningText
+Generators. In Proceedings of Deep Learning Inside Out Lin,C.-Y.;andHovy,E.2003. Automaticevaluationofsum-
+(DeeLIO):TheFirstWorkshoponKnowledgeExtractionand mariesusingn-gramco-occurrencestatistics. InProceedings
+IntegrationforDeepLearningArchitectures,29–42.Online: ofthe2003HumanLanguageTechnologyConferenceofthe
+AssociationforComputationalLinguistics. North American Chapter of the Association for Computa-
+tionalLinguistics,150–157.
+Feng,S.Y.;Gangal,V.;Wei,J.;Chandar,S.;Vosoughi,S.;
+Mitamura,T.;andHovy,E.2021a. ASurveyofDataAug- Lin, T.-Y.; Maire, M.; Belongie, S.; Hays, J.; Perona, P.;
+mentationApproachesforNLP. ACL2021Findings. Ramanan,D.;Dolla´r,P.;andZitnick,C.L.2014. Microsoft
+COCO:CommonObjectsinContext. InFleet,D.;Pajdla,T.;
+Feng,S.Y.;Huynh,J.;Narisetty,C.P.;Hovy,E.;andGangal,
+Schiele,B.;andTuytelaars,T.,eds.,ComputerVision–ECCV
+V.2021b. SAPPHIRE:ApproachesforEnhancedConcept-
+2014, 740–755. Cham: Springer International Publishing.
+to-TextGeneration. InProceedingsofthe14thInternational
+ISBN978-3-319-10602-1.
+ConferenceonNaturalLanguageGeneration,212–225.Ab-
+erdeen,Scotland,UK:AssociationforComputationalLin- Liu,Y.;Wan,Y.;He,L.;Peng,H.;andYu,P.S.2021. KG-
+guistics. BART:KnowledgeGraph-AugmentedBARTforGenerative
+CommonsenseReasoning. ProceedingsoftheAAAIConfer-
+Feng,S.Y.;Li,A.W.;andHoey,J.2019. KeepCalmand
+enceonArtificialIntelligence,35(7):6418–6425.
+SwitchOn!PreservingSentimentandFluencyinSemantic
+TextExchange. InProceedingsofthe2019Conferenceon Lu,J.;Batra,D.;Parikh,D.;andLee,S.2019. ViLBERT:
+EmpiricalMethodsinNaturalLanguageProcessingandthe Pretraining Task-Agnostic Visiolinguistic Representations
+9th International Joint Conference on Natural Language forVision-and-LanguageTasks. InWallach,H.;Larochelle,
+Processing(EMNLP-IJCNLP),2701–2711. H.;Beygelzimer,A.;d'Alche´-Buc,F.;Fox,E.;andGarnett,
+10625
+R.,eds.,AdvancesinNeuralInformationProcessingSystems,
+volume32.CurranAssociates,Inc.
+Luo,R.;Price,B.;Cohen,S.;andShakhnarovich,G.2018.
+DiscriminabilityObjectiveforTrainingDescriptiveCaptions.
+InProceedingsoftheIEEEConferenceonComputerVision
+andPatternRecognition(CVPR).
+Miao,N.;Zhou,H.;Mou,L.;Yan,R.;andLi,L.2019.Cgmh:
+Constrainedsentencegenerationbymetropolis-hastingssam-
+pling. InProceedingsoftheAAAIConferenceonArtificial
+Intelligence,volume33,6834–6842.
+Papineni, K.; Roukos, S.; Ward, T.; and Zhu, W.-J. 2002.
+Bleu:amethodforautomaticevaluationofmachinetrans-
+lation. In Proceedings of the 40th annual meeting of the
+AssociationforComputationalLinguistics,311–318.
+Pitman,E.J.1937. Significancetestswhichmaybeapplied
+tosamplesfromanypopulations. SupplementtotheJournal
+oftheRoyalStatisticalSociety,4(1):119–130.
+Radford,A.;Kim,J.W.;Hallacy,C.;Ramesh,A.;Goh,G.;
+Agarwal, S.; Sastry, G.; Askell, A.; Mishkin, P.; Clark, J.;
+Krueger,G.;andSutskever,I.2021. LearningTransferable
+VisualModelsFromNaturalLanguageSupervision.
+Radford,A.;Wu,J.;Child,R.;Luan,D.;Amodei,D.;and
+Sutskever,I.2019. Languagemodelsareunsupervisedmulti-
+tasklearners. OpenAIBlog,1(8):9.
+Raffel, C.; Shazeer, N.; Roberts, A.; Lee, K.; Narang, S.;
+Matena,M.;Zhou,Y.;Li,W.;andLiu,P.J.2020. Explor-
+ingtheLimitsofTransferLearningwithaUnifiedText-to-
+TextTransformer. JournalofMachineLearningResearch,
+21(140):1–67.
+Rennie,S.J.;Marcheret,E.;Mroueh,Y.;Ross,J.;andGoel,V.
+2017. Self-CriticalSequenceTrainingforImageCaptioning.
+InProceedingsoftheIEEEConferenceonComputerVision
+andPatternRecognition(CVPR).
+Shwartz,V.;andChoi,Y.2020. DoNeuralLanguageModels
+OvercomeReportingBias? InProceedingsofthe28thIn-
+ternationalConferenceonComputationalLinguistics,6863–
+6870.
+Talmor, A.; Elazar, Y.; Goldberg, Y.; and Berant, J. 2020.
+oLMpics-OnWhatLanguageModelPre-trainingCaptures.
+TransactionsoftheAssociationforComputationalLinguis-
+tics,8:743–758.
+Vedantam, R.; Lawrence Zitnick, C.; and Parikh, D. 2015.
+Cider: Consensus-based image description evaluation. In
+ProceedingsoftheIEEEconferenceoncomputervisionand
+patternrecognition,4566–4575.
+Wang, H.; Liu, Y.; Zhu, C.; Shou, L.; Gong, M.; Xu, Y.;
+and Zeng, M. 2021. Retrieval Enhanced Model for Com-
+monsense Generation. In Findings of the Association for
+ComputationalLinguistics:ACL-IJCNLP2021,3056–3062.
+Online:AssociationforComputationalLinguistics.
+Zellers,R.;Bisk,Y.;Farhadi,A.;andChoi,Y.2019. From
+RecognitiontoCognition:VisualCommonsenseReasoning.
+InProceedingsoftheIEEE/CVFConferenceonComputer
+VisionandPatternRecognition(CVPR).
+Zhang,T.;Kishore,V.;Wu,F.;Weinberger,K.Q.;andArtzi,
+Y.2019.BERTScore:EvaluatingTextGenerationwithBERT.
+InInternationalConferenceonLearningRepresentations.
+10626

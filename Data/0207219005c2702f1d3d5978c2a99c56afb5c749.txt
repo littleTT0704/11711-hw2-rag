@@ -1,0 +1,1215 @@
+HumanComputation(2019)6:1:113-146
+©2019,Huang,Azaria,Romero&Bigham.CC-BY-3.0
+ISSN:2330-8001,DOI:10.15346/hc.v6i1.7
+InstructableCrowd: Creating IF-THEN Rules for Smartphones
+via Conversations with the Crowd
+TING-HAOK.HUANG,PENNSYLVANIASTATEUNIVERSITY
+AMOSAZARIA,ARIELUNIVERSITY
+OSCARJ.ROMERO,CARNEGIEMELLONUNIVERSITY
+JEFFREYP.BIGHAM,CARNEGIEMELLONUNIVERSITY
+ABSTRACT
+Naturallanguageinterfaceshavebecomeacommonpartofmoderndigitallife. Chatbotsutilizetext-basedconversationsto
+communicatewithusers;personalassistantsonsmartphonessuchasGoogleAssistanttakedirectspeechcommandsfromtheir
+users;andspeech-controlleddevicessuchasAmazonEchousevoiceastheironlyinputmode. Inthispaper,weintroduce
+InstructableCrowd,acrowd-poweredsystemthatallowsuserstoprogramtheirdevicesviaconversation. Theuserverbally
+expressesaproblemtothesystem,inwhichagroupofcrowdworkerscollectivelyrespondandprogramrelevantmulti-part
+IF-THENrulestohelptheuser. TheIF-THENrulesgeneratedbyInstructableCrowdconnectrelevantsensorcombinations
+(e.g., location, weather, device acceleration, etc.) to useful effectors (e.g., text messages, device alarms, etc.). Our study
+showedthatnon-programmerscanusetheconversationalinterfaceofInstructableCrowdtocreateIF-THENrulesthathave
+similarqualitycomparedwiththerulescreatedmanually. InstructableCrowdgenerallyillustrateshowusersmayconversewith
+theirdevices,notonlytotriggersimplevoicecommands,butalsotopersonalizetheirincreasinglypowerfulandcomplicated
+devices.
+1. INTRODUCTION
+Intelligentpersonalcomputingdevices–suchassmartphones,smartwatches,digitalassistants(e.g.,Amazon’sEcho)and
+wearables (e.g., Google Glass) – have become ubiquitous in society due to the power and convenience they offer. These
+devicesareusefulasshipped,butgettingthemostoutofthemrequirestailoringthemtotheirowner’spreferencesandneeds.
+Forexample,afterbuyingasmartphone,theuserwillusuallyfirstspendtimecustomizingitbychangingthewallpaperor
+adjusting the home screen layout. The same behavior is seen with nearly all other electronic devices, including personal
+assistants,tablets,laptops,anddigitalcameras. Agreatdealofcustomizationtakesplacewhenthedeviceisnew,butthe
+tuningprocessalsousuallycontinuesataslowerpaceovertimeasusersadjusttheirdevicesinresponsetochangingneeds,
+theavailabilityofnewsoftwareorfunctionality,orshiftsinpersonalcircumstances. Forexample,anewsecuritythreatmay
+leadtoinstallingbetterfirewallsoftware;anear-misswithsevereweathermayprompttheusertochangelocalweatheralert
+preferences;andmovingtoanewcitymayleadtochangingtheparametersontravelormapsoftwaretoreflecttheuser’snew
+location. Usersmanuallyadjustthelong-termbehavioroftheirdevicesinordertobetterfittheirownbehavior.
+As important as customization is, however, it is often held back by a variety of user difficulties. One is that devices are
+becomingevermorecomplicated: newfeaturesandcapabilitiesprovidepowerandflexibility,butatthecostofcomplexity.
+Customizingadeviceoftenrequirestheuserwadingthroughcomplex, multi-layermenus, searchingfortherightapp, or
+experimentingwithpoorlyexplainedsettings. Allofthiscanbeconfusingandintimidating. Furthermore,gettingthemost
+9102
+peS
+21
+]CH.sc[
+1v52750.9091:viXra
+114 T.-H.K.Huang,A.Azaria,O.J.RomeroandJ.P.Bigham/HumanComputation(2019)6:1
+I was late for a meeting this If/Then
+morning, and I don't want
+Rules
+that to happen again...
+User
+Crowd
+Why were you late?
+Workers
+Worker’s
+The meeting is really early
+Interface
+and I totally forgot about it.
+...
+Send to User’s Phone
+Figure1. UsershaveaconversationwithInstructableCrowdtocreateIf/Thenrulesthatthenrunontheirphonetosolve
+problems. Thebackendsystemisrunbysynchronouscrowdworkerswhorespondtotheuser,askfollowupquestions,
+andcreaterules. Userscanthenreviewtherulesontheirphonetomakesuretheywerewhattheywanted.
+Would you like to automatically
+set an alarm for earlier?
+fromadeviceusuallyrequiresprogrammingittoreactintelligentlytoeventsandautomateresponses,andmanyusersfind
+programmingtobedifficultandevenfrightening. Thecomplexityofdevicesalsomeansthatevenasmalladjustmenttoa
+system’slong-termbehaviorthroughprogrammingcouldresultinunintendedconsequencestotheuser’sexperience(when
+comparedwithsimple,one-timeinteractionssuchassettinganalarm). Thus,themorecomplextheinteractionwiththedevice,
+themoreimportantarehighaccuracyandrobustnessinunderstandingtheuser’sneeds.
+Onetechnologyhassignificantpotentialforaddressingtheseproblemsisnaturallanguageinterface. Userscouldmuchmore
+easilycustomizeandevenautomatetheirdevicesiftheycouldsimplyspeaktothemratherthanwadingthroughinstruction
+manuals,menutrees,andtutorials. Andinfact,naturallanguageinterfaceshavebecomeacommonpartofmoderndigitallife
+already. Chatbotsutilizetext-basedconversationstocommunicatewithusers;personalassistantsonsmartphonessuchas
+GoogleAssistanttakedirectspeechcommandsfromtheirusers;andspeech-controlleddevicessuchasAmazonEchouse
+voiceastheironlyinputmode.
+In this exploratory project, we introduce InstructableCrowd, a crowd-powered system that allows users to program their
+devicesandthuschangetheirlonger-termbehaviorviaanaturallanguageinterface. InstructableCrowdisbasedaroundtwo
+keydesigndecisionsthataddressthemainproblemswithdevicecustomizationandautomationoutlinedabove. First,wehave
+focusedoncreatingrelativelysimpleprogramsthatareeasytouse. Second,wemakeuseofcrowdworkerstooperatethe
+naturallanguageinterfaceinsteadofusingautomatedsystems,sincehumansaremuchbetteratunderstandingandinterpreting
+complexuserrequirementsthancurrentelectronicsystems.
+OurprogrammingsystemisorientedaroundrelativelysimpleIF-THENrules,alsoknownastrigger-actionrules. Modern
+smart devices, especially smartphones, contain a wealth of sensors and effectors that can be combined to perform useful
+customizedtasksfortheirusers. Forexample,theycouldbeusedtogobeyondsimple,staticprogramming(suchassettinga
+wake-upalarmtogooffataspecifictimeeveryweekday)tocustomizationsthatarebasedoninputsandstatusinformation
+(likeadjustingawake-upalarmbasedontrafficconditions).
+Aprominentexampleofthistypeofrule-basedsystemisthemobileapplicationIFTTT(IfThisThenThat,ifttt.com). The
+serviceenablesuserstoauthorsimpletrigger-actionrulesthatcontainonlyonetrigger(e.g.,apostonTwitter)andoneaction
+(e.g.,synchronizingthelatestTwitterposttoFacebook)(IFTTTMay20,2017). Theserviceisobviouslyuseful—ithas
+millionsofusers(IFTTTMay20,2017)—anditssimplicitymakesiteasytouse. However,thatsamesimplicityalsomeans
+that the system fails to cover many real-world scenarios (Huang and Cakmak, 2015; Daniel et al., 2012; Ur et al., 2014).
+Researchhasshownthat22%ofbehaviorsthatpeoplecameupwithrequiremorethanonesensororeffector(Uretal.,2014).
+T.-H.K.Huang,A.Azaria,O.J.RomeroandJ.P.Bigham/HumanComputation(2019)6:1 115
+ThecomplexityofrulespeoplewouldliketocreateislikelytoonlyincreaseasserviceslikeIFTTTcontinuetobeintegrated
+withotherservicesandmoredevices. Therefore, inthisprojectwefocusonanextendedversionofIFTTT-stylerules, in
+whichtheIFandTHENcaneachcontainmorethanonesensor/effector.
+With the awareness of the limitation of automated dialog systems, we developed a crowd-powered conversational agent.
+InstructableCrowdallowsenduserstocreaterich,multi-partIF-THENrulesviaconversationwiththecrowd(Figure1). A
+groupofcrowdworkersisrecruitedondemandtotalkwithauserandcreaterulesbasedontheconversation. Withintelligent
+workersonarichdesktopinterfacesupportingusers,theinterfacecanbesimplifiedintoafamiliarspeechortextchatclient,
+allowingthesystemtobeusedonthegoviamobileandwearabledevices. Furthermore,userscandiscusstheirproblemswith
+thecrowdandgetfeedbacktorefinetheirrequests. Usersmayknowtheirproblems,butnotknowwhatsolutionswouldbest
+resolvethem. Thecrowdcanhelpusersidentifypossiblesolutionsthattheuserdidn’tevenknowexisted,andthencreatethe
+rulesneededtoimplementthem. InstructableCrowdthenletsuserseditandimprovethecreatedrules. Controlledexperiments
+showedthatusersareabletocreatecomplexrulesusingInstructableCrowd.
+ThroughInstructableCrowd,weintroduceanewmethodforenablingenduserstoprogramcomplexinteractionswiththe
+wealthofsensorsandeffectorsontheirsmartphonesandotherdevices,whichmayhavebroaderimplicationsforthefutureof
+programmingwithspeech.
+2. RELATED WORK
+InstructableCrowdisrelatedtopriorworkon(i)end-userprogramming,(ii)crowd-poweredconversationalagents,and(iii)
+automaticIF-THENrulesgeneration.
+2.1. End-User Programming
+InstructableCrowdbuildsuponthelonghistoryofresearchandproductsinend-userprogramming(Liebermanetal.,2006),
+which aims at enabling non-programmers to author or compose their own applications. Early works in this field started
+fromdatabase(HansonandWidom,1993)andemailmanagement(Mackayetal.,1989),andlatergraduallybecamemore
+common as more and more senors and effectors became available to general users (Bolchini et al., 2007; Bronsted et al.,
+2010; Brush et al., 2011; Dahl and Svendsen, 2011). For instance, CoScripter allowed end-users to program scripts by
+demonstration(Leshedetal.,2008;Bighametal.,2009). CoScripteruseditscorpusofscriptstoalloweasiercreationofnew
+actionsfrommobiledevices(Lauetal.,2010);Sikuliisanotherfamousend-userprogrammingproject(Yehetal.,2009).
+SikuliallowsuserstotakeascreenshotofaGUIelement(e.g.,atoolbarbutton)andthendirectlyuseitasanelementina
+programmingscripttocontroltheGUI’sbehavior(e.g.,clockthebutton.)
+Trigger-actionprogrammingisonesimplemodelofenduserprogrammingthattheuserformanewfunctionalitybycombining
+pre-defined triggers (sensors of “IF”) with pre-defined actions (effectors of “THEN”). Many solutions were proposed to
+realize trigger-action programming, such as using existing notations of business processes modeling (BPM) to represent
+rules (Brambilla et al., 2012), adopting an effective workflow to create rules (Jara et al., 2013; Kokciyan et al., 2012), or
+solutionsfordomain-specificapplications(Danieletal.,2012). TheIFTTTprojecthashadgreatsuccessbysimplifyingthe
+compositionamongtwoapplicationsandprovidingauser-friendlyworkflowandinterfaceonmobilephones. Theconceptof
+IFTTThasalsobeenextendedandadoptedforuseinvariousotherdomain,suchassmarthomeapplications(Uretal.,2014;
+DeRussisandCorno,2015),cross-deviceinteractions(Ghianietal.,2015),theInternetofThings(Tuomistoetal.,2014).
+IFTTTonlyallowsrulestobecomposedofasingletriggerandasingleaction. Severalframeworkswereproposedtosupport
+multipletriggers(IFs)andactions(THENs). Deyetal. createdaninterfacethatuserscandraganddropmultiplesensors
+andeffectors ona sheettocreate new rules(Dey etal.,2006). Huang etal. (HuangandCakmak, 2015)and Uretal. (Ur
+etal.,2014)bothextendedIFTTT’sinterfacetoallowusersselectmorethanonetriggersoractions. However,mostofthese
+worksfocusedonthechallengesindesigninginterfacesorworkflowsforcreatingaruleandexaminedtheirsolutionswith
+participantsusingfull-sizemonitorsandkeyboards,suchasviaAmazonMechanicalTurk. Onlyfewworksfocusedonissues
+raisedbymobiledeviceswhencreatingcomplexrules. Häkkiläetal. createdatrigger-actionprogrammingsystem,Context
+Studio, on the Series 60 Nokia mobile phone back in 2005 (Häkkilä et al., 2005). While the mobile devices and sensors
+usedinContextStudiowereoutdated,thisprojectprovidedsomeearlyinsightsofchallengeswefacetoday. Ontheother
+116 T.-H.K.Huang,A.Azaria,O.J.RomeroandJ.P.Bigham/HumanComputation(2019)6:1
+hand,competitorsofIFTTT,suchasTasker,Llama,AutomateIt,On{X},Atooma,andMicrosoft’sFlowallaimedtosupport
+multipleIFsandTHENsintheirproduct. However,noneofthesehaveachievedthesamesuccessasIFTTT.
+Limitationsofuserprogrammingwerealsostudied. Danieletal.(Danieletal.,2012)pointedoutthatmashupsplatforms
+aimedatnon-programmersareeitherpowerfulbuttoohardtouse,oreasybuttoosimpletobepractical. Huangetal.(Huang
+andCakmak,2015)studiedthementalmodelofIFTTTusersandfoundthatusersdonotalwayscorrectlyunderstandhowa
+sensor/effectorworks,whichcauseserrorsinuser-createdrules. Recentworkhasbeenproposedwhichusescrowdsourcingto
+buildsoftware(LaTozaandvanderHoek,2016).
+2.2. Crowd-powered Conversational Agents
+Personalintelligentagentsarenowavailableonmostsmartphones,i.e.,GoogleNowonAndroid,SirioniOS,Cortanaon
+Windows phones. Google Now is known for spontaneously understanding and predicting user’s life pattern (e.g., flight
+schedules,or“timetogohome”),andautomaticallypushingnotifications. Suchagentscanunderstandanumberofspeech
+commandstohelpusersmoreeasilyaccessfunctionality. However,mostofthesevirtualpersonalassistantarelimitedintheir
+abilitytounderstandtheirusers. GoogleNowonlyreactstocertainfixedsetofevents,andusershavenomannertoextendits
+capabilitybasedontheirownneeds;SiriandEchocanperformspeechqueries,butarenotabletounderstandcomplexverbal
+instructionstoperformactionsontheuser’sbehalf. AlthoughEchoallowstoexecutescriptedactionsviathird-partyservices
+suchasIFTTT1,itrequiresuserstomanuallyprogramthesebehaviorsinadvance. Ontheotherhand,InstructableCrowd
+givesusersthedirectcontroltodefineintelligentbehaviorstheirsmartphonesshouldperform,andusesthecrowdtocreate
+thesebehaviorswithconversationalinteraction.
+In response to this situation, crowd-powered intelligent agents were proposed. Chorus is a crowd-powered assistant that
+canholdintelligentconversations(Laseckietal.,2013b)andhasbeendeployedtopublic(Huangetal.,2016). Usersspeak
+toit, anditrespondsbackquickly. Chorusispoweredbyadynamicgroupofcrowdworkers(recruitedon-demand)who
+proposeresponsesandvotethebestonesthrough. Anincentivemechanismencouragesworkerstocontributeusefulresponses.
+Potentialdownsidesofcrowdsourcingarecostandlatency(Laseckietal.,2013a). GuardianautomatespartsofChorusby
+havingthecrowdtransitionexistingWebAPIs(ApplicationProgrammingInterfaces)todialogsystems(Huangetal.,2015);
+andEvoruscreatesaframeworkthatautomatesChorusovertime(Huangetal.,2018).
+OnelimitationofthesesystemsisthateitherChorusorGuardiancanonlysaysomethingtotheuser,butnotdosomething
+basedontheconversation. InstructableCrowdpushestheboundariesofcrowd-poweredconversationalsystemsbyallowing
+userstoperformactionsbeyondinformationinquiry. Forinstance,whileuserscandiscusswithChorustofigureagoodprice
+ofaflightticketorverballyaskGuardiantoqueryTravelAPIs,userscannotviaaconversationconfigureanotificationalert
+thatmonitorsthedynamicsoftheticketpricewitheithersystems. Enablinguserstocreateapieceofcomputer-executable
+programviaconversationsopensuptheopportunitiesofverbally“instructing”devicestocustomizetheirbehaviors. Thefact
+thattoday’svoice-enableddevicessuchasAmazon’sEchoallowsuserstosetupIF-THENrules(e.g.,IFTTT)viamobile
+apps manually suggests the real users’ needs of customizing their devices. InstructableCrowd explores performing these
+customizationusingconversationalinterface. Asimilareffortthatpushestheparadigmofpersonalassistanttowardusing
+conversationstosetuportriggerapplicationscanalsobefoundinrecentindustrialproductssuchasGoogleAssistant.
+Alternatively,conversationalassistantspoweredbytrainedhumanoperatorssuchasMagic2,FancyHands3 andFacebookM
+havealsoappearedinrecentyears.
+2.3. Automatic IF-THEN Rules Generation
+Automaticallytranslatinganatural-languageutteranceintotheformthatcomputerscanexecuteisawell-knowntaskinnatural
+languageprocessing,whichisreferredtoaslanguageunderstandingorsemanticparsing. Forinstance,Artzietal. useda
+groundedCCG(CombinatoryCategorialGrammar)semanticparsingapproachtomapinstructionssuchas“atthecornerturn
+1UserscanapplyIFTTTonAmazon’sAlexamanually: https://ifttt.com/amazon_alexa
+2Magic: https://getmagic.com/
+3FancyHands: https://www.fancyhands.com/
+T.-H.K.Huang,A.Azaria,O.J.RomeroandJ.P.Bigham/HumanComputation(2019)6:1 117
+lefttofacethebluehall”toactionsthattheagent(virtualrobot)canexecute(ArtziandZettlemoyer,2013);andNaturalJava
+aimedtouseanaturallanguageinterfaceforcreating,modifying,andexaminingJavaprograms(Priceetal.,2000).
+ParticularlyforIFTTTrules,Quirketal. collected114,408IF-THENrulesandtheirnatural-languagedescriptionsfromthe
+IFTTTwebsite,anddemonstratedthepossibilityofproducingIF-THENrulesbasedoncorrespondingdescriptivetext(Quirk
+et al., 2015). Several follow-up work that proposed different approaches such as attention-enhanced encoder-decoder
+model(DongandLapata,2016),usinglatentattention(Liuetal.,2016),orsyntacticneuralmodel(YinandNeubig,2017)
+further improved the accuracy of IFTTT rule generation. Under the context of conversational assistance, Chaurasia et al.
+createdanautomateddialogsystemthatgeneratesIFTTTrulesbyhavingaconversationwithusers(ChaurasiaandMooney,
+2017). WithaFreeUser-Initiativesetting(“amorerealisticsetting”),Chaurasia’ssystemachievedanaccuracyof81.45%in
+generatingIFTTTrules. However,thisperformanceisstillnotsufficientforpracticaluse,andnoneofpriorworkattemptedto
+producemulti-partrulesthataremorecomplexthanthatofIFTTT.
+3. INSTRUCTABLE-CROWD
+InstructableCrowdisimplementedasanAndroidmobileapplication(Figure3)forsupportingend-userstoconversewith
+crowdworkersanddescribeproblemstheyencounter,suchas“Iwaslateforameetingthismorning,andIdon’twantthatto
+happenagain.” Thecrowdworkerscantalkwiththeuseranduseaninterfacetoselectsensors(IFs)andeffectors(THENs)
+tocreateanIf-Thenruleinresponsetotheuser’sproblem. Therulesarethensentbacktotheuser’sphone. Forinstance,if
+theusermentionshavingtroublewithearlymorningmeetings,thecrowdcancreatetherule“sendanotificationthenight
+beforeameeting”fortheuser. Furthermore,InstructableCrowdisalsoabletomergemultiplerulessentbydifferentcrowd
+workerstoformamorereliablefinalrule. Wedescribethesystemarchitectureandimplementationdetailsinthissection.
+3.1. Rules, Sensors, and Effectors
+Rule = IF + THEN
+IF THEN
+-I have a meeting at {9am} {tomorrow} . -Set an alarmat {7am} {tomorrow}.
+-Call me at {7am} {tomorrow}.
+IF ( A ll conditions are fulfilled. ) THEN ( D o A l l a c t ions. )
+Figure2. ExampleofaruleinInstructableCrowd. ARuleisdefinedasatuplethatcontainsanIFpartandaTHEN
+part. TheIFpartcontainsasetofSensorsthatdescribeaspectsoftheuser’slifeandcontext,andtheTHENpart
+containsasetofEffectorsthatcanbeperformed.
+Inthiswork,aRuleisdefinedasatuplethatcontainsanIFpartandaTHENpart. TheIFpartcontainsasetofSensors
+(alsoreferredtoasIFs)thatdescribeaspectsoftheuser’slifeandcontext. Forinstance,the“Calendar”applicationdescribes
+thestatusofallcalendareventsoftheuser,andthe“PhoneBody”sensordescribesthephysicalmotionsofthesmartphone
+(e.g.,phoneismoving). BothcanbeSensorsintheIFpart. TheTHENpartcontainsasetofEffectors(alsoreferredtoas
+THENs)thatcanbeperformed,suchaspushanotification,setanalarm,andsendatextmessage,etc. Itisnoteworthythat
+InstructableCrowdallowsmorethanoneSensors/Effectorsineachpart,whileIFTTTonlyallowsone. Anoverviewofan
+exampleruleisshowninFigure2.
+EachSensorhasoneormoreTriggersthatcanbeselected. Forinstance,the“calendar”sensorcouldhavethreedifferent
+Triggersthatreflectthestatusof1)currentlyongoingevents,2)futureeventsatanabsolutetime(e.g.,9amtoday),or3)future
+eventsatarelativetime(e.g.,in30minutes.) Similarly,oneEffectorcanalsohaveoneormoreActionstoperform. Each
+TriggerandActioniscomposedofasetofAttributestospecifythedetailsofthecondition. Forinstance,forconfiguring
+“Calendar”sensortotelliftheuserhasanyeventsin30minuteswiththe“FutureEvent(RelativeTime)”Trigger,the“InHow
+118 T.-H.K.Huang,A.Azaria,O.J.RomeroandJ.P.Bigham/HumanComputation(2019)6:1
+Sensor Trigger TriggerDescription Attributes(InputType)
+Thebusiscurrentlyat BusNumber(Text)
+Currentlocation
+Bus acertainstop: BusStop(Text)
+BusNumber(Text)
+Thebuswillarriveat
+Futurelocation WillArriveatStop(Text)
+acertainstopinminutes:
+InHowManyMinutes(Text)
+IfIamhavinganevent
+Currentevent EventType(Select)
+rightnowthat:
+Calendar
+Day(Select)
+Futureevent IfIwillhaveaneventthat StartTime(Time)
+(absolutetime) (absolutetime): EndTime(Time)
+EventType(Select)
+Futureevent IfIwillhaveaneventthat InHowManyMinutes(Text)
+(relativetime) (relativetime): EventType(Select)
+Call Receiveacall IfIreceiveaphonecallthat: From(Text)
+At/Before/After(Select)
+Clock Currenttime Thecurrenttimeis:
+Time(Time)
+Email Receiveanemail IfIreceiveanemailthat: SentBy(Text)
+Currentlocation Iamcurrentlylocatedat: LocationName(Text)
+GPS
+To(Text)
+Distanceto Ifmydistancetoa
+IsGreater/LessThan/EqualsTo(Select)
+alocation certainlocationthat:
+Distance(Text)
+SentBy(Text)
+Message Receiveamessage IfIreceiveatextmessagethat:
+Containstheword(s)(Text)
+News Receiveanews IfIreceiveabreakingnewsthat: Titlecontainstheword(s)(Text)
+Phone Phonefalls Ifmyphoneisfalling. N/A
+Body
+Drive IfIamdriving. N/A
+Day(Select)
+Weather Weatherforecast Iftheweatherforecastthat:
+Forecast(Select)
+Table1. Sensors(IFs)withtheirTriggersandAttributesasimplementedinInstructableCrowd.
+T.-H.K.Huang,A.Azaria,O.J.RomeroandJ.P.Bigham/HumanComputation(2019)6:1 119
+Effector Action ActionDescription Attributes(InputType)
+Day(Select)
+Alarm Setanalarm SetanAlarmthat:
+Time(Time)
+Day(Select)
+StartTime(Time)
+Calendar Addanevent AddanEventonmyCalendarthat: EndTime(Time)
+EventType(Text)
+EventTitle(Text)
+To(Text)
+Call Dialacall Call:
+WhattoSay(Text)
+To(Text)
+Email Sendanemail SendEmail(s)that: EmailTitle(Text)
+EmailContent(Text)
+To(Text)
+Message Sendamessage SendMessage(s)that:
+MessageContent(Text)
+Notification Sendanotification PushmeaNotificationthat: NotificationContent(Text)
+Table2. Effectors(THENs)withtheirActionsandAttributesimplementedinInstructableCrowd.
+ManyMinutes”attributeneedstobefilledwith“30,”andthe“EventType”attributeneedstobefilledwith“Any.” Inthis
+paper,wefocusedonobservingend-userandworkersbehaviorinselectingSensors/EffectorsandfillingAttributes.
+ThefulllistofSensorandEffectorswiththeirTriggers/ActionsandAttributesusedinourstudyarelistedinTable1and
+Table2.
+3.2. Conversational Agent for the End-user
+InstructableCrowdisimplementedasaconversationalagentforAndroidsmartphones. Bycallingthepersonalagent’sname
+orclickingontheredbutton(asshowninFigure3),theuserisabletogivetheagentcommandsviavoiceortext. Theclient
+side records the user’s speech and sends it to the server, which in turn sends this speech on to Google Automatic Speech
+Recognition;theusercanalsousetextentrytoinputthecommand. InstructableCrowdadoptstheLIAframework(Azaria
+et al., 2016), which uses a combinatory categorial grammar (CCG) parser to parse the input text into a logical form and
+executethecorrespondingcommands,torecognizeuser’svoiceinput. Oncetheusergiveverbalcommandssuchas“createa
+rule,”LIAconnectstoInstructableCrowdandinitiatestherulecreationprocess.
+Atthebeginningofeachconversation,InstructableCrowdposts10HumanIntelligenceTasks(HITs)toAmazonMechanical
+Turktorecruitagroupofcrowdworkers. Eachworkerwillbedirectedtoaweb-basedinterface(Figure4),wheretheycan
+view the user’s messages, respond to the user, and compose an IF-THEN rule based on the user’s request. The user and
+workerscommunicatewitheachothersynchronouslyviaawebserver(Figure3). Asimilarsystemframeworkhasbeenused
+byseveralreal-timecrowd-poweredconversationalagents,suchasChorus(Huangetal.,2016;Laseckietal.,2013b)and
+Evorus(Huangetal.,2018).
+Theusermaythendescribehisproblemsandconversewiththecrowdtofigureoutwhichrulestocreate(theworkersconverse
+by text, and the user, may either use text or voice). Once the rule is created, it is sent back to the user’s phone, where a
+DecisionRuleEnginecomponent(Tomazinietal.,2017;RomeroandAkoju,2018)willstore,validateandprocessthatrule.
+Currently,thesystemisimplementedandtestedontheAndroidOS6.0.1andtheserverisimplementedinJava.
+120 T.-H.K.Huang,A.Azaria,O.J.RomeroandJ.P.Bigham/HumanComputation(2019)6:1
+Figure3. InstructableCrowdusershaveaconversationwithcrowdworkersaboutaproblemtheyarehaving. Crowd
+workerscollectivelycreateIF-THENrulesthatmayhelptheendusersolvetheirproblemusingsensorsandeffectors
+availableonthesmartphoneplatform. Therulesarethensentbacktotheuser’sphoneforreview,editing,andapproval.
+Therulesthenrunonthesmartphone.
+T.-H.K.Huang,A.Azaria,O.J.RomeroandJ.P.Bigham/HumanComputation(2019)6:1 121
+Figure4. Workerinterface. Achatinterface(A)allowsworkerstotalktotheendusertodiscusstheproblem. TheIF
+section(B)allowstheworkertospecifySensors,alongwithTriggers(inredtext)andtheirAttributes;theTHENsection
+(C)allowsthemtospecifyEffectors,alongwithActions(inredtext)andtheirAttributes.
+3.3. Rule Editor for the End-user
+InstructableCrowdalsoprovidesaneditinginterfacefortheusertomanuallycreatenewrules,editthemandeditrulesreceived
+fromcrowdworkers. AsshowninFigure3,theuserisabletonavigateallreceivedrulesandclickoneachruleforadditional
+details. Allrulesaregroupedtogetherbytheconversationalsessioninwhichtherulewascreated. Crowd-generatedrules
+are blue, and the rules created or edited by the user are green. In order to ease on the comprehension of these rules, we
+createdatemplate-basednaturallanguagedescriptionforeachTrigger. Forinstance,thedescriptiontemplateof“Weather”
+(cid:2) (cid:3)(cid:2) (cid:3)
+sensor’sforecastTriggeris“Itwill weather day .” If“Weather”sensor’sthistriggerisselected,alongwiththe“Day”
+attributefilledwith“Tomorrow”andthe“Forecast”attributefilledwith“Snow”,thedisplayeddescriptionwillbe“Itwill
+SnowTomorrow.” Ontheeditinginterface,thedescriptionwillbegeneratedautomaticallyinreal-timeandenabletheuserto
+quicklychecktheruletheyjustcreatedoredited. TheusercanalsousethisruleeditortomanuallycreateanIF-THENrule
+fromscratchontheirphonewithouttalkingtothecrowd. Inouruserstudy, participantsusevariousapproachestocreate
+IF-THENruleswithInstructableCrowd. Ourend-usereditinginterfaceisinspiredbytheIFTTTmobileAPP.However,it
+enablestheusertocombinemultipleIFsandTHENswhileIFTTTfocusesonone-to-oneAPPcompositions.
+122 T.-H.K.Huang,A.Azaria,O.J.RomeroandJ.P.Bigham/HumanComputation(2019)6:1
+3.4. Worker Interface
+TheworkerinterfaceallowscrowdworkerstoselectSensors(IFs)andEffectors(THENs)easily. Theinterfacecontainsthree
+mainparts(Figure4). 1)Theweb-basedchatinterfaceallowsworkerstodiscusstheproblemwiththeend-userinreal-time.
+2)TheIFsectioncontainsasetofsensorsontheuser’sphonethatdescribeaspectsoftheuser’slifeandcontext. Workersfirst
+selectappropriateSensors(e.g.,Calendar)intheIFconditions,andthenselectTriggersundertheSensors(e.g.,FutureEvent
+(Relative Time)), and finally fill in appropriate attribute values (e.g., In How Many Minutes = 30.) 3) The THEN section
+allowsworkerstoselectEffectorsandcorrespondingActions,andfillinattributevalues. ByselectingIFsandTHENs,the
+workerisabletocreaterulesthattriggercertainactionsbasedonspecificconditions.
+3.5. Merge Multiple Crowd-Created Rules by Voting
+InstructableCrowdrecruitsmultipleworkersforeachconversation;therefore,multiplerulesarereceivedrespectivelyfrom
+eachconversation. Endusersarefreetopickanyrulessubmittedbythecrowd,orwaituntiltherulesmergedautomatically
+intoafinalrule. Ourautomatedrule-mergingprocessusesoutputagreementtoidentifythebestcomponentstouse. First,any
+SensorsandEffectorsthatareselectedbymorethan2workers(ourcurrentthreshold)areincludedinthefinalrule. Second,
+foreachSensor/Effectorpickedinthefirststep,itsTrigger/Actionthatisselectedbymostworkerswillbechosen. Finally,for
+eachselectedTrigger/Action,InstructableCrowdfillseachattributewiththevaluethatwasproposedbythemostworkers.
+Iftwovalueswereproposedbyanidenticalnumberofworkers,InstructableCrowdselectsthevaluewhichwasproposed
+earliest. Output-agreementmechanismssuchasESPGameforcollectingimagelabels(VonAhnandDabbish,2004)have
+beenwidelyusedtoobtainreliablehuman-generatedlabelsfrommultipleworkers(vonAhnandDabbish,2008). Itsvariation,
+input-agreement,hasalsobeenintroduced(LawandvonAhn,2009).
+3.6. Modular Sensors (IF) & Effectors (THEN)
+WedesignedageneralJSON(JavaScriptObjectNotation)schematorepresenteachsensorandeffector. Therulescreated
+bythecrowdarerepresentedasacombinationofsensorsandeffectorsinthisJSONformat. Newsensorsandeffectorscan
+thusbeaddedeasily. Forexample,thefollowingistheWeathersensor’sJSONfilerepresentingthat“itwillsnowtomorrow”
+(Trigger=Weatherforecast).
+{
+1
+"name": "if-weather",
+2
+"condition": "if-weather-forecast",
+3
+"attributes": [
+4
+{
+5
+"name": "if-weather-forecast-day",
+6
+"value": "Tomorrow",
+7
+"type": "select"
+8
+},
+9
+{
+10
+"name": "if-weather-forecast-condition",
+11
+"value": "Snow",
+12
+"type": "select"
+13
+}
+14
+]
+15
+}
+16
+ThefollowingistheJSONrepresentationoftheAlarmeffectorfor“setthealarmat7amtomorrow”(Action=Setanalarm.)
+{
+1
+"name": "then-alarm",
+2
+T.-H.K.Huang,A.Azaria,O.J.RomeroandJ.P.Bigham/HumanComputation(2019)6:1 123
+"condition": "then-alarm-send",
+3
+"attributes": [
+4
+{
+5
+"name": "then-alarm-send-day",
+6
+"value": "tomorrow",
+7
+"type": "text"
+8
+},
+9
+{
+10
+"name": "then-alarm-send-time",
+11
+"value": "07:00",
+12
+"type": "text"
+13
+}
+14
+]
+15
+}
+16
+ThefollowingistheJSONrepresentationforanIF-THENrule“IFitwillsnowandIhaveameetingat9amtomorrow,THEN
+setalarmat7am,”whichincludes2sensors(WeatherandCalendar)and1effector(Alarm.)
+{
+1
+"if": [
+2
+{
+3
+"name": "if-weather",
+4
+"condition": "if-weather-forecast",
+5
+"attributes": [
+6
+{
+7
+"name": "if-weather-forecast-day",
+8
+"value": "Tomorrow",
+9
+"type": "select"
+10
+},
+11
+{
+12
+"name": "if-weather-forecast-condition",
+13
+"value": "Snow",
+14
+"type": "select"
+15
+}
+16
+]
+17
+},
+18
+{
+19
+"name": "if-calendar",
+20
+"condition": "if-calendar-future",
+21
+"attributes": [
+22
+{
+23
+"name": "if-calendar-future-day",
+24
+"value": "Tomorrow",
+25
+"type": "select"
+26
+},
+27
+{
+28
+"name": "if-calendar-future-type",
+29
+"value": "Meeting",
+30
+"type": "select"
+31
+},
+32
+124 T.-H.K.Huang,A.Azaria,O.J.RomeroandJ.P.Bigham/HumanComputation(2019)6:1
+{
+33
+"name": "if-calendar-future-start",
+34
+"value": "09:00",
+35
+"type": "time"
+36
+}
+37
+]
+38
+}
+39
+],
+40
+"then": [
+41
+{
+42
+"name": "then-alarm",
+43
+"condition": "then-alarm-send",
+44
+"attributes": [
+45
+{
+46
+"name": "then-alarm-send-day",
+47
+"value": "tomorrow",
+48
+"type": "text"
+49
+},
+50
+{
+51
+"name": "then-alarm-send-time",
+52
+"value": "07:00",
+53
+"type": "text"
+54
+}
+55
+]
+56
+}
+57
+]
+58
+}
+59
+Newsensorsandeffectorscanbeaddedeasilyoncetheyareimplementedinourmiddleware,bysimplyaddingnewJSON
+entriesforthem. Currently,weimplemented10sensorsand6effectorsinInstructableCrowd(Table1andTable2.) Aswego
+forward,weplantocontinueexpandthesetofavailablesensors/effectors.
+3.7. Decision Rule Engine
+TheDecisionRuleEngineisinchargeofvalidating,storing,processingandexecutingrulescreatedbyeitheracrowd-worker
+ortheuser. DecisionRuleEngineiscomposedofmultiplemodulesthatinteractwitheachotherinordertoexecuteanaction
+givenasetofspecificconditionsthataretrue. ThesemodulesareinterconnectedasshowninFigure5. Thefollowingoutlines
+theworkflow(insteps),messagepassingandhowDecisionRuleEnginecomponentscooperateovertimetomanagerules
+createdbyuserorcrowd-workers.
+– [DecisionRuleValidator]Aftertheuserorcrowdworkerhasdefinedanewruletobeadded(Step1inFigure5),this
+componentvalidatesthesyntaxofthatruleaccordingtothesensors’andtheeffectors’attributesandconstraints(Step2).
+Forinstance,iftherulehasaconditionthatreferstoattribute<CALENDAR_START_TIME>,thevalidatorwillparsethis
+conditionandcheckthatinfactthereexistsasensorcalled“Calendar”thathasanattributecalledstartTime,whichmustbe
+oftypeDateandwhosevaluemustbeadate/timethatoccurslaterthancurrentdate/time.
+– [KnowledgeBase]Oncetheruleisparsedandvalidated,itisstoredinaknowledgebasewherecanbeaccessedanytime
+byanycomponent(Step3). Theserulesarestoredlocallyforperformanceandprivacyreasons,sopotentiallysensitive
+informationcontainedwithintheruleisprotected.
+– [RuleExecutor]Aftervalidation,theruleisimmediatelyprocessedinordertodeterminewhetheritshouldbeexecutedin
+thatmoment(Step4). Ifso,itinvokesactionsfromtheappropriateeffectors(Step5). Ifnot,itaddstheruletoaqueuesoit
+T.-H.K.Huang,A.Azaria,O.J.RomeroandJ.P.Bigham/HumanComputation(2019)6:1 125
+Figure5. ThearchitectureofInstructableCrowd’sDecisionRuleEngine. Thestep(1)tostep(9)outlinestheworkflow,
+messagepassingandhowDecisionRuleEnginecomponentscooperateovertimetomanagerulescreatedbyuserand
+crowd-workers.
+canbeexecutedlaterwhenallitsconditionsaretrue. TheRuleExecutorperiodicallycheckstoseeifeachenqueuedrule
+needstobeexecuted(Step6).
+– [Monitoring & Tracking] This module is responsible for monitoring the rule execution process (Step 7) by checking
+iftherearerulesthatareeithernevertriggeredorconflictingwitheachother(e.g., oneruleintendstoturntheGPSon
+whiletheotheroneintentstoturnitoff.) Whenconflictsoccur,theMonitoring/Trackingmoduletemporarilysubsumesthe
+lessrelevantrule(i.e.,theonethathasbeenactivatedlessfrequently)andthenuserisaskedtoconfirmthissubsumption
+decision(Step8).
+– [Built-in&ExternalSensors/Effectors]Inadditiontobuilt-insensorsandeffectorsthatarepartoftheoperatingsystem,
+suchasGPSandSMSMessages,somevirtualsensors/effectorsarebasedonexternalservices,suchastheWeatherforecast
+andNewsfeeds. Inourimplementation,weuseaRESTfulAPItoupload,extractandcollectinformationfromwebservers.
+Finally,userisalwaysawareofactionexecutionthroughnotifications,textmessages,alarms,etc. (Step9).
+4. USER STUDY
+For evaluating the performance of InstructableCrowd, we conducted a set of in-lab user study. Our goal is to understand
+if creating IF-THEN rules using conversation would sacrifice rule quality, compared with using a graphic user interface
+(GUI).Furthermore,wespecificallyrecruitednon-programmersbecauseoneofthebenefitsofusingInstructableCrowdisthat
+complexrulescanbecreatedwithouttheneedforaprogramming-likeinterface. Participantscreatedrulesusingamobile
+applicationinacontrolconditiontoallowustocomparewithhowuserscurrentlycreaterulesusingapplicationssuchas
+IFTTT.
+126 T.-H.K.Huang,A.Azaria,O.J.RomeroandJ.P.Bigham/HumanComputation(2019)6:1
+4.1. Scenario Design
+Wedesignedthefollowing6scenarios(S1toS6)inspiredby(HuangandCakmak,2015),alongwithagold-standardsetof
+sensorsandeffectorsforeachthatweconsidertobegroundtruthforassessingtheperformance.4 Wefurthercategorized
+scenariosintothreedifficultylevelsbasedonthenumbersofsensorsandeffectorsthescenariorequires. S1andS2areeasy
+scenarios (1 sensor and 1 effector), S3, S4, and S5 are intermediate scenarios (2 sensors and 1 effector), and S6 is hard
+scenario(2sensorsand2effectors).
+i. [S1]Sports: Iamveryinterestedintheperformanceofthe“Steelers”andwouldliketogetanimmediatenotification
+ifthereisanewsarticlementioningthem. (Easyscenario.)
+– IF:News(Receiveanews: Titlecontainstheword(s)=“Steelers”)
+– THEN:Notification(Sendanotification: NotificationContent=“NewsofSteelers!”)
+ii. [S2]Message: Mymotherlikestosendmetextmessages. IworkinarestaurantsoIcannotreplytohermessages
+veryoftenatwork. However,mygrandfatherwashospitalizedlastweekandmymotheristakingcareofhimnow. Ido
+notwanttomissanyimportantmessageaboutmygrandpa. (Easyscenario.)
+– IF:Message(Receiveamessage: SentBy=Mom,Containstheword(s)=“grandfather”)
+– THEN:Notification(Sendanotification: NotificationContent=“Momjusttextedyouamessageaboutgrandfa-
+ther!”)
+iii. [S3]Snow&Meeting: Itsnowedlastnight. Iwaslateforworkthismorningandmissedanimportantmeetingat
+9am because I had to take care of all the snow. My boss was quite upset and warned me this can not happen again.
+(Intermediatescenario.)
+– IF:Weather(Weatherforecast: Day=today,Forecast=snow)+Calendar(Futureevent[absolutetime]: Day=
+tomorrow,EventType=meeting,StartTime=09:00)
+– THEN:Alarm(Setanalarm: Day=tomorrow,Time=07:00)
+iv. [S4]Drive&Call: Ijustheardthatalargepercentageofcaraccidentsarecausedbytalkingonthephonewhile
+driving. IdecidedIamnotgoingtoansweranyphonecallswhiledriving. Therefore,whenIamdriving,ifanyonecalls
+me,Iwouldliketoautomaticallyreplytohim/herwithamessagesaying“SorryI’mdriving.” (Intermediatescenario.)
+– IF:PhoneBody(Drive)+Call(Receiveacall: From=Anyone)
+– THEN:Message(Sendamessage: To=Peoplementionedin“IF(s)”,MessageContent=“Sorry,Iamdriving.”)
+v. [S5]Bus: Iusuallyleaveworkafter5pmandtakeBus“53”homeatthe“WashingtonSt.” stop. However,the“53”
+busesarenotcommon. Iprefernottowaitatthebusstopunlessthebusiscomingsoon. Ittakesmeabout5minutesto
+walk frommyoffice tothe “Washington St.” stop, and italsotakesabout5 minutesfor Bus“53”to drive fromthe
+“HamiltonSt.” stoptothe“WashingtonSt.” stop. (Intermediatescenario.)
+– IF:Bus(Currentlocation: BusNumber=53,BusStop=“WashingtonSt”)+Clock(Currenttime: At/After/Before
+=After,Time=17:00)
+– THEN:Notification(Sendanotification: NotificationContent=“Bus53willbearrivingatWashingtonSt. stop
+soon!”)
+vi. [S6]LateforDinner: MywifeAmydoesnotlikemetobelatehomewhenwehaveabigscheduleddinner. So,
+ifIamgoingtohaveabigdinnerathomein30minutes,butIamstillfaraway–say,30miles–fromhome,please
+sendAmyamessagesaying“Imightbehomelate”. Also,giveaphonecallto“Ben’sFlowerShop”andtellthemto
+4Theattributeswhichwerenotspecifiedinagold-standardruleindicatethattheuserorworkershouldleavetheseattributesblank. In
+theevaluation,thetextualattributessuchasmessagecontentoremailcontentwillbeexaminedmanually. Itisalsonoteworthythatin
+thissectionweonlylistedonecommongold-standardrule,whilemorethanonerule(e.g.,addingoralternatingnotifications)couldbe
+consideredvalidforascenario. WedescribethedetailsofevaluationinSection5.
+T.-H.K.Huang,A.Azaria,O.J.RomeroandJ.P.Bigham/HumanComputation(2019)6:1 127
+Figure6. Userstudysetting. Whilewaitingforresponsesfromthecrowd,participantsusedtheirownlaptopsormobile
+devicestosimulatethelikelycontextofuseintherealworld.
+“Prepareasmallsurprisebouquet.” (Hardscenario.)
+– IF:GPS(Distancetoalocation: IsGreater/LessThan/EqualsTo=IsGreaterThan,To=Home,Distance=30)
++Calendar(Futureevent[relativetime]: EventType=Dinning,InHowManyMinutes=30)
+– THEN:Message(Sendamessage: To=Amy,MessageContent=“Imightbehomelate.”) +Call(Dialacall:
+To=BenFlowerShop,WhattoSay=“Prepareasmallsurprisebouquetforme.”)
+Inourpost-studysurvey,weaskedparticipantstoratehowrealisticthesescenariosare,inthescaleof1(veryunrealistic)to7
+(veryrealistic). Themeanratingamongthetwelveparticipantswas6.25(SD=0.62).
+4.2. User Study Setup
+Weconductedalab-baseduserstudyinwhichweaskedparticipantstocreateanIF-THENruleforeachscenariousingoneof
+thefollowingconditions:
+i. [Condition 1] InstructableCrowd: The participant first talks to the crowd via InstructableCrowd (using text or
+voice, depends on the participant’s preference) and waits to receive rules submitted from the crowd workers. The
+participantthenselectsarulethattheypreferandmanuallyeditsittocreatethefinalrule. Eachconversationwasshown
+to10workers,andeachworkercreatesanIF-THENrulebasedontheconversation,respectively.
+ii. [Condition2]User: Theparticipantusestheruleeditoronthephone(asshowninFigure6)tomanuallycreatea
+rule.
+Incondition(1),threedatapointswererecorded: thecrowd-createdrulethatwaspickedbytheparticipant(whichwerefer
+to as Crowd Only), the rule edited by the participant (Crowd + User), and the rule that was created by merging all ten
+crowd-createdrules(CrowdVoting)usingtheprocessdescribedinSection3.5(thresholdforincludingasensor/effectorwas
+2.) Werefertocondition(2)asUserOnly.
+Forrecruitingparticipants,wepostedtheinformationonsocialmediasitessuchasFacebookandTwitter. Wealsoposted
+128 T.-H.K.Huang,A.Azaria,O.J.RomeroandJ.P.Bigham/HumanComputation(2019)6:1
+flyersonthecampusofCarnegieMellonUniversity(Pittsburghcampus)andUniversityofPittsburgh. Thegoalofthisproject
+istoenableuserstocomposeapplicationsfortheirownusage,especiallyfortheuserswhodonotknowhowtoprogram.
+Therefore,werecruitedparticipantswhichhadverylimitedexperienceinprogrammingornoneatall. Peoplewhovolunteered
+toparticipateourstudyweredirectedaWebformforsigningup,inwhichweaskedpeopletoself-reporttheirprogramming
+skilllevel(“Howgoodareyouatprogramming?”),from1(“Idon’tknowanythingaboutprogramming.”) to7(“I’manexpert
+programmer.”). Weselectedtheearliest14participantswhosignedupwithaself-reportedprogrammingskilllevelof1or2.
+Thefirst2participantswererecruitedforthepilotstudy,inwhichwetestedandrefinedourstudyprotocolandthesystem,
+andtheremaining12participantswererecruitedfortheformaluserstudy. Alltheresultsreportedinthispaperwerebased
+ontheformaluserstudywiththese12participants,whowereagedfrom26to36years(mean=29.42,SD=3.48);8are
+femaleand4aremale;and11participantsratedtheirownprogrammingskilllevelas1(outof7),andonlyoneparticipant
+self-ratedas2(outof7). Itisnoteworthythatthegoalofthisprojectistoexaminethefeasibilityofusinganaturallanguage
+interfacetocreateIF-THENrules. Whileourparticipantswereofayoungerpopulation,webelievethatauserstudywith
+twelveparticipantsissufficienttoshowtheideaofInstructableCrowdworks,andthatInstructableCrowdcanbehelpfulto
+someusers.
+Inouruserstudy,wescheduledaone-hourtimeslotwitheachparticipantandbroughttheminthelab,respectively. Each
+participant was requested to create an IF-THEN rule which would resolve each of the 6 scenarios. The participants were
+askedtosolvethreescenariosviaInstructableCrowd(condition1),andthreeotherscenariosviatheruleeditor(condition2).
+Thescenarioswerecontrolledfortheconditiontheywereassociatedwith. Thatis, eachscenariowasgivento6subjects
+ascondition1andto6othersubjectsascondition2. Inaddition,thescenarioswerecontrolledfortheorderinwhichthey
+appeared,thatis,eachscenariowasgivenineachpossibleorder(first,second,third,fourth,fifthandlast)exactlyoncefor
+eachcondition. Thiswasdoneinordertoreducethelearning-effect. Participantswereinstructedtofollowthescenariosas
+closeaspossible,butwereallowedtoproposeminorchangesduringtheconversation,e.g.,change“sendmenotification”to
+“sendmeanemail.” Participantswerealsofreetousetheirownlaptopormobiledeviceswhentheywaitedfortheresponse
+fromthe crowd(as shownin Figure6,) because webelievethissetting ismorerealistic foruserswhotry toconversevia
+instantmessagingonmobiledevices. Apost-studyquestionnairewasusedtocollectsubjectivefeedbackfromtheparticipants.
+Thecompensationforeachparticipantwas$20.
+Foreachconversationalsession,InstructableCrowdpostedaHIT(HumanIntelligenceTask)with10assignmentstoMTurk.
+Thepriceofeachassignmentwas$0.50USD.Duringaconversationalsession,multipleworkerscouldcommunicatewiththe
+participantviatheirinterfaceandsubmitrulesrespectively. 156uniqueworkersonMTurkparticipatedinourexperiments.
+Allsessions,chats,andruleswererecordedinadatabasewithtimestamps. Wealsotimedhowlongtheparticipanttookto
+createeachrulebyusingtheruleeditor.
+AslistedinTable1andTable2,intheuserstudycrowdworkersandend-usershad10sensorstochoosefrom: Email,Bus,
+Message, GPS, Weather, Call, Clock, Calender, News, and Phone Body (for driving and phone falling); and 6 effectors:
+Message,Email,Alarm,Call,Notification,andCalendar(foraddinganevent).
+5. RULE QUALITY EVALUATION
+Inthissectionweevaluatedthequalityofresultingrulesineachsetting. InordertoassessthequalityofacomposedIF-THEN
+rule, we focused on two subtasks: sensor/effector selection and attribute filling. Composing an IF-THEN rule contains
+threesub-tasks: sensor/effectorselection,trigger/actionselection,andattributefilling. Forinstance,toeffectivelyknowthat
+youhaveanearlymeetingtomorrow,the“Calendar”sensorfirstlyneedstobeselected,andthenits“FutureEvent(Absolute
+Time)”triggerneedstobeselected,andfinallythe“StartTime”attributeneedstobefilledwith“Before8am.” Sinceeach
+sensorusedinourstudyonaverageonlyhas1.5triggers(SD=0.71)andeacheffectoronlyhas1action,wedidnotevaluate
+the performance of trigger/action selection separately, but merge it as a part of attribute filling. Namely, in the case that
+thetriggers/actionsselectedbyusersorthecrowdwereincorrect,wenotedtheaccuracyofattributefillingaszerointhis
+sensor/effector.
+Inthissection,wedescribetheevaluationresultsofInstructableCrowdanddemonstratethatthesystemisabletoproduce
+high-qualityIF-THENrulesviaconversation.
+T.-H.K.Huang,A.Azaria,O.J.RomeroandJ.P.Bigham/HumanComputation(2019)6:1 129
+5.1. Evaluation of Sensor/Effector Selection
+Theevaluationprocesswasasfollows: First,weexpandedthesetofouroriginalgold-standardrulestoincludeparticipant-
+createdruleswhichwereuseful,butnotexactlywhatweanticipated. Forinstance,inS3,someparticipantsdecidedtosend
+emailstothebossatworkinsteadofsettingupanearlieralarm;inS2,oneparticipantdecidedtoreplytohis/hermomwitha
+messageinsteadofsettingapushnotification. Wewentthroughallthesubmittedrulesandaddedtheeffectivesolutionsthat
+wedidnotthinkofinitially. Second,weallowedextraoralternativeeffectorsifappropriate. Forinstance,someparticipants
+thoughtthatsettingapushanotificationisnotenoughanddecidedtosendanemailortosetanalarm. Weconsideredthese
+alternativerulesarealsoeffective. Finally,apieceofsoftwarewascreatedtoperformanautomatedevaluationonallrecorded
+rules.
+Selectingasetofcorrectsensors/effectorsfromapoolofcandidateisaretrievaltask. Wethereforeuseprecision,recall,and
+F1-scoretoevaluationthissub-task. Thesevaluesarecalculatedasfollows.
+|{SelectedSensors}∩{Gold-StandardSensors}|
+Precision=
+|{SelectedSensors}|
+|{SelectedSensors}∩{Gold-StandardSensors}|
+Recall=
+|{Gold-StandardSensors}|
+2×Precision×Recall
+F1-score=
+Precision+Recall
+Whenaruleispartiallycorrect,weselectedthegold-standardrulewhichresultsinthehighestF1-scoretoreportthenumbers
+inthispaper. TheoverallevaluationresultsareshowninTable3. Both“Crowd+User”and“CrowdVoting”settingsachieved
+comparableperformancestothatofthe“CrowdOnly”settingisbothIFandTHENparts. SelectingcorrectsensorsinIF
+isharderthanselectingcorrecteffectorsinTHEN,whichisexpectedduetothetolerantnatureofourevaluationsetupfor
+THEN.Weobservethat“CrowdVoting”resultedinahigheraveragerecall,whichsuggestedthatagroupofcrowdworkers
+is,collectively,lesslikelytoforgetpickingsomesensorsthananindividualuser. Wealsonoticethatparticipantsactually
+corrected errors in the crowd-created rules, as both the average precisions and recalls are higher in “Crowd+User” than
+“CrowdOnly”. Forinstance,inthe“LateforDinner”scenario(S6),onecommonmistakewasthatcrowdselectedonlyone
+ofCalenderorGPSsensors,insteadofboth. Twodifferentparticipantsfixedthiserrorbyaddingbackthemissingsensor.
+Anothersimilarexampleoccurredinthe“Bus”scenario(S5),wherethecrowdsometimesmissedthe“Clock”sensorwhich
+canindicatethecurrenttimeisafter5pm. OneparticipantfixedthisbyaddingtheClocksensorbacktotheIF.
+IF THEN Avg
+Precision Recall F1score Precision Recall F1score F1score
+UserOnly 0.94 0.85 0.89 0.98 0.99 0.98 0.94
+CrowdOnly 0.94 0.77 0.85 0.97 0.90 0.94 0.89
+Crowd+User 0.94 0.83 0.89 1.00 0.94 0.97 0.93
+CrowdVoting 0.92 0.89 0.91 0.95 0.96 0.96 0.93
+Table3. Sensor/Effectorselectionoverallperformance. Both“Crowd+User”and“CrowdVoting”settingsachieved
+comparableperformancestothatofthe“CrowdOnly”settingisbothIFandTHENparts.
+Wealsoevaluatedtheperformancebasedonthescenarios’difficultylevel. ThedynamicsofF1-scoresareshowninFigure7.
+WhiletheTHENpartswerenotinfluencedmuch,theF1-scoresinIFparts’decreasedasthescenariosgotmorecomplex.
+“CrowdVoting”performedsimilarlyorslightlybetterthan“UserOnly”ineasyandintermediaterules,butworseinhardrules.
+Theseresultsalsoindicatethenumberofsensorsandeffectorsinfluencesthedifficultylevelofcomposingtherule,while
+otherfactorssuchasabstractionlevelandtypeofsensors/effectorsalsoreportedlyplayimportantroles(Uretal.,2014).
+130 T.-H.K.Huang,A.Azaria,O.J.RomeroandJ.P.Bigham/HumanComputation(2019)6:1
+IF THEN
+1 1
+0.8 0.8
+Crowd Only
+0.6 0.6
+Crowd + User
+0.4 0.4 Crowd Voting
+User Only
+0.2 0.2
+0 0
+Easy Intermediate Hard Easy Intermediate Hard
+Crowd Only Crowd + User Crowd Voting User Only
+Figure7. AverageF1-scoreofsensor/effectorselectionineasy,intermediate,hardscenarios. “CrowdVoting”performed
+similarlyorslightlybetterthan“UserOnly”ineasyandintermediaterules,butworseinhardrules.
+5.2. Evaluation of Attribute Filling
+1
+0.8 IF THEN Avg
+0.6 UserOnly 98.3% 95.0% 96.7%
+0.4 CrowdOnly 81.4% 90.0% 85.7%
+Crowd+User 89.2% 93.3% 91.3%
+0.2
+CrowdVoting 86.4% 95.0% 90.7%
+0
+Table4. AttributeEfiallsinygoverallperfoInrmtearnmcee.dWiahtielethe“CrowdHVoatridng”settingachievedthesameaverageaccuracyas
+thatofthe“UserOnly”intheTHENpart,itsaverageaccuracyislowerthan“UserOnly”intheIFpart.
+The evaluation process of attribute filling is similar to that of sensor/effector selection. Any value for an attribute which
+seemedappropriatewasconsideredtobecorrect. Forinstance,thecontentofthesentmessagesoremailscouldvary,and
+wemanuallylabeledtheeffectivenessofeach“content”attributeineffectors;the“Day”attribute(Table1)intheWeather
+sensorofS3couldbesettoeither“Today”or“Tomorrow”,however,itwouldonlybejudgedascorrectiftheAlarm’s“Day”
+attribute(Table2)wassettothesamevalue. Softwarewascreatedtoevaluatetheseattributesautomatically.
+Foragivensensor/effectorS thatiscorrectlyselected,wecalculatetheaccuracyofitsattributevaluesasfollows.
+NumberofAttributesinS withcorrectvalues
+Accuracy=
+NumberofAttributesinS
+Iftrigger/actionofS isincorrect,Accuracy=0.
+TheoverallevaluationresultsofattributefillingareshowninTable4. Whilethe“CrowdVoting”settingachievedthesame
+averageaccuracyasthatofthe“UserOnly”intheTHENpart,itsaverageaccuracyislowerthan“UserOnly”intheIFpart.
+Tounderstandthesourcesofthisperformancegap,weanalyzedtheaverageaccuracyofattributesineachsensor/effector
+ofeachscenario,asshowninFigure8. Weobservedthesensors(IF)where“CrowdVoting”resultedinaloweraccuracy
+thanthatof“UserOnly”(i.e.,theMessagesensorinS2,theBussensorinS5,andtheCalendarsensorinS6)andidentified
+twosourcesofcrowdworkers’errors: communicationgapandmisunderstandingthemeaningsoftriggers. Onesource
+T.-H.K.Huang,A.Azaria,O.J.RomeroandJ.P.Bigham/HumanComputation(2019)6:1 131
+6
+4
+Sports (S1) Message (S2) 6
+1 1 1
+0.8 0.8 Crowd Only
+0.8
+0.6 0.6 0.6 Crowd + User
+0.4 0.4
+0.4 Crowd Voting
+0.2 0.2
+0 0 0.2 User Only
+0
+if-news then-notification if-message thif-emenssa-genotificationthen-notification
+1
+2
+Snow & Meeting (S3) Drive & Call (S4)
+1 1
+0.8 0.8
+0.6 0.6
+0.4 0.4
+0.2 0.2
+0 0
+if-weather if-calender then-alarm if-phone-body if-call then-message
+3 5
+Bus (S5) Late for Dinner (S6)
+1 1
+0.8 0.8
+0.6 0.6
+0.4 0.4
+0.2 0.2
+0 0
+if-bus if-clock then-notification if-calender if-gps then-message then-call
+Figure8. Averageaccuracyofattributefillingofcorrectly-selectedsensors/effectors. “CrowdVoting”performed
+similarlyas“UserOnly”inmostcases. WeanalyzedS2,S5,andS6andfoundthatcrowderrorsaremainlycausedby
+communicationgapandmisunderstandingofattributes.
+oftheerrorswasthecommunicationgapbetweentheend-userandcrowdworkers. Namely,theuserfalselyexpressedor
+missedsomeinformationwhentalkingtothecrowd. Forinstance,inS2,oneparticipantfalselysaid“dad”oftensenthim/her
+messages (instead of “mom”), and the crowd therefore filled “dad” in the “Sent By” attribute; in S5, one participant did
+notmentiontothecrowdthatitusuallytakes5minutestowalktothebusstop,sothecrowdarbitrarilyfilledthe“InHow
+Many Minutes” attribute of Bus sensor with 2 minutes (trigger = “Future location”). Another source of the errors is the
+misunderstandingthemeaningsoftriggers. InS6,wefoundthatsomecrowdworkersconfusedthe“FutureEvent(absolute
+time)”triggerwith“FutureEvent(relativetime)”triggeroftheCalendarsensor. Inaddition,bothusersandcrowdworkers
+havetyposintheirattributes. Forinstance,aworkermisspelled“Steelers”as“Stelers”inS1,andanotherworkerentered
+“19:00”asthe“starttimeofthemeeting”inS3,whiletheexpectedansweris“07:00.”
+6. USER ACTIVE TIME
+We also analyzed the user active time, i.e., the time that users spent on interacting with the system. Even though it is
+expected that InstructableCrowd requires more time since the user needs to talk with the crowd, it is still important to
+understand how much time it takes a user to create a rule. In our study, participants spent an average of 2 minutes and
+45 seconds (SD=1:23) to create a rule from scratch using the rule editor (“User Only”). When using InstructableCrowd,
+participantsspentanaverageof3minutes45seconds(SD=2:01)toconversewiththecrowd,andthenthesystemtookabout
+oneminuteaftertheconversationtocreatearulethattheparticipantswerewillingtopick(“CrowdOnly”). Iftheparticipant
+decided to edit the crowd-created rules he/she just picked, it took about 2 minutes for the participants to further edit the
+rule(“Crowd+User”). Ittookapproximately20minutesforInstructableCrowdtoreceivetherulesfromall10workersand
+calculatethefinalrule(“CrowdVoting”). ThecompletetimelineisshowninFigure9. Toputthesenumbersincontext,a
+132 T.-H.K.Huang,A.Azaria,O.J.RomeroandJ.P.Bigham/HumanComputation(2019)6:1
+Crowd+User
+User Only
+User Only
+Crowd+User 05101025020035030045040055050065060075070085080095090105100100011501100125012001350130014501400550000 6thCrowd 8thCrowd 10thCrowd
+Crowd (+User)
+Rule Rule Rule
+Crowd+User 05010105200205300305400405500505600605700705800805900905100100015101010152010201530103015401040155000
+Crowd Voting
+0 50 100 150 200 250 300 350 400 450 500 550 600 650 700 750 800 850 900 950 1000 1050 1100 1150 1200 1250 1300 1350 1400 1450 1500
+0:00 3:45 7:09 14:44 21:25 25:13
+Crowd Voting
+2:45 4:53
+User Only Conversation Time User Editing Time
+Figure9. ThecompletetimelineofInstructableCrowd. Withthecostofaslightlylongeruseractivetime,
+InstructableCrowdisabletogenerateruleswithcomparablequalityuser-createdrules. Furthermore,inourpost-study
+survey(Section7.1)theparticipantswhopreferredusingInstructableCrowdoverruleeditorclaimedthat
+InstructableCrowdis“faster”or“quick”,whiletheiruseractivetimeofusingInstructableCrowdisactuallylonger.
+studyfocusingoninstantmessagingwithinsmallgroupsshowedthat,onaverage(Least-SquareMeans),studentsrespondto
+aninstantmessagein32seconds,andpeopleinstartupsrespondin105seconds(Avrahamietal.,2008).
+On average, the “Crowd Voting”setting took auser one moreminute than thatof the “UserOnly” setting. Thatis to say,
+withthecostofaslightlylongeruseractivetime,InstructableCrowdopensupahand-freemannerofcreatingIF-THENrule
+viaconversationswiththecrowd. Webelievethisisreasonablebecauseanadvantageofaspeechinterfaceisthatitcanbe
+hands-free and so users can intersperse other activities while conversing to create their rules. According to our technical
+evaluation, the resulting rules from InstructableCrowd is as high-quality as user-created rules. It is also noteworthy that
+user’scognitiveloadwheneditingarulemanuallyandwhentalkingwithaconversationalpartnerareverydifferent. When
+havingaconversationwithInstructableCrowd,usersarefreetobrowsetheInternet,chatwithotherpeople,orevenwatcha
+videoatthesametime. Inourpost-studysurvey,whichwewilldescribeinSection7.1,theparticipantswhopreferredusing
+InstructableCrowdoverruleeditorclaimedthatInstructableCrowdis“faster”or“quick”,whiletheiruseractivetimeofusing
+InstructableCrowdisactuallylonger.
+7. QUALITATIVE RESULTS
+In addition to the technical evaluation, we also collected qualitative feedback about InstructableCrowd from participants.
+ThisresultsuggeststhatInstructableCrowdprovidesaneasierwaytocomposeapplicationsfortheuserswhohavedifficulty
+creatingcomplexrulesmanuallyontheirphones.
+7.1. Feedback from Participants
+Wecollectedparticipants’subjectivefeedbackimmediatelyaftertheyfinishedthelab-basedstudy. Weaskedparticipants
+whatmethodtheypreferred,i.e.,InstructableCrowd(“Crowd+User”)orruleeditor(“UserOnly”),andgroupedtheminto
+twogroupsaccordingtotheirpreference. Thefeedbackwereceivedwasthat4participantspreferredInstructableCrowd,7
+participantspreferredtheruleeditor,and1participanthadnopreference. Wealsoaskedparticipantstoratethedifficultyof
+usingInstructableCrowdversususingtheruleeditorthemselves,onaLikertscale,where1correspondstoveryeasy,2to
+easy,3toslightlyeasy,4toneithereasynorhard,5toslightlyhard,6tohardand7correspondstoveryhard. Asshownin
+Table5,comparedtotheparticipantswhopreferredtheruleeditor,theparticipantswhopreferredInstructableCrowdhada
+muchhigherdifficultyratingforusingtheruleeditor. Thecorrelationcoefficientbetweenauser’s“difficultyratingonthe
+ruleeditor”and“preferringInstructableCrowd”(prefer=1,notprefer=0)is0.65,whichisastrongcorrelation. Namely,the
+userswhohadahardtimeusingtheruleeditorprefertouseInstructableCrowd. Asimilarrelationwasnotfoundbetween
+“user’sdifficultyratingonInstructableCrowd”and“preferringtheruleeditor”(correlationcoefficient=0.06). Table5also
+showsthattheparticipantswhopreferredInstructableCrowdalsotooklongerthantheothergrouptomanuallycomposean
+IF-THENruleonaverage. ThisresultsuggeststhatInstructableCrowdprovidesaneasierwaystocreateIF-THENrulesfor
+T.-H.K.Huang,A.Azaria,O.J.RomeroandJ.P.Bigham/HumanComputation(2019)6:1 133
+ParticipantsGroupedbyPreference
+PreferInstructableCrowd PreferRuleEditor
+No. ofparticipants 4 7
+Crowd+User 3.25(SD=1.50) 3.57(SD=1.62)
+Avg. DifficultyRating
+UserOnly 4.25(SD=1.71) 2.29(SD=0.76)
+Avg. TimetoCreateaRule(UserOnly)
+03:15(SD=01:20) 02:30(SD=0:45)
+(mm:ss)
+Table5. TheaveragedifficultyratingsandrulecomposingtimeofparticipantsthatpreferInstructableCrowdv.s. rule
+editor. Difficultyratingrangedfrom1(veryeasy)to7(veryhard). TheparticipantswhopreferredInstructableCrowd
+hadahigherdifficultyratingforusingtheruleeditor,andalsotooklongertomanuallycomposearule.
+theuserswhohavedifficultycreatingcomplexrulesmanuallyonmobilephones. Theoneparticipantwhohadnopreference
+betweenusingtheruleeditorandusingInstructableCrowdgavethefollowingfeedback: “itdependsondifferentsituations.
+forexample: iwouldliketocreaterulesthroughconversationswiththesystemwhiledriving.” Althoughwerecruitedusers
+withoutprogrammingexperience,theyweresomewhattech-savvy;theseresultssuggestwemightseeanevenstrongereffect
+ifInstructableCrowdwasusedbypeopleevenlesscomfortablewithusingtheirsmartphone.
+WealsoaskedwhyparticipantspreferInstructableCrowd. Interestingly,3outofthese4participantssaidthatInstructableCrowd
+is“faster”or“quick”,whiletheyactuallyspentlongertimetocreatearuleviaInstructableCrowdwhencomparingtothetime
+ittookthemwhenusingtheruleeditor. Thiscouldbebecausethedifficultpartsofcreatingrulesisoutsourcedtothecrowd
+whenusingInstructableCrowd,andtheparticipantsdonotneedtodeveloparulefromscratch. Someparticipantsalsostated
+thatInstructableCrowdismoreflexiblesinceitallowstheusertochoosefromasetofruleswhichissentfrommultiplecrowd
+workers. Oneparticipantwhochosetousespeechinputsaiditis“faster”becausehe/she“doesn’tliketotype.”
+Inthepost-studyquestionnaire,wealsoaskedparticipantswhentheywouldprefertouseInstructableCrowd,andwhenthey
+would use the rule editor. In their responses we found that people tend to create rules via conversation when 1) the rule
+would be too complex, and 2) they are busy or having a tight schedule. 6 out of 12 participants said they would choose
+InstructableCrowdwhentheruletheywanttocreatehastoomanyconditionsorcomplexlogic,e.g.,“...Icannotfigureouta
+properlogictostate‘If’and‘Then’,Imayrelaytheconversationtoaskhelpfromaserver.”;3outof12participantssaidthey
+wouldchooseInstructableCrowdwhentheyarebusy,e.g.,“IwoulduseitwhenIambusy.”
+7.2. Information Inquiry, Confirmation and Suggestions in Conversations
+Weanalyzedtheconversationsbetweentheparticipantsandthecrowd,andfoundthattheresponsesfromthecrowdwere
+oftenrequestsformoreinformationorexplicitconfirmationsofuser’sintent. Bothareknowntobecommondialogueactsof
+conversationalagents(WalkerandPassonneau,2001).
+Mostoftheconversationsbetweenusersandthecrowdisforcollectinginformation. Forinstance,inthefollowingconversation
+ofS3,crowdworkersaskfortheinformationthatisrequiredinordertocompletetheruletheyarecreating:
+crowd Hi,whatcanIhelpyouwith?
+user itwassnowlastnightandIwaslateforworkandmissedanimportantmeetingthismorning.
+crowd Wouldyoulikeaweatheralert?
+crowd Whatwouldyoulikeustodo?
+user Imissedanimportantmeetingat9am.
+crowd Whattimedoyouusuallywakeup?
+user 7am
+134 T.-H.K.Huang,A.Azaria,O.J.RomeroandJ.P.Bigham/HumanComputation(2019)6:1
+crowd Wouldyouliketowakeupearlierifitsnows? Is1extrahourenough?
+user sure.
+InthefollowingconversationofS6,acrowdworkerwastryingtofigureoutthetimeofthedinner:
+user ifihaveabigdinneronmycalendarandiamgoingtobelate(ifiamstillfarawayin30minutes),sendmy
+wifeamessagesaying:"imightbehomelate")andcallthefloristtoprepareasmallbouquet.
+crowd Whattimemightthisdinnerstart?
+user itdependsonmycalendar.
+InthefollowingconversationofadifferentuserforthesamescenarioS6,adifferentcrowdworkeraskedsimilarfollow-up
+questions:
+user Idon’twanttobelateforhometoooften,otherwisemywifewouldgetangryatme
+crowd SohowmayIhelpyou
+crowd whendoyouwanttogetanalert?
+user canyousendAmyamessagesayingImightbehomelate
+user yes
+crowd whattimedoyouwantthistobesent?
+user ifI’mgoingtobelate
+crowd whattimeislate?
+user forourscheduleddinneronmycalendar
+Crowd workers sometimes confirmed with the users information which was conveyed previously. For example, in the
+followingconversationofS5,aworkeraskedaconfirmationquestionaboutthetime.
+crowd hello?
+user Ileaveworkafter5pmandtakeBus53homeattheWashingtonstreet
+user Idon’twannawaitforthebusfortoolongunlessthebusiscomingsoon
+crowd isafter5pm
+user yes
+Furthermore,openconversationcanleadtosolutionsthattheuserdidnotthinkof. Forexample,inthefollowingconversation
+ofS2,thecrowdworkersuggestedtosendamessagebackortouseanalarm/notification,insteadofsettingaphonecall. The
+alternativesthatthecrowdcameupwithdemonstratestheirpotentialtobecreativeandthinkofsolutionsthattheusermight
+nothave.
+crowd Hello,howcanIhelpyou??
+user pleasecallmeifthetextfrommymomcontaining“grandpa”or“grandfather”.
+crowd Do you want to send them a message asking to call you, or do you want to receive an alarm or
+notification?
+user maybejustcallme. thanks!
+7.3. Alternative Solutions for the Same Scenario
+Weobservedthatparticipantsandworkerscouldcomeupwithdifferentrulesinresponsetoasamescenario,forfourmain
+reasons: First,peoplehavetheirownpreferredwaystobenotifiedunderdifferentcircumstances,andthussometimeschose
+differenteffectorsthanweintendedintheirrules. Forinstance,morethanoneparticipanttriedtoaddextraeffectors,suchas
+analarminthe“Message”scenario(S2.) becausetheybelievedmissingamessageaboutthehospitalizedgrandfathercanbe
+quiteserious. Second,similarly,usersalsohavetheirownpreferencesforsensors. Forexample,inthe“Snow&Meeting”
+T.-H.K.Huang,A.Azaria,O.J.RomeroandJ.P.Bigham/HumanComputation(2019)6:1 135
+scenario(S3,)oneparticipantselected“News”inadditiontothegold-standardsensorsandarguedthats/hewouldonlywake
+upforheavysnow,whichislikelytobementionedinthenews. Third,somealternativerulescreatedbycrowdworkersmay
+becausedbytheambiguitiesinuser’sinstruction. Forinstance,inthefollowingconversationofS4,theword“reply”doesnot
+necessarilyimply“sendingamessage”(althoughitmightbethemostcommonsolution). Therefore,“sendinganemail”is
+alsoacceptable.
+user hi
+user Iknowcaraccidentsmighthappenifitalkonthephonewhiledriving. soIwouldliketoreply“sorryIam
+driving”toanyonecallingmewhenI’mdriving.
+crowd okiwilldosonow
+Finally,sometimestwodifferentrulescanbehavesimilarlyorevenidenticallyintherealworld. Forexample,inthe“Bus”
+scenario (S5), the notification can either be fired when “the Bus 53 will arrive at Washington St. in 5 miniutes” or when
+“Bus53isarrivingatHamiltonSt. stopnow,”sincetheBus53usuallytakes5minutestodrivefromHamiltonSt. stopto
+WashingtonSt. Bothrulesoccurredinourstudy.
+8. DISCUSSION
+In this paper we introduced InstructableCrowd, a system that allows users to create IF-THEN rules for smartphones via
+conversation with the crowd. This work provides a potential route toward more interesting conversations with intelligent
+agentsthaniscurrentlypossible. Inthissectionwediscusssomeoftheissuesandreflectionsthatcamefromthedevelopment
+andstudyofInstructableCrowd.
+8.1. Assessing Performance and Goal Achievement
+ThestudyshowedthattheperformanceofthecrowdsystemisnearlythesameasthatofatypicalGUIintermsofthequality
+ofthegeneratedrules. ThismightleadsometoquestionwhetheruserswouldwanttouseInstructableCrowdifitisnotbetter
+thanotheroptionsatcreatingaccurateIF-THENrules. ThemotivationofInstructableCrowdistochallengethetraditional
+methodsofmanuallycomposinganIF-THENrulewithinthecontextofperformingcomplextasksviaalternativeinterfaces.
+The key question we wanted to answer is: “Can the system perform as well as users themselves, while employing a new
+methodofdoingit?”. Outsourcingcomplextaskstothecrowdisnotalwaysaboutwhetherornotthesystemcandoit“better.”
+Oftenitisaboutopeningupanopportunitytoachievethesamegoalusingadifferenttechnologyormethod,inthiscasevia
+naturallanguageinterface. Inthisrespect,“better”reallydependsonhowoneisassessingachievementofthegoal. Inprior
+projectswithinthistheme,crowd-poweredsystemshavenotalwaysperformedbetterthanusers. InWearWrite(Nebeling
+etal.,2016),Chorus(Laseckietal.,2013b),andKnowledgeAccelerator(Hahnetal.,2016;Changetal.,2016),theproposed
+solutionsdidnotnecessarilyproduceresultsthatwerefasterorofhigherqualitythantraditionalmethods. Thevalueofthese
+projectswasopeningupnewpossibilitiesofcompletingtasksinwaysthatwerenotpossiblebefore,especiallywithrespect
+to flexibility. Creating a blog post by talking to a smartwatch with WearWrite will not necessarily result in higher article
+qualitythantypingitonalaptop,butthesystemletsuserscreatecontentontheflynearlyanywhere. SearchingviaChorus
+crowdworkersmightnotprovidebetterresultsthanjustusingasearchengine,butitismuchmoreconvenient. Similarly,
+Knowledge-Accelerator’suseofcrowdworkersallowsausertoaskanopen-endedquestionandgetasophisticatedanswerin
+fewhours,andopen-endedquestionsaresomethingthatcomputersdonotdealwithverywell.
+8.2. Challenges in Producing High-Quality Rules
+Creatingamulti-partIF-THENruleisdifficultbecausecomputer-executablerules(likeallprograms)havelittletolerancefor
+mistakes. IfwebreakdownanIF-THENruletoacompositionofsensorsandeffectorswithattributevalues,experiments
+haveshownthathumansarereasonablygoodatcomposingsensors/effectorsandfillingtheirattributes,respectively. However,
+whenweaddupallthework,anymistakeswillmaketheresultingIF-THENruleineffective. Anaturalresponsetoissue
+wouldbetoenforcestrictervalidationforhumaninputinrulecreation. However,strictinputvalidationontheinterfacewould
+increasethetimeittakestocreatearuleforbothusersandthecrowdandfrustrateusersmoreeasily. Itwouldalsoincrease
+theengineeringeffortrequiredtoaddanewsensororeffectortothesystem,whichoftencomewitharbitraryconstraints.
+136 T.-H.K.Huang,A.Azaria,O.J.RomeroandJ.P.Bigham/HumanComputation(2019)6:1
+IFTTT, as a successful rule-creation product, avoids multiple sensors and effectors, and uses a user-friendly workflow to
+balancepossibleuserfrustration. Ourprojectsuggestsusingconversationanditerativeeditingtopermitrobustrulecreation.
+8.3. Rule Validation
+OneofthemostcommonissuesfacedbytheDecision-RuleEngineistheruleconflictresolutionissue: decidingwhichrule
+shouldbetriggeredwhentherearemultiplewiththesamesetofconditions(IFs)butadifferentsetofactions(THENs). Ifa
+userreceivesmultiplerulesduringthesameconversationalsession,itisreasonabletoassumethattheyareredundantandto
+allowtheusertopickonlyasinglerulefromthisset. However,iftheusercreatesmanyrulesinmanydifferentsessions,he
+orshemayforgetaboutacreatedruleandattempttocreatethesameruleagain. Furthermore,theusermayatfirstcreate
+averyspecificrule(e.g.,IFIhaveameetingat9am,THENnotifymethenightbefore)andlatertrytogeneralizeit(e.g.,
+IF I have a meeting at 10 am or earlier, THEN notify me the night before). If the Decision-Rule Engine were to follow
+theserulesregardlessofconflicts,thesameactionmightbeexecutedmorethanonce,whichisnotlikelytheuser’sintent.
+Currently,theMonitoring/Trackingmodulemaydetectthesekindsofconflictsandautomaticallysubsumetheless-usedrules,
+butfurtherresearchisrequiredintoidentifyingthesecasesandalertingtheuserinadvance. Oneapproachcouldbekeeping
+theseconflictingrulesanddefiningsomeheuristicsthatwoulddeterminewhenaruleshouldsubsumeorinhibitothers,or
+whentheyshouldbeexecutedsequentially,etc. Anotherapproachcouldbedefiningamechanismthatremovesthoserules
+thatareredundantorconflictingandlessrelevantthanothers(withtheuser’sapproval).
+8.4. Timing of Executing Triggers and Actions
+Differentsensorsandeffectorsmayrequireverydifferentfrequencies. Forexample,whileaweather-relatedsensortrigger
+suchas“IFitissnowingearlyinthemorning”canbecheckedonceevery24hours,a“phonebody”sensortriggerconnected
+to the phone’s accelerometer (e.g., “IF the phone is dropping towards the floor”) might need to be checked every 100
+milliseconds. Othersensorconditions,suchascalendarevents(e.g. “IFIhaveameetingtomorrowbefore10am”)maybe
+validatedimmediatelyaftertheruleiscreated,andthencheckedagaineveryhour(incasenewmeetingshavebeenadded).
+Similarly,effectorsalsohavedifferentexecutiontimingrequirements. Someactionscanbeexecutedimmediatelyafterthe
+conditionsaremet,whileothersmustbescheduledforlaterexecution. Forinstance,theaction“THENshowmeanotification
+rightnow”isexecutedrightaftertheconditionsarefulfilled,whereastheaction“THENsendmearemindertonightat10pm”
+wouldbescheduledforexecutionattheappropriatetime. Currently,theRuleValidatorinInstructableCrowd’smiddleware
+usesdifferenttimingvalidationmechanismsfordifferentsensorsandeffectors. Toscaleuptoalargernumberofsensorsand
+effectors,amoresystematicmannerforcategorizingthefrequencyrangesofsensorsandeffectorsislikelyrequired.
+8.5. User Privacy
+One participant in our study expressed a concern about user privacy. In the current prototype, a limited view of a user’s
+personalinformation(e.g.,acontactlistcreatedforthepurposeofthestudy)wasexposedtocrowdworkers. Inthefuture,
+wemayusealiasesthatareeitherautomaticallyassignedorcreatedbytheusertopreventtruenamesorotherinformation
+frombeingdisseminatedtocrowdworkers. Forinstance,insteadofanactualaddress,theusercouldprovideanaliassuchas
+“Home”or“Office”whentalkingtothecrowd. Aliasescanalsobeusedtoprotectinformationaboutpeopleortime(e.g.,using
+“Wife”insteadof“Amy,”or“Birthday”insteadoftheactualdate.) However,theuseofaliasescannotcompletelypreventthe
+userfromprovidingpersonalinformationinconversation. Whileseveralprivacy-preservinghumancomputationworkflows
+havebeenproposedforannotatingvideos(Laseckietal.,2015)andaccessingusers’personalinformation(Swaminathan
+etal.,2017),privacyisstillawell-knownissueinthefieldofcrowdsourcing,sincethedataisprocessedbyhumanworkers. A
+futuredirectionistofurtherexploreprivacyissuesthatmayarisewithconversationalinterfaces.
+8.6. Limitations
+OnenaturallimitationofthearchitectureofInstructableCrowdisthatallthesensorsandeffectorsmustbecomprehensible
+to the majority of crowd workers. For example, despite being one of the most common built-in sensors in smartphones,
+theaccelerometersensor’srawoutputisverydifficulttousedirectlybynon-expertstointerpretcertainmovementsofthe
+phone(e.g.,fallingorbeinginmotionwhiledrivingorwalking). Futuresystemsmayfindvalueinexplicitlyrecruitingto
+T.-H.K.Huang,A.Azaria,O.J.RomeroandJ.P.Bigham/HumanComputation(2019)6:1 137
+Remind me the locations of Ah…Okay. Send my partner a
+Can you remind me every
+my meetingswhen they are message whenever I get stuck
+time when we are out of milk?
+not taking place in my office! in traffic on the way home...
+(a) (b) (c)
+Figure10. Scenariosoffutureconversationalassistantsthatallowend-userstoverballycreateIF-THENrulesto
+controlsmartdevices. Whenend-usersexperienceaproblemsuchas(a)beingoutofmilk,(b)forgettingthemeeting
+room,or(c)gettingstuckintrafficwhendrivinghome,theycanverballyinstructtheirassistantsatthescenetosetup
+IF-THENrulestopreventtheproblemsfromhappeningagain. TheframeworkofInstructableCrowdcannotonly
+implementonthemobilephone,butalsosmartwatchandvoice-enableddevicessuchasAmazon’sEcho.
+theircrowdspeoplewithprogrammingexpertisewhocanprovideabstractionsofrawsensorvaluesthatcouldbesharedand
+reusedbyothers. Usingcurrentsensorstoexpresshigh-levelsemantics(e.g.,determiningwhentheuserissleeping)requires
+specialized knowledge that most crowd workers likely do not have. IF-THEN rules have low tolerance for mistakes, and
+qualitycontrolisstillanessentialchallengeincrowdsourcing. Itmaybeusefultoexplorewaysfortherulesthatarecreated
+toformapartofaprobabilisticsuggestionsystem,i.e.,insteadofautomaticallyconductinganactionthatmayormaynotbe
+correct,asktheuserwhetherornottodoit.
+9. FUTURE WORK
+InstructableCrowdsuggestsanumberofopportunitiesforfuturework. Withthehelpofcrowdworkers,InstructableCrowdis
+abletoconvertanaturallanguageconversationtoanIF-THENrule. Humanworkersareknowntobeabletoperformvarious
+tasks that automated systems still can not do, however, often with the cost of longer latency and higher operating budget.
+Onenaturalfollow-upstepistoexplorethepotentialofautomatingtheprocessofInstructableCrowd. Whiletheautomated
+approachdidnotperformaswellashumansinpriorwork,abetterperformancecanbeexpectedwhenthesystemisable
+tocollectlargeramountoftrainingdata. Furthermore,theattributefillingtaskincreatingIF-THENrulesissimilartothe
+“slotfilling”taskindialoguesystems,inwhichwecantakeadvantageofexistentapproachessuchasConditionalRandom
+Fields(CRF)(RaymondandRiccardi,2007)orRecurrentNeuralNetworks(RNN)(Mesniletal.,2015). Creatingmulti-part
+IF-THENrulesisachallengingtask,forbothhumanandmachines. Weimagineafuturethatautomatedcomponentscan
+workwithhumanworkerstomakesuchsystemsmorerobustandscalable.
+Furthermore, InstructableCrowd introduced a new interaction paradigm of conversational agents, which can not only be
+implementedinsmartphones,butalsobeappliedtosmarthomes,smartwatches,voice-enableddevicessuchasAmazon’s
+Echo, or smart cars in hand-free scenarios. End-users can freely record the problems the are experiencing and create an
+IF-THENruletosolveitviaanydevicesthatareavailableatthespot. Figure10illustratespotentialuserscenariosoffuture
+InstructableCrowdondifferentdevices. Inasmarthomesetting,whentheuseropenthesmartrefrigeratorandfindthatthey
+areoutofmilk,he/shecantelltheirEchointhekitchentocreatearulethatremindsthemtheydonothavemuchmilkleftin
+therefrigerator(Figure10(a));whenaprofessorrealizesthatthenextmeetingwillnotbeheldinhis/herownofficebutcan
+138 T.-H.K.Huang,A.Azaria,O.J.RomeroandJ.P.Bigham/HumanComputation(2019)6:1
+notremembertheroom,he/shecansetuparulebetalkingtothesmartwatchtosetupapushnotificationabouttheroomif
+theincomingmeetingisinadifferentroom;andwhenusersgetstuckintrafficwhendrivinghome,theycantalktothesmart
+carpanelandsetupanautomaticmessagewhenevertheywillbelatehome(Figure10(c)). Voiceinterfaceopensupmany
+possibilitiesofend-userstokeeptrackoftheirbehaviorandimprovelifequalityinthemoment,andwebelievethatenabling
+userstocreateIF-THENrulesbytalkingtotheirsmartphonesisapromisingstart.
+10. CONCLUSION
+InthispaperweintroducedInstructableCrowd,asystemthatallowsenduserstocreatecomplexIF-THENrulesviavoice
+incollaborationwiththecrowd. Theserulesconnecttothesensorsandtheeffectorsontheuser’sphonewherethesensors
+serveastriggersandtheeffectorsasactions. Wehavebuiltsupportforcrowdworkerstohaveaconversationwiththeusers
+and allow them to suggest rules for the users. A user study shows that non-programmers can effectively create rules via
+conversation,andsuggeststhatcollaborationbetweentheuserandthecrowdwhilecreatingIF-THENrulescouldbeafruitful
+areaforfutureresearch. AswecollectexamplesofIF-THENrules,wewilllookforwaystousethemtoautomatethecreation
+ofcommonIF-THENpatterns. Morebroadly,InstructableCrowdrepresentsanewapproachinwhichendusersworkwith
+remotecrowdworkerstobringaboutpowerfulfunctionalitydespitetheconstraintsofmobileandwearabledevices.
+11. ACKNOWLEDGEMENTS
+ThisworkwasfundedbytheNationalScienceFoundationunderAward#IIS-1816012,andaspartoftheYahoo! InMind
+project. WethanktheworkersonAmazonMechanicalTurkformakingthisworkpossible.
+12. REFERENCES
+Artzi,YandZettlemoyer,L.(2013).Weaklysupervisedlearningofsemanticparsersformappinginstructionstoactions.TransactionsoftheAssociationforComputational
+Linguistics1(2013),49–62.
+Avrahami,D,Fussell,S.R,andHudson,S.E.(2008). IMwaiting: timingandresponsivenessinsemi-synchronouscommunication.InProceedingsofthe2008ACM
+conferenceonComputersupportedcooperativework.ACM,285–294.
+Azaria,A,Krishnamurthy,J,andMitchell,T.M.(2016).InstructableIntelligentPersonalAgent.InProc.AAAI’16(AAAI’16).
+Bigham,J.P,Lau,T,andNichols,J.(2009).Trailblazer:EnablingBlindUserstoBlazeTrailsThroughtheWeb.InProceedingsofthe14thInternationalConferenceon
+IntelligentUserInterfaces(IUI’09).ACM,NewYork,NY,USA,177–186. DOI:http://dx.doi.org/10.1145/1502650.1502677
+Bolchini,C,Curino,C.A,Quintarelli,E,Schreiber,F.A,andTanca,L.(2007). AData-orientedSurveyofContextModels. SIGMODRec.36,4(Dec.2007),19–26.
+DOI:http://dx.doi.org/10.1145/1361348.1361353
+Brambilla,M,Fraternali,P,andVacaRuiz,C.K.(2012). CombiningsocialwebandBPMforimprovingenterpriseperformances:theBPM4Peopleapproachtosocial
+BPM.InProceedingsofthe21stinternationalconferencecompaniononWorldWideWeb.ACM,223–226.
+Bronsted,J,Hansen,K.M,andIngstrup,M.(2010).Servicecompositionissuesinpervasivecomputing.IEEEPervasiveComputing9,1(2010),62–70.
+Brush,A.B,Lee,B,Mahajan,R,Agarwal,S,Saroiu,S,andDixon,C.(2011). HomeAutomationintheWild: ChallengesandOpportunities.InProceedingsofthe
+SIGCHIConferenceonHumanFactorsinComputingSystems(CHI’11).ACM,NewYork,NY,USA,2115–2124. DOI:http://dx.doi.org/10.1145/1978942.1979249
+Chang, J.C,Kittur, A,andHahn, N.(2016). Alloy: ClusteringwithCrowdsandComputation.InProceedingsofthe2016CHIConferenceonHumanFactorsin
+ComputingSystems(CHI’16).ACM,NewYork,NY,USA,3180–3191. DOI:http://dx.doi.org/10.1145/2858036.2858411
+Chaurasia,SandMooney,R.J.(2017). DialogforLanguagetoCode.InProceedingsoftheEighthInternationalJointConferenceonNaturalLanguageProcessing
+(Volume2:ShortPapers),Vol.2.175–180.
+Dahl,YandSvendsen,R.-M.(2011). End-usercompositioninterfacesforsmartenvironments: Apreliminarystudyofusabilityfactors.InInternationalConferenceof
+Design,UserExperience,andUsability.Springer,118–127.
+Daniel,F,Imran,M,Soi,S,Angeli,A,Wilkinson,C.R,Casati,F,andMarchese,M.(2012).Developingmashuptoolsforend-users:ontheimportanceoftheapplication
+domain.Int.J.Next-Generat.Comput3,2(2012).
+DeRussis,LandCorno,F.(2015). HomeRules: ATangibleEnd-UserProgrammingInterfaceforSmartHomes.InProceedingsofthe33rdAnnualACMConference
+Extended Abstracts on Human Factors in Computing Systems (CHI EA ’15). ACM, New York, NY, USA, 2109–2114. DOI:http://dx.doi.org/10.1145/2702613.
+2732795
+Dey,A.K,Sohn,T,Streng,S,andKodama,J.(2006).iCAP:Interactiveprototypingofcontext-awareapplications.InInternationalConferenceonPervasiveComputing.
+Springer,254–271.
+Dong,LandLapata,M.(2016).Languagetologicalformwithneuralattention.arXivpreprintarXiv:1601.01280(2016).
+Ghiani,G,Manca,M,andPaternò,F.(2015). AuthoringContext-dependentCross-deviceUserInterfacesBasedonTrigger/ActionRules.InProceedingsofthe14th
+InternationalConferenceonMobileandUbiquitousMultimedia(MUM’15).ACM,NewYork,NY,USA,313–322. DOI:http://dx.doi.org/10.1145/2836041.2836073
+T.-H.K.Huang,A.Azaria,O.J.RomeroandJ.P.Bigham/HumanComputation(2019)6:1 139
+Hahn,N,Chang,J,Kim,J.E,andKittur,A.(2016). TheKnowledgeAccelerator:BigPictureThinkinginSmallPieces.InProceedingsofthe2016CHIConferenceon
+HumanFactorsinComputingSystems(CHI’16).ACM,NewYork,NY,USA,2258–2270. DOI:http://dx.doi.org/10.1145/2858036.2858364
+Häkkilä,J,Korpipää,P,Ronkainen,S,andTuomela,U.(2005). Interactionandend-userprogrammingwithacontext-awaremobileapplication.InIFIPConferenceon
+Human-ComputerInteraction.Springer,927–937.
+Hanson,E.NandWidom,J.(1993).Anoverviewofproductionrulesindatabasesystems.TheKnowledgeEngineeringReview8,02(1993),121–143.
+Huang,JandCakmak,M.(2015). SupportingMentalModelAccuracyinTrigger-actionProgramming.InProceedingsofthe2015ACMInternationalJointConference
+onPervasiveandUbiquitousComputing(UbiComp’15).ACM,NewYork,NY,USA,215–225. DOI:http://dx.doi.org/10.1145/2750858.2805830
+Huang,T.-H.K,Chang,J.C,andBigham,J.P.(2018). Evorus: ACrowd-poweredConversationalAssistantBuilttoAutomateItselfOverTime.InProceedingsof
+the2018CHIConferenceonHumanFactorsinComputingSystems(CHI’18).ACM,NewYork,NY,USA,Article295,13pages. DOI:http://dx.doi.org/10.1145/
+3173574.3173869
+Huang,T.-H.K,Lasecki,W.S,Azaria,A,andBigham,J.P.(2016).“IsthereanythingelseIcanhelpyouwith?”:ChallengesinDeployinganOn-DemandCrowd-Powered
+ConversationalAgent.InProceedingsofAAAIConferenceonHumanComputationandCrowdsourcing2016(HCOMP2016).AAAI.
+Huang,T.K,Lasecki,W.S,andBigham,J.P.(2015).Guardian:ACrowd-PoweredSpokenDialogSystemforWebAPIs.InProceedingsoftheThirdAAAIConference
+onHumanComputationandCrowdsourcing,HCOMP2015,November8-11,2015,SanDiego,California.,ElizabethGerberandPanosIpeirotis(Eds.).AAAIPress,
+62–71. http://www.aaai.org/ocs/index.php/HCOMP/HCOMP15/paper/view/11599
+IFTTTMay20,.E.(2017).IFbyIFTTT-AndroidAppsonGooglePlay.(May2017).https://play.google.com/store/apps/details?id=com.ifttt.ifttt
+Jara,J,Daniel,F,Casati,F,andMarchese,M.(2013).Fromasimpleflowtosocialapplications.InCurrentTrendsinWebEngineering.Springer,39–50.
+Kokciyan,N,Uskudarli,S,andDinesh,T.(2012). Usergeneratedhumancomputationapplications.InPrivacy,Security,RiskandTrust(PASSAT),2012International
+Conferenceonand2012InternationalConferneceonSocialComputing(SocialCom).IEEE,593–598.
+Lasecki,W.S,Gordon,M,Leung,W,Lim,E,Bigham,J.P,andDow,S.P.(2015). ExploringPrivacyandAccuracyTrade-OffsinCrowdsourcedBehavioralVideo
+Coding.InProceedingsofthe33rdAnnualACMConferenceonHumanFactorsinComputingSystems.ACM,1945–1954.
+Lasecki, W. S, Thiha, P, Zhong, Y, Brady, E, and Bigham, J. P. (2013)a. Answering Visual Questions with Conversational Crowd Assistants. In Proceedings of
+the15thInternationalACMSIGACCESSConferenceonComputersandAccessibility(ASSETS’13).ACM,NewYork,NY,USA,Article18,8pages. DOI:http:
+//dx.doi.org/10.1145/2513383.2517033
+Lasecki,W.S,Wesley,R,Nichols,J,Kulkarni,A,Allen,J.F,andBigham,J.P.(2013)b. Chorus: ACrowd-poweredConversationalAssistant.InProceedingsofthe
+26thAnnualACMSymposiumonUserInterfaceSoftwareandTechnology(UIST’13).ACM,NewYork,NY,USA,151–162. DOI:http://dx.doi.org/10.1145/2501988.
+2502057
+LaToza,T.DandvanderHoek,A.(2016).CrowdsourcinginSoftwareEngineering:Models,Motivations,andChallenges.IEEESoftware33,1(2016),74–80.
+Lau,T,Cerruti,J,Manzato,G,Bengualid,M,Bigham,J.P,andNichols,J.(2010). AConversationalInterfacetoWebAutomation.InProceedingsofthe23NdAnnual
+ACMSymposiumonUserInterfaceSoftwareandTechnology(UIST’10).ACM,NewYork,NY,USA,229–238. DOI:http://dx.doi.org/10.1145/1866029.1866067
+Law,EandvonAhn,L.(2009).Input-agreement:ANewMechanismforCollectingDataUsingHumanComputationGames.InProceedingsoftheSIGCHIConference
+onHumanFactorsinComputingSystems(CHI’09).ACM,NewYork,NY,USA,1197–1206. DOI:http://dx.doi.org/10.1145/1518701.1518881
+Leshed,G,Haber,E.M,Matthews,T,andLau,T.(2008). CoScripter: Automating&SharingHow-toKnowledgeintheEnterprise.InProceedingsoftheSIGCHI
+ConferenceonHumanFactorsinComputingSystems(CHI’08).ACM,NewYork,NY,USA,1719–1728. DOI:http://dx.doi.org/10.1145/1357054.1357323
+Lieberman,H,Paternò,F,Klann,M,andWulf,V.(2006).End-userdevelopment:Anemergingparadigm.Springer.
+Liu,C,Chen,X,Shin,E.C,Chen,M,andSong,D.(2016). Latentattentionforif-thenprogramsynthesis.InAdvancesinNeuralInformationProcessingSystems.
+4574–4582.
+Mackay,W.E,Malone,T.W,Crowston,K,Rao,R,Rosenblitt,D,andCard,S.K.(1989).HowdoexperiencedInformationLensusersuserules? 20,SI(1989).
+Mesnil,G,Dauphin,Y,Yao,K,Bengio,Y,Deng,L,Hakkani-Tur,D,He,X,Heck,L,Tur,G,Yu,D,andothers,.(2015).Usingrecurrentneuralnetworksforslotfilling
+inspokenlanguageunderstanding.IEEE/ACMTransactionsonAudio,Speech,andLanguageProcessing23,3(2015),530–539.
+Nebeling,M,To,A,Guo,A,deFreitas,A.A,Teevan,J,Dow,S.P,andBigham,J.P.(2016). WearWrite:Crowd-AssistedWritingfromSmartwatches.InProceedings
+ofthe2016CHIConferenceonHumanFactorsinComputingSystems(CHI’16).ACM,NewYork,NY,USA,3834–3846. DOI:http://dx.doi.org/10.1145/2858036.
+2858169
+Price, D,Rilofff, E,Zachary, J,andHarvey, B.(2000). NaturalJava: anaturallanguageinterfaceforprogramminginJava.InProceedingsofthe5thinternational
+conferenceonIntelligentuserinterfaces.ACM,207–211.
+Quirk,C,Mooney,R.J,andGalley,M.(2015).LanguagetoCode:LearningSemanticParsersforIf-This-Then-ThatRecipes..InACL(1).878–888.
+Raymond,CandRiccardi,G.(2007).Generativeanddiscriminativealgorithmsforspokenlanguageunderstanding..InINTERSPEECH.1605–1608.
+Romero,O.JandAkoju,S.(2018). AnEfficientMobile-BasedMiddlewareArchitectureforBuildingRobust,High-PerformanceApps.InProceedingsoftheIEEE
+InternationalConferenceonSoftwareArchitectureCompanion(ICSA-C).97–100.
+Swaminathan,S,Fok,R,Chen,F,Huang,T.-H.K,Lin,I,Jadvani,R,Lasecki,W,andBigham,J.(2017). WearMail: On-the-GoAccesstoInformationinYourEmail
+withaPrivacy-PreservingHumanComputationWorkflow.In30thACMSymposiumonUserInterfaceSoftwareandTechnology(UIST2017).
+Tomazini, L,Romero, O.J,andHruschka, E.J.(2017). AnArchitecturalApproachforDevelopingIntelligentPersonalAssistantsSupportedbyNELL.InENIAC
+(EncontroNacionaldeInteligÃłnciaArtificialeComputacional).
+Tuomisto,T,Kymäläinen,T,Plomp,J,Haapasalo,A,andHakala,K.(2014). SimpleRuleEditorfortheInternetofThings.InIntelligentEnvironments(IE),2014
+InternationalConferenceon.IEEE,384–387.
+140 T.-H.K.Huang,A.Azaria,O.J.RomeroandJ.P.Bigham/HumanComputation(2019)6:1
+Ur,B,McManus,E,PakYongHo,M,andLittman,M.L.(2014). PracticalTrigger-actionProgrammingintheSmartHome.InProceedingsoftheSIGCHIConference
+onHumanFactorsinComputingSystems(CHI’14).ACM,NewYork,NY,USA,803–812. DOI:http://dx.doi.org/10.1145/2556288.2557420
+VonAhn,LandDabbish,L.(2004). Labelingimageswithacomputergame.InProceedingsoftheSIGCHIconferenceonHumanfactorsincomputingsystems.ACM,
+319–326.
+vonAhn,LandDabbish,L.(2008).DesigningGameswithaPurpose.Commun.ACM51,8(Aug.2008),58–67. DOI:http://dx.doi.org/10.1145/1378704.1378719
+Walker,MandPassonneau,R.(2001).DATE:adialogueacttaggingschemeforevaluationofspokendialoguesystems.InProceedingsofthefirstinternationalconference
+onHumanlanguagetechnologyresearch.AssociationforComputationalLinguistics,1–8.
+Yeh,T,Chang,T.-H,andMiller,R.C.(2009).Sikuli:UsingGUIScreenshotsforSearchandAutomation.InProceedingsofthe22NdAnnualACMSymposiumonUser
+InterfaceSoftwareandTechnology(UIST’09).ACM,NewYork,NY,USA,183–192. DOI:http://dx.doi.org/10.1145/1622176.1622213
+Yin,PandNeubig,G.(2017). ASyntacticNeuralModelforGeneral-PurposeCodeGeneration.InThe55thAnnualMeetingoftheAssociationforComputational
+Linguistics(ACL).Vancouver,Canada.https://arxiv.org/abs/1704.01696

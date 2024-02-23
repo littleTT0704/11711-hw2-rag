@@ -1,0 +1,366 @@
+NONVERBALSOUNDDETECTIONFORDISORDEREDSPEECH
+ColinLea ZifangHuang DhruvJain∗ LaurenTooley ZeinabLiaghat
+ShrinathThelapurath LeahFindlater JeffreyP.Bigham
+AppleInc.
+ABSTRACT useinsituationswhenanindividualislayinginbed,outside
+oftheirwheelchair,ornotattheirdesk[6].
+Voice assistants have become an essential tool for people
+We present a system for nonverbal, sound-based interac-
+withvariousdisabilitiesbecausetheyenablecomplexphone-
+tions that people with a wide range of speech disorders can
+ortablet-basedinteractionswithouttheneedforfine-grained
+usetointeractwithmobiletechnology.Theinputisrawaudio
+motor control, such as with touchscreens. However, these
+andtheoutputisasetofdiscreteeventstriggeredwhenauser
+systems are not tuned for the unique characteristics of indi-
+makesoneoffifteenmouthsounds,suchas“pop”,“click”,or
+viduals with speech disorders, including many of those who
+the phoneme /i/, which can be used to perform actions like
+have a motor-speech disorder, are deaf or hard of hearing,
+“select item” or “go back” on a mobile device. While con-
+have a severe stutter, or are minimally verbal. We introduce
+ceptually simple, challenges arise when enabling robustness
+analternativevoice-basedinputsystemwhichreliesonsound
+across wide vocalization ranges, achieving low-latency, and
+event detection using fifteen nonverbal mouth sounds like
+mitigatingfalsepositivesfromspeechorbackgroundnoises.
+“pop”, “click”, or “eh.” This system was designed to work
+Priorworkconsistsofearlyprototypesthatarenotrobust
+regardless of ones’ speech abilities and allows full access to
+totheneedsofall-dayconsumertechnology[7,8,9,10,11]
+existingtechnology. Inthispaper,wedescribethedesignofa
+orusesoundsthatdonotsuitalldisabilities[12,13]. Harada
+dataset,modelconsiderationsforreal-worlddeployment,and
+etal.[9,10]developedanearlysystemforpeoplewithmotor-
+efforts towards model personalization. Our fully-supervised
+speechdisorderswhichpredictedvowelssuchas/u/and/i/
+model achieves segment-level precision and recall of 88.6%
+and associated them with computer mouse motions. While
+and88.4%onaninternaldatasetof710adults,whileachiev-
+valuable, speech or background noises (wheelchair sounds,
+ing0.31falsepositivesperhouronaggressorssuchasspeech.
+music) could easily produce false positives. Recently, Cai
+Five-shotpersonalizationenablessatisfactoryperformancein
+et al. [12] introduced a system that is robust to the everyday
+84.5%ofcaseswherethegenericmodelfails.
+needsofpeoplewithALS,whichsolelydetectsthesound/a/,
+Index Terms— Sound event detection, nonverbal com- andisusedtotriggeractionslike“callforhelp.”Theyprevent
+munication,dysarthria,motor-speechdisorders falsepositivesbyalsotrainingwithenvironmentalsoundsand
+byrequiringausertorepeatthesoundtwicewithintensec-
+onds. Whilerobust,thepost-processorpreventsreal-timeuse
+1. INTRODUCTION
+cases. Talon Voice [13] and Parrot.py [11] are voice control
+librariesdesignedfortechsavvyindividualswithmotordis-
+Many individuals with severe motor- or motor-speech disor-
+abilities. Talon has two detectors (“pop” and “hiss”), which
+ders have limited communication ability and rely on ubiqui-
+can trigger system events on a computer, but which are not
+toustechnologieslikephonesandcomputers[1]. Forpeople
+sounds users with certain oral-motor function can vocalize.
+with motor impairments (e.g., carpal tunnel), assistive tech-
+Parrot.pyenablesuserstotraincustomdetectors,butwefind
+nologyincludingvoicecontrolandeyetrackingcanbeimpor-
+itisnotrobusttobackgroundsoundsandcanrequiretensor
+tant parts of their daily life. Despite progress on disordered
+hundredsoftrainingexamplesperdetector.
+speech recognition [2, 3, 4, 5], commercial voice assistants
+We introduce a system that combines all of the benefits
+have yet to be tuned for people with speech differences, so
+of the above work by: (1) using a universal sound set (i.e.,
+individualswithALS,MuscularDystrophy,TraumaticBrain
+allspeakingindividualsshouldbeabletotriggeratleastone
+Injury or other motor-speech disorders may rely on physical
+sounds, regardlessofspeech, accents, orothervocalcharac-
+switchcontrols(e.g.,buttons,sip&puffsensors,orjoysticks)
+teristics),(2)providingrobustnessforall-dayusage(i.e.,not
+tointeractwithtechnology.Thesesolutionscantakeordersof
+falselytriggeringwhensomeoneistalking,musicisplaying,
+magnitudelongertoaccomplishthesametaskscomparedto
+or loud environmental sounds are occurring), and (3) hav-
+peoplewithoutmotordisordersandmaynotbeamenableto
+inglow-latency(i.e.,systeminteractionison-parwithtouch-
+∗UniversityofWashington(workdoneduringaninternshipatApple) basedsystems). Wedescribeadataset,model,andatraining
+2202
+beF
+51
+]SA.ssee[
+1v05770.2022:viXra
+Nonspeech Definition
+Click Tonguetoroofofmouth(front),snapdown.
+Cluck Tonguetoroofofmouth(back),snapdown.
+Pop Closelipstightlyandreleasewithquickblow.
+Voiceless Definition
+/p/:Pitch Closelipslooselyandblowout.
+/k/:Kite Touchbackoftonguetoroofofmouth,exhale.
+/t/:Teeth Openlips,teethclosed.
+/S/:Shoe(“sh”) Pushlipsoutwithyourteethopenandblowair.
+/s/:Snake Openlipswithyourteethclosedandblowair.
+Voiced Definition
+/E/:Effort(“eh”) Openmouth,tongueraised,andstartvoicing.
+/@/:Ump(“uh”) Openmouth,teethopen,tongueslightlyraised.
+/u/:Boo(“oo”) FormanOwithyourlips.
+/m/:Mom Startvoicingwithlipsclosed.
+/i/:Eagle(“ee”) Open mouth with lips wide, tongue slightly
+raised,andstartvoicing.
+Fig.1: Duringtraining,predicttheprobabilityofeachsound
+Diphones Definition
+per-frame,usingmouthsoundsandaggressoraudio(speech,
+/la/:Law Touchtonguetoroofofmouth. Startvoicing
+andopenmouth. environmentalsounds). Attesttime, taketheseprobabilities
+/m@/:Mud(“muh”) Closelips,startvoicing,andopenyourmouth. andgeneratesparseevents. k=width,g=groups,n=nodes.
+Table 1: Nonverbal Sound List. IPA and English forms are
+usedinterchangeableintextforreaderconvenience. consistently (e.g., due to respiratory incoordination, ventila-
+tordependence, oravoice disorder)maybeabletoproduce
+non-voicedphonessuchas/k/,/p/,/t/,/s/,“sh”,ornon-speech
+scheme to improve robustness across variations in vocaliza-
+sounds“click”,“cluck”,and“pop”.
+tions, – including via personalization – and evaluate on data
+fromindividualswithandwithoutmotor-speechdisorders.
+2.2. Datasets
+2. NONVERBALSOUNDS
+Despitetheshortdurationofoursounds,thereislargevaria-
+tioninpronunciationacrossaccents,ages,genders,andvocal
+2.1. SoundTypes&ClinicalRelevance abilities. Incontrastwith(e.g.,[12])whichtrainandevaluate
+isolated vowel detectors on public English speech datasets,
+Withclinicalguidance,welookedatprototypicalexamplesof
+wecollectedover100kinstancesofisolatedsoundsusingthe
+speech production for individuals with cerebral palsy, ALS,
+protocoldescribedbelow. Wealsousealargeanddiverseset
+musclardystrophy,multiplesclerosis,traumaticbraininjury,
+of aggressor data, in the form of speech and environmental
+andotherconditionsresultinginspeechdisorders. Weidenti-
+sounds,topreventfalsedetectionsineverydaysituations.
+fied15soundsspanningnon-speech,voicedphones,unvoiced
+phones,anddiphonesasshowninTable1. MouthSounds: We collected audio from 710 non-disabled
+Sounds were chosen based on features (i.e., voicing, peoplewithatleast40participantseachacrossdemographics
+nasality/resonance) that people with specific diagnoses are spanning accent/locale, age ranges (18+), gender (male, fe-
+more likely able to produce while maintaining diverse lo- male,non-binary),devicetype(phone,tablet,wiredorblue-
+cations of production in the oral cavity (palatal, alveolar, tooth headphones), and background environment (indoor or
+bilabial, velar) to ensure success for a large distribution of outdoor). Each person recorded audio clips of themselves
+people. Vowels “eh”, “ee” and “oo” were chosen for their repeating each sound type at least 10 times in a row with
+spectral differences and because some (i.e., “ee” and “eh”) about one second of silence between vocalizations. Record-
+may be more intelligible in individuals with ALS than other ings were done at a “close” and “far” distance to simulate
+vowel choices [14]. The central vowel “uh” may be more holdingadeviceinhandandspeakingintoatabletpotentially
+easilyproducedforindividualswithcerebralpalsyandothers mountedonawheelchairortable.
+with dysarthria [15]. “Muh” was chosen as a consonant- Obtaining data across accents and physical locations is
+vowel (CV) production that is easier for individuals who important.EarlymodelstrainedonpredominantlyUSaccents
+tensetheiroralstructureswheninitiatingspeech,whilemain- achieved24.7%worseF1scorecomparedtothesamemodels
+tainingthecentralvowel“uh”. /m/inisolationandin“muh” trainedonpeoplewithnineaccents(British,Chinese,French,
+maybemoreclearlyproducedforpeoplewhomayhavehy- German, Indian, Italian, Japanese, Spanish, US). One mode
+pernasality (i.e. due to flaccid dysarthria or when wearing of variation was from people whose native language (e.g.,
+BiPapforrespiration). Individualswhoareunabletophonate Italian) only had five scripted vowels instead of the seven
+3. LOW-LATENCYSOUNDDETECTOR
+Our system is visualized in Figure 1. A preprocessor com-
+putes log spectrograms, a temporal convolutional network
+computes the probability that each frame contains a sound,
+and a post-processor takes probabilities and outputs sparse
+detections. Atruntimeallmodulesareappliedat100hz.
+ModelArchitecture: OurmodelisasimpleTemporalConvo-
+lutionalNetwork,mostsimilartoQuartzNet[20]. Theinput
+64dimensionallogmel-spectrogramsgeneratedfrom16khz
+Fig.2:T-SNEvisualizationofsoundeventembeddingsusing audiowitha25mswindowandstrideof10ms,resultingin
+themodelinSection3. Embeddingsarecoloredusing(Left) a 100 hz sampling rate. The first layers apply 1D convolu-
+thesoundtypeassignedbyaparticipantand(Right)thesound tions (kernel size k=5) with N=256 nodes. There are then
+typeassignedbyourmodel. Thisisusedtoidentifydiscrep- five blocks of grouped (g) convolutions with the following
+anciesinhowpeoplevocalizedeachsoundandthelabeltype. pattern: Conv1D(n=N,k=5,g=4), LeakyReLU, and a
+residual bottleneck consisting of Conv1D(n=N/4,k=1),
+LeakyReLU, Conv1D(n=N,k=1). Dropout is used after
+eachactivation.ThenetworkheadconsistsofaConv1D(n=C,
+k=1) with Sigmoid activation. Each frame’s output is a
+usedinEnglish(i.e.,“uh”and“eh”areusedinterchangeably).
+vector of size C = 17: 15 nonverbal sounds, a background
+We also found larger variation in how people from different
+class,andaspeechclass. Thereceptivefieldis270ms.
+countriestendedtosayeachsound,regardlessofourwritten
+Post-processing: Many of our sounds are similar to what
+andvisualdescriptions(i.e.,“uh”wassometimespronounced
+appear in everyday speech. We prevent false positives using
+“oo”). These discrepancies were apparent when listening to
+a post-processor that aggregates background, speech, and
+clips and when visualizing similarity of their sound embed-
+nonverbal probabilities and outputs sparse events (c,t) for
+dings,asshownviatheT-SNEplot[16]inFigure2.Weauto-
+classcandtimet. Foreachclass,givenprobabilitiesp for
+maticallydetecteddiscrepanciesusingtworoundsofPseudo c,t
+times 1...t, generate an event if p is greater than threshold
+Labeling [17] and found 9.8% of self-described labels to be c
+θ forthemostrecentτ frames. Noeventisgeneratedifthe
+different than our prediction including 11.3% from “eh” to c c
+backgroundorspeechprobabilitiesexceedθ inthepast50
+“uh”,8.5%“uh”to“oo”,and6.5%“ee”to“eh”. Theseclips bg
+framesorifanyclassisdetectedwithinthistime.
+wereremovedwhentrainingfinalmodels.
+Post-processing parameters are optimized per-class to
+minimizetheweightedF1scoreonmouthsoundsdata,False
+Aggressors: We train and evaluate using speech and non- PositiveRateonspeechaggressordata,andlatency. Optimal
+speech datasets to mitigate false positives. For speech, we values range from θ ∈ [0.4,0.6] and τ ∈ [7,15] frames.
+c c
+use subsets of LibriSpeech which contains read speech [18] Soundsincludingclickandpopmaybe50mswhereas/u/or
+(train-clean-100andtest-clean),publicpodcastrecordingsof /i/maybe250ms,andvaluesofτ reflectthis. Ifadditional
+c
+peoplewithUSandBritishaccents,and10phrasesfromeach robustness is required, additional processing can be used to
+participant in our mouth sounds collection. For non-speech further reduce false positives by requiring silence after each
+data we rely on environment sounds from AudioSet [19] sound,albeitatthecostofaddedlatency.
+andinternallycollectedrecordingssuchasappliancesounds.
+Trainingclipsarerandomlysampledfromeachdataset,total-
+3.1. ModelTraining
+ing30hoursofspeechand20hoursofbackgroundsounds.
+Baseline models are trained using a binary cross entropy
+loss per-class. Batches of 50% mouth sound clips and 50%
+Annotations: Eachmouthsoundrecordingcontainsrepeated
+aggressors are concatenated, with cumulative duration of T
+instancesofonesoundtypewithsilenceinbetween. Frame-
+frames,outputtingT logprobabilityvectors,withalosseval-
+wise labels were generated by computing the energy in the
+uatedat100hzbeforethepost-processingfunction. Bound-
+audiosignalandfindingsegmentswithminimumdurationof
+aries of each segment are inflated by 50% of the receptive
+30msandwhoserelativeenergyexceededonestandarddevi-
+field size (13 frames) to encourage the model to detect the
+ationfromthemean. Allframeswithinagivensegmentwere
+onset and offset of a sound, where many of the constituent
+labeledwiththeuser-annotatedsoundtypeandallotherswere
+framesare“silence”. Thisisequivalenttothetemporalaug-
+considered“silence.” Labelsforspeechclipsweregenerated
+mentationusedbyMeyeretal.[21].
+usingaspeechactivitydetectorandallaggressorclipframes
+werelabeledwiththebackgroundclass. Personalization: Our datasets contain predominantly non-
+clickand“mm”havezero. Wetrainedthesamemodelwith-
+out these negative datasets and it has 303.9 FPs/hour. Thus,
+thissimpletechniquereducedthefalsepositiverateby98.4%
+while losing only 0.6% and 1.8% precision and recall on
+mouth sounds data. A similar experiment on a 10.5 hour
+environmental sound set (e.g., kitchen noises) reduced the
+falsepositiveratefrom238.5to0.225FP/hour. Speakersand
+environmentsdidnotoverlapinthetrainingandtestsets.
+Latency: Theaveragesystemlatencyis108±32msfromthe
+Fig. 3: Segmental precision/recall on our 90 person non-
+end of each vocalization to system detection. Extending the
+disabledset. “Oneactive”meansonlyonesoundtypeisen-
+boundaries of each label as described in Section 3 improves
+abledatatime. ‘Allactive”meansanyclasscanbedetected.
+sound onset detection and reduces latency by 33 ms. Our
+modelstartstodetectsoundsbeforetheyhavebeenfullyvo-
+disordered speech, and there is risk that the system does not calized, which means that longer sounds such as /s/ or “sh”
+work as well for users with severe speech differences. We aresometimesdetectedbeforecompletion. Thecomputation
+investigated whether models could be personalized by fine- timeonaniPhone12isapproximately1mssothetotalamor-
+tuningonexamplevocalizationsfromauser.Weuse256-dim tizedlatencyiswithintherangeoftypicaltouchscreeninter-
+embeddings from the pre-trained model above and fine tune actions(50-200milliseconds[23]).
+on recordings of someone repeating the same sound one to
+Motor-SpeechResults: Recordings and feedback were col-
+five times. Weights in the final class-specific layer are up-
+lected from 28 people with speech differences resulting
+dated using the automated labeling scheme described above
+from cerebral palsy, muscular dystrophy, dysphonia, Parkin-
+andusingaframe-wisebinarycrossentropyloss. Modelsare
+son’s disease, or another motor-speech disorder. Four had
+trainedusingvocalizationsfromonerecordingandevaluated
+moderate-to-severespeechdisordersasjudgedbyspeechin-
+usingaseparatecliptypicallyrecorded15minuteslater.
+telligibility and the remaining had mild. Individuals tested
+a real-time version of this work and recorded themselves
+4. EXPERIMENTS&ANALYSIS makingeachsound10timesforquantitativeevaluation. The
+average success rate (F1≥50%) was 82%. Lowest perform-
+ing sounds were /k/ (68%), /s/ (72%), /t/ (72%). For 23
+BaselineResults: Figure 3 (top) shows segmental precision
+people, at least 10 of 15 sounds were successfully detected.
+and recall metrics and a confusion matrix on a 90 person
+Errorssometimesresultedwhenasoundwasvocalizedslowly
+mouth sound evaluation set (5 male & 5 female per accent).
+relativetothenon-disabledpopulationorwhenanindividual
+Asegmentisconsideredcorrectifthemodeldetectsthecor-
+neededtovocalizedsoundslike/t/as“t-uh”sometimesdue
+recteventanywherebetweenthestartandendofasound. In
+to their speech difference. For an individual with very low
+practice, someone using this type of feature may only use a
+speech intelligibility only 3 of 15 sounds could be detected.
+few sound types per session; they likely will not need all 15
+Forauseronabreathingapparatus,somesounds(e.g.,“sh”)
+detectorsatthesametime. Assuch,resultsareshownforthe
+didnotworkwhiletheapparatuswasactive. Thisissuewas
+extremeswhereonlyonedetectorisactive(“oneactive”)and
+mitigatedbyusingothersoundsthatwerenotimpactedsuch
+oralldetectors(“allactive”). Thebiggestdiscrepancyisfor
+as /k/. Individuals with Parkinson’s disease indicated that
+“mm”and“muh”,whichareoftenconfusedifbothareactive,
+they would be interested in this feature during the times of
+butachievehighperformancewhenusedindividually.
+the day when symptoms are most severe. Some individuals
+Personalization:Experimentswereperformedonparticipants reportneedingtobecloseinproximitytothedeviceduetoa
+for whom the generic model fails (i.e., F1 < 50%). Fine- limitedabilitytovocalizeloudly. Wereceivedpositivefeed-
+tuningonone,three,orfiveexamplesfromthatuserimproves backfrompeoplewhohaveusedourworkinsituationswhere
+F1 by 55.8%, 58.9%, and 61.8% on held out recordings. they otherwise cannot interact with technology for mobility
+84.5% of sounds that could not be detected with the generic reasons(e.g.,inbedorwhennotintheirwheelchair).
+modelcouldbedetectedafterpersonalizationwithfivesam-
+ples. “click”(74.3%),“pop”(68.5%),and“oo”(68.4%)have
+5. CONCLUSION
+the largest improvements. Investigations with MAML and
+ProtoNetsusing[22]didnotyieldsignificantimprovements.
+We developed a system for nonverbal sound detection using
+Aggressors: Ourfinalmodel,trainedusing“positive”mouth triggerslikepopandclickthatisrobusttoeverydayinterac-
+sounds and “negative” speech/background sounds, has 4.65 tionswithbackgroundspeechandenvironmentalnoise. This
+falsepositives(FPs)perhouronLibriSpeechtest-clean. “Sh” wasdesignedtoworkforawiderangeofvocalabilitiesand
+and “uh” have higher rates (0.56 & 0.74 FP/hour) whereas wasvalidatedonpeoplewithandwithoutspeechdisorders.
+6. REFERENCES [13] “Talon voice,” https://talonvoice.com, Ac-
+cessed: 2021-09-26.
+[1] SKochFager,Fried-OkenM,TJakobs,andDRBeukel-
+man, “Newandemergingaccesstechnologiesforadults [14] J Lee, E Dickey, and Z Simmons, “Vowel-specific
+with complex communication needs and severe motor intelligibility and acoustic patterns in individuals with
+impairments:Stateofthescience,”inAugmentativeand dysarthria secondary to amyotrophic lateral sclerosis,”
+AlternativeCommunication,2019. inJofSpeech,Language,andHearingResearch,2019.
+[15] BM Ansel and RD Kent, “Acoustic-phonetic con-
+[2] JR Green, B MacDonald, PP Jiang, J Cattiau, R Hey-
+trastsandintelligibilityinthedysarthriaassociatedwith
+wood,RCave,KSeaver,MLadewig,JTobin,MBren-
+mixed cerebral palsy,” in J of Speech, Language, and
+ner, PQ Nelson, and K Tomanek, “Automatic speech
+HearingResearch,1992.
+recognition of disordered speech: Personalized models
+outperforminghumanlistenersonshortphrases,” inIn-
+[16] LVanderMaatenandGHinton,“Visualizingdatausing
+terspeech.ISCA,2021.
+t-sne,” JofMachineLearningResearch,2008.
+[3] J Harvill, D Issa, M Hasegawa-Johnson, and C Yoo, [17] DHLee, “Pseudo-label: Thesimpleandefficientsemi-
+“Synthesisofnewwordsforimproveddysarthricspeech supervised learning method for deep neural networks,”
+recognition on an expanded vocabulary,” in ICASSP. inICMLWorkshop.
+IEEE,2021.
+[18] VPanayotov,GChen,DPovey,andSKhudanpur,“Lib-
+[4] MKim,YKim,JYoo,JWang,andHKim, “Regular- rispeech:AnASRcorpusbasedonpublicdomainaudio
+izedspeakeradaptationofkl-hmmfordysarthricspeech books,” inICASSP,2015.
+recognition,” IEEE,2017.
+[19] JF Gemmeke, DPW Ellis, D Freedman, A Jansen,
+[5] F Rudzicz, “Articulatory knowledge in the recognition WLawrence,RCMoore,MPlakal,andMRitter, “Au-
+ofdysarthricspeech,” IEEE,2011. dioset: An ontology and human-labeled dataset for au-
+dioevents,” inICASSP.IEEE,2017.
+[6] S Kane, A Guo, and MR Morris, “Sense and accessi-
+bility: Understandingpeoplewithphysicaldisabilities’ [20] SKriman,SBeliaev,BGinsburg,JHuang,OKuchaiev,
+experiences with sensing systems,” in ACM ASSETS, VLavrukhin,RLeary,JLi,andUZhang, “Quartznet:
+October2020. Deep automatic speech recognition with 1d time-
+channelseparableconvolutions,” inICASSP,2020.
+[7] TIgarashiandJFHughes, “Voiceassound: usingnon-
+verbal voice input for interactive control,” in UIST, [21] JMeyerPWardenVJReddiMMazumder,CBanbury1,
+2001. “Few-shotkeywordspottinginanylanguage,” inInter-
+speech,2021.
+[8] MFunk, VTobisch, andAEmbfield, “Non-verbalau-
+[22] A Arnold, P Mahajan, D Datta, I Bunner, and
+ditoryinputforcontrollingbinary,discrete,andcontin-
+KSZarkias, “learn2learn: AlibraryforMeta-Learning
+uousinputinautomotiveuserinterfaces,” inCHI,2020.
+research,” Aug.2020.
+[9] S Harada, JA Landay, J Malkin, X Li, and JA Bilmes,
+[23] A Ng, J Lepinski, D Wigdor, S Sanders, and P Dietz,
+“The vocal joystick: evaluation of voice-based cursor
+“Designingforlow-latencydirect-touchinput,” inUser
+controltechniques,” inACMSIGACCESS,2006.
+InterfaceSoftwareandTechnology,2012.
+[10] SHarada,JOWobbrock,andJALanday, “Voicedraw:a
+hands-free voice-driven drawing application for people
+withmotorimpairments,” inACMSIGACCESS,2007.
+[11] “Parrot.py,” https://github.com/
+chaosparrot/parrot.py, Accessed: 2021-
+09-26.
+[12] S Cai, L Lillianfeld, K Seaver, JR Green, MP Brenner,
+PCNelson,andDSculley,“Avoice-activatedswitchfor
+persons with motor and speech impairments: Isolated-
+vowel spotting using neural networks,” Interspeech,
+2021.

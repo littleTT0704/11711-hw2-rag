@@ -1,0 +1,483 @@
+Differentiable Allophone Graphs for Language-Universal Speech Recognition
+BrianYan,SiddharthDalmia,DavidR.Mortensen,FlorianMetze,ShinjiWatanabe
+LanguageTechnologiesInstitute,CarnegieMellonUniversity,USA
+{byan,sdalmia}@cs.cmu.edu
+Abstract MANY-TO-ONE ONE-TO-MANY MANY-TO-MANY
+Building language-universal speech recognition systems en-
+[a] /a/ [k] /k/ [s] /s/
+tails producing phonological units of spoken sound that can
+be shared across languages. While speech annotations at the [a:] /q/ [S] /S/
+language-specific phoneme or surface levels are readily avail-
+able, annotations at a universal phone level are relatively rare Figure1: Examplesshowingthreetypesofmanifoldmappings
+and difficult to produce. In this work, we present a general ofphones(inbrackets)tophonemes(inslashes). Many-to-one
+frameworktoderivephone-levelsupervisionfromonlyphone- describesallophonesofaphoneme. One-to-manydescribesa
+mictranscriptionsandphone-to-phonememappingswithlearn- duplicitous phone that maps to multiple phonemes. Many-to-
+able weights represented using weighted finite-state transduc- manyconsistsofbothallophonesandduplicitousphones.
+ers,whichwecalldifferentiableallophonegraphs. Bytraining
+multilingually,webuildauniversalphone-basedspeechrecog-
+nitionmodelwithinterpretableprobabilisticphone-to-phoneme phone-phoneme dynamics in the selected training languages
+mappingsforeachlanguage. Thesephone-basedsystemswith [13,21].
+learnedallophonegraphscanbeusedbylinguiststodocument
+We are interested in systems that can incorporate the
+new languages, build phone-based lexicons that capture rich
+strengths of both the implicit and explicit approaches to rep-
+pronunciation variations, and re-evaluate the allophone map-
+resenting universal phones. In particular, we are interested in
+pings of seen language. We demonstrate the aforementioned
+language-universal automatic speech recognition (ASR) sys-
+benefitsofourproposedframeworkwithasystemtrainedon7 tems that can 1) explicitly represent universal phones and
+diverselanguages.
+language-specific phonemes, 2) be built using only automati-
+Index Terms: universal phone recognition, differentiable
+callygeneratedgrapheme-to-phonemeannotationsandphone-
+WFST,multilingualASR,phoneticpronunciation,allophones
+to-phoneme rules, 3) resolve naturally ambiguous phone-to-
+phoneme mappings using information from other languages,
+1. Introduction
+and 4) learn interpretable probabilistic weights of each map-
+ping.
+Theobjectiveoflanguage-universalspeechrecognitionistoin-
+discriminately process utterances from anywhere in the world In this work, we seek to incorporate these desiderata in
+andproduceintelligibletranscriptionsofwhatwassaid[1,2]. a phone-based speech recognition system. We first propose a
+Inordertobetrulyuniversal, recognitionsystemsneedtoen- generalframeworktorepresentphone-to-phonemerulesasdif-
+compassnotonlyspeechfrommanylanguages,butalsointra- ferentiableallophonegraphsusingweightedfinite-statetrans-
+sententialcode-switchedspeech[3,4], speechwithaccentsor ducers [22–27] to probabilistically map phone realizations to
+otherwisenon-standardpronunciations[5,6],andspeechfrom their underlying language-specific phonemes (§3.1). We then
+languageswithoutknownwrittenforms[7,8]. incorporatethesedifferentiableallophonegraphsinamultilin-
+Language-universalspeechrecognitionrequiresphonolog- gual model with a universal phone recognizing layer trained
+icalunitsthatareagnostictoanyparticularlanguagesuchasar- inanend-to-endmanner, whichwecalltheAlloGraphmodel
+ticulatoryfeatures[9–11]orglobalphones[12,13],whichcan (§3.2). We show the efficacy of the AlloGraph model in pre-
+beannotatedthroughexaminationofaudiodata. Whilerecent dicting phonemes for 7 seen languages and predicting phones
+advancementsintherelatedfieldofmultilingualspeechrecog- for 2 unseen languages with comparison to prior works (§5).
+nitionhavesignificantlyimprovedthelanguagecoverageofa Moreimportantly,weshowthatourmodelresolvestheambi-
+single system [14,15], these works differ in that they operate guityofmanifoldphone-to-phonememappingswithananalysis
+onlanguage-specificlevelsofsurfacevocabularyunits[16]or of substitution errors and an examination of the interpretable
+phonemic units that are defined with reference to the unique allophone graph weights (§5.2). Finally we demonstrate our
+phonological rules of each language [17]. Prior works have phone-basedapproachintwolinguisticapplications:pronunci-
+avoideduniversalphonelevelannotationbyimplicitlyincorpo- ationvariationandallophonediscovery(§5.3).
+ratingthisknowledgeinsharedlatentrepresentationsthatmap
+tolanguage-specificphonemeswithneuralnets[17–19].
+Anotherapproachistolearnexplicituniversalphonerep- 2. BackgroundandMotivation
+resentations by relating language-specific units to their uni-
+versal phonetic distinctions. Instead of relying on phone an- Inthissection,wefirstintroducephone-to-phonememappings
+notations, these prior works approximate universal phonolog- for manufacturing phone supervision from phoneme annota-
+ical units through statistical acoustic-phonetic methods [1] or tions (§2.1). Then we discuss short-comings of a baseline
+phone-to-phonemerealizationrules[13,20].Unliketheimplicit methodrepresentingmappingsasapass-throughmatrix(§2.2)
+latentapproach,thismethodallowsforlanguage-universalpre- tomotivateourgraph-basedframeworkinthesubsequentsec-
+diction. However, performance is dependent on the clarity of tion(§3).
+1202
+luJ
+42
+]LC.sc[
+1v82611.7012:viXra
+2.1. PhonologicalUnits 2.2. EncodingPhone-to-PhonemeasPass-throughMatrix
+2.1.1. Language-SpecificPhonemesvs.UniversalPhones Priorworkshaveshownthatphone-to-phonememappingscan
+beencodedaspass-throughlayersthatconvertaphonedistribu-
+A phone n is a unit of spoken sound within a universal tionintoaphonemedistribution[13]. Thisphone-to-phoneme
+set N which is invariant across all languages, where N = encoding,whichwecallAlloMatrix,isasparsematrixA(l) =
+{n 1,...,n |N|} consists of |N| total phones [12]. In contrast, {0,1}|N|×|M(l)| whereeach(n ,m(l))tupleinthemappings
+a phoneme m(l) is a unit of linguistically contrastive sound i j
+desribedin§2.1.2isrepresentedbya(l) = 1. TheAlloMatrix
+for a given language l within a language specific set, where i,j
+M(l) ={m(l),...,m(l) }consistsof|M(l)|totalphonemes transformsalogitvectorofphones,pN = [pN i ,...,pN |N|],toa
+[28]. Phone1 mes defin|M ed(l) f| or different languages describe dif- logitvectorofphonemes,pM(l) = [p jM(l) ,...,p |M M( (l l) )|]bythe
+ferent underlying sounds. Multilingual systems that conflate dotproductofthejthcolumnofA(l)witheachphonelogitpN:
+i
+phonemesacrosslanguageshavebeenshowntoperformworse
+thanthosethattreatphonemesaslanguage-specific[13,21]. |N|
+pM(l) =(cid:88) (a(l))(pN) (1)
+j i,j i
+2.1.2. Phone-to-PhonemeMappings i
+In the many-to-one approach, this amounts to summing the
+For each language, the phone-to-phoneme mappings are de- phone contributions which is in accordance with our desired
+finedasaseriesoftuples,(n i,m( jl)),wherem( jl) ∈ M(l) and mapping of allophones in §2.1.2. However, in one-to-many
+n ∈ N(cid:48) ⊆ N for some subset N(cid:48) of phones that occur as mappings a phone logit broadcast equally to each of the
+i
+realizations in the language. Each phoneme has one or more phonemes. This disagrees with the definition of phone real-
+phone realization and not all universal phones are necessarily ization. Ratherwestatethatarealizedphoneinanutteranceis
+mappedtoaphonemegroundinginaparticularlanguage.Note groundedtoeachofthemappedphonemeswithprobability.
+thatmappingsmaybeimperfectinourresources[20].
+Phone-to-phonemescanbeone-to-onemappings,butoften 3. ProposedFramework
+the relationships are manifold. As shown in Figure 1, many-
+3.1. EncodingPhone-to-PhonemeasWFST
+to-onemappingsarefoundinscenarioswheremultiplephones
+areallophones,ordifferentrealizations,ofthesamephoneme. We define the allophone graph for language l, denoted by
+Thisistheprototypicalmappingtype. One-to-manymappings G(l), to be a single state weighted finite-state transducer
+also occur for duplicitous phones that are mapped to multiple (WFST) with a transition function π(n ,m(l)) giving each
+phonemes.1 Furthermore,many-to-oneandone-to-manymap- i j
+phone-to-phonememappingandacorrespondingweightfunc-
+pingscanoccurtogetherinvariousmany-to-manyforms.
+tionw(n ,m(l))givingthelikelihoodthatn isthephoneticre-
+i j i
+2.1.3. ManufacturingPhone-LevelSupervision
+alizationofm( jl)foreachtransition. TheallophonegraphG(l)
+acceptsphoneemissionprobabilitiesEN andtransducesthem
+Sincephonesarefine-graineddistinctionsofspokensoundsin intophonemesEM(l)
+throughWFSTcomposition[22],which
+theuniversalspace,phonemesareonlyfuzzyapproximations.
+isdenotedas◦.
+Multilingual sharing between diverse languages is required to
+properlylearnphoneticdistinctions.Considerthefollowing: EM(l) =EN ◦G(l) (2)
+One-to-One:Ifaphoneismappedone-to-onewithaphoneme, This WFST is an analogous data structure to the afore-
+thenthelearnedphonerepresentationwilldirectlycorrespond mentioned matrix in §2.2, but this graphical representation of
+toonesupervisingphoneme. Inthemultilingualsetting,these phone-to-phonememappingsasarcsinaprobabilistictransduc-
+directmappingshelpotherlanguagesdisambiguatethisphone. tionallowsustomaketwokeyintuitivedeterminations. First,
+One-to-Many: If a phone is mapped to many phonemes, many-to-onemappingsaretransductionsofseveralphonesinto
+theneachphonemeprovidessupervisioninproportiontotheir thesamephonemeandthereforethephonemeposteriorisgiven
+priordistributions. Ifthelearnedphonemesrepresentationsare bysummingovertheinputphoneposteriors,asisalsodonein
+mappedfromthelearnedphone,phonemeconfusionsoccurif §2.2.Second,one-to-manymappingsaretransductionssplitting
+theone-to-manymappingsarenotdisambiguated. Thisambi- theposteriorofasinglephonetoseveralphonemeposteriors,
+guitypersistsdespiteinformationsharingfromotherlanguages. dependingonhowlikelythosephonemesaretobegroundings
+Many-to-One:Ifmanyphonesaremappedtoaphoneme,each ofthephone. In§2.2,thebroadcastingmethodfailstodothis
+phonereceivesthesamesupervision. Asecondlanguagewith probabilisticsplittinginone-to-manyscenarios,creatingambi-
+complementarymappingsisrequiredtolearndistinctphones. guity.
+Many-to-Many: When one-to-many and many-to-one map-
+pings occur together, they can take various forms. Generally, 3.2. PhoneRecognitionwithAllophoneGraphs
+themany-to-oneportionscanberesolvedthroughmultilingual
+Inthissection,weapplytheallophonegraphsasdifferentiable
+sharing but the one-to-many portions would still be problem-
+WFST[22–27]layersinphone-basedASRsystemsoptimized
+atic.
+withonlymultilingualphonemesupervision.
+In this work, we use the connectionist temporal classi-
+1Theseoccurinresourceslike[20]whenthesourceconflatesallo-
+fication network (CTC) [29,30] where a language-universal
+phonicandmorphophonemicalternations,ininstancesofarchiphone-
+micunderspecificationandneutralization(e.g.treatingJapanese[m]as
+ENCODERmapsinputsequencex=[x t,...,x T]toasequence
+of hidden representations h = [h ,...,h ], where h ∈ Rd.
+arealizationofboth/m/and/N/orEnglish[R]asarealizationofboth t T t
+/t/and/d/asinwriter[ôajRô]andrider[ôa:jRô]),or—spuriously—when
+ThephoneemissionprobabilitiesEN∪∅aregivenbytheaffine
+thegrapheme-phonememappingiscomplex. projection of h followed by the softmax function, denoted as
+Table 1: Results presenting the performances of our proposed AlloGraph models with our implementations of Phoneme-Only and
+AlloMatrixbaselines, asmeasuredbylanguage-specificphonemeerror-rate(%)forseenlanguagesanduniversalphoneerror-rate
+(%) for unseen languages. Performances on unseen languages were evaluated using phone-level annotations for the Tusom and
+Inuktitutcorpora. NotethatwhileourproposedAlloGraphandourbaselineAlloMatrixmodelsproducebothphoneandphoneme-
+levelpredictions,thePhoneme-Onlyapproachonlyrecognizeslanguage-specificphonemes. Theaveragedtotalsacrossunseen/seen
+areshowninboldandthebestperformingmodelsineachcategoryareshowninbold.
+Uses Seen(PhonemeErrorRate%) Unseen(PhoneErrorRate%)
+ModelType ModelName Phones Eng Tur Tgl Vie Kaz Amh Jav Total Tusom Inuktitut Total
+Phoneme-Only Multilingual-CTC[17] (cid:55) 25.3 27.7 28.5 31.9 31.5 28.6 35.2 29.8 NoPhonePredictions
+AlloMatrix Allosaurus[13] (cid:51) 26.5 27.6 33.1 32.0 31.9 28.2 39.0 31.2 91.2 96.7 94.0
+AlloGraph OurProposedModel (cid:51) 26.0 28.6 28.2 31.9 32.5 29.1 36.2 30.5 81.2 85.8 84.1
+AlloGraph +UniversalConstraint(UC) (cid:51) 27.3 28.7 29.9 32.5 35.1 30.9 36.6 31.6 80.5 79.9 80.2
+SOFTMAXOUT.2 Tohandletheblanktoken∅usedinCTCto Table 2: Results showing the performance of the AlloMatrix
+representthenullemission[29],weaddthe∅ → ∅transition and AlloGraph models on two unseen language, as measured
+as an additional arc in the language-specific allophone graphs byPhoneErrorRate(PER),SubstitutionErrorRate(SER),and
+G(l).Phoneandphonemeemissionsarethusgivenby: ArticulatoryFeatureDistance(AFD).AFDmeasuresthesever-
+ity of substitution errors, computed via the distance between
+h=ENCODER(x) (3) vectorsof22articulatoryfeaturescorrespondingtoeachphone.
+EN∪∅
+=SOFTMAXOUT(h) (4)
+Tusom Inuktitut
+EM(l)∪∅ =EN∪∅ ◦G(l) (5) Model PER SER AFD PER SER AFD
+AlloMatrix 91.2 65.6 12.3 96.7 75.3 12.4
+Equation5showstheCTCspecificformofthegeneralphone-
+to-phonemeemissiontransductionshowninEquation2. Dur- AlloGraph 81.2 56.8 8.7 85.8 65.8 8.4
+ing training, we maximize the likelihood of the ground-truth +UC 80.5 54.9 7.8 79.9 59.9 7.8
+phonemes y = [y ,...,y ], where y ∈ M(l) and S is the
+1 S s
+lengthoftheground-truthwhichisatmostthelengthofthein- tainphonemicannotationsusingEpitranforautographeme-to-
+putT,bymarginalizingoverallpossibleCTCalignmentsusing phoneme[28]andphone-to-phonemerulesfromAllovera[20].
+theforward-backwardcomputation[29,30]. Experimental Setup: All our models were trained using the
+We refer to this multilingual CTC architecture with allo- ESPnettoolkit[37]withdifferentiableWFSTsimplementedus-
+phonegraphsasourproposedAlloGraphmodel. Inthevanilla ingtheGTNtoolkit[26]. Toprepareourspeechinputfeatures
+AlloGraph,weallowtheweightsofG(l) tofreelytakeonany wefirstupsampletheaudioto16kHz,augmentitbyapplyinga
+values. Thisisaloose-couplingofphoneandphonemeemis- speedperturbationof0.9and1.1,andthenextractglobalmean-
+sionswhereeachG(l)mayamplifyorreducethephoneposte- variance normalized 83 log-mel filterbank and pitch features.
+riors;forinstance,thisallowsG(l)tolearncaseswhereaphone Input frames are processed by an audio encoder with convo-
+isuniversallyrarebutisaprominentrealizationinlanguagel. lutional blocks to subsample by 4 [37] before feeding to 12
+Whileloose-couplingofphoneandphonemeemissionsis transformer-encoder blocks with a feed-forward dim of 2048,
+beneficialtolanguage-specificphonemerecognition, itdilutes attentiondimof256, and4attentionheads. Weaugmentour
+supervision to the universal phone layer. We address this by datawiththeSwitchboardStrong(SS)augmentationpolicyof
+enforcing a tight-coupling of phone and phoneme emissions SpecAugment[38]andapplyadropoutof0.1fortheentirenet-
+suchthatthephoneposteriorisonlyisometricallytransformed: work. WeusetheAdamoptimizertotrain100epochswithan
+(cid:80) w(n ,m) = 1, where M(cid:48)(l) is the subset of inversesquarerootdecayschedule,atransformer-lrscale[37]
+m(l)∈M(cid:48)(l) i
+phonemesM(l)thatn ismappedtoinlanguagel.Now,Equa- of5,25kwarmupsteps,andaneffectivebatchsizeof768.
+i
+tion (5) exactly sums phone posteriors for many-to-one and
+splitsphoneposteriorsforone-to-manyinthemannerthatwe 5. Results
+desire,asstatedin§3.1.Wecallthistightly-coupledvariantthe
+In Table 1, we show the results of our AlloGraph and Allo-
+AlloGraph+UniversalConstraint(UC)model.
+Graph+UCmodels. Asmentionedin§4,weuseTusomand
+Inuktitutastwounseenlanguageswithphonelevelannotations
+4. DataandExperimentalSetup
+toevaluateourlanguage-universalpredictions;sincetheselan-
+guagesareunseenourmodeldoesnotknowtheirphonemesets
+Data: WeusetheEnglishLDCSwitchboardDataset[32–34]
+or which phones appear as realizations, allowing us to assess
+and 6 languages from the IARPA BABEL Program: Turk-
+howuniversalourphone-basedpredictionsare. Onthesetwo
+ish,Tagalog,Vietnamese,Kazakh,AmharicandJavanese[35].
+unseenlanguagesourAlloGraphmodeloutperformsourAllo-
+These datasets contain 8kHz recordings of conversational
+Matrixbaselinebasedon[13]byanaverageof9.9phoneerror-
+speecheachcontainingaround50to80hoursoftrainingdata,
+rate (%). When using the Universal Constraint described in
+with an exception of around 300 hours for English. We also
+§3.2,ourapproachgainsanadditional3.9phoneerror-rateim-
+consider two indigenous languages with phone level annota-
+provement. TheAlloGraphmodelsmakefewersubstitutioner-
+tions,Tusom[36]andInukitut,duringevaluationonly. Weob-
+rorsthantheAlloMatrixbaseline,andthesubstitutionsarealso
+2Intraining,logitscorrespondingtounmappedphonesinapartic- lesssevere;weexaminetheseimprovementsfurtherin§5.1.
+ular language are masked prior to being softmax normalized similar Table 1 also shows the language-specific phoneme level
+to[31]. performanceoftheAlloGraphmodelon7seenlanguages.Note
+Table3:Resultsshowingthetop3phoneconfusionpairsofthe ONE-TO-MANY MANY-TO-MANY
+AlloMatrix and AlloGraph + UC models on two unseen lan- 0.0 1.0
+guages. Confusion pairs are denoted as [correct] → [incor- [k] /q/ [s] /s/
+r ite yct o] f. eA ar cti hcu cl oa nto fur sy ioF ne ,at cu or me pD ui ts et dan vc ie a( tA hF eD di) sm tae na cs eur be es twth ee ense vv ee cr-
+- 1.0
+0.7 5 0.0
+torsof22articulatoryfeaturescorrespondingtoeachphone. /k/ [S] /S/
+0.25
+(JAVANESE) (TAGALOG)
+Tusom Inuktitut
+Model Confusion AFD Confusion AFD Figure2: Examplesofdisambiguatedphone-to-phonememap-
+pingsusingtheinterpretableweightsofourAlloGraph+UC
+[1]→[B] 15 [a]→[B] 13
+fl fl model, where each [phone] is probabilistically mapped to a
+AlloMatrix [@]→[B] 13 [i]→[B] 13 /phoneme/. Intheone-to-manyexamplefromJavanese, [k]is
+fl fl
+[@]→[s’] 17 [u]→[s’] 23 predominantlyarealizationof/k/. Inthemany-to-manyexam-
+plefromTagalog,[s]ispredominantlyarealizationof/s/while
+[i]→[i:] 2 [a]→[A] 3
+> ¯ [S]isarealizationof/s/75%ofthetimeand/S/otherwise.
+AlloGraph [k]→[kp] 4 [u]→[o] 4
+[a]→[a:] 2 [a]→[a:] 2
+20
+[a]→[5] 4 [q]→[k] 2 18.02 MAPPINGTYPE
+AlloGraph+UC [@]→[5] 2 [a]→[5] 4 Any-to-One
+7.17
+[a]→[A] 2 [i]→[I] 2 Any-to-Many
+15
+thattheselanguagesareannotatedwithphonemesasdescribed
+in§4butnotwithphones. HereourAlloGraphmodelslightly 12.51 12.3
+outperforms the AlloMatrix baseline, but both show degrada-
+tion compared to our Phoneme-Only3 baseline based on [17]. 1.79 1.57
+Weobservethatmodelsplacingemphasisonlearninguniversal 10 10.72 10.85 10.73
+phonesdosowithsomecosttothelanguage-specificlevel.
+TheAlloGraphisadvantageousinjointlymodelingphones Phoneme-Only AlloMatrix AlloGraph
+and phonemes compared to the AlloMatrix baseline due to
+learned disambiguations of phone-to-phoneme mappings; we Figure 3: Results comparing the performances of our base-
+examinethisbenefitfurtherin§5.2. line Phoneme-Only, baseline AlloMatrix, and proposed Allo-
+Graph models on a high phone-to-phoneme complexity lan-
+5.1. UniversalPhoneRecognitionforUnseenLanguages guage, Tagalog, as measured by phoneme substitution error-
+rate(%). Theany-to-onecategoryincludesphonemesinone-
+AsshowninTable2,theimprovementsoftheAlloGraphmod- to-one and many-to-one mappings, and any-to-many includes
+elsovertheAlloMatrixbaselinecomefromreducedphonesub- phonemesinone-to-manyandmany-to-manymappings.
+stitution errors. In addition to making fewer substitution er-
+rors,theAlloGraphmodelsalsomakelessseveresubstitutions butionsofeachmappingcapturedbytheallophonegraphand
+thantheAlloMatrixbaseline.Wequantifythisseveritybycom- canbeusedtodeterminetherelativedominanceofeacharcin
+putingtheaverageddistancebetweenarticulatoryfeaturevec- manifoldmappingsthatcanbeotherwisedifficulttoexplain.
+tors [39] between the ground truth and incorrectly predicted The performance of AlloGraph + UC on languages with
+phonesforallsubstitutionerrors.ComparedtotheAlloMatrix, complex phone-phoneme mappings, such as Tagalog and Ja-
+thesubstitutionsmadebytheAlloGraphandAlloGraph+UC vanese, is greatly improved over the AlloMatrix baseline. In
+modelsare31%and37%closerinarticulatoryfeaturedistance these languages, phones are frequently defined as realizations
+(AFD). ofmultipleostensivephonemesandtherearemanyallophones
+ThehighAFDoftheAlloMatrixbaselineresultsfromde- ofeachphoneme.AsshowninFigure3theseambiguousmap-
+generatebehaviorinwhichvowelsarefrequentlyconfusedfor pingsareespeciallydetrimentaltotheAlloMatrixmodel,which
+plosives, as shown by the top confusion pairs in Table 3. On produces a high number of phoneme substitution errors com-
+theother,thetopconfusionpairsoftheAlloGraphmodelsare paredtoourAlloGraphmodelandPhoneme-Onlybaseline.
+betweenrelatedvowelswhichareproximateinthearticulatory
+feature space. Thus the AlloGraph models produce intelligi-
+5.3. LinguisticApplications
+blephonetranscriptions,whiletheAlloMatrixmodelfails. For
+qualitativeexamplesofphonerecognition,pleasesee§A.1. Inthissection,wedemonstratetheefficacyofphone-basedpre-
+dictionsfromourAlloGraph+UCmodelintwoapplications.
+5.2. ProbabilisticPhone-to-PhonemeDisambiguation AsshowninTable4,ourAlloGraph+UCmodelproduces
+differentphoneticrealizationsofasinglephonemicpronunci-
+An added benefit of our model is the ability to interpret the
+ation. Bycollectingallofthephoneticrealizationsforcorrect
+weights of learned AlloGraphs, which show disambiguations
+phonemictranscriptionsoftheword‘hello’utteredbynumer-
+ofambiguousphone-to-phonememappings. AsshowninFig-
+ousspeakersacrosstestsetsinourconversationalcorpora,we
+ure2,ourAlloGraph+UCmodeldistributesphoneemissions
+automatically identified the most frequent phonetic pronunci-
+to multiple phonemes in the one-to-many and many-to-many
+ations. Thesequalitativeexamplessuggestthatdynamicmeth-
+scenarios.Theseprobabilitiescanbeinterpretedaspriordistri-
+odsforbuildinglexiconsusinguniversalphonerecognitionsys-
+3Phoneme-Only [17] directly maps the shared ENCODER hidden temscancapturediversepronunciationsthatcanbolsterknowl-
+statestolanguage-specificphonemelevelSOFTMAXOUT,replacingthe edge sets [5]. This may benefit pronunciation-sensitive tasks
+sharedphonelevelinEquation(4).Thustherearenophonepredictions. likecode-switched[4]oraccentedspeechrecognition[40].
+)↓(etaRnoitutitsbuSemenohP%
+Table4:Resultsshowingthepronunciationsoftheword‘hello’ by grants from National Science Foundation for Bridges PSC
+across the 7 languages discovered by our AlloGraph + UC (ACI-1548562,ACI-1445606)andDARPAKAIROSprogram
+model,asshowninphonemicandphoneticforms. Pronuncia- fromtheAirForceResearchLaboratory(FA8750-19-2-0200).
+tionvariationsbetweendifferentspeakersinourconversational TheU.S.Governmentisauthorizedtoreproduceanddistribute
+testsetarecapturedatthephoneticlevel.Wepresentthe3most reprintsforGovernmentalpurposesnotwithstandinganycopy-
+frequentphone-basedpronunciationsandtheirpercentages. rightnotationthereon.
+Pronunciations
+8. References
+Lang. Word Phonemic Phonetic
+Eng hello /h@low/ [halo] 54% [h@low] 8% [hElow] 8% [1] J. Köhler, “Multilingual phone models for vocabulary-
+Tur alo /alo/ [a:ëo] 100% - - independent speech recognition tasks,” Speech Communication,
+Tgl hello /hello/ [hello] 99% [hellu] 1% -
+2001.
+Vie alô /Palo/ [Palo] 100% - -
+Kaz /Allo/ [A”l”lo] 75% [A6”l”lo] 20% [6”l”lo] 5% [2] T.SchultzandA.Waibel,“Language-independentandlanguage-
+Amh /helo/ [H¯elo] 99% [h¯elo] 1% - adaptiveacousticmodelingforspeechrecognition,”SpeechCom-
+Jav halo /halo/ [halo] 88% [hOlo] 11% [helo] 1%
+munication,2001.
+Table 5: Results showing the most frequent triphone contexts [3] B.E.BullockandA.J.E.Toribio,TheCambridgehandbookof
+linguisticcode-switching. CambridgeUniversityPress,2009.
+andrealizationratesofvariousphonesmappedtothephonemes
+/b/and/@/inAmharic,asdiscoveredbyourAlloGraph+UC [4] K. Li, J. Li, G. Ye, R. Zhao, and Y. Gong, “Towards code-
+switchingasrforend-to-endctcmodels,”inProc.ICASSP,2019.
+modelonourtestcorpus. Phonesthatarenotmappedtoany
+phoneme,suchas[5]inAmharic,canstillappearashypothe- [5] N.Coupland,Style:Languagevariationandidentity. Cambridge
+sizedrealizationssuggestingnewphone-to-phonememappings. UniversityPress,2007.
+[6] S.Sun,C.-F.Yeh,M.-Y.Hwang,M.Ostendorf,andL.Xie,“Do-
+main adversarial training for accented speech recognition,” in
+Phone-to- Realization Predefined Frequent
+Proc.ICASSP,2018.
+Phoneme Rate(%) Mapping TriphoneContexts
+[7] N.P.Himmelmannetal.,“Languagedocumentation: Whatisit
+[b]→/b/ 64.5 (cid:51) [#b5] [#b@] [#bI] andwhatisitgoodfor,”Essentialsoflanguagedocumentation,
+[B]→/b/ 29.7 (cid:51) [OBe] [@BH] [#BI] 2006.
+fl fl fl fl
+[@]→/@/ 32.7 (cid:51) [n@w] [d@H] [d@t] [8] S.Hillis,A.P.Kumar,andA.W.Black,“Unsupervisedphonetic
+[5]→/@/ 29.2 (cid:55) [P5l] [s5l] [s5m] andwordleveldiscoveryforspeechtospeechtranslationforun-
+[E]→/@/ 16.4 (cid:51) [gEr] [bEr] [lEt] writtenlanguages.”inProc.Interspeech,2019.
+[O]→/@/ 13.8 (cid:51) [POw] [POj] [POn] [9] S.Stuker,F.Metze,T.Schultz,andA.Waibel,“Integratingmul-
+tilingualarticulatoryfeaturesintospeechrecognition,”inEighth
+EuropeanConferenceonSpeechCommunicationandTechnology,
+SincetheAlloGraph+UCmodelproducesjointalignments 2003.
+of phones and phonemes for seen languages, it can also dis- [10] K.Livescu,P.Jyothi,andE.Fosler-Lussier,“Articulatoryfeature-
+cover the allophone realization rates and triphone contexts in basedpronunciationmodeling,”ComputerSpeech&Language,
+test corpora (Table 5). Our method can also hypothesize new 2016.
+allophones such as the the phone [5] which is not mapped to [11] X.Li,S.Dalmia,D.Mortensen,J.Li,A.Black,andF.Metze,
+any of the phonemes in Amharic [20]. One important step in “Towards zero-shot learning for automatic phonemic transcrip-
+language documentation is discovering and defining the rela- tion,”inProc.AAAI,2020.
+tionshipbetweenphonesandphonemes[7],ensuringthatmap- [12] T.Schultz,“Globalphone:amultilingualspeechandtextdatabase
+pingsareexhaustivebutdevoidofspuriouspairs. Automatic, developedatkarlsruheuniversity,”inSeventhInternationalCon-
+data-drivenmethodstogeneratephone-phonememappingsal- ferenceonSpokenLanguageProcessing,2002.
+lowlinguiststodiscovertheserelationshipsmoreeffectively. [13] X.Li,S.Dalmia,J.Li,M.Lee,P.Littell,J.Yao,A.Anastasopou-
+los,D.R.Mortensen,G.Neubig,A.W.Blacketal.,“Universal
+phonerecognitionwithamultilingualallophonesystem,”inProc.
+6. ConclusionandFutureWork
+ICASSP,2020.
+Wepresentdifferentiableallophonegraphsforbuildinguniver- [14] O.Adams, M.Wiesner, S.Watanabe, andD.Yarowsky, “Mas-
+sivelymultilingualadversarialspeechrecognition,” inProceed-
+sal phone-based ASR using only language-specific phonemic
+ingsofNAACL-HLT,2019.
+annotations and phone-to-phoneme rules. We show improve-
+mentsinphoneandphonemepredictionoverpriorworks.More [15] V.Pratap, A.Sriram, P.Tomasello, A.Hannun, V.Liptchinsky,
+G.Synnaeve,andR.Collobert,“Massivelymultilingualasr: 50
+importantly,ourframeworkenablesmodelinterpretabilityand
+languages, 1 model, 1 billion parameters,” Proc. Interspeech,
+unique linguistic applications, such as phone-based lexicons
+2020.
+andallophonediscovery. Infuturework,wewillseektoincor-
+[16] B.Li,Y.Zhang,T.Sainath,Y.Wu,andW.Chan,“Bytesareall
+poratecontexuallydynamicphone-to-phonememappingsusing
+youneed: End-to-endmultilingualspeechrecognitionandsyn-
+convolutionalorattention-basedWFSTweights. Wehopethat thesiswithbytes,”inProc.ICASSP,2019.
+the insights of this work stimulate research on learnable rep-
+[17] S.Dalmia,R.Sanabria,F.Metze,andA.W.Black,“Sequence-
+resentations of other linguistic rules, such as articulatory fea-
+based multi-lingual low resource speech recognition,” in Proc.
+tures[11], phonotactics[41], andcross-lingualmappings[42] ICASSP,2018.
+inmultilingualspeechprocessing.
+[18] A. Stolcke, F. Grezl, M.-Y. Hwang, X. Lei, N. Morgan, and
+D. Vergyri, “Cross-domain and cross-language portability of
+7. Acknowledgements acousticfeaturesestimatedbymultilayerperceptrons,” inProc.
+ICASSP,2006.
+WethankXinjianLi, AwniHannun, AlexShypula, andXinyi [19] K.Vesely`,M.Karafiát,F.Grézl,M.Janda,andE.Egorova,“The
+Zhangforhelpfuldiscussions.Thisworkwassupportedinpart language-independentbottleneckfeatures,”inProc.SLT,2012.
+[20] D. R. Mortensen, X. Li, P. Littell, A. Michaud, S. Rijhwani, [41] S. Feng, P. Z˙elasko, L. Moro-Velázquez, A. Abavisani,
+A. Anastasopoulos, A. W. Black, F. Metze, and G. Neubig, M. Hasegawa-Johnson, O. Scharenborg, and N. Dehak, “How
+“Allovera: a multilingual allophone database,” in Proc. LREC, Phonotactics Affect Multilingual and Zero-shot ASR Perfor-
+2020. mance,”inProc.ICASSP,2021.
+[21] J. Kohler, “Multi-lingual phoneme recognition exploiting [42] K. Hu, A. Bruguier, T. N. Sainath, R. Prabhavalkar, and
+acoustic-phoneticsimilaritiesofsounds,”inProc.ICSLP,1996. G.Pundak,“Phoneme-BasedContextualizationforCross-Lingual
+SpeechRecognitioninEnd-to-EndModels,”inProc.Interspeech,
+[22] M.Mohri,F.Pereira,andM.Riley,“Weightedfinite-statetrans-
+2019.
+ducers in speech recognition,” Computer Speech & Language,
+2002.
+A. Appendix
+[23] N. Moritz, T. Hori, and J. L. Roux, “Semi-supervised speech
+recognition via graph-based temporal classification,” Proc. A.1. QualitativeExamplesofUniversalPhoneRecognition
+ICASSP,2021.
+In Table 6, we show qualitative examples of phone transcrip-
+[24] P.Doetsch,A.Zeyer,P.Voigtlaender,I.Kulikov,R.Schlüter,and
+tionsontwounseenlanguagesalongwiththephoneerrorrate
+H. Ney, “Returnn: The rwth extensible training framework for
+universalrecurrentneuralnetworks,”inProc.ICASSP,2017. (PER), substitution error rate (SER), and articulatory feature
+distance (AFD). As discussed in §5.1, the AlloGraph models
+[25] Y.Shao, Y.Wang, D.Povey, andS.Khudanpur, “PyChain: A
+produce intelligible results while the AlloMatrix baseline fre-
+FullyParallelizedPyTorchImplementationofLF-MMIforEnd-
+to-EndASR,”inProc.Interspeech2020,2020. quentlysubstitutesvowelsforplosives, resultinginhighAFD
+andphonetranscriptionsthataremostlyuninterpretable.
+[26] A. Hannun, V. Pratap, J. Kahn, and W.-N. Hsu, “Dif-
+ferentiable weighted finite-state transducers,” arXiv preprint
+arXiv:2010.01003,2020. Table6:Qualitativeexamplesofuniversalphonetranscriptions
+of the AlloMatrix baseline and AlloGraph models on two un-
+[27] D.Povey,F.Kuang,H.Qiuetal.,“k2fsaandfstautogradinte-
+seenlanguages,TusomandInuktitut.Theerrorsofeachphone
+gration,”https://github.com/k2-fsa/k2,2021.
+output sequence are highlighted in red. The phone error rate
+[28] D.R.Mortensen, S.Dalmia, andP.Littell, “Epitran: Precision
+(PER), substitution error rate (SER), and articulatory feature
+G2Pformanylanguages.”inLREC,2018.
+distance(AFD)ofeachsequencearealsoshown.
+[29] A.Graves,S.Fernández,F.Gomez,andJ.Schmidhuber,“Con-
+nectionist temporal classification: labelling unsegmented se- UNSEENLANGUAGE:Tusom
+quence data with recurrent neural networks,” in Proc. ICML,
+2006. Model/Source PhoneOutput PER SER AFD
+[30] Y.Miao,M.Gowayyed,andF.Metze,“Eesen:End-to-endspeech AlloMatrix [s’s’B] 100.0 60.0 13.3
+recognitionusingdeeprnnmodelsandwfst-baseddecoding,”in fl
+AlloGraph [@k1ôu] 80.0 60.0 4.7
+Proc.ASRU,2015.
++UC [P1kru] 20.0 20.0 2.0
+[31] S. Dalmia, X. Li, A. W. Black, and F. Metze, “Phoneme level Ground-Truth [P1khru] - - -
+languagemodelsforsequencebasedlowresourceasr,”inProc.
+ICASSP,2019. AlloMatrix [bs’Bgs’ô] 83.3 83.3 12.2
+fl
+¨
+[32] J. Godfrey and E. Holliman, “Switchboard-1 Release 2 AlloGraph [b5Ngs’ô] 66.6 66.6 8.3
+LDC97S62,”WebDownload.Philadelphia:LinguisticDataCon- +UC [b5Ng¨Yr] 50.0 50.0 4.0
+sortium,1993. Ground-Truth [baNg¨or] - - -
+[33] L.D.Consortium,“2000HUB5EnglishEvaluationTranscripts
+AlloMatrix [Bks’bs’B] 90.0 50.0 15.4
+LDC2002T43,”Philadelphia:LinguisticDataConsortium,2002. fl fl
+AlloGraph [Poku:bu:Se:] 70.0 50.0 5.6
+[34] ——, “2000 HUB5 English Evaluation Speech LDC2002S09,”
++UC [Pokubu:Se:] 60.0 40.0 6.5
+Philadelphia:LinguisticDataConsortium,2002.
+Ground-Truth [Pukxuk@Sue] - - -
+[35] “Full Language Packs (FLP) released by the IARPA Ba-
+bel Research Program (IARPA-BAA-11-02): IARPA- UNSEENLANGUAGE:Inuktitut
+babel105b-v0.4, IARPA-babel106-v0.2g, IARPA-babel107b-
+v0.7, IARPAbabel302b-v1.0a, IARPAbabel307b-v1.0b, Model/Source PhoneOutput PER SER AFD
+IARPAbabel402b-v1.0b.”
+AlloMatrix [ks’Bs’kks’Bs’k] 60.0 60.0 18.3
+[36] D.R.Mortensen,J.Picone,X.Li,andK.Siminyu,“Tusom2021: AlloGraph [kimuckhkimu] 50.0 30.0 6.0
+A phonetically transcribed speech dataset from an endangered
++UC [kINokkINuk] 30.0 30.0 2.7
+language for universal phone recognition experiments,” arXiv
+Ground-Truth [kiNukkiNuk] - - -
+preprintarXiv:2104.00824,2021.
+AlloMatrix [SBs’kSBks’] 80.0 70.0 9.7
+[37] S.Watanabe,T.Hori,S.Karita,T.Hayashi,J.Nishitoba,Y.Unno,
+N. Enrique Yalta Soplin, J. Heymann, M. Wiesner, N. Chen, AlloGraph [s1ka:ksu:ka:k] 60.0 60.0 2.3
+A. Renduchintala, and T. Ochiai, “ESPnet: End-to-end speech +UC [”suk2ksuk2k] 50.0 50.0 2.8
+processingtoolkit,”inProc.Interspeech,2018. Ground-Truth [sukaqsukaq] - - -
+[38] D. S. Park, W. Chan, Y. Zhang, C.-C. Chiu, B. Zoph, E. D. AlloMatrix [s’ks’tPs’ks’t] 87.5 75.0 13.8
+Cubuk,andQ.V.Le,“SpecAugment:ASimpleDataAugmenta- AlloGraph [i:ki:khi:ki:kh] 75.0 75.0 2.7
+tionMethodforAutomaticSpeechRecognition,”inProc.Inter-
++UC [ikIpikIpq] 62.5 50.0 6.5
+speech,2019.
+Ground-Truth [ikiqikiq] - - -
+[39] D.R.Mortensen,P.Littell,A.Bharadwaj,K.Goyal,C.Dyer,and
+L. Levin, “PanPhon: A resource for mapping IPA segments to
+articulatoryfeaturevectors,”inProc.COLING,2016.
+[40] T. Viglino, P. Motlicek, and M. Cernak, “End-to-end accented
+speechrecognition.”inProc.Interspeech,2019.

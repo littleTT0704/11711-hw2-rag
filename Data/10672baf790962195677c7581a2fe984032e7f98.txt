@@ -1,0 +1,830 @@
+Token-level Sequence Labeling for Spoken Language Understanding using
+Compositional End-to-End Models
+SiddhantArora∗ SiddharthDalmia∗ BrianYan
+FlorianMetze AlanWBlack ShinjiWatanabe
+LanguageTechnologiesInstitute,CarnegieMellonUniversity,USA
+{siddhana,sdalmia}@cs.cmu.edu
+Abstract labeling introduces an additional complexity of
+alsorecognizingthementionsofthelabels(Kubala
+End-to-end spoken language understanding
+etal.,1998;Zhaietal.,2004).
+(SLU)systemsaregainingpopularityovercas-
+SLinspokenlanguageunderstanding(SLU)has
+caded approaches due to their simplicity and
+ability to avoid error propagation. However, been approached by two schools of thought, (1)
+thesesystemsmodelsequencelabelingasase- thatseektorecognizethespokenwordsusingan
+quence prediction task causing a divergence AutomaticSpeechRecognition(ASR)engineand
+from its well-established token-level tagging thentagthementionsusinganNLUengineinacas-
+formulation. We build compositional end-to-
+cadedmanner(PalmerandOstendorf,2001;Hor-
+end SLU systems that explicitly separate the
+lock and King, 2003; Béchet et al., 2004), and
+addedcomplexityofrecognizingspokenmen-
+(2) that seek to recognize and tag the mentions
+tions in SLU from the NLU task of sequence
+labeling. Byrelyingonintermediatedecoders directlyfromspeechinanend-to-end(E2E)frame-
+trainedforASR,ourend-to-endsystemstrans- work (Arora et al., 2022; Ghannay et al., 2018).
+formtheinputmodalityfromspeechtotoken- Priorworkhasshownthatcascadedsystemssuffer
+level representations that can be used in the duetoerrorpropagation(Tranetal.,2018)fromthe
+traditionalsequencelabelingframework. This
+ASRintotheNLUengine,whichcanbeovercome
+compositionofASRandNLUformulationsin
+inanE2Eframework. However,unlikecascaded
+ourend-to-endSLUsystemoffersdirectcom-
+models,E2Esystemscannotutilizethevastabun-
+patibility with pre-trained ASR and NLU sys-
+danceofNLUresearch(Shonetal.,2022)asthey
+tems, allows performance monitoring of indi-
+vidualcomponentsandenablestheuseofglob- re-define the SL problem as a complex sequence
+allynormalizedlosseslikeCRF,makingthem prediction problem where the sequence contains
+attractive in practical scenarios. Our models boththetagsanditsmentions.
+outperform both cascaded and direct end-to-
+Inspiredbytheprinciplesoftaskcompositional-
+endmodelsonalabelingtaskofnamedentity
+ity in SL for SLU, we seek to bring both schools
+recognitionacrossSLUbenchmarks.1
+ofthoughttogether. Ourconjectureisthatwecan
+1 Introduction buildcompositionalE2Esystemsthatfirstconvert
+the spoken utterance to a sequence of token rep-
+Sequence labeling (SL) is a class of natural lan-
+resentations(Dalmiaetal.,2021),whichcanthen
+guageunderstanding(NLU)tasks. Thesesystems
+beusedtotraintoken-wiseclassificationsystems
+tag each word in a sentence to provide insights
+aspertheNLUformulation. Byalsoconditioning
+intothesentencestructureandmeaning(Jurafsky
+ourtoken-wiseclassificationonspeech,ourcom-
+and Martin, 2009). An SL system that processes
+positionalE2Esystemallowsrecoveryfromerrors
+unstructuredtext,firstencodesthecontextandrela-
+madewhilecreatingtokenrepresentations. Wein-
+tionshipsofwordsinthesentenceusinganencoder
+stantiateourformulationonapopularSLtaskof
+and then labels each token (Lample et al., 2016;
+named entity recognition (NER) and (1) present
+Dozat et al., 2017; Akbik et al., 2018). However,
+theefficacyofourcompositionalE2ENER-SLU
+when dealing with spoken utterances, sequence
+system on benchmark SLU datasets (Bastianelli
+1Ourcodeandmodelswillbepubliclyavailableaspart etal.,2020;Shonetal.,2022)surpassingboththe
+oftheESPnet-SLUtoolkit: https://github.com/espnet/ cascaded and direct E2E systems §5.2. (2) Our
+espnet and the release can be followed here: https://
+compositional model consists of ASR and NLU
+github.com/espnet/espnet/pull/4735 ∗Equal Contribu-
+tion.SiddharthisnowatGoogle. componentscompatiblewithpre-trainedASRand
+2202
+tcO
+72
+]LC.sc[
+1v43751.0122:viXra
+NER-NLUmodels§5.3. (3)OurE2Esystemsex- foreachwordastheemissions,andmaintaininga
+hibittransparencytowardscategorizingerrorsby separatetransitionscoret togiveF(Y,S):
+y →y
+l−1 l
+enablingtheevaluationofindividualcomponents
+ofourmodelinisolation§5.4. h = encoder(w ) (4)
+1:N 1:N
+ThepaperfirstdescribesthetraditionalSLfor- t = transitionScores(|L|,|L|) (5)
+y →y
+l−1 l
+mulation(§2),anddiscussesshortcomingsincur-
+N
+rent SLU formulations (§3). Section §4 presents (cid:88)
+F(Y,S) = (h +t ) (6)
+ourcompositionalE2Emodelthatcanovercome l,y l y l−1→y l
+l=1
+these shortcomings. We then evaluate these ap-
+proachestowardstheSLtaskofNER(§5). Token Classification Model: Since the advent
+of strong contextual modeling using transformer
+2 SequenceLabeling(SL)
+basedmodels,sequencelabelingcanalsobetreated
+astokenclassification(Devlinetal.,2019),asim-
+SLsystemstageachword,w ,ofatextsequence,
+i
+plification over MEMM estimations (McCallum
+S = {w ∈ V|i = 1,...,N} of length N and
+i
+etal.,2000),withtheassumptionthatthecurrent
+vocabulary V, with a label from a label set L,
+tagisconditionallyindependenttoprevioustag.
+{w → y |y ∈ L}. This produces a label se-
+i i i
+quence,Y = {y ∈ L|i = 1,...,N}ofthesame
+i
+N
+lengthN. Usingdecisiontheory,sequencelabeling (cid:89)
+P(Y|S) = P(y |h ) (7)
+modelsseektooutputYˆ fromasetofallpossible l l
+l=1
+tagsequenceLN,
+These models are still effective as h is able to
+l
+Yˆ = argmaxP(Y|S) (1) modelthefullcontextS foreverywordw .
+l
+Y∈LN
+In cases like NER, where an entity can span
+where P(Y|S) is the posterior distribution. This multiplewords,theseproblemsaremodeledusing
+posteriorcanbemodeledusingvarioustechniques BIO tags (Ramshaw and Marcus, 1995), where
+likethetraditionalHMM(Morwaletal.,2012)and begin(B),inside(I)tagsareaddedforentitiesand
+MEMM(McCallumetal.,2000)basedmodeling anoutside(O)tagfornon-entitywords,extending
+andmorerecentlyCRF(MaandHovy,2016)and thetagsetvocabularyfromLtoL(cid:48) = {l B⊕l I|l ∈
+tokenclassification(Devlinetal.,2019)basedap- L}∪{O}.Whenmodeledusingsub-wordtokens
+proaches. Wediscussthelattertwoindetail: thetagscanbealignedtothefirstsub-wordtoken
+ofthewordandtheremainingonescanbemarked
+Conditional Random Field: Lafferty et al. withaspecialtoken∅givingL(cid:48)(cid:48) = L(cid:48)∪{∅}.
+(2001) aims to directly compute the posterior of
+theentirelabelsequenceY giventhesentenceS: 3 SequenceLabelinginSLU
+eF(Y,S) Sequence Labeling in SLU introduces an added
+P(Y|S) = (2)
+(cid:80) eF(Y(cid:48),S) complexityofrecognizingmentionsontopoftext-
+Y(cid:48)∈LN
+basedSLtasks(§2)astheyaimtopredictthetag
+whereF(Y,S)isglobalscoreofthetagsequence anditsmentionsdirectlyfromaspokensequence.
+Y given S. This is modeled using a linear chain Givenasequenceofddimensionalspeechfeature
+CRFwhichcomputestheglobalscoreasasumof oflengthT frames,X = {x ∈ Rd|t = 1,...,T},
+t
+localscoresf(.)foreachpositioninY asfollows thesesystemsseektoestimatethelabelsequence
+Yˆ from
+(cid:88)N Yˆ = argmaxP(Y|X) (8)
+F(Y,S) = f(y ,y ,S) (3)
+l−1 l Y∈L∗
+l=1
+whereP(Y|X)havebeenmodeledas:
+Lampleetal.(2016)andYanetal.(2019)usecon-
+textualizedneuralencoderslikeLSTMsandtrans- Cascaded SLU (Béchet et al., 2004; Parada
+formers to model context of the entire sequence et al., 2011; Zhou et al., 2015) models P(Y|X)
+S for every word w . This allows for effective fromP(Y|S)usinganNLUframework(§2)and
+l
+modelingoff(.)byusingencoderrepresentations P(S|X)usinganASRmodel(Poveyetal.,2011;
+Chanetal.,2016;Graves,2012),assumingcondi-
+tionalindependenceofY|S fromX,
+(cid:88)
+P(Y|X) = P(Y|S,(cid:26)X(cid:26))P(S|X) (9)
+S
+≈ maxP(Y|S)P(S|X) (10)
+S
+≈ P(Y|Sˆ)maxP(S|X) (11)
+S
+Figure 1: Schematics of our compositional E2E SLU
+Sˆ = argmaxP(S|X) (12)
+architecture with ASR and NLU sub-nets. The ASR
+S∈V∗
+sub-netconsistsofanencoderanddecoder. TheNLU
+sub-netconsists ofanencoder thatconditionson both
+OnceSˆisestimated,Yˆ canbeestimatedusingEq
+speech information via encoder and the text infor-
+1. AlthoughthisenablesrealizingYˆ usingtwowell mation via decoder ’s hiddenAS rR epresentation hASR
+ASR
+studiedframeworks,theindependenceassumption followedbytokenclassificationorCRFlayer.
+doesn’tallowrecoveryfromerrorsinestimatingSˆ.
+Direct End-to-End SLU (Arora et al., 2022; SUBASRNET: ModelsP(S|X),
+Shon et al., 2022; Ghannay et al., 2018) sys-
+hE = encoder (X ) (16)
+temsavoidcascadingerrorsbydirectlymodeling 1:T ASR 1:T
+P(Y|X)inasinglemonolithicmodel. Toachieve hA l SR = decoder ASR(hE 1:T,w 1:l−1) (17)
+thiswhilebeingabletorecognizethespokenmen- P(w |X,w ) = softmaxOut(hASR) (18)
+l 1:l−1 l
+tions, these systems enrich Y with transcripts S,
+N
+Ye = {ye ∈ V ∪L|i = 1,...,N(cid:48)}, where N(cid:48) is (cid:89)
+i P(S|X) = P(w l|X,w 1:l−1) (19)
+the length of Ye. This can be modeled using an
+l=1
+autoregressivedecoderas:
+SUBNLUNET: ModelsP(Y|S,X),
+N(cid:48)
+P(Y|X) = (cid:89) P(y ie|y 1e :i−1,X) (13) hN 1:L NU = encoder NLU(hA 1:S NR,hE 1:T) (20)
+i=1 P(Y|S,X) = CRF(hNLU) OR (21)
+1:N
+However this new formulation cannot utilize the P(Y|S,X) = TokenClassification(hN 1:L NU) (22)
+wellstudiedsequencelabelingframework§2. Ad-
+The end-to-end differentiability is maintained by
+ditionally,thisappliesanextraburdenoflabeling
+using hASR in Eq 20. During inference, we ap-
+along with alignment on the decoder and makes 1:N
+proximatetheViterbimaxofS usingbeamsearch
+understanding the errors made by these systems
+togivehˆASR. ThenYˆ canbefoundusingViterbi
+particularly difficult. For example, Eq 13 gives 1:N
+searchwithnoapproximationastheoutputlength
+non-zerolikelihoodtoacorruptsequencewithonly
+labelsandnowordsasye ∈ {V ∪L}. isknownandthesolutionistractable.
+ThiscompositionallowsincorporatingtheASR
+modelingandtext-basedsequencelabelingframe-
+4 CompositionalEnd-to-EndSLU
+work§2. Italsobringstransparencytoend-to-end
+Weproposetobringthetwoparadigmstogetherin modelingaswecanalsomonitorperformanceofin-
+acompositionalend-to-endsystem,byextending dividualsub-netsinisolation. Further,encoder
+NLU
+overthecascadedSLUformulationusingsearch- can attend to speech representations hE using
+1:T
+ableintermediateframework(Dalmiaetal.,2021): crossattention(Dalmiaetal.,2021)enablingthe
+directuseofspeechcuesforNLU.Thisspeechat-
+(cid:88)
+P(Y|X) = P(Y|S,X)P(S|X) (14) tentionmechanismcanallowthemodeltorecover
+S fromintermediateerrorsmadeduringASRstage.
+≈ maxP(Y|S,X)P(S|X) (15) Recently,therehasbeensomeworks(Raoetal.,
+S (cid:124) (cid:123)(cid:122) (cid:125)(cid:124) (cid:123)(cid:122) (cid:125) 2020; Saxon et al., 2021) that explore composi-
+SUBNLUNET SUBASRNET
+tionalSLUmodelswhichutilizetheASRandNLU
+Thissystemcanberealizedwithtwosub-networks formulations.Saxonetal.(2021)usesdiscreteout-
+asshowninFigure1,where: puts from the ASR module that are made differ-
+entiable using various approaches like Gumbel- SLURP SLUE
+softmax(Jangetal.,2017). Raoetal.(2020)also Model SLUF1 LabelF1 F1 LabelF1
+usestheASRdecoderhiddenrepresentationsinthe DirectE2ESLU(Aroraetal.) 71.9 - 54.7 67.6
+CasacadedSLU(Ours) 73.3 80.9 48.6 63.9
+NLU module by concatenating it with token em-
+DirectE2ESLU(Ours) 77.1 84.0 54.7 67.6
+beddingsoftheASRdiscreteoutput. However,this CompositionalE2ESLU
+approach requires the ASR and NLU submodule w/DirectE2Eformulation(§3) 77.2 84.6 50.0 68.0
+w/ProposedNLUformulation(§4)
+tohaveasharedvocabularyspace,limitingtheus- CRFw/SpeechAttention(SA) 77.7 85.2 59.4 73.6
+TokenClassificationw/SA 78.0 85.3 60.3 73.7
+ageofpretrainedASRandLMinthisarchitecture.
+w/oSpeechAttention 77.7 84.9 59.0 73.6
+Moreover, the benefits of our proposed composi-
+Table1: ResultspresentingthemicroF1performance
+tionalframeworkarenotexploredintheseworks.
+ofourproposedcompositionalE2EmodelsusingCRF
+and Token Classification modeling. Cascaded, direct
+5 SpokenNamedEntityRecognition
+E2E and our compositional E2E with direct E2E for-
+mulation are shown for comparison. We also provide
+ToshowtheeffectivenessofourcompositionalE2E
+an ablation of our model with and without Speech At-
+SLUmodelwebuildspokenNERsystemsontwo
+tention(SA).
+publically available SLU datasets, SLUE (Shon
+etal.,2022)andSLURP(Bastianellietal.,2020)
+NLU componentin DirectE2E formulation with
+(datasetandpreparationdetailsin§A.2). Wecom-
+a transformer encoder followed by a linear layer.
+pareourcompositionalE2Esystemwithcascaded
+For the cascaded systems, we build systems that
+and direct E2E systems. We also compare with
+have the same size as that of our ASR and NLU
+another compositional E2E system that predicts
+sub-networks. All models were tuned separately
+the enriched transcript (§3) using a decoder like
+usingvalidationsetswiththesamehyperparame-
+(Dalmiaetal.,2021)insteadoflabelsequence(i.e.
+ter search space. Full descriptions of model and
+Ye insteadofY inEq.15)usingatokenlevelclas-
+trainingparametersarein§A.3.
+sification sub-network. We refer to this baseline
+model as “Compositional E2E SLU with Direct 5.2 PerformanceofCompositionalE2ESLU
+E2Eformulation”.
+Table1showsthatourproposedcompositionalE2E
+SLURPisevaluatedusingSLU-F1(Bastianelli
+modelswiththetoken-levelNLUformulationout-
+et al., 2020) which weighs the entity labels with
+performbothcascadedanddirectE2Emodelson
+thewordandcharactererrorrateofthepredicted
+allbenchmarksusingbothCRFandTokenClassifi-
+mentions and SLUE using F1 (Shon et al., 2022)
+cation. Inordertounderstandgainsofourproposed
+whichevaluatesgettingboththementionandthe
+model,weexaminetheperformanceofourcompo-
+entitylabelexactlyright. WealsocomputeLabel-
+sitional system with direct E2E formulation (§3).
+F1forbothdatasetswhichconsidersonlytheentity
+WhilebeingcomparabletodirectE2Emodels,they
+label. Wereportmicro-averagedF1forallresults.
+stilllagbehindourproposedmodelsshowingthe
+efficacyofmodelingSLtasksasatoken-leveltag-
+5.1 ModelConfigurations
+ging(§2)inanE2ESLUframework.
+WebuildalloursystemsusingESPnet-SLU(Arora We further analyze our compositional systems
+etal.,2022)whichisanopen-sourceSLUtoolkit thatdon’tattendtospeechrepresentations. Weob-
+builtonESPnet(Watanabeetal.,2018),aflagship serveaperformancedropasthesemodelsarenot
+toolkit for speech processing. We use encoder- abletorecoverfromerrorsmadewhile“recognis-
+decoder based architecture for our baseline E2E ing”entitymentions. Forexample,inanutterance
+system. We use Conformer encoder blocks (Gu- that says “change the bedroom lights to green”,
+latietal.,2020)andTransformerdecoderblocks thoughtheASRcomponentincorrectlypredictsthe
+(Vaswani et al., 2017) with CTC multi-tasking transcriptas“changethecoloroflightstogreen”,
+(Arora et al., 2022). The baseline compositional the NLU component w/ Speech Attention is able
+modelwithDirectE2ESLUformulationconsists torecovertheentitytype HOUSE_PLACE.
+of a conformer encoder and transformer decoder
+5.3 UtilizingExternalSub-Netmodels
+in it’s ASR component and transformer encoder
+and transformer decoder in it’s NLU component. ComponentsofourcompositionalE2ESLUmodel
+OurproposedcompositionalmodelwiththeNLU havefunctionssimilartoanASRandNLUmodel
+formulation, as shown in Figure 1, replaces the (Eq 16-22). This allows fine-tuning our models
+SLURP SLUE furthercategorizationoferrors,asshownin§A.4.
+Model SLUF1 LabelF1 F1 LabelF1
+DirectE2ESLU 77.1 84.0 54.7 67.6 5.5 CRFvsTokenClassification
+w/NLUfine-tuning Incompatible
+w/ASRfine-tuning 73.5 81.2 64.0 80.6 For practical SLU the likelihoods of our compo-
+CompositionalE2ESLU(w/SA) 78.0 85.3 60.3 73.7 sitional model P(Y|S,X), should be correlated
+w/NLUfinetuning(w/oSA) 77.7 84.9 62.4 76.4
+w/ASRfinetuning(w/SA) 81.4 88.8 71.6 85.2 with errors in label sequence Y. We found that
+CompositionalE2ESLU(w/SA) 78.0 85.3 60.3 73.7 inSLURPourcompositionalE2ESLU,whileus-
+w/ExternalASRTranscripts(Sext) 81.0 88.1 70.1 81.2
+inglocallynormalizedtokenclassificationshows
+Table 2: Results presenting the compatibility of our no correlation (Corr=0.13,p=0), using CRF ex-
+modelswithpre-trainedASRandNLUsystemsby(1) hibitsmoderatecorrelation(Corr=0.43,p=0). This
+finetuningpre-trainedcomponentsand(2)directlyuti- makes globally normalized models attractive for
+lizingtranscriptsfromanexternalASRmodel.
+real-worldscenarioslikeautomateddataauditing
+SLURP SLUE andhumanin-the-loopML(Mitchelletal.,2018)
+ASR NLU ASR NLU despitetheirmarginaladditionincomputationcost.
+(%WER↓) (SLU-F1↑) (%WER↓) (F1↑)
+PureASR&NLUmodels 16.1 82.4 30.4 58.1
+6 Conclusion
+CompostionalE2ESLU
+CRFw/SpeechAttention(SA) 16.3 88.3 27.4 75.6
+TokenClassificationw/oSA 16.0 87.9 27.6 74.1 Weproposetocombinetextbasedsequencelabel-
+TokenClassificationw/SA 16.1 88.7 27.5 75.6
+ingframeworkintothespeechrecognitionframe-
+Table 3: Results showcasing the transparency of our work to build a compositional end-to-end model
+compositional E2E models by evaluating the individ-
+forSLU.OurcompositionalE2Emodelsnotonly
+ualsub-networksASR(%WER)andNLU(F1)iniso-
+showsuperiorperformanceovercascadedanddi-
+lation.
+rect end-to-end SLU systems, but also bring the
+powerofboththesesystemsinasingleframework.
+using sub-systems, pre-trained on large amounts
+Thesemodelscanutilisepretrainedsubtaskcom-
+ofavailablesub-taskdata. Table2showsthatour
+ponentsandexhibittransparencylikecascadedsys-
+compositionalmodelhasbettercompatibilitywith
+tems,whileavoidingerrorpropagationlikedirect
+ASRandNLUfine-tuningoverdirectE2Esystems,
+end-to-endsystems.
+therebyincreasingtheirperformancegap,particu-
+larlyforSLUE,anunder-resourcedSLUdataset.
+Limitations
+Furtherourmodelshavetheabilitytousetran-
+scriptsfromastrongexternalmodel(Sext)directly Ourcompositionalmodelreliesontheavailability
+duringinference,byinstantiatingourmodelswith oftranscriptsfortraining. Thisalthoughisalimi-
+thesetranscriptstoproducehASR andthenevalu- tation,itisasafeassumptionforsequencelabeling
+ateP(Y|Sext,X). Table2showsusingtranscripts tasksforspokenlanguageunderstanding. Wecan
+fromanexternalASRwithnofine-tuningstepscan seefrom§3thatthetaskforsequencelabelingin
+achievesimilarperformancetoASRfine-tuning. SLUalsorequiresthemodeltorecognizethewords
+beingspokenalongwiththesequencelabels, im-
+5.4 TransparencyinCompositionalE2ESLU plyingtheneedforatleastapartialtranscriptfor
+trainingdirectend-to-endSLUsystems.
+Following Eq 15, we can estimate ASR per-
+formance by calculating Sˆ using beam search
+BroaderImpact
+and NLU performance by estimating Yˆ from
+P(Y|SGT,X),whereSGT isthegroundtruthtran- Withourcompositionalend-to-endSLUmodel,we
+scripts. Table 3 shows the performances of indi- strivetobringtheresearchfromthetextbasedse-
+vidualcomponentsofourmodelalongwithperfor- quencelabelingdirectlyintospeechbasedspoken
+mancesofASRandNLUonlymodelssuggesting language understanding. Our aim is to avoid re-
+that we can effectively monitor the performance invention of the wheel, but rather come up with
+ofthesecomponents,helpingpractitionersanalyze innovativewaystobuildend-to-endmodelsbycon-
+and debug them. For instance, while our models vertingacomplexproblemintosimpleronesthat
+with and without speech attention have compara- have seen substantial research in the past. Addi-
+ble performance on ASR, using speech attention tionallywebelievetheincreasedcapacityforerror
+improvesNLUpower. Furthertheone-to-onealign- analysis in our compositional end-to-end system
+mentoftranscriptsandsequencelabelscanprovide canhelptowardsbuildingbetterpracticalsystems
+duringdeployment. Ourcompositionalend-to-end Guoguo Chen, Shuzhou Chai, Guan-Bo Wang, Jiayu
+systemscaneffectivelyutilizepre-trainedASRand Du,Wei-QiangZhang,ChaoWeng,DanSu,Daniel
+Povey, Jan Trmal, Junbo Zhang, Mingjie Jin, San-
+NLU systems, thereby avoiding the need for col-
+jeevKhudanpur,ShinjiWatanabe,ShuaijiangZhao,
+lectinglargelabeleddatasetsforSLU.Thisframe-
+Wei Zou, Xiangang Li, Xuchen Yao, Yongqing
+work also saves compute by utilizing pre-trained Wang, Zhao You, and Zhiyong Yan. 2021a. Gi-
+ASRsystemsdirectlyduringinferencetoimprove gaspeech: An evolving, multi-domain ASR corpus
+with 10, 000 hours of transcribed audio. In Inter-
+downstreamperformanceswithnofine-tuning.
+speech 2021, 22nd Annual Conference of the Inter-
+national Speech Communication Association, Brno,
+Acknowledgement
+Czechia,30August-3September2021,pages3670–
+3674.ISCA.
+WethankAakankshaNaikandtheanonymousre-
+viewers for their feedback. This work used the
+Sanyuan Chen, Chengyi Wang, Zhengyang Chen,
+Extreme Science and Engineering Discovery En- Yu Wu, Shujie Liu, Zhuo Chen, Jinyu Li, Naoyuki
+vironment (XSEDE) (Towns et al., 2014), which Kanda, Takuya Yoshioka, Xiong Xiao, Jian Wu,
+LongZhou,ShuoRen,YanminQian,YaoQian,Jian
+issupportedbyNSFgrantnumberACI-1548562.
+Wu, MichaelZeng, andFuruWei.2021b. WavLM:
+Specifically,itusedtheBridgessystem(Nystrom
+Large-scale self-supervised pre-training for full
+et al., 2015), which is supported by NSF award stackspeechprocessing. CoRR,abs/2110.13900.
+numberACI-1445606,atthePittsburghSupercom-
+Jonathan H. Clark, Dan Garrette, Iulia Turc, and John
+putingCenter(PSC).
+Wieting. 2022. Canine: Pre-training an efficient
+tokenization-free encoder for language representa-
+tion. Transactions of the Association for Computa-
+References
+tionalLinguistics,10:73–91.
+Alan Akbik, Duncan Blythe, and Roland Vollgraf.
+Alice Coucke, Alaa Saade, Adrien Ball, Théodore
+2018. Contextual string embeddings for sequence
+Bluche, Alexandre Caulier, David Leroy, Clément
+labeling. In Proceedings of the 27th International
+Doumouro, Thibault Gisselbrecht, Francesco Calt-
+Conference on Computational Linguistics, pages
+agirone, Thibaut Lavril, Maël Primet, and Joseph
+1638–1649, Santa Fe, New Mexico, USA. Associ-
+Dureau. 2018. Snips voice platform: an embedded
+ationforComputationalLinguistics.
+spoken language understanding system for private-
+by-designvoiceinterfaces. CoRR,abs/1805.10190.
+Siddhant Arora, Siddharth Dalmia, Pavel Denisov,
+Xuankai Chang, Yushi Ueda, Yifan Peng, Yuekai
+Siddharth Dalmia, Brian Yan, Vikas Raunak, Florian
+Zhang, Sujay Kumar, Karthik Ganesan, Brian Yan,
+Metze, andShinjiWatanabe.2021. Searchablehid-
+Ngoc Thang Vu, Alan W. Black, and Shinji Watan-
+den intermediates for end-to-end models of decom-
+abe. 2022. ESPnet-SLU: Advancing spoken lan-
+posablesequencetasks. InProceedingsofthe2021
+guageunderstandingthroughespnet. InIEEEInter-
+Conference of the North American Chapter of the
+national Conference on Acoustics, Speech and Sig-
+Association for Computational Linguistics: Human
+nal Processing, ICASSP 2022, Virtual and Singa-
+Language Technologies, pages 1882–1896, Online.
+pore,23-27May2022,pages7167–7171.IEEE.
+AssociationforComputationalLinguistics.
+EmanueleBastianelli,AndreaVanzo,PawelSwietojan-
+ski,andVerenaRieser.2020. SLURP:Aspokenlan- Miguel Del Rio, Natalie Delworth, Ryan Wester-
+guageunderstandingresourcepackage. InProceed- man, Michelle Huang, Nishchal Bhandari, Joseph
+ings of the 2020 Conference on Empirical Methods Palakapilly, Quinten McNamara, Joshua Dong, Pi-
+inNaturalLanguageProcessing,EMNLP2020,On- otrZ˙elasko,andMiguelJetté.2021. Earnings-21:A
+line, November 16-20, 2020. Association for Com- PracticalBenchmarkforASRintheWild. InProc.
+putationalLinguistics. Interspeech2021.
+Frédéric Béchet, Allen L. Gorin, Jeremy H. Wright, Jacob Devlin, Ming-Wei Chang, Kenton Lee, and
+and Dilek Hakkani-Tür. 2004. Detecting and ex- Kristina Toutanova. 2019. BERT: pre-training of
+tractingnamedentitiesfromspontaneousspeechina deep bidirectional transformers for language under-
+mixed-initiativespokendialoguecontext: Howmay standing. In Proceedings of the 2019 Conference
+I help you?sm,tm . Speech Commun., 42(2):207– of the North American Chapter of the Association
+225. for Computational Linguistics: Human Language
+Technologies,NAACL-HLT2019,Minneapolis,MN,
+William Chan, Navdeep Jaitly, Quoc Le, and Oriol USA,June2-7,2019,Volume1(LongandShortPa-
+Vinyals. 2016. Listen, attend and spell: A neural pers), pages 4171–4186. Association for Computa-
+networkforlargevocabularyconversationalspeech tionalLinguistics.
+recognition. In 2016 IEEE International Confer-
+ence on Acoustics, Speech and Signal Processing TimothyDozat,PengQi,andChristopherD.Manning.
+(ICASSP),pages4960–4964. 2017. Stanford’s graph-based neural dependency
+parserattheCoNLL2017sharedtask. InProceed- Guillaume Lample, Miguel Ballesteros, Sandeep Sub-
+ings of the CoNLL 2017 Shared Task: Multilingual ramanian,KazuyaKawakami,andChrisDyer.2016.
+Parsing from Raw Text to Universal Dependencies, Neural architectures for named entity recognition.
+pages 20–30, Vancouver, Canada. Association for InProceedingsofthe2016ConferenceoftheNorth
+ComputationalLinguistics. American Chapter of the Association for Computa-
+tional Linguistics: Human Language Technologies,
+S.Ghannay,A.Caubrière,Y.Estève,N.Camelin,E.Si- pages 260–270, San Diego, California. Association
+monnet, A. Laurent, and E. Morin. 2018. End-to- forComputationalLinguistics.
+end named entity and semantic concept extraction
+fromspeech. In2018IEEESpokenLanguageTech- Xuezhe Ma and Eduard Hovy. 2016. End-to-end
+nologyWorkshop(SLT),pages692–699. sequence labeling via bi-directional LSTM-CNNs-
+CRF. InProceedingsofthe54thAnnualMeetingof
+AlexGraves.2012. Sequencetransductionwithrecur- the Association for Computational Linguistics (Vol-
+rentneuralnetworks. CoRR,abs/1211.3711. ume1:LongPapers),pages1064–1074,Berlin,Ger-
+many.AssociationforComputationalLinguistics.
+Anmol Gulati, James Qin, Chung-Cheng Chiu, Niki
+Parmar,YuZhang,JiahuiYu,WeiHan,ShiboWang, AndrewMcCallum,DayneFreitag,andFernandoC.N.
+ZhengdongZhang,YonghuiWu,andRuomingPang. Pereira. 2000. Maximum entropy markov models
+2020. Conformer: Convolution-augmented trans- for information extraction and segmentation. In
+formerforspeechrecognition. InInterspeech2020, Proceedings of the Seventeenth International Con-
+21stAnnualConferenceoftheInternationalSpeech ference on Machine Learning, ICML ’00, page
+Communication Association, Virtual Event, Shang- 591–598, San Francisco, CA, USA. Morgan Kauf-
+hai, China, 25-29 October 2020, pages 5036–5040. mannPublishersInc.
+ISCA.
+T. Mitchell, W. Cohen, E. Hruschka, P. Talukdar,
+James Horlock and Simon King. 2003. Discrimina- B. Yang, J. Betteridge, A. Carlson, B. Dalvi,
+tive methods for improving named entity extrac- M. Gardner, B. Kisiel, J. Krishnamurthy, N. Lao,
+tion on speech data. In Proc. 8th European Con- K. Mazaitis, T. Mohamed, N. Nakashole, E. Pla-
+ference on Speech Communication and Technology tanios, A. Ritter, M. Samadi, B. Settles, R. Wang,
+(Eurospeech2003),pages2765–2768. D. Wijaya, A. Gupta, X. Chen, A. Saparov,
+M. Greaves, and J. Welling. 2018. Never-ending
+EricJang,ShixiangGu,andBenPoole.2017. Categor-
+learning. Commun.ACM,61(5):103–115.
+icalreparameterizationwithgumbel-softmax. In5th
+International Conference on Learning Representa- SudhaMorwal,NusratJahan,andDeeptiChopra.2012.
+tions,ICLR2017,Toulon,France,April24-26,2017, Named entity recognition using hidden markov
+ConferenceTrackProceedings.OpenReview.net. model (hmm). International Journal on Natural
+LanguageComputing,1:15–23.
+Dan Jurafsky and James H. Martin. 2009. Speech
+andlanguageprocessing:anintroductiontonatural Minh Nguyen and Zhou Yu. 2021. Improving named
+languageprocessing,computationallinguistics,and entityrecognitioninspokendialogsystemsbycon-
+speech recognition, 2nd Edition. Prentice Hall se- text and speech pattern modeling. In Proceedings
+ries in artificial intelligence. Prentice Hall, Pearson of the 22nd Annual Meeting of the Special Inter-
+EducationInternational. est Group on Discourse and Dialogue, pages 45–
+55, Singapore and Online. Association for Compu-
+FrancisKubala,RichardSchwartz,RebeccaStone,and
+tationalLinguistics.
+Ralph Weischedel. 1998. Named entity extraction
+from speech. In Proceedings of DARPA Broadcast Nicholas A. Nystrom, Michael J. Levine, Ralph Z.
+News Transcription and Understanding Workshop, Roskies,andJ.RayScott.2015. Bridges:auniquely
+pages287–292.Citeseer. flexibleHPCresourcefornewcommunitiesanddata
+analytics. In Proceedingsof the2015 XSEDECon-
+TakuKudoandJohnRichardson.2018. Sentencepiece: ference: Scientific Advancements Enabled by En-
+A simple and language independent subword tok- hanced Cyberinfrastructure, St. Louis, MO, USA,
+enizeranddetokenizerforneuraltextprocessing. In July26-30,2015,pages30:1–30:8.ACM.
+Proceedings of the 2018 Conference on Empirical
+Methods in Natural Language Processing, EMNLP DavidD.PalmerandMariOstendorf.2001. Improving
+2018: System Demonstrations, Brussels, Belgium, informationextractionbymodelingerrorsinspeech
+October 31 - November 4, 2018, pages 66–71. As- recognizeroutput. InProceedingsoftheFirstInter-
+sociationforComputationalLinguistics. national Conference on Human Language Technol-
+ogyResearch.
+John D. Lafferty, Andrew McCallum, and Fernando
+C. N. Pereira. 2001. Conditional random fields: Carolina Parada, Mark Dredze, and Frederick Jelinek.
+Probabilisticmodelsforsegmentingandlabelingse- 2011. OOV sensitive named-entity recognition in
+quencedata. InProceedingsoftheEighteenthInter- speech. InINTERSPEECH2011,12thAnnualCon-
+national Conference on Machine Learning, ICML ferenceoftheInternationalSpeechCommunication
+’01, page 282–289, San Francisco, CA, USA. Mor- Association, Florence, Italy, August 27-31, 2011,
+ganKaufmannPublishersInc. pages2085–2088.ISCA.
+Daniel S. Park, William Chan, Yu Zhang, Chung- torHazlewood,ScottA.Lathrop,DavidLifka,Gre-
+Cheng Chiu, Barret Zoph, Ekin D. Cubuk, and gory D. Peterson, Ralph Roskies, J. Ray Scott, and
+Quoc V. Le. 2019. Specaugment: A simple data Nancy Wilkins-Diehr. 2014. XSEDE: accelerating
+augmentationmethodforautomaticspeechrecogni- scientific discovery. Comput. Sci. Eng., 16(5):62–
+tion. InInterspeech2019, 20thAnnual Conference 74.
+of the International Speech Communication Associ-
+ation, Graz, Austria, 15-19 September 2019, pages TrangTran,ShubhamToshniwal,MohitBansal,Kevin
+2613–2617.ISCA. Gimpel, Karen Livescu, and Mari Ostendorf. 2018.
+Parsingspeech: aneuralapproachtointegratinglex-
+Adam Paszke, Sam Gross, Francisco Massa, Adam icalandacoustic-prosodicinformation. InProceed-
+Lerer, James Bradbury, Gregory Chanan, Trevor ingsofthe2018ConferenceoftheNorthAmerican
+Killeen, Zeming Lin, Natalia Gimelshein, Luca Chapter of the Association for Computational Lin-
+Antiga,AlbanDesmaison,AndreasKöpf,EdwardZ. guistics: Human Language Technologies, NAACL-
+Yang, ZacharyDeVito, MartinRaison, AlykhanTe- HLT2018,NewOrleans,Louisiana,USA,June1-6,
+jani,SasankChilamkurthy,BenoitSteiner,LuFang, 2018, Volume 1 (Long Papers), pages 69–81. Asso-
+Junjie Bai, and Soumith Chintala. 2019. Py- ciationforComputationalLinguistics.
+torch: An imperative style, high-performance deep
+learning library. In Advances in Neural Informa- Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob
+tion Processing Systems 32: Annual Conference Uszkoreit, Llion Jones, Aidan N. Gomez, Lukasz
+on Neural Information Processing Systems 2019, Kaiser, and Illia Polosukhin. 2017. Attention is all
+NeurIPS 2019, December 8-14, 2019, Vancouver, you need. In Advances in Neural Information Pro-
+BC,Canada,pages8024–8035. cessing Systems 30: Annual Conference on Neural
+InformationProcessingSystems2017,December4-
+DanielPovey,ArnabGhoshal,GillesBoulianne,Lukas 9,2017,LongBeach,CA,USA,pages5998–6008.
+Burget, Ondrej Glembek, Nagendra Goel, Mirko
+Hannemann, Petr Motlicek, Yanmin Qian, Petr ShinjiWatanabe,TakaakiHori,ShigekiKarita,Tomoki
+Schwarz, Jan Silovsky, Georg Stemmer, and Karel Hayashi, Jiro Nishitoba, Yuya Unno, Nelson En-
+Vesely.2011. TheKaldispeechrecognitiontoolkit. rique Yalta Soplin, Jahn Heymann, Matthew Wies-
+In IEEE 2011 Workshop on Automatic Speech ner, Nanxin Chen, Adithya Renduchintala, and
+Recognition and Understanding. IEEE Signal Pro- Tsubasa Ochiai. 2018. Espnet: End-to-end speech
+cessingSociety. processing toolkit. In Interspeech 2018, 19th An-
+nual Conference of the International Speech Com-
+Lance A. Ramshaw and Mitch Marcus. 1995. Text munication Association, Hyderabad, India, 2-6
+chunking using transformation-based learning. In September2018,pages2207–2211.ISCA.
+ThirdWorkshoponVeryLargeCorpora,VLC@ACL
+1995, Cambridge, Massachusetts, USA, June 30, Hang Yan, Bocao Deng, Xiaonan Li, and Xipeng Qiu.
+1995. 2019. Tener: Adapting transformer encoder for
+namedentityrecognition.
+MilindRao,AnirudhRaju,PranavDheram,BachBui,
+and Ariya Rastrow. 2020. Speech to semantics: Dian Yu, Michelle Cohn, Yi Mang Yang, Chun-Yen
+Improve ASR and NLU jointly via all-neural inter- Chen, Weiming Wen, Jiaping Zhang, Mingyang
+faces. InInterspeech2020,21stAnnualConference Zhou,KevinJesse,AustinChau,AntaraBhowmick,
+oftheInternationalSpeechCommunicationAssocia- Shreenath Iyer, Giritheja Sreenivasulu, Sam David-
+tion,VirtualEvent,Shanghai,China,25-29October son, Ashwin Bhandare, and Zhou Yu. 2019. Gun-
+2020,pages876–880.ISCA. rock: A social bot for complex and engaging long
+conversations. In Proceedings of the 2019 Confer-
+Michael Saxon, Samridhi Choudhary, Joseph P. ence on Empirical Methods in Natural Language
+McKenna, and Athanasios Mouchtaris. 2021. End- Processing and the 9th International Joint Confer-
+to-end spoken language understanding for general- ence on Natural Language Processing, EMNLP-
+izedvoiceassistants. InInterspeech2021,22ndAn- IJCNLP 2019, Hong Kong, China, November 3-
+nual Conference of the International Speech Com- 7, 2019 - System Demonstrations. Association for
+municationAssociation,Brno,Czechia,30August- ComputationalLinguistics.
+3September2021,pages4738–4742.ISCA.
+Lu-Feng Zhai, Pascale Fung, Richard M. Schwartz,
+Suwon Shon, Ankita Pasad, Felix Wu, Pablo Br- Marine Carpuat, and Dekai Wu. 2004. Using n-
+usco, Yoav Artzi, Karen Livescu, and Kyu J. Han. bestlistsfornamedentityrecognitionfromchinese
+2022. SLUE:newbenchmarktasksforspokenlan- speech. InProceedingsofHLT-NAACL2004: Short
+guage understanding evaluation on natural speech. Papers,Boston,Massachusetts,USA,May2-7,2004.
+In IEEE International Conference on Acoustics, TheAssociationforComputationalLinguistics.
+Speech and Signal Processing, ICASSP 2022, Vir-
+tual and Singapore, 23-27 May 2022, pages 7927– Liyuan Zhou, Hanna Suominen, and Leif Hanlen.
+7931.IEEE. 2015. Evaluationdataandbenchmarksforcascaded
+speech recognition and entity extraction. In Pro-
+John Towns, Timothy Cockerill, Maytal Dahan, Ian T. ceedings of the Third Edition Workshop on Speech,
+Foster, KellyP.Gaither, AndrewS.Grimshaw, Vic- Language&AudioinMultimedia,SLAM’15,page
+15–18, New York, NY, USA. Association for Com- Table 4: Overview of the two publicly available SLU
+putingMachinery. datasets(Shonetal.,2022;Bastianellietal.,2020)used
+forourexperiments.
+A Appendix
+Size(utterances/hours)
+Dataset
+A.1 ApplicationsofSLU Train Dev Test
+SLUisanessentialcomponentofmanycommer- SLURP 11,514/40.2 2,033/6.9 2,974/10.3
+SLUE-VoxPopuli 5,000/14.5 1,753/5.0 1,842/4.9
+cialdeviceslikevoiceassistants,homeassistants
+(Yuetal.,2019;Couckeetal.,2018)andspoken
+dialog systems (Nguyen and Yu, 2021) that map asappresearch/slue-toolkit. The datasets
+speech to executable commands on a daily basis.
+have been processed and prepared using ESP-
+One of the key applications of SLU is to extract net, SLURP - https://github.com/espnet/
+key mentions like entities from a user command espnet/tree/master/egs2/slurp_entity and
+to take appropriate actions. As a result, several SLUE - https://github.com/espnet/espnet/
+datasets(Bastianellietal.,2020;Shonetal.,2022; tree/master/egs2/slue-voxpopuli
+DelRioetal.,2021)havebeenproposedtobuild
+understandingsystemsforspokenutterances. A.3 ExperimentalSetup
+A.2 DatasetDescription OurmodelsareimplementedinPyTorch(Paszke
+et al., 2019), and the experiments are conducted
+We evaluated our proposed approach on publicly
+usingtheESPnet-SLUtoolkit(Aroraetal.,2022).
+availableSLUdatasets,namelySLUE(Shonetal.,
+2022)andSLURP(Bastianellietal.,2020)datasets
+A.3.1 SpeechPreprocessing
+on the task of Named Entity Recognition (NER)
+Speechinputsaregloballymean-variancenormal-
+from naturally available speech. SLURP is a lin-
+ized 80 dimensional logmel filterbanks using a
+guistically diverse and challenging spoken lan-
+16kHzsamplingandwindowof512framesanda
+guage understanding benchmark that consists of
+128 hop length. We apply speed perturbation for
+single-turnuserconversationwithahomeassistant,
+theunder-resourceddatasetofSLUEof0.9and1.1
+annotated with both intent and entities. Similar
+to increase the samples. We also apply specaug-
+to the approach followed in our prior work (Bas-
+mentation(Parketal.,2019)onbothdatasets. We
+tianelli et al., 2020; Arora et al., 2022), we boot-
+alsoremoveallexamplessmallerthan0.1seconds
+strapourtrainsetwith43hoursofsyntheticdata
+andlargerthan20secondsfromthetrainingdata.
+forallourexperiments. Weevaluateourapproach
+using SLU-F1 (Bastianelli et al., 2020), a metric
+A.3.2 TextProcessing
+forspokenentityprediction,andLabelF1,which
+considersonlyentity-tagpredictions. For the cascaded system, we process ASR tran-
+SLUEisarecentlyreleasedSLUbenchmarkthat scripts S using bpe tokenization (Kudo and
+focusesonSpokenLanguageUnderstandingfrom Richardson, 2018) and train ASR models to gen-
+limited labeled training data. Specifically, it con- erate bpe subtokens. We use bpe size of 500 for
+sistsofSLUEVoxPopulidatasetthatcanbeused SLURP and 1000 for SLUE dataset. For the di-
+forbuildingsystemsforASRandNER.Similarto rect E2E models, we predict the enriched label
+(Shonetal.,2022),weevaluateoursystemsusing sequenceYe usingthesamebpesizeastheASR
+twomicro-averagedF1scores,thefirstscorethat modelsincascadedsequence. Similarly,composi-
+evaluatesbothnamedentityandtagpairsisreferred tionalmodelsalsousethesamebpesizetogenerate
+toasF1,andthesecondthatevaluatesonlyentity- theASRtranscripts.
+tag phrases is referred to as Label-F1. Note that For creating the BIO tags we modify the data
+thereleasedtestsetsareblindwithoutgroundtruth preparationsuchthatwetaketheentitiesforeach
+labels, and hence we compare different methods utteranceandcreatea“labelutterance”. Thiscon-
+usingthedevelopmentset. sistsofone-to-onemappingofthelabeltagswith
+The dataset download and evaluation the words and Begin (B), Inside (I) and Outside
+links for SLURP can be found here - (O)markedforeachlabel. AfterperformingBPE
+https://github.com/pswietojanski/slurp tokenization we add ∅ for every subtoken of the
+and for SLUE here - https://github.com/ word. Wehaveattachedthedatapreparationcode.
+A.3.3 ModelandTrainingHyperparameters Hyperparameter Value
+OutputSize [256,512]
+Werunparametersearchforbothdirectend-to-end
+AttentionHeads [4,8]
+and our compositional end-to-end systems using
+Numberofblocks [4,6,8,12]
+the same model search space (Table 5). In this HiddenDropout [0.1,0.2]
+section,wewilldescribeourbestarchitecturefor Attentiondropout [0.1,0.2]
+Positiondropout [0.1,0.2]
+bothdirectandcompositionalE2Esystems.
+Activationdropout [0.1,0.2]
+SrcActivationdropout [0.1,0.2]
+Direct E2E SLU systems After searching Batchsize [50,64]
+LRschedule [inv.sqrt.,exp.lr.]
+through hyperparameter space, our Direct E2E
+Maxlearningrate [0.001,0.002,0.003]
+SLUsystemsconsistsof12-layerConformer(Gu-
+Warmupsteps [5000,15000,25000]
+lati et al., 2020) encoder and a 6-layer Trans- Numberofsteps [50,70,100]
+former(Vaswanietal.,2017)decoderwith8atten- Adameps 1e-9
+Adambetas (0.9,0.98)
+tion heads for SLURP dataset. We use a dropout
+Weightdecay 0.000001
+of0.1,outputdimof512andfeedforwarddimof
+2048,givingatotalparametersizeof109.3M. Table5: ModelandTrainingSearchforSLUModels.
+ForSLUEdataset,wefound12-layerConformer
+with 4 attention heads and decoder is a 6-layer
+CRFlossusingpubliclyavailablepythonlibrary2.
+Transformer with 4 attention heads to give best
+The loss from the ASR (Lasr) and NLU (Lnlu)
+validationperformance. Weuseadropoutof0.1,
+subnetarecombinedcombinedasfollows
+output dim of 256 and feedforward dim of 1024
+inencoderand2048inthedecoder,givingatotal
+L = Lasr+αLnlu
+parametersizeof31.2M.
+Wesearchalphavaluesover[0.3,0.4,0.5,0.6]and
+CompositionalE2ESLUsystems OurCompo-
+found0.6tobebestforSLURPand0.3forSLUE.
+sitional model which uses Direct E2E SLU for-
+mulationconsistsof12-layerconformerblockfor
+SLURP SLUE
+encoder,6-layertransformerblockfordecoderin
+Model SLUF1 LabelF1 F1 LabelF1
+it’s ASR component and 4-layer transformer en-
+CasacadedSLU(Ours) 76.9 83.9 48.6 63.9
+coderand6-layertransformerdecoderinit’sNLU DirectE2ESLU(Ours) 79.2 85.4 54.7 67.6
+CompositionalE2ESLU
+component. Eachoftheseattentionblocksconsist
+w/DirectE2Eformulation(§3) 79.3 86.6 50.0 68.0
+of 8 attention heads, dropout of 0.1, output dim w/ProposedNLUformulation(§4)
+CRFw/SpeechAttention(SA) 79.9 87.0 59.4 73.6
+of512,feedforwarddimof2048,givingatotalof
+TokenClassificationw/SA 79.8 86.9 60.3 73.7
+153.9MparametersinSLURPdataset. ForSLUE w/oSpeechAttention 79.7 87.0 59.0 73.6
+dataset,eachattentionblockhas4attentionheads,
+Table6: ResultspresentingthemicroF1performance
+dropoutof0.1,outputdimof256,feedforwarddi-
+for all models using CRF and Token Classification
+mensionof1024inencoderand2048indecoder, modelingondevelopmentsetforSLURPandSLUE
+givingatotalparametersizeof46.8M.
+OurCompositionmodelwithProposedNLUfor-
+mulationreplacesNLUcomponentinDirectE2E A.3.4 DecodingHyperparameters
+formulationwith8-layertransformerencoderfol- Wekeepthesamedecodingparameterofbeamsize
+lowed by linear layer. All these attention blocks andpenaltyasthatofAroraetal.(2022). Fordirect
+consist of 8 attention heads, dropout of 0.1, out- E2E systems and our models CTC weight of 0.1
+putdimof512, feedforwarddimof2048, giving workedbest. WesearchedoverCTCweightof[0,
+a total of 142.9M parameters in SLURP dataset. 0.1,0.3,0.5].
+ForSLUEdataset, eachoftheseattentionblocks
+have4attentionheads,dropoutof0.1,outputdim A.3.5 DevelopmentResults
+of256,feedforwarddimensionof1024inencoder
+We use F1 scores on the validation data to select
+and2048indecoder,givingatotalparametersize
+the best hyperparameters. Table 6 presents the
+of 43.8M. Our NLU component can further at-
+validationperformancesforourmodels.
+tend to speech representations using cross atten-
+tion(Dalmiaetal.,2021). Wefurtherimplement 2https://pytorch-crf.readthedocs.io
+Hypothesis Reference
+ASR Correct event date event date
+event reminder mona tuesday event reminder mona tuesday
+Entity Correct
+ASR Correct movie type News topic movie type place name
+is there anything happening on jazz scene around edinburgh is there anything happening on jazz scene around edinburgh
+Entity Incorrect
+ASR Incorrect event name person date time event name person date time
+create meeting with paul for tomorrow at ten am put meeting with pawel for tomorrow ten am
+Entity Correct
+ASR Incorrect event name date event name person
+set a birthday event for ninety set a birthday event for martin
+Entity Incorrect
+Figure2: QualitativeexamplesofourcompositionalE2ESLUmodelforvariouserrorcategories. Wecanobserve
+that in the first case, the model is correctly able to predict both entity types and mentions even when the name
+“mona”isnotacommonnameforanevent. Inthesecondcase,eventhoughitpredictsthecorrectASRtranscript,
+itmislabels“Edinburgh”asanewstopicsincethephrase“isthereanythinghappening”usuallyoccurswithnews
+topics. In the third case, even though it makes a mistake in the person name, the model correctly tags it as a
+person. Finally, the model incorrectly generates the word “ninety,” and this error gets propagated to the NLU
+component through token representations which then predicts entity type “date”. This analysis shows that the
+alignmentbetweenASRandNLUoutputscanhelpusgainbetterinsightsintomodelperformance.
+A.3.6 ComputeInfrastructure EntityCorrect EntityIncorrect
+Our models were trained using mixed precision Model #Examples Model #Examples
+trainingoneithera100,v100orA6000onourcom- ASRCorrect w/SA 8520 w/SA 465
+w/oSA 8501 w/oSA 474
+puteinfrastructuredependingontheiravailability.
+w/SA 1568 w/SA 1343
+Depending on the GPU and the file i/o latency, ASRIncorrect
+w/oSA 1585 w/oSA 1336
+thetrainingtimerangedfrom4-7hoursforSLUE,
+while for SLURP the training time ranged from Table7: Numberofexamplespererrorcategoryofour
+compositionalE2ESLUsystemswith/withoutSpeech
+12-18hours.
+AttentiononSLURPtestset. Therearefourcategories
+A.3.7 ExternalASRandNLUcomponents depending on whether mistakes are made by ASR or
+NLUcomponent.Notethatthe firstquadrant lists#of
+Fortheexperimentsin Table2,weusedASRand
+correct examples,whilethe rest list incorrect ones.
+NLUmodelstrainedonexternaldata. FortheASR
+Direct E2E systems cannot offer such categorizations
+fine-tuning we used an ESPnet model 3 trained
+particularly for incorrect entities as there is no align-
+on the GigaSpeech dataset (Chen et al., 2021a). mentbetweenASRandNLUoutputs.
+Thismodelhasthesamearchitectureasthebase-
+line direct E2E model on SLURP. We initialize These systems achieve 10.0% WER and 9.2%
+boththeencoderanddecoderfordirectE2ESLU WERonSLURPandSLUErespectively.
+and the ASR sub-net for the compositional E2E
+SLUmodel. ForNLUfine-tuningweusedCanine A.4 ErrorCategorization
+(Clark et al., 2022), a character based BERT lan-
+The predictions made by our compositional E2E
+guagemodel,whichexhibitsstrongperformance
+SLUmodelcanbecategorizedintodifferentbuck-
+on named entity recognition while being able to
+etsonthebasisoftheerrorsbyASRorNERcom-
+model token sizes comparable to our SLU sys-
+ponent. Table7demonstratesthisbehaviorbycate-
+tems.4 WeinitializeourNLUsub-networkwithout
+gorizingtheerrorsofourcompositionalE2Emodel
+speechattentionwithCanineandkeepthemodel
+trained with and without speech attention. Most
+parameters fixed during training. For finding the
+oftheperformancedifferencesbetweencomposi-
+bestparametersweonlytunedthelearningrateand
+tionalE2ESLUmodelw/andw/ospeechattention
+LRschedulefromTable5andreportthebestnum-
+are caused by the kinds of errors where the ASR
+bersamongCRFandTokenClassificationloss.
+predictions are inaccurate, but the NLU module
+ForusingExternalASRTranscripts,wetrained
+is nevertheless able to recover the correct entity
+anASRsysteminitializedusingGigaSpeechand
+type from the utterance. This confirms our intu-
+WavLM (Chen et al., 2021b) respectively. They
+itionthatcrossattentiononspeechrepresentations
+were then fine-tuned on the respective datasets.
+can help the NLU module to recover from mis-
+3https://zenodo.org/record/4630406 takesmadeduring“recognizing”spokenmentions.
+4https://huggingface.co/google/canine-s Wealsopresentanecdotesforeachoftheseerror
+categories in Figure 2. This further emphasizes
+the transparency in our compositional E2E SLU
+models. Duetothelackofone-to-onealignment
+betweenASRandSequenceLabeling,suchanal-
+ysis is not possible in direct E2E SLU systems,
+makingitparticularlydifficulttocategorizeerrors
+whentheentitypredictioniswrong.

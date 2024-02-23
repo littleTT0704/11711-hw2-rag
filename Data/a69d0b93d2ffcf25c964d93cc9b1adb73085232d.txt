@@ -1,0 +1,898 @@
+Zero-Shot Dense Retrieval with Momentum Adversarial Domain
+Invariant Representations
+JiXin1∗,ChenyanXiong2,AshwinSrinivasan2,AnkitaSharma2,
+DamienJose2,PaulN.Bennett2
+1 UniversityofWaterloo 2 Microsoft
+ji.xin@uwaterloo.ca
+chenyan.xiong,ashwinsr,ankita.sharma,
+dajose,paul.n.bennett@microsoft.com
+Abstract
+Denseretrieval(DR)methodsconducttextre-
+trievalbyfirstencodingtextsintheembedding
+spaceandthenmatchingthembynearestneigh-
+Source Positive
+borsearch. Thisrequiresstronglocalityproper- Source Negative
+tiesfromtherepresentationspace,e.g.,closeal- Target Positive
+Target Negative
+locationsofeachsmallgroupofrelevanttexts, Source Query
+Target Query
+which are hard to generalize to domains with-
+out sufficient training data. In this paper, we
+aimtoimprovethegeneralizationabilityofDR Figure1: T-SNEplotsofembeddingspaceofaBERT
+modelsfromsourcetrainingdomainswithrich rerankerforq–dpairs(left)andANCEdenseretriever
+supervision signals to target domains without forqueries/documents(right). Bothmodelsaretrained
+any relevance label, in the zero-shot setting. onwebsearchandtransferredtomedicalsearch.
+Toachievethat,weproposeMomentumadver-
+sarial Domain Invariant Representation learn-
+ing (MoDIR), which introduces a momentum 2021), grounded generation (Lewis et al., 2020),
+method to train a domain classifier that dis- opendomainquestionanswering(Karpukhinetal.,
+tinguishes source versus target domains, and
+2020;IzacardandGrave,2020),etc.
+then adversarially updates the DR encoder to
+Purely using the learned embedding space for
+learn domain invariant representations. Our
+retrievalhasraisedconcernsonthegeneralization
+experimentsshowthatMoDIRrobustlyoutper-
+formsitsbaselineson10+rankingdatasetscol- ability,especiallyinscenarioswithoutdedicatedsu-
+lectedintheBEIRbenchmarkinthezero-shot pervisionsignals. Manyhaveobserveddiminishing
+setup, with more than 10% relative gains on advantagesofDRmodelsinvariousdatasetsifthey
+datasets with enough sensitivity for DR mod- arenotfine-tunedwithtask-specificlabels,i.e.,in
+els’ evaluation. Source code is available at
+thezero-shotsetup(Thakuretal.,2021). However,
+https://github.com/ji-xin/modir.
+inmanyscenariosoutsidecommercialwebsearch,
+1 Introduction zero-shot is the norm. Obtaining training labels
+is difficult, expensive, and sometimes infeasible,
+Rather than matching texts in the bag-of-words especiallyinspecialdomains(e.g.,medical)where
+space,DenseRetrieval(DR)methodsfirstencode annotationrequiresstrongexpertiseorisevenpro-
+textsintoadenseembeddingspace(Leeetal.,2019; hibited because of privacy constraints. The lack
+Karpukhinetal.,2020;Xiongetal.,2021)andthen of zero-shot ability hinders the democratization
+conducttextretrievalusingefficientnearestneigh- ofadvancementsindenseretrievalfromdata-rich
+bor search (Chen et al., 2018; Guo et al., 2020; domainstoeverywhereelse. Manyequally,ifnot
+Johnson et al., 2021). With pre-trained language more important, real-world search scenarios still
+modelsanddedicatedfine-tuningtechniques, the relyonunsupervisedexactmatchmethodsthathave
+learned representation space has significantly ad- been around for decades, e.g., BM25 (Robertson
+vancedthefirststageretrievalaccuracyofmanylan- andJones,1976).
+guagesystems,includingwebsearch(Xiongetal.,
+Within the search pipeline, the generalization
+∗WorkpartlydoneduringJi’sinternshipatMicrosoft. of first stage DR models is notably worse than
+4008
+FindingsoftheAssociationforComputationalLinguistics:ACL2022,pages4008-4020
+May22-27,2022(cid:13)c2022AssociationforComputationalLinguistics
+subsequentrerankingmodels(Thakuretal.,2021). andsignificant,despitenotusinganytargetdomain
+Reranking models, similar to many classification training labels. We also verify the necessity of
+models,onlyrequireadecisionboundarybetween theproposedmomentumapproach,withoutwhich
+relevantandirrelevantquery–documentpairs(q–d the domain classifier fails to capture the domain
+pairs)intherepresentationspace. Incomparison, gaps, and the adversarial training does not learn
+DRneedsgoodlocalalignmentsacrosstheentire domaininvariantrepresentations,resultinginlittle
+spacetosupportnearestneighbormatching,which improvementinZeroDR.
+ismuchhardertolearn. Weconductfurtheranalysestorevealinteresting
+properties of MoDIR and its learned embedding
+InFigure1,weuset-SNE(vanderMaatenand
+space. Duringtheadversarialtrainingprocess,the
+Hinton, 2008) to illustrate this difference. We
+target domain embeddings are gradually pushed
+show learned representations of a BERT-based
+towardsthesourcedomainandeventuallyabsorbed
+reranker (Nogueira and Cho, 2019) and a BERT-
+asasubgroupofthesource. Inthelearnedrepresen-
+baseddenseretriever(Xiongetal.,2021),inzero-
+tationspace,ourmanualexaminationsfindvarious
+shottransferfromweb(Bajajetal.,2016)tomedical
+caseswhereatargetdomainqueryislocatedclose
+domain(Voorheesetal.,2021). Therepresentation
+to source queries with similar information needs.
+space learned for reranking yields two manifolds
+ThisindicatesthatZeroDR’sgeneralizationability
+withacleardecisionboundary;datapointsinthe
+comesfromthecombinationofinformationover-
+target domain naturally cluster with their corre-
+lapsofsource/targetdomains,andMoDIR’sability
+spondingclasses(relevantorirrelevant)fromthe
+toidentifytherightcorrespondencebetweenthem.
+sourcedomain,leadingtogoodgeneralization. In
+comparison, the representation space learned for
+2 RelatedWork
+DR is more scattered. Target domain data points
+are grouped separately from those of the source
+In this section, we recap related work in dense
+domain; it is much harder for the learned nearest
+retrievalandadversarialdomainadaptation.
+neighborlocalitytogeneralizefromsourcetothe
+DenseRetrieval Differentfromsparsefirststage
+isolatedtargetdomainregion.
+retrievalmodels,denseretrievalwithTransformer-
+In this paper, we present Momentum Adver- based models (Vaswani et al., 2017) such as
+sarialDomainInvariantRepresentationslearning BERT(Devlinetal.,2019)conductsretrievalinthe
+(MoDIR), to improve the accuracy of zero-shot dense embedding space (Lee et al., 2019; Chang
+denseretrieval(ZeroDR).Wefirstintroduceanaux- etal.,2020;Guuetal.,2020;Karpukhinetal.,2020;
+iliarydomainclassifierthatistrainedtodiscrimi- Luanetal.,2021). Comparedwithitssparsecoun-
+natesourceembeddingsfromtargetones. Thenthe terparts,DRimprovesretrievalefficiencyandalso
+DRencoderisnotonlyupdatedtoencodequeries providescomparableorevensuperioreffectiveness
+andrelevantdocumentstogetherinthesourcedo- forin-domaindatasets.
+main,butalsotrainedadversariallytoconfusethe
+OneimportantresearchquestionforDRishow
+domain classifier and to push for a more domain
+to obtain meaningful negative training instances.
+invariant embedding space. To ensure stable and
+DPR(Karpukhinetal.,2020)usesBM25tofind
+efficient adversarial learning, we propose a mo-
+strongernegativesinadditiontoin-batchrandom
+mentum method that trains the domain classifier
+negatives. RocketQA(Quetal.,2021)usescross-
+withamomentumqueueofembeddingssavedfrom
+batchnegativesandalsofiltersthemwithastrong
+previousiterations.
+rerankingmodel. ANCE(Xiongetal.,2021)uses
+Ourexperimentsevaluatethegeneralizationabil- an asynchronously updated negative index built
+ityofdenseretrievalwithMoDIRusing15retrieval fromthebeing-trainedDRmodeltoretrieveglobal
+tasks from the BEIR benchmark (Thakur et al., hardnegatives.
+2021). On these retrieval tasks from various do- Recently, challenges of ZeroDR have attracted
+mainsincludingbiomedical,finance,scientific,etc., muchattention(Thakuretal.,2021;Zhangetal.,
+MoDIR improves the zero-shot accuracy of two 2021; Li and Lin, 2021). One way to improve
+standardmodels,DPR(Karpukhinetal.,2020)and ZeroDRisquerygeneration(Liangetal.,2020;Ma
+ANCE(Xiongetal.,2021). Ontaskswhereevalua- etal.,2021),whichfirsttrainsadoc2querymodelin
+tionlabelshavesufficientcoverageforDR(Thakur thesourcedomainandthenappliestheNLGmodel
+et al., 2021), MoDIR’s improvements are robust on target domain documents to generate queries.
+4009
+Thetargetdomaindocumentsandgeneratedqueries and (3) how to adversarially train the DR model
+formweaksupervisionlabelsforDRmodels. Our fordomaininvariantrepresentations.
+methoddiffersfromthemandfocusesondirectly
+3.1 TrainingtheDenseRetrievalModel
+improvingthegeneralizationabilityofthelearned
+representationspace. ThestandarddesignofDRistouseadual-encoder
+AdversarialDomainAdaptation Unsupervised model (Lee et al., 2019; Karpukhin et al., 2020),
+domainadaptation(UDA)hasbeenstudiedexten- whereanencodergtakesasinputaquery/document
+sivelyforcomputervisionapplications. Forexam- andencodesitintoadensevector. Therelevance
+ple,maximummeandiscrepancy(Longetal.,2013; scoreofaq–dpairx = (q,d)iscomputedusinga
+Tzengetal.,2014;SunandSaenko,2016)measures simplesimilarityfunction:
+domain difference with a pre-defined metric and
+r(x) = sim(g(q;θ ),g(d;θ )), (1)
+explicitlyminimizesthedifference. Followingthe g g
+advent of GAN (Goodfellow et al., 2014), adver-
+where θ is the collection of parameters of g and
+sarial training for UDA is proposed: an auxiliary g
+simisavectorsimilarityfunction.
+domainclassifierlearnstodiscriminatesourceand
+ThetrainingofDRuseslabeledq-dpairsinthe
+targetdomains,whilethemainclassifiermodelis
+source domain xs = (qs,ds). With relevant q–d
+adversariallytrainedtoconfusethedomainclassi-
+pairasxs+ andirrelevantpairasxs−,theencoder
+fier(GaninandLempitsky,2015;Bousmalisetal.,
+g istrainedtominimizetherankinglossL :
+2016; Tzeng et al., 2017; Luo et al., 2017; Vu R
+et al., 2020; Vernikos et al., 2020; Tang and Jia, (cid:88)
+min L (r(xs+),r(xs−)), (2)
+R
+2020). The adversarial method does not require θg
+xs+,xs−
+pre-definingthedomaindifferencemetric,allowing
+more flexible domain adaptation. MoDIR builds where L is a ranking loss function. Our model
+R
+uponthesuccessofUDAmethodsandintroduces followsitsbaselineDPR/ANCEtosampleirrelevant
+anewmomentumlearningtechniquethatisneces- documents using BM25 or global hard negatives.
+sary to learn domain invariant representations in Withoutlossofgenerality,othermodelingdesigns
+theZeroDRsetting. are kept the same with ANCE: g is fine-tuned
+fromRoBERTa (Liuetal.,2019);theoutput
+BASE
+3 TrainingDomainInvariant
+query/documentembeddingsarethehiddenstates
+RepresentationsforDenseRetrieval ofthelastlayer’s[CLS]token;L istheNegative
+R
+LogLikelihood(NLL)loss;simisthedotproduct.
+Inthiswork,weaimtoimprovegeneralizationin
+ZeroDR under the unsupervised domain adapta- 3.2 EstimatingtheDomainBoundarywith
+tion setting (UDA) (Long et al., 2016). Given a MomentumDomainClassifier
+sourcedomainwithsufficienttrainingsignals,the
+Tocapturedomaindifferencesandenableadversar-
+goal is to transfer the DR model to a target do-
+ial learning for domain invariance, MoDIR intro-
+main,withaccesstoitsqueriesanddocuments,but
+ducesadomainclassifierf topredicttheprobability
+withoutanyrelevancelabel. Thisisthecommon
+ofaquery/documentembeddingebeingsourceor
+casewhenapplyingDRinreal-worldscenarios:in
+target,andweusealinearclassifierasf:
+targetdomains(e.g.,medical),examplequeriesand
+documentsareavailablebutannotatingrelevanceis
+f(e) = softmax(W e). (3)
+f
+expensiveandmayrequiredomainexpertise;onthe
+otherhand,inthesourcedomain(e.g.,websearch), Thelinearclassifierhassufficientcapacitytodis-
+training signals are available at large scale (Ma tinguishthetwodomainsinthehigh-dimensional
+etal.,2020;Thakuretal.,2021). representation space—the main challenge is on
+Ourmethod,MoDIR,improvesZeroDRinthe training. AsillustratedinFigure1,DR’srepresen-
+UDAsetupbyencouragingtheDRmodelstolearn tationspacefocusesmoreonlocalitythanforming
+adomaininvariantrepresentationspacethatfacil- manifolds,andthereforeitismoredifficulttolearn
+itatesthegeneralizationfromsourcetotarget. In the domain boundary in this case. If we simply
+thissection,wedescribe(1)howtotrainavanilla updatef usingthesameamountofdatapointsas
+denseretrievalmodel,(2)howtotrainamomentum g,f failstoaccuratelyestimatethedomainbound-
+domain classifier to distinguish the two domains, ary;ontheotherhand,ifwenaïvelyfeedinmore
+4010
+Batch 1 Batch 2 Batch n
+Source embeddings
+Target embeddings
+Domain boundary (per batch)
+Domain boundary (with momentum)
+Domain mixing direction
+Momentum Determined
+Domain Boundary
+Domain Mixing
+Figure2: Momentumadversarialtrainingprovidesamoreaccurateandrobustestimationofthedomainboundary
+indenseretrieval’sembeddingspace.
+data points for f, all these data points need to be computedwithallembeddingsfromQ:
+encodedbytheexpensiveencoderg,whichmakes
+minL (e;f), e ∈ Q, (6)
+thetrainingprocessinfeasiblyslow. D
+W
+f
+To achieve the balance between accuracy and (cid:40)
+−logf(e), efromsource,
+efficiency, we introduce the momentum method L (e;f) =
+D
+−log(1−f(e)), efromtarget,
+for the domain classifier, as shown in Figure 2.
+(7)
+We maintain a momentum queue Q that records
+embeddingsfrommultiplepreviousbatchesasthe
+whereL isastandardclassificationloss. Inthis
+D
+additionaltrainingdataforf. Specifically,ateach
+way, at each iteration, the domain classifier f is
+step,inadditiontosourcedomaintrainingdataxs,
+trainedwithmoresignalsthantheencoderg (the
+wesampleq–dpairsxtfromthetargetdomain,and
+entireQversusonlyonebatch),ensuringaccurate
+addembeddingsofxsandxttoQ. Themomentum
+estimationofthedomainboundary. Thedetached
+queueQatstepkincludesembeddingse /e from
+q d embeddingsfromQalsoensurestrainingefficiency.
+sourceandtargetqueries/documentsforallrecent
+nbatches: 3.3 AdversarialLearningforDomain
+InvariantRepresentations
+Q = {e ,e |(q,d) ∈ B }, (4) MoDIRadversariallytrainstheencoderg togener-
+k q d k−n+1:k
+atedomaininvariantrepresentationsthatarehard
+forf todistinguish. Thisisdonebyminimizingthe
+whereB isthecollectionofalldatapoints
+k−n+1:k adversarial loss L . Here we choose the widely
+M
+from the past n batches, including both source
+usedConfusionloss(Tzengetal.,2017):
+andtargetones,andnisthemomentumstep. For
+1(cid:16)
+simplicity of sampling, we use the 1:1 ratio be-
+L (x;g,f) = − logf(g(q))+logf(g(d))
+M
+tween source/target data and also between posi- 2
+(cid:17)
+tive/negativesourcedata. +log(1−f(g(q)))+log(1−f(g(d))) , (8)
+Toensureefficiencyofthemomentummethod,
+all embeddings e from Q are detached from the wherex ∈ {xs,xt}isaq-dpairfromeithersource
+encoderg. Takethequeryqs asanexample, ortargetdomain. Itreachestheminimumwhenthe
+embeddingsaredomaininvariantsothatthedomain
+classifierpredict50%-50%probabilityforalldata.
+e = Φ(g(qs;θ )), (5)
+qs g Inorderfortheencodertolearndomaininvariance,
+wefreezethedomainclassifierandupdateonlythe
+whereΦisthestop-gradientoperator,i.e.,gradients encoderwhenminimizingL M:
+of e qs are not back propagated to θ g. Since the (cid:88)
+minλ L (x;g,f). (9)
+linearclassifierf issignificantlysmallerandfaster M
+θg
+thanthetransformer-basedencoderg,thisenables x∈{xs,xt}
+efficienttrainingforf. ThehyperparameterλbalancesthelearningofDR
+At each iteration, f is updated by repetitively ranking in the source domain (Equation (2)) and
+minimizingthefollowingdiscriminationlossL , thelearningofdomaininvariance(Equation(9)).
+D
+4011
+Hole@10 nDCG@10
+BM25 DPR ANCE BM25 DPR DPR+MoDIR ANCE ANCE+MoDIR
+TREC-COVID 10.6% 33.0% 22.4% 0.616 0.561 0.591(+5.3%) 0.654 0.676(+3.4%)
+Touché 29.8% 63.3% 56.9% 0.605 0.243 0.258(+6.2%) 0.284 0.315(+10.9%)
+DBPedia 41.3% 73.2% 65.8% 0.288 0.236 0.240(+1.7%) 0.281 0.284(+1.1%)
+NFCorpus 74.1% 85.2% 83.1% 0.297 0.208 0.212(+1.9%) 0.237 0.244(+3.0%)
+Quora 88.7% 87.3% 87.1% 0.742 0.842 0.848(+0.7%) 0.852 0.856(+0.5%)
+BioASQ 80.7% 92.0% 89.5% 0.514 0.232 0.247(+6.5%) 0.306 0.320(+4.6%)
+HotpotQA 87.7% 92.3% 90.9% 0.601 0.371 0.387(+4.3%) 0.456 0.462(+1.3%)
+FEVER 92.6% 92.1% 91.2% 0.648 0.589 0.607(+3.1%) 0.669 0.680(+1.6%)
+FiQA 93.4% 91.9% 91.5% 0.239 0.275 0.276(+0.4%) 0.295 0.296(+0.3%)
+ArguAna 92.7% 92.6% 92.6% 0.441 0.414 0.413(−0.2%) 0.415 0.418(+0.7%)
+NQ 94.9% 93.2% 92.6% 0.310 0.398 0.402(+1.0%) 0.446 0.442(−0.9%)
+SciFact 91.5% 93.2% 92.8% 0.620 0.478 0.476(−0.4%) 0.507 0.502(−1.0%)
+SCIDOCS 92.2% 94.4% 93.8% 0.156 0.108 0.108(+0.0%) 0.122 0.124(+1.6%)
+Climate-FEVER 95.7% 94.7% 94.1% 0.179 0.176 0.175(−0.6%) 0.198 0.206(+4.0%)
+CQADupStack 94.8% 95.2% 94.9% 0.316 0.281 0.280(−0.4%) 0.296 0.297(+0.3%)
+Table1: Overallperformanceandlabelcoverage(Holerate)ontasksfromBEIR.RelativeimprovementsofMoDIR
+overitsbaseDRmodelDPR/ANCEareshowninpercentages. DatasetsareorderedbyANCE’sHolerates, and
+datasetswithlowerHoleratesprovidemoreaccurateevaluation.
+To summarize, for each training batch in the 4.2 EffectivenessofMoDIR
+source domain, the domain classifier f and the
+WebuildMoDIRontopofDPRandANCE,butit
+encoderg areoptimizedby:
+canalsobeappliedtootherDRframeworkssimi-
+larly. Table1showstheHoleratesandnDCGscores
+min L (e;f), e ∈ Q, (10)
+D ontheBEIRbenchmark;weomittheHoleratesof
+W
+f
+(cid:88) MoDIRsincetheyareverysimilartoitsbaseline
+min L (r(xs+),r(xs−))
+θg R DPR/ANCE’s. We first discuss Hole rates and
+xs+,xs−
+(11) baseline selection, and then discuss effectiveness
+(cid:88)
++λ L M(x;g,f), ofeachmodel.
+x∈{xs,xt}
+Hole Rates and DR Evaluation A hole is an
+wheref istrainedtoestimatetheboundarybetween unlabeled q–d pair retrieved by a model, and the
+source/targetandg istrainedtoprovidedomainin- percentageofholesamongallretrievedq–dpairs
+variantrepresentationsthatalsocapturesrelevance istheHolerate. DatasetswithhighHoleratesfor
+matchinginthesourcedomain. dense models are less sensitive to dense models’
+effectiveness (Xiong et al., 2021), and we there-
+4 Experiments fore consider datasets with low Hole rates more
+important,sincetheyprovidemoreaccuratemea-
+Thissectiondescribesexperimentalsetupsandeval-
+surementsforZeroDR.Ontheotherhand,manyof
+uatestheeffectivenessofMoDIR.Furthermore,we
+BEIR’sdatasetsareannotatedwithcandidatesgen-
+divedeepintotheimportanceofmomentumtrain-
+eratedbysomesparseretrievalmodelsatthetime
+ingandpropertiesofdomaininvariantembedding
+of dataset construction, therefore the evaluation
+space,whichprovidesnewinsightsforZeroDR.
+ofthesedatasetsisbiasedtowardssparsemodels.
+4.1 Datasets TakeTREC-COVIDasanexample,ANCEunder-
+performsBM25undertheoriginalannotation,but
+WechoosetheMSMARCOpassagedataset(Bajaj
+itachievesthestateoftheart(SOTA)afteradding
+etal.,2016)asthesourcedomaindatasetandchoose
+extralabelsbasedonANCE’sprediction(Thakur
+the 15 publicly available datasets from the BEIR
+etal.,2021).
+benchmark(Thakuretal.,2021)astargetdomain
+datasets (details in Appendix A). These datasets Baselines OurbaselinesincludeBM25(Robert-
+coveralargenumberofvariousdomains,including sonandJones,1976),DPR(Karpukhinetal.,2020),
+biomedical,finance,scientific,etc. Wetreateach andANCE(Xiongetal.,2021). TheoriginalDPR
+target domain dataset separately and produce an istrainedonNQ(Kwiatkowskietal.,2019),butwe
+individual model for each of them, following the insteadtrainDPRonMARCO,whichnotonlyelim-
+ZeroDRsettingdescribedinSection3. inatestrainingdatasetdifferencesbutalsoprovides
+4012
+TREC-
+Method L n Touche
+M COVID 1.0
+0.9
+Single Confusion 1 0.650 0.294 0.9
+Repeat 1k 0.664 0.309 0.8
+0.8
+100 0.649 0.294
+Confusion 0.7
+1k 0.676 0.315 0.7
+Momentum
+Minimax 1k 0.666 0.322 0.6 Local 0.6
+GAN 1k 0.641 0.325 Global
+VanillaANCE 0.654 0.284 0.5 0.5
+0 60000 0 60000
+Table 2: Ablation studies show that momentum is
+(a)Documents (b)Queries
+critical for learning domain invariant representation.
+Defaultsettingsareunderlinedandbestscoresarebold. 1.0
+0.9
+0.9
+0.8
+0.8
+betteroverallresults. BEIRalsoreportsresultsof
+0.7
+0.7
+othermethods,suchasdocT5query(Nogueiraetal.,
+0.6 0.6
+2020),TAS-B(Hofstätteretal.,2021),GenQ(Ma
+0.5 0.5
+etal.,2021),ColBERT(KhattabandZaharia,2020),
+0 60000 0 60000
+etc. However,theyarenotdirectlycomparablewith
+(c)Documents (d)Queries
+MoDIR since they involve stronger supervision
+signals from rerankers (TAS-B), data augmenta- Figure 3: Global and Local Domain-Acc at different
+tionfromexpensivesequence-to-sequencemodels trainingstepswith/withoutmomentum(top/bottom).
+(docT5query and GenQ), and high-latency late
+interaction (ColBERT). MoDIR instead directly
+and Touché which have the best label coverage
+improvesthegeneralizationabilityoftherepresen-
+(lowestHolerates),andshowtheresultsinTable2.
+tationspace,andareorthogonaltothesemethods
+Firstly,weevaluatetheeffectivenessofnotusing
+andcanbecombinedforbetterperformance.
+themomentumqueue:eachiteration,thedomain
+classifieristrainedeitherwithasinglebatchn = 1,
+EffectivenessComparison FromTable1wecan
+orrepeat1 thecurrentbatchforn = 1ktimes. We
+seethatMoDIRimprovesDPRandANCE’soverall
+can see that using a single batch fails to improve
+effectiveness in the ZeroDR setting. On datasets
+overANCE,indicatingthenecessityofusingmore
+withlowHolerates,whereevaluationismoresta-
+data to train the domain classifier; repeating the
+ble,thegainsaresignificant;ondatasetswithhigh
+currentbatchalsoprovidessmallerimprovements
+Hole rates, the gains are smaller but still stable.
+thanusingdifferentbatchesfromthequeue. Sec-
+Moreover,topresentafaircomparisonintherealis-
+ondly,weuseasmallermomentumstepn = 100
+ticZeroDRsetting,resultsofMoDIRareobtained
+formomentumtraining,whichalsoyieldslittleim-
+withouthyperparametertuningorcheckpointselec-
+provement. Thisshowsthatnhastobesufficiently
+tion: in the ZeroDR setting, there is no access to
+largeforthemomentummethodtowork,proving
+relevancelabelsinthetargetdomainduringtrain-
+the necessity of our efficiency method to detach
+ing/validation. Foralltargetdomaindatasets,we
+embeddings before storing them into the queue.
+keep most of the experimental settings the same
+Thirdly,wetrainMoDIRwithtwootherchoicesof
+withANCEandevaluatecheckpointsafterthesame
+L fromEquation(9):MinimaxandGAN.GAN
+number oftraining steps(details in AppendixB). M
+lossislessstableasdescribedbyTzengetal.(2017),
+ThisevaluationsetupistheclosesttoZeroDRinthe
+whileMinimaxperformscomparativelytoConfu-
+realworld,butitmaynotshowthefullpotentialand
+sion. ThisshowsthatMoDIRcanalsobeapplied
+thebestempiricalresultsforMoDIR.Wefurther
+withotherdomainadaptationtrainingmethods.
+studythisinSection4.5.
+4.4 ConvergenceofAdversarialTraining
+4.3 EffectivenessofMomentumTrainingand
+withMomentum
+AblationStudies
+Inthisexperiment,westudyhowourmomentum
+Our ablation studies evaluate the importance of
+method helps adversarial training converge to a
+the momentum method and the effects of other
+1Concretely,forrepeat,weupdatethedomainclassifier
+experimentalsetups. Wecomparedifferenttraining
+withthecurrentbatch’sdetachedembeddingsrepetitivelyfor
+setupsagainstvanillaANCE,usingTREC-COVID ntimes(i.e.,allusingthesameinputembeddings).
+4013
+KNN-Source% nDCG@10
+Checkpoint(→) 0 10k 30k 50k 0 10k 30k 50k
+w/Momentum 5.2% 6.2% 14.0% 17.2% 0.654 0.676 0.689 0.724
+w/oMomentum 5.2% 5.4% 5.6% 5.6% 0.654 0.650 0.673 0.668
+Table3: K-NearestNeighborSourcePercentage(KNN-Source%)andnDCG@10scoresafterdifferentnumberof
+trainingstepsofANCEwith/withoutmomentum,onTREC-COVID.
+domain invariant embedding space. To quantify ance. We focus on TREC-COVID as it provides
+domaininvariance,weuseDomainClassification themostrobustevaluationforZeroDR.
+Accuracy(Domain-Acc),whichincludestwomea-
+Learning Domain Invariance with Momentum
+surements based on the choice of domain classi-
+We show how the momentum method gradually
+fier: (1) Directly take the domain classifier used
+pushesforadomaininvariantrepresentationspace.
+inMoDIR’straining(f inSection3.2)andrecord
+Tomeasurehowmuchthetwodomainsaremixed
+its accuracy when applied to a new batch, which
+together, we use K-Nearest Neighbor Source Per-
+leadstoLocalDomain-Acc. (2)Randomlyinitial-
+centage (KNN-Source%): We index source and
+ize a new domain classifier and train it globally
+target documents together; given a target domain
+on source and target embeddings, which leads to
+queryintheembeddingspace,weretrieveitstop-
+Global Domain-Acc. Global Domain-Acc mea-
+100nearestdocumentsfromtheindex,andcalculate
+sures the real degree of domain invariance: it is
+thepercentageofsourcedocumentsfromthenearest
+lowerwhenembeddingsofthetwodomainsarenot
+neighbors;theaveragepercentageforalltargetdo-
+easilyseparable. LocalDomain-Accisanefficient
+mainqueriesisreported. AhigherKNN-Source%
+approximationprovidedbythedomainclassifierf.
+meansthatthetargetdomainembeddingsaresur-
+In Figure 3, we compare Global and Local
+roundedbymoresourcedomainones,indicatinga
+Domain-Acc on the TREC-COVID dataset when
+moredomaininvariantrepresentationspace.
+trainingANCEwith/withoutmomentum(without
+The results are in Table 3. With momentum,
+momentum is the single setting described in Sec-
+bothKNN-Source%andnDCGgraduallyincrease
+tion 4.3). With momentum, Local Domain-Acc
+astrainingproceeds. Thisshowsthatwhentarget
+quickly increases to be comparable with Global
+domainembeddingsarepushedtowardsthesource
+Domain-Acc. The domain classifier f (used in
+domain,therankingperformanceofthetargetdo-
+MoDIR’straining)convergesquicklyandGlobal
+main also improves. On TREC-COVID, MoDIR
+Domain-Accstartstodecrease,showingthatembed-
+eventually reaches 0.724, which is the SOTA for
+dingsfromthetwodomainsbecomelessseparable.
+first stage retrievers. On the other hand, without
+Note that Local Domain-Acc does not decrease
+momentum(thesinglesettinginSection4.3),KNN-
+becausef hasseenandmemorizedalmostalldata,
+Source%andnDCGscoreshardlyincrease.
+while Global Domain-Acc’s domain classifier is
+We also use t-SNE (van der Maaten and Hin-
+always tested on unseen data for accurate results.
+ton,2008)tovisualizethelearnedrepresentation
+Thisshowsthatmomentumhelpswiththebalance
+spaceatdifferenttrainingstepsinFigure4. Before
+of adversarial training, ensuring its convergence
+training with MoDIR, the two domains are well
+towardsadomaininvariantrepresentationspace.
+separated in the representation space learned by
+Ontheotherhand,whenmomentumisnotused,
+ANCE.WithmoreMoDIRtrainingsteps,thetarget
+thereexistsalong-lastinggapbetweenLocaland
+domainsarepushedtowardsthesourcedomainand
+GlobalDomain-Acc,showingthatf doesnotcap-
+graduallybecomesasubsetofit. Withoutmomen-
+turethedomainboundarywell. Asaresult,thetwo
+tum,thetwodomainsremainseparated,whichis
+domainsremain(almost)linearlyseparableinthe
+consistentwithobservationsfromTable3.
+embeddingspace,asshownbythefactthatGlobal
+Domain-Accdoesnotdecrease,andthemodelfails
+ZeroDR Effectiveness VS Domain Invariance
+toproducedomaininvariantrepresentations.
+We study the correlation between ZeroDR rank-
+ingeffectivenessanddomaininvariance. Weuse
+4.5 ImpactofDomainInvariance
+GlobalDomain-Accastheindicatorofdomainin-
+Inthissubsection,westudythebehaviorandbene- varianceandplotitwiththecorrespondingZeroDR
+fits of ANCE+MoDIR in learning domain invari- nDCGscoresduringtraininginFigure5.
+4014
+(a)MoDIR(0) (b)MoDIR(10k) (c)MoDIR(30k) (d)MoDIR(50k)
+(e)w/oMom. (0) (f)w/oMom. (10k) (g)w/oMom. (30k) (h)w/oMom. (50k)
+Figure 4: T-SNE of the representation space after different training steps (in the parentheses), with/without
+momentum. Blue:source(MARCO);orange:target(TREC-COVID).
+1.0 document 0.72 0.33
+query 0.9
+0.9
+0.70 0.32
+0.8
+0.8 0.31
+0.68
+0.7
+0.7 document 0.30
+0.66
+0.6 query
+0.6 0.29
+0 20000 40000 60000 0 20000 40000 60000 0 10000 20000 30000 0 10000 20000 30000
+(a)GlobalDomain-Acc (b)nDCG@10 (c)GlobalDomain-Acc (d)nDCG@10
+Figure5: GlobalDomain-AccandtargetdomainZeroDRnDCGscoresatdifferenttrainingsteps:TREC-COVID
+(lefttwo)andTouché(righttwo).
+GlobalDomain-Accstartsatnear100%andde- MoDIRpaysmoreattentionto“transmission”,and
+creasesastrainingproceeds,showingthatsource potentially retrieves more documents about the
+and target embeddings are almost linearly sepa- transmission of diseases, thereby improving the
+rable at the beginning but are gradually pushed nDCGscore;documentsabout“coronavirus”are
+together. ZeroDR accuracy improves as Global also likely to be retrieved by MoDIR since it is a
+Domain-Acc decreases, showing that domain in- verynoticeableword. Inthesecondcase,itfocuses
+varianceisthesourceofZeroDR’simprovements. on“mRNA”morethan“vaccine”. However,since
+WealsorecordthattheDRaccuracyonthesource themRNAvaccineisrelativelynew2 withfewap-
+domain(MARCO)decreasesbynomorethan0.5%. pearancesintheMARCOdataset,theshiftinfocus
+Thisindicatesthatthehighdimensionalembedding failstoimproveMoDIRforthisquery.
+space has sufficient capacity to learn domain in- Theseexampleshelprevealthesourceofgeneral-
+variantrepresentationswhilemaintainingrelevance izationabilityonZeroDR.FortheDRmodelstobe
+matchinginthesourcedomain. abletogeneralize,thesourcedomainitselfneedsto
+includerelevanceinformationthatresemblesthetar-
+4.6 CaseStudy
+getdomain’sneeds;ifthereisnosuchinformation,
+WeshowtwocasesofqueriesfromTREC-COVID
+and their nearest MARCO queries before and af-
+2ThefirstmRNAvaccinewasapprovedin2020,according
+ter MoDIR training in Table 4. In the first case, tohttps://en.wikipedia.org/wiki/MRNA_vaccine.
+4015
+Target whatarethetransmissionroutesofcoronavirus? nDCG@10gain: 0.23
+Source •whatisthecoronavirus •incubationperiodforcoronavirus
+Before •whataresymptomsofcoronavirus
+Source •countrieswhereguineawormistransmitted •whatisthemostcommonmethodofhivtransmission
+After •throughwhichbodysystemarecancercellsabletotraveltodifferentlocationsinthebody?
+Target whatisknownaboutanmRNAvaccinefortheSARS-CoV-2virus? nDCG@10gain: −0.12
+Source •isthereavaccineforhepatitis •isthereavaccinefortuberculosis
+Before •shinglesvaccinationneededforthosewithoutchickenpox
+Source •whatmakesrna •whatisusedtomakemrna
+After •whatisthemmrvaccinecalled
+Table4: Casestudy:nearestsourcequeriesofatargetquerybeforeandafterMoDIRtraining.
+asinthesecondexample,generalizationbecomesa portantfuturedirectionfornotonlyrepresentation
+hardchallenge. Whenthesourcedomainhassuch learningresearchbutalsoreal-worldapplications.
+coverage,MoDIRisabletoaligntargetqueriesto
+Acknowledgments
+source ones with similar information needs in its
+domain invariant representation space, and such
+Wethankanonymousreviewersfortheirconstruc-
+alignmentsenableDRmodelstogeneralize.
+tivefeedback.
+5 ConclusionandFutureWork
+References
+Inthispaper,wepresentMoDIR,anewrepresenta-
+tion learning method that improves the zero-shot Payal Bajaj, Daniel Campos, Nick Craswell, Li Deng,
+Jianfeng Gao, Xiaodong Liu, Rangan Majumder,
+generalizationabilityofdenseretrievalmodels. We
+Andrew McNamara, Bhaskar Mitra, Tri Nguyen,
+first show that dense retrieval models differ from
+et al. 2016. MS MARCO: A human generated ma-
+classificationmodelsinthattheyemphasizelocal- chinereadingcomprehensiondataset. arXivpreprint
+ity properties in the representation space. Then arXiv:1611.09268.
+wepresentamomentum-basedadversarialtraining
+Alexander Bondarenko, Maik Fröbe, Meriem Be-
+methodthatrobustlypushestextencoderstoprovide loucif, Lukas Gienapp, Yamen Ajjour, Alexander
+amoredomaininvariantrepresentationspacefor Panchenko, Chris Biemann, Benno Stein, Henning
+denseretrieval. Ourexperimentsdemonstratethat, Wachsmuth, Martin Potthast, and Matthias Hagen.
+2020. Overview of Touché 2020: Argument Re-
+comparedwithANCE,arecentSOTADRmodel,
+trieval. InWorkingNotesPapersoftheCLEF2020
+MoDIR’simprovementsarerobustoverallandsig-
+Evaluation Labs, volume 2696 of CEUR Workshop
+nificantondatasetswhereZeroDR’sevaluationis Proceedings.
+moreaccurate.
+Vera Boteva, Demian Gholipour, Artem Sokolov, and
+We conduct a series of studies to show the ef-
+Stefan Riezler. 2016. A full-text learning to rank
+fectsofourmomentummethodinlearningdomain dataset for medical information retrieval. In Euro-
+invariantrepresentations. Withoutmomentum,the pean Conference on Information Retrieval, pages
+716–722.Springer.
+adversariallearningisunstable. Theinherentvari-
+anceoftheDRembeddingspacehindersthecon-
+KonstantinosBousmalis,GeorgeTrigeorgis,NathanSil-
+vergenceofthedomainclassifier. Withmomentum berman, Dilip Krishnan, and Dumitru Erhan. 2016.
+training, the model fuses the target domain data Domainseparationnetworks. InAdvancesinNeural
+InformationProcessingSystems,volume29.Curran
+intothesourcedomainrepresentationspaceanddis-
+Associates,Inc.
+coversrelatedinformationfromthesourcedomain,
+thusimprovinggeneralizationofZeroDR. Wei-ChengChang,FelixX.Yu,Yin-WenChang,Yim-
+ing Yang, and Sanjiv Kumar. 2020. Pre-training
+WeviewMoDIRasaninitialstepofzero-shot
+tasks for embedding-based large-scale retrieval. In
+denseretrieval,anareathatdemocratizestherapid
+International Conference on Learning Representa-
+advancementsinsearchtechnologiestomanyreal- tions.
+worldscenarios. Ourapproachinheritsthesuccess
+QiChen,HaidongWang,MingqinLi,GangRen,Scar-
+ofdomainadaptationtechniquesandupgradesthem
+lett Li, Jeffery Zhu, Jason Li, Chuanjie Liu, Lintao
+byaddressingtheuniquechallengesofZeroDR.Un-
+Zhang,andJingdongWang.2018. SPTAG:Alibrary
+derstandingthedynamicsofdenseretrievalisanim- forfastapproximatenearestneighborsearch.
+4016
+Arman Cohan, Sergey Feldman, Iz Beltagy, Doug ResearchandDevelopmentinInformationRetrieval,
+Downey, and Daniel Weld. 2020. SPECTER: SIGIR’21,page113–122,NewYork,NY,USA.As-
+Document-level representation learning using sociationforComputingMachinery.
+citation-informed transformers. In Proceedings of
+the58thAnnualMeetingoftheAssociationforCom- Doris Hoogeveen, Karin M. Verspoor, and Timothy
+putationalLinguistics,pages2270–2282,Online.As- Baldwin.2015. CQADupStack: Abenchmarkdata
+sociationforComputationalLinguistics. set for community question-answering research. In
+Proceedings of the 20th Australasian Document
+Jacob Devlin, Ming-Wei Chang, Kenton Lee, and ComputingSymposium, ADCS’15, NewYork, NY,
+Kristina Toutanova. 2019. BERT: Pre-training of USA.AssociationforComputingMachinery.
+deep bidirectional transformers for language under-
+standing. In Proceedings of the 2019 Conference Gautier Izacard and Edouard Grave. 2020. Leverag-
+of the North American Chapter of the Association ing passage retrieval with generative models for
+for Computational Linguistics: Human Language open domain question answering. arXiv preprint
+Technologies, Volume 1 (Long and Short Papers), arXiv:2007.01282.
+pages4171–4186, Minneapolis, Minnesota.Associ-
+ationforComputationalLinguistics. Jeff Johnson, Matthĳs Douze, and Hervé Jégou. 2021.
+Billion-scale similarity search with gpus. IEEE
+Thomas Diggelmann, Jordan Boyd-Graber, Jannis Bu- TransactionsonBigData,7(3):535–547.
+lian,MassimilianoCiaramita,andMarkusLeippold.
+2020. CLIMATE-FEVER: A dataset for verifica- VladimirKarpukhin,BarlasOguz,SewonMin,Patrick
+tion of real-world climate claims. arXiv preprint Lewis,LedellWu,SergeyEdunov,DanqiChen,and
+arXiv:2012.00614. Wen-tauYih.2020. Densepassageretrievalforopen-
+domain question answering. In Proceedings of the
+Yaroslav Ganin and Victor Lempitsky. 2015. Unsu- 2020 Conference on Empirical Methods in Natural
+perviseddomainadaptationbybackpropagation. In Language Processing (EMNLP), pages 6769–6781,
+Proceedings of the 32nd International Conference Online.AssociationforComputationalLinguistics.
+on Machine Learning, volume 37 of Proceedings
+of Machine Learning Research, pages 1180–1189, Omar Khattab and Matei Zaharia. 2020. ColBERT:
+Lille,France.PMLR. Efficient and effective passage search via contextu-
+alized late interaction over BERT. In Proceedings
+Ian Goodfellow, Jean Pouget-Abadie, Mehdi Mirza, ofthe43rdInternationalACMSIGIRConferenceon
+BingXu, DavidWarde-Farley, SherjilOzair, Aaron ResearchandDevelopmentinInformationRetrieval,
+Courville,andYoshuaBengio.2014. Generativead- SIGIR’20,page39–48,NewYork,NY,USA.Asso-
+versarial nets. In Advances in Neural Information ciationforComputingMachinery.
+Processing Systems, volume 27. Curran Associates,
+Inc. Tom Kwiatkowski, Jennimaria Palomaki, Olivia Red-
+field, Michael Collins, Ankur Parikh, Chris Al-
+Ruiqi Guo, Philip Sun, Erik Lindgren, Quan Geng, berti, Danielle Epstein, Illia Polosukhin, Jacob De-
+DavidSimcha,FelixChern,andSanjivKumar.2020. vlin, Kenton Lee, Kristina Toutanova, Llion Jones,
+Accelerating large-scale inference with anisotropic MatthewKelcey,Ming-WeiChang,AndrewM.Dai,
+vectorquantization. InProceedingsofthe37thInter- Jakob Uszkoreit, Quoc Le, and Slav Petrov. 2019.
+national Conference on Machine Learning, volume Natural questions: A benchmark for question an-
+119 of Proceedings of Machine Learning Research, swering research. Transactions of the Association
+pages3887–3896.PMLR. forComputationalLinguistics,7:452–466.
+Kelvin Guu, Kenton Lee, Zora Tung, Panupong Pasu- KentonLee,Ming-WeiChang,andKristinaToutanova.
+pat, andMing-WeiChang.2020. Realm: Retrieval- 2019. Latent retrieval for weakly supervised open
+augmented language model pre-training. arXiv domain question answering. In Proceedings of the
+preprintarXiv:2002.08909. 57thAnnualMeetingoftheAssociationforComputa-
+tionalLinguistics,pages6086–6096,Florence,Italy.
+FaeghehHasibi,FedorNikolaev,ChenyanXiong,Krisz- AssociationforComputationalLinguistics.
+tian Balog, Svein Erik Bratsberg, Alexander Kotov,
+andJamieCallan.2017. DBpedia-Entityv2: Atest Patrick Lewis, Ethan Perez, Aleksandra Piktus, Fabio
+collection for entity search. In Proceedings of the Petroni, Vladimir Karpukhin, Naman Goyal, Hein-
+40th International ACM SIGIR Conference on Re- rich Küttler, Mike Lewis, Wen-tau Yih, Tim Rock-
+search and Development in Information Retrieval, täschel, Sebastian Riedel, and Douwe Kiela. 2020.
+SIGIR ’17, page 1265–1268, New York, NY, USA. Retrieval-augmented generation for knowledge-
+AssociationforComputingMachinery. intensive nlp tasks. In Advances in Neural Infor-
+mationProcessingSystems,volume33,pages9459–
+Sebastian Hofstätter, Sheng-Chieh Lin, Jheng-Hong 9474.CurranAssociates,Inc.
+Yang, Jimmy Lin, and Allan Hanbury. 2021. Ef-
+ficiently teaching an effective dense retriever with MinghanLiandJimmyLin.2021. Encoderadaptation
+balanced topic aware sampling. In Proceedings of ofdensepassageretrievalforopen-domainquestion
+the 44th International ACM SIGIR Conference on answering. arXivpreprintarXiv:2110.01599.
+4017
+Davis Liang, Peng Xu, Siamak Shakeri, Cicero Yingqi Qu, Yuchen Ding, Jing Liu, Kai Liu, Ruiyang
+Nogueira dos Santos, Ramesh Nallapati, Zhiheng Ren, Wayne Xin Zhao, Daxiang Dong, Hua Wu,
+Huang, and Bing Xiang. 2020. Embedding-based andHaifengWang.2021. RocketQA:Anoptimized
+zero-shot retrieval through query generation. arXiv trainingapproachtodensepassageretrievalforopen-
+preprintarXiv:2009.10270. domain question answering. In Proceedings of the
+2021ConferenceoftheNorthAmericanChapterof
+Yinhan Liu, Myle Ott, Naman Goyal, Jingfei Du,
+the Association for Computational Linguistics: Hu-
+Mandar Joshi, Danqi Chen, Omer Levy, Mike
+manLanguageTechnologies,pages5835–5847,On-
+Lewis, Luke Zettlemoyer, and Veselin Stoyanov.
+line.AssociationforComputationalLinguistics.
+2019. RoBERTa: Arobustlyoptimizedbertpretrain-
+ingapproach. arXivpreprintarXiv:1907.11692. Stephen E. Robertson and Karen Spärck Jones. 1976.
+Relevance weighting of search terms. JASIS,
+Mingsheng Long, Jianmin Wang, Guiguang Ding, Ji-
+27(3):129–146.
+aguangSun,andPhilipS.Yu.2013. Transferfeature
+learning with joint distribution adaptation. In Pro- BaochenSunandKateSaenko.2016. Deepcoral: Cor-
+ceedings of the IEEE International Conference on relation alignment for deep domain adaptation. In
+ComputerVision(ICCV). Europeanconferenceoncomputervision,pages443–
+450.Springer.
+Mingsheng Long, Han Zhu, Jianmin Wang, and
+MichaelIJordan.2016. Unsuperviseddomainadap-
+HuiTangandKuiJia.2020. Discriminativeadversarial
+tationwithresidualtransfernetworks. arXivpreprint
+domainadaptation. ProceedingsoftheAAAIConfer-
+arXiv:1602.04433.
+enceonArtificialIntelligence,34(04):5940–5947.
+Yi Luan, Jacob Eisenstein, Kristina Toutanova, and
+Nandan Thakur, Nils Reimers, Andreas Rücklé, Ab-
+Michael Collins. 2021. Sparse, dense, and atten-
+hishekSrivastava,andIrynaGurevych.2021. BEIR:
+tionalrepresentationsfortextretrieval. Transactions
+Aheterogenousbenchmarkforzero-shotevaluation
+of the Association for Computational Linguistics,
+of information retrieval models. arXiv preprint
+9:329–345.
+arXiv:2104.08663.
+ZelunLuo, YuliangZou, JudyHoffman, andLiFFei-
+James Thorne, Andreas Vlachos, Christos
+Fei. 2017. Label efficient learning of transferable
+Christodoulopoulos, and Arpit Mittal. 2018.
+representations acrosss domains and tasks. In Ad-
+FEVER: a large-scale dataset for fact extraction
+vances in Neural Information Processing Systems,
+and VERification. In Proceedings of the 2018
+volume30.CurranAssociates,Inc.
+Conference of the North American Chapter of
+JiMa,IvanKorotkov,YinfeiYang,KeithHall,andRyan the Association for Computational Linguistics:
+McDonald. 2020. Zero-shot neural retrieval via Human Language Technologies, Volume 1 (Long
+domain-targeted synthetic query generation. arXiv Papers), pages 809–819, New Orleans, Louisiana.
+preprintarXiv:2004.14503. AssociationforComputationalLinguistics.
+Ji Ma, Ivan Korotkov, Yinfei Yang, Keith Hall, and George Tsatsaronis, Georgios Balikas, Prodromos
+Ryan McDonald. 2021. Zero-shot neural passage Malakasiotis, Ioannis Partalas, Matthias Zschunke,
+retrievalviadomain-targetedsyntheticquestiongen- Michael R Alvers, Dirk Weissenborn, Anastasia
+eration. InProceedingsofthe16thConferenceofthe Krithara, Sergios Petridis, Dimitris Polychronopou-
+European Chapter of the Association for Computa- los,etal.2015. AnoverviewoftheBIOASQlarge-
+tionalLinguistics: MainVolume,pages1075–1088, scalebiomedicalsemanticindexingandquestionan-
+Online.AssociationforComputationalLinguistics. sweringcompetition. BMCbioinformatics,16(1):1–
+28.
+Macedo Maia, Siegfried Handschuh, André Freitas,
+BrianDavis,RossMcDermott,ManelZarrouk,and Eric Tzeng, Judy Hoffman, Kate Saenko, and Trevor
+AlexandraBalahur.2018. WWW’18openchallenge: Darrell. 2017. Adversarial discriminative domain
+Financialopinionminingandquestionanswering. In adaptation. In Proceedings of the IEEE Confer-
+CompanionProceedingsoftheTheWebConference ence on Computer Vision and Pattern Recognition
+2018, WWW ’18, page 1941–1942, Republic and (CVPR).
+Canton of Geneva, CHE. International World Wide
+WebConferencesSteeringCommittee. EricTzeng,JudyHoffman,NingZhang,KateSaenko,
+and Trevor Darrell. 2014. Deep domain confusion:
+Rodrigo Nogueira and Kyunghyun Cho. 2019. Pas- Maximizing for domain invariance. arXiv preprint
+sage re-ranking with BERT. arXiv preprint arXiv:1412.3474.
+arXiv:1901.04085.
+Laurens van der Maaten and Geoffrey Hinton. 2008.
+RodrigoNogueira,ZhiyingJiang,RonakPradeep,and Visualizing data using t-SNE. Journal of Machine
+Jimmy Lin. 2020. Document ranking with a pre- LearningResearch,9(86):2579–2605.
+trained sequence-to-sequence model. In Findings
+of the Association for Computational Linguistics: Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob
+EMNLP 2020, pages 708–718, Online. Association Uszkoreit, Llion Jones, Aidan N Gomez, Łukasz
+forComputationalLinguistics. Kaiser, and Illia Polosukhin. 2017. Attention is all
+4018
+you need. In Advances in Neural Information Pro-
+cessingSystems,volume30.CurranAssociates,Inc.
+Giorgos Vernikos, Katerina Margatina, Alexandra
+Chronopoulou,andIonAndroutsopoulos.2020. Do-
+mainAdversarialFine-TuningasanEffectiveRegu-
+larizer. InFindingsoftheAssociationforComputa-
+tionalLinguistics: EMNLP2020,pages3103–3112,
+Online.AssociationforComputationalLinguistics.
+Ellen Voorhees, Tasmeer Alam, Steven Bedrick, Dina
+Demner-Fushman,WilliamR.Hersh,KyleLo,Kirk
+Roberts, Ian Soboroff, and Lucy Lu Wang. 2021.
+TREC-COVID: Constructing a pandemic informa-
+tionretrievaltestcollection. SIGIRForum,54(1).
+Thuy-Trang Vu, Dinh Phung, and Gholamreza Haf-
+fari. 2020. Effective unsupervised domain adapta-
+tion with adversarially trained language models. In
+Proceedings of the 2020 Conference on Empirical
+MethodsinNaturalLanguageProcessing(EMNLP),
+pages6163–6173,Online.AssociationforComputa-
+tionalLinguistics.
+HenningWachsmuth,ShahbazSyed,andBennoStein.
+2018. Retrievalofthebestcounterargumentwithout
+priortopicknowledge. InProceedingsofthe56thAn-
+nual Meeting of the Association for Computational
+Linguistics (Volume 1: Long Papers), pages 241–
+251, Melbourne, Australia. Association for Compu-
+tationalLinguistics.
+David Wadden, Shanchuan Lin, Kyle Lo, Lucy Lu
+Wang, Madeleine van Zuylen, Arman Cohan, and
+Hannaneh Hajishirzi. 2020. Fact or fiction: Veri-
+fying scientific claims. In Proceedings of the 2020
+Conference on Empirical Methods in Natural Lan-
+guageProcessing(EMNLP),pages7534–7550,On-
+line.AssociationforComputationalLinguistics.
+Lee Xiong, Chenyan Xiong, Ye Li, Kwok-Fung Tang,
+Jialin Liu, Paul N. Bennett, Junaid Ahmed, and
+ArnoldOverwĳk.2021. Approximatenearestneigh-
+bor negative contrastive learning for dense text re-
+trieval. In International Conference on Learning
+Representations.
+ZhilinYang,PengQi,SaizhengZhang,YoshuaBengio,
+WilliamCohen, RuslanSalakhutdinov, andChristo-
+pher D. Manning. 2018. HotpotQA: A dataset
+for diverse, explainable multi-hop question answer-
+ing. In Proceedings of the 2018 Conference on
+EmpiricalMethodsinNaturalLanguageProcessing,
+pages 2369–2380, Brussels, Belgium. Association
+forComputationalLinguistics.
+XinyuZhang,XueguangMa,PengShi,andJimmyLin.
+2021. Mr. TyDi: A multi-lingual benchmark for
+denseretrieval. arXivpreprintarXiv:2108.08787.
+4019
+A DatasetsDetails Hyperparameter Value
+SameasANCE
+Targetdomaindatasetsusedinourexperimentsare
+Learningrateforθ 1e-6
+g
+collected in the BEIR benchmark (Thakur et al.,
+Effectivebatchsize 16
+2021)andincludethefollowingdomains:
+MaximumQueryLength 64
+• General-domain (Wikipedia): DBPedia (Ha- MaximumDocumentLength 512
+sibi et al., 2017), HotpotQA (Yang et al., NewforMoDIR
+2018), FEVER (Thorne et al., 2018), and LearningrateforW f 5e-6
+NQ(Kwiatkowskietal.,2019). Earlystoppingsteps 10k
+Momentumstepn 1k
+• Bio-medical: TREC-COVID (Voorhees et al., Initialλ 1.0
+2021), NFCorpus (Boteva et al., 2016), and
+BioASQ(Tsatsaronisetal.,2015). Table5: DetailedhyperparameterchoicesofMoDIR.
+• Finance: FiQA(Maiaetal.,2018).
+• Controversialarguments: Touché(Bondarenko
+et al., 2020) and ArguAna (Wachsmuth et al.,
+2018).
+• Duplicatequestions: Quora(Thakuretal.,2021)
+andCQADupStack(Hoogeveenetal.,2015).
+• Scientific: SciFact (Wadden et al., 2020), SCI-
+DOCS (Cohan et al., 2020), and Climate-
+FEVER(Diggelmannetal.,2020)
+B DetailedExperimentalSettings
+WefollowthedesignofANCEfortheDRencoder’s
+modeling and training. We initialize the encoder
+with the publicly released checkpoints: “ANCE-
+warmup”forDPR+MoDIRand“ANCE-passage”
+for ANCE+MoDIR.3 We randomly initialize the
+domainclassifier. Detailedhyperparameterchoices
+areshowninTable5. Wealsouseanexponential
+decayroutineforthehyperparameterλtoimprove
+trainingstability, wherethevalueisreducedcon-
+tinuouslyandshrunktohalfevery10ksteps.
+3https://github.com/microsoft/ANCE.
+4020

@@ -1,0 +1,931 @@
+Challenges in Automated Debiasing for Toxic Language Detection
+XuhuiZhou♥ MaartenSap♣ SwabhaSwayamdipta♦ NoahA.Smith♣♦ YejinChoi♣♦
+♥DepartmentofLinguistics,UniversityofWashington
+♣PaulG.AllenSchoolofComputerScience&Engineering,UniversityofWashington
+♦AllenInstituteforArtificialIntelligence
+xuhuizh@uw.edu, msap@cs.washington.edu
+{swabhas,noah,yejinc}@allenai.org
+Abstract Detected
+toxicity score
+I identify as a black
+Warning:thispapercontainscontentthatmay gay woman. Identity
+bias
+beoffensiveorupsetting. I identify as a PAePrsI. (Lexical)
+straight white man.
+Biased associations have been a challenge in
+the development of classifiers for detecting Fucking love Swear
+toxic language, hindering both fairness and this. word
+accuracy. As potential solutions, we inves- Adolf Hilter is a PAePrsI. (Lb ei xa ics al)
+great person.
+tigate recently introduced debiasing methods
+for text classification datasets and models, as
+Wussup, n*gga! Dialect/
+appliedtotoxiclanguagedetection. Ourfocus Racial
+is on lexical (e.g., swear words, slurs, iden- What’s up, bro! PAePrsI. bias
+tity mentions) and dialectal markers (specifi-
+cally African American English). Our com- Figure1:Lexicalitemsanddialectmarkerscauseprob-
+prehensiveexperimentsestablishthatexisting lematic behavior for toxic language detection systems
+methods are limited in their ability to prevent suchasthewidelyusedPerspectiveAPI.Inthetoptwo
+biased behavior in current toxicity detectors. examplepairs, statementswithminorityidentitymen-
+We then propose an automatic, dialect-aware tionsandswearwordsusedinoffensivelyareflaggedas
+datacorrectionmethod, asaproof-of-concept toxic,butmajorityidentitymentionsoroffensivestate-
+study. Despite the use of synthetic labels, mentswithoutovertswearingaremissed. Thebottom
+thismethodreducesdialectalassociationswith pairshowsdialect-basedracialbiasfortwoinoffensive
+toxicity. Overall,ourfindingsshowthatdebi- greetings,wheremarkersofAfricanAmericanEnglish
+asingamodeltrainedonbiasedtoxiclanguage (AAE)triggerthetoxicitydetector.
+dataisnotaseffectiveassimplyrelabelingthe
+datatoremoveexistingbiases.
+speech datasets (both shown in Figure 1): lexical
+1 Introduction
+biaswhichassociatestoxicitywiththepresenceof
+Current hate speech or toxic language detection1 certainwords(e.g.,profanities,identitymentions;
+systems exhibit problematic and discriminatory Dixon et al., 2018; Dinan et al., 2019) and di-
+behavior that causes them to have disparate nega- alectalbias, wheretoxicityiscorrelatedwithsur-
+tiveimpactonminoritypopulations(Yasin,2018; face markers of African American English (AAE;
+Guynn, 2020; Kim et al., 2020; Dias Oliva et al., Davidson et al., 2019; Sap et al., 2019). When
+2020). Tweetssimplycontainingaminorityiden- trainedonbiaseddatasets,modelsacquireandex-
+titymentionarecommonlyflaggedastoxicbycur- acerbate these biases (e.g., flagging text by Black
+rent systems, in contrast to those containing ma- authors as more toxic than by white authors; Sap
+jorityidentitymentions,asillustratedinFigure1. etal.,2019;Zhangetal.,2018).
+At the core of the issue are dataset biases, i.e., Concurrently,therehasbeenelevatedinterestin
+spuriouscorrelationsbetweensurfacepatternsand developingdebiasingmethodsforstandardnatural
+annotated toxicity labels (§2), which stem from language understanding (NLU) tasks, i.e., meth-
+the data creation process (Sap et al., 2019). Pre- odsthataimtodecreaseover-relianceonspurious
+vious work has outlined two such biases for hate correlationsinNLUmodels(Clarketal.,2019;He
+et al., 2019; Karimi Mahabadi et al., 2020; Bras
+1Weusehatespeechandtoxiclanguageinterchangeably
+inthiswork,thoughtheirdefinitionsdonotperfectlyalign. et al., 2020). This raises a natural question: are
+3143
+Proceedingsofthe16thConferenceoftheEuropeanChapteroftheAssociationforComputationalLinguistics,pages3143–3155
+April19-23,2021.©2021AssociationforComputationalLinguistics
+currentdebiasingapproacheseffectiveformitigat- This task differs in several ways from the natu-
+ingbiasesspecifictotoxiclanguagedetection? rallanguageunderstanding(NLU)tasksthatdebi-
+In this work, we address the above question by asing methods have been successful on, such as
+investigating two classes of debiasing approaches textual entailment (e.g., SNLI, MNLI; Bowman
+to mitigate lexical and dialectal biases—one that etal.,2015;Williamsetal.,2018)orreadingcom-
+employsadditionaltrainingobjectivesforbiasre- prehension(e.g.,SQuAD;Rajpurkaretal.,2016).
+moval, and another that filters training instances First, compared to these NLU tasks where there
+likely exhibiting spurious biases (§3). Through is one correct label, the toxicity of language is
+comprehensive experiments, we show that both inherently more nuanced, subjective, and contex-
+approachesfacemajorchallengesinmitigatingbi- tual,whichcausestoxiclanguagedatasetstohave
+ases from a model trained on a biased dataset (in lower agreement in general (Ross et al., 2017).
+our case, the dataset from Founta et al., 2018) Second, the dataset biases in NLU are predom-
+for toxic language detection. While data filter- inantly artifacts introduced during data creation
+ingresultsinreducedbiasassociationsinthedata, (e.g., negations, exaggerations; Schwartz et al.,
+modelstrainedonfiltereddatasetsstillpickupon 2017; Gururangan et al., 2018), whereas those in
+lexical (§4) and dialectal biases (§5). We find toxic language detection are grounded in the so-
+that dialectal biases are particularly challenging cial dynamics of the world (Spears, 1998; Tech-
+to address, as has also been shown by Xia et al. nau, 2018). For example, viewing AAE as a more
+(2020). “Debiased” models still disproportion- toxicorlesspropervarietyofEnglishisaformof
+atelyflagtextincertaindialectsastoxic. Notably, linguisticdiscriminationthatupholdsracialhierar-
+mitigatingdialectalbiasthroughcurrentdebiasing chiesintheUnitedStates(RosaandFlores,2017).
+methodsdoesnotmitigateamodel’spropensityto In this work, we consider two broad categories
+label tweets by Black authors as more toxic than of toxic language dataset biases—lexical (§2.1)
+bywhiteauthors. and dialectal (§2.2). Our experiments focus on
+Weadditionallyexploreanalternativeproof-of- a single, widely used dataset (§2.3) from Founta
+conceptstudy—relabelingsupposedlytoxictrain- etal.(2018).
+ing instances whose automatic translations into a
+majoritydialectaredeemednon-toxicbytheclas-
+2.1 LexicalBiases(TOXTRIG)
+sifier. Tothisend,wecreateasyntheticdatasetvia
+few-shotdialecttranslationsystembuiltwithGPT- Current toxic language detection systems often
+3 (Brown et al., 2020). While only an illustrative rely on the presence or absence of certain words
+solution, it nevertheless takes into account the di- (e.g., swear words, identity mentions) to make
+alectal context of the tweet, resulting in a model their predictions (Dixon et al., 2018; Dinan et al.,
+lesspronetodialectalandracialbiases(§6). Over- 2019). While most previous analyses of this bias
+all,ourfindingsindicatethatdebiasingamodelal- relied on a simple list of “bad” words (Davidson
+readytrainedonbiasedtoxiclanguagedatacanbe et al., 2019; Dinan et al., 2019),4 we take a more
+challenging,comparedtorelabelingthedatatore- nuancedviewofhowlexicalitemscanconveytox-
+move existing biases. Our code and data are pub- icity,inspiredbyworkinpragmaticsandsociolin-
+liclyavailableonGithub.2 guistics of rudeness (Dynel, 2015; Kasper, 1990,
+inter alia). Specifically, we manually split our
+2 BiasesinToxicLanguageDetection full list of words into three distinct categories de-
+pendingontheextenttowhichtheycarryprofane
+We test the use of debiasing3 methods for the
+orhatefulmeaningsoraresimplyassociatedwith
+task of toxic language detection, which aims to
+hatefulcontexts.5 Werefertothefullsetofwords
+flag rude, offensive, hateful, or toxic language on
+as TOXTRIG, for Toxicity Triggers, which is in-
+the internet, with the goal of moderating online
+cludedinourreleasedrepository.6
+communities(Roberts,2019;Vidgenetal.,2019).
+2https://github.com/XuhuiZhou/Toxic_ 4https://tinyurl.com/list-of-bad-words
+Debias 5Wenote,however,thatthiscategorizationisinitselfsub-
+3Our definition of “bias” is specific to the social biases jective.
+intoxiclanguagedetectiondatasets,groundedaslexicaland 6https://github.com/XuhuiZhou/Toxic_
+dialectalbiases; seeBlodgettetal.(2020)foradetailedin- Debias/blob/master/data/word_based_bias_
+vestigationoftheterm“bias”. list.csv
+3144
+Non-offensive minority identity mentions on African-American English (AAE) and white-
+(NOI) refers to descriptive mentions of minori- aligned English (WAE) tweets; both definitions
+tized demographic or social identities (e.g., gay, are based on US English, as per Blodgett et al.
+female, Muslim). While these mentions are not (2016).7 Our experiments either use the proba-
+usually inherently offensive by themselves, they bility of a tweet being in these dialects, or assign
+are often found in offensive statements that are tweetstheirestimated-most-probabledialect.
+hateful towards minorities (Dixon et al., 2018).
+2.3 DatasetforToxicLanguageDetection
+We detect these identity mentions in text using a
+listof26regularexpressions. We focus our analyses on a widely used hate
+speech dataset of English tweets (Founta et al.,
+Possibly offensive minority identity mentions
+2018). The tweets were collected using a multi-
+(OI) are mentions of minoritized identities that
+round bootstrapping procedure, and were labeled
+coulddenoteprofanityorhatedependingonprag- out of context8 for toxic language. We focus on
+maticandcontextualinterpretations. Thisincludes
+the 86k tweets that are annotated as hateful, abu-
+slurs and objectifying outdated terms to refer to
+sive,orneitheranddiscardthoselabelledasspam.
+minority groups, which are usually understood as
+Weaggregatetheabusiveandhatefullabelsintoa
+attacks. Additionally,thisincludesreclaimedslurs
+single toxic category, yielding 32k toxic and 54k
+(queer, n*gga), which connote less offensive in- non-toxictweets.9
+tentwhenspokenbyin-groupmemberscompared
+toout-groupmembers(Croom,2013). 3 DebiasingMethods
+Possiblyoffensive non-identitymentions (ONI) Weconsidertwotypesofdebiasingmethodsfrom
+containsswearwordsandotherprofanities,which currentliterature. Thefirsttypeaddressesknown,
+areusuallyoffensivebutnotassociatedtoanyso- pre-defined biases—such as lexical and dialectal
+cial groups (e.g., f*ck, sh*t). Note that the prag- biases for hate speech detection, via a model-
+matic interpretation of these words is not neces- based approach involving additional training ob-
+sarily always toxic or offensive (Dynel, 2012), as jectives (§3.1). In contrast, the second type is ag-
+they are often used to convey closeness between nostic to prior knowledge about biases, and in-
+the speaker and listener or emphasize the emo- stead filters out examples that appear “too easy”
+tionality of a statement (e.g., second example in and might hence contain spurious correlations
+inFigure1). (§3.2).
+3.1 DebiasedTrainingforPre-Defined
+2.2 DialectalBiases(AAE)
+ToxicityBiases
+Current toxic language detection systems also as-
+We use the LEARNED-MIXIN method of Clark
+sociate higher toxicity with dialectal markers of
+et al. (2019), which achieved high out-of-
+AfricanAmericanEnglish(AAE;Sapetal.,2019;
+distribution (OOD) performance on several NLU
+Davidson et al., 2019). Since AAE is a vari-
+tasks, for debiased training. This method trains
+ety of English that is common among African
+an ensemble containing a bias-only model which
+Americans and often signals a cultural identity
+only uses pre-defined features corresponding to
+in the US (Green, 2002), this dialect-based racial
+knownbiases,andafullmodelwhichusesallfea-
+bias causes speech by Black authors to be sup-
+tures. Intuitively,theensembleencouragesthefull
+pressed more often than non-Black authors (Sap
+et al., 2019), thereby exacerbating racial inequal- 7We avoid using disputed terms such as general Ameri-
+ity(Rosa,2019). canEnglish,standardAmericanEnglish,ormainstreamUS
+English, which are frequently used for WAE, since we be-
+In our experiments, we estimate the dialect of
+lievethatnodialectshouldbeprivilegedwiththedesignation
+a tweet using a topic model from Blodgett et al. “general”,“standard”,or“mainstream”(Rosa,2019).
+(2016). This model was trained on 60M tweets, 8Onlythetweettext—noprofileinformationorconversa-
+tionalcontext—wasshowntoannotators.
+where the dialect of the tweet was inferred from
+9Wealsoexploredusinganotherwidelyusedhatespeech
+themodelcoordinates,whichyieldedaprobability dataset (Davidson et al., 2017), which collected tweets us-
+of a tweet being in one of four dialects (African- ing a seed list of swear words and slurs. However, in line
+withfindingsbyXiaetal.(2020),debiasingledtodegener-
+American English, white-aligned English, His-
+atebehaviorduetothedatacollectionprocess,asdiscussed
+panic, and other). In this study, we only focus inAppendixB.
+3145
+model to rely more on features unrelated to the DataMaps (Swayamdipta et al., 2020) show
+biases. Once trained, the bias-only model is dis- the presence of distinct regions in a dataset—
+carded,andonlythe“bias-free”fullmodelisused namely, easy, hard and ambiguous—defined with
+forinference,followingClarketal.(2019). respect to a given model. These regions are
+discovered based on the training dynamics of a
+Bias-onlymodel Givenitseffectivenessonbag- model, determined by the model’s confidence in
+of-words (BoW) features, we use an SVM classi- the true class, for each example, as well as the
+fier as the lexical-bias-only model. For example, variability of this confidence, throughout train-
+theTOXTRIG-onlymodelcountsthefrequencyof ing epochs. Swayamdipta et al. (2020) show that
+TOXTRIGwordsineachtweet. Ourdialectal-bias- training exclusively on the hard and ambiguous
+only model uses the probability of dialects (AAE, regions of the data results in high OOD perfor-
+WAE,Hispanic,andother)obtainedfromadialect mance, indicating lower prevalance of spurious
+detector (Blodgett et al., 2016) as features in a biases. The easy region is the largest in size
+SVMclassifier. for RoBERTa; however, experiments showed that
+training exclusively on these examples hurt OOD
+Fullmodel Wefine-tuneaRoBERTa-largeclas-
+generalization on different NLU tasks. Following
+sifier(Liuetal.,2019),astate-of-the-artclassifier
+this work, we create DataMaps-Easy, DataMaps-
+for the toxicity detection task. See Appendix A.1
+Ambiguous, and DataMaps-Hard subsets for our
+formoremodelingdetails.
+dataset.
+Note that we only consider the LEARNED-
+Following Swayamdipta et al. (2020), we set
+MIXIN-ONI and LEARNED-MIXIN-TOXTRIG
+the target filtered subset size to 33% of the orig-
+models for lexical debiasing, due to poor ac-
+inaltrainingsetforbothfilteringmethods,butour
+curacies of the bias-only models for NOI and
+filtering additionally preserved the original label
+OI.10
+proportions. We then fine-tune a RoBERTa-large
+classifer on these filtered subsets; see Appendix
+3.2 DataFilteringforSpuriousBiases
+A.2formoredetails.
+In addition to debiasing methods that handle
+4 Experiments: LexicalBiases
+known biases, we also explore automated ap-
+proaches which filter out instances exhibiting un-
+We investigate the effect of debiasing approaches
+specified, spurious biases. Specifically, we de-
+(§3)onremovinglexicalbiasesinhatespeechde-
+scribebelowtwodataselectionmethodsthathave
+tection. First, we discuss the evaluation frame-
+shownstrongOODperformance.
+work for measuring bias reduction (§4.1). We
+present quantitative (§4.2) and qualitative (§4.3)
+AFLite(Brasetal.,2020) isanalgorithmbased
+resultsonlexicalbiasremovalforalldebiasingap-
+on the key intuition that examples predicted cor-
+proaches, andOODevaluationfordebiasedtrain-
+rectly by the simplest methods likely exhibit spu-
+ing methods (§4.4). See Appendix A.3 for hyper-
+rious biases. An ensemble of simple linear clas-
+parametersandotherexperimentalsettings.
+sifiers is trained and tested on different partitions
+ofthedata;testinstanceswhichare“predictable”,
+4.1 EvaluationFramework
+or classified correctly by most classifiers in the
+ensemble are discarded. The algorithm is iter- We report the performance of all models as over-
+ative, and is repeated until a target data size is allaccuracyandF 1 withrespecttothetoxicclass.
+achieved. Models trained on this filtered dataset Giventhatcurrenthatespeechsystemstendtorely
+achieve higher performance on OOD and adver- heavilyonthepresenceofNOI,OI,andONImen-
+sariallyconstructedtestsets,comparedtotheorig- tions(§2.1)forlabelingtextastoxic,weusefalse
+inalmodel,onseveraltextandimageclassification positiverate(FPR)overeachofthesecategoriesto
+datasets. Thisindicatesareductioninspuriousbi- measurethedegreeofbiasinthemodel,following
+asesinthefiltereddata. Hardt et al. (2016) and Xia et al. (2020). Specif-
+ically, we report the FPR of a model on tweets
+10TheNOIandOIbias-onlymodelsreach63%and67% containing NOI (FPR NOI), OI (FPR OI), and ONI
+accuracy,respectively,whichisempiricallyhardfortheen-
+(FPR ),aswelltheF correspondingtoeachof
+sembletouse. Thisislikelyduetolowcoverageinthetrain ONI 1
+setofthosecategories(4.43%NOIand4.25%OI). these classes. Intuitively, the lower the FPR ∗, the
+3146
+R ↓ R ↓ R ↓ Table 2 shows results for lexical bias reduc-
+NOI OI ONI
+tion using both debiased training approaches, as
+Original 0.0445 0.2641 0.6718
+well as models trained on datasets filtered us-
+Random 0.0345 0.2603 0.6683
+AFLite 0.0434 0.2458 0.6016 ing AFLite and all three regions from DataMaps.
+DataMaps-Ambig. 0.0126 0.1968 0.5839 Bothdebiased trainingapproaches, LMIXIN-ONI
+DataMaps-Hard 0.0081 0.1853 0.5849
+DataMaps-Easy 0.0772 0.3661 0.7720
+and LMIXIN-TOXTRIG, reduce FPR
+ONI
+as well
+as FPR by a large amount. However, both
+OI
+Table 1: Lexical associations between toxicity and approaches also hurt in-distribution test perfor-
+TOXTRIG mentions in the original dataset (Founta mance, indicating that ONI and other TOXTRIG
+et al., 2018) and various filtered counterparts. Ran- features are essential for good performance.11 In
+dom, AFLite, and DataMaps all contain only 33% of
+contrast, the models trained on hard and am-
+theoriginaldataafterfiltering. LowerPearsonR cor-
+biguoussubsetsfromDataMapsbothpreservein-
+relation value indicates less superficial patterns in the
+distribution performance, even though they are
+dataset, i.e., less bias. Takeaway: The hard and am-
+biguoussubsetsgivenbyDataMapscontainthelowest trainedonlyathirdoftheoriginaldata. Theyalso
+amountoflexicalassociations,indicatedinboldface. reducetherateoffalselypredictingNOImentions
+as toxic (FPR ), while not showing much im-
+NOI
+provementfor ONI andmaintainingFPR
+OI
+ofthe
+less the model infers lexical associations for toxi-
+originalbaseline.
+city,andhenceislessbiased.
+Surprisingly,themodeltrainedontheeasysub-
+Evaluation for Filtered Datasets We addition- set from DataMaps shows good bias reduction on
+allyconsidermetricsbasedonspuriouslexicalas- the NOI and ONI categories, while matching the
+sociationsfordatafilteringapproaches. Thismea- random selection baseline for OI. This is despite
+suresprevalenceofspurioussurfacepatternsinthe DataMaps-Easyshowinganincreasedassociation
+filtered datasets, which might propagate to mod- between TOXTRIG mentions and toxicity (Table
+elstrainedonthedata. Specifically, wereportthe 1). Notably, the F 1 for all categories suffers un-
+Pearson’s correlation between the gold standard derthismodel,indicatingthatitislesscompetent
+toxicity label and whether or not it contains NOI, than the baseline. These results suggest that re-
+OI, or ONI mentions. These correlations are de- ducedassociationsinthedatamightnotnecessar-
+notedasR ,R ,andR ,respectively;lower ily lead to debiased models trained on the same
+ONI NOI OI
+valuesindicatereductioninlexicalbiases. data. Overall, no single approach outperforms all
+others across different categories for lexical debi-
+Baselines We consider comparison against two asing.
+naturalbaselines: avanillaRoBERTa-largeclassi-
+fier trained on the original dataset (Original). We 4.3 QualitativeAnalysis
+alsoconsiderabaselinetrainedonarandomselec- AqualitativestudyoftheFountaetal.(2018)test
+tionofthetrainingdata(Random),forcomparison setshowsthepresenceofmanyannotationerrors.
+with data filtering methods for debiasing. Each We show three representative annotation errors in
+subsetistrainedon33%ofthetrainingdata. Table3. Thefirstexamplecontainsanatypicalex-
+ample of toxicity, towards white folks, which the
+4.2 ResultsforLexicalBiasReduction
+annotators might have been unaware of. It also
+First, we measure the reduction in lexical bi- containsalinkwhichannotatorshadaccessto,but
+ases in filtered datasets, as given by AFLite and not models. The second contains the word p*ss
+DataMaps. As shown in Table 1, subsets given whichtheannotatorsmayhavereliedfortheiras-
+by AFLite and the ambiguous and hard regions sessment. Thethirdencouragesviolence/abuseto-
+produced by DataMaps reduce the overall asso- wardsanidentitywhichisn’ttypicallythetargetof
+ciations between TOXTRIG words and toxicity, violence. Interestingly, the DataMaps-Easy pre-
+compared to the original and random baselines; dictions agree with all the gold standard annota-
+DataMaps-Hard has the largest reduction. On the tions;perhapssuchannotationerrorsandambigu-
+other hand, as expected, DataMaps-Easy shows ity are responsible for the performance discussed
+anincreased associationbetween TOXTRIG men-
+11When we combine the bias-only model and the full
+tionsandtoxicity,showingthatthetheseexamples
+model, we obtain competitive performance (see Appendix
+displayovertlexicalbiases. A.4).
+3147
+niart%33
+Test(12893) NOI(602) OI(553) ONI(3236)
+Acc.↑ F ↑ F ↑ FPR ↓ F ↑ FPR ↓ F ↑ FPR ↓
+1 1 NOI 1 OI 1 ONI
+Vanilla 94.21 92.33 89.76 10.24 98.84 85.71 97.34 64.72
+0.0 0.0 0.3 1.3 0.1 0.0 0.1 0.8
+LMIXIN-ONI 89.65
+1.5
+85.59
+2.5
+87.04
+1.1
+13.99
+1.5
+98.87
+0.0
+85.71
+0.0
+87.87
+4.5
+43.74
+3.1
+LMIXIN-TOXTRIG 90.44
+0.7
+86.94
+1.1
+85.47
+0.3
+11.15
+1.7
+97.64
+0.3
+71.43
+0.0
+90.41
+1.8
+44.55
+1.5
+Random 94.07 92.18 89.48 9.33 98.93 83.33 97.40 67.15
+0.1 0.1 0.4 0.7 0.0 3.4 0.1 0.6
+AFLite 93.86 91.94 90.21 11.26 98.90 85.71 97.32 67.97
+0.1 0.1 0.4 1.1 0.0 0.0 0.1 3.4
+DataMaps-Ambig. 94.33 92.45 89.16 7.39 98.87 85.71 97.54 64.39
+0.1 0.1 0.7 1.0 0.0 0.0 0.0 1.4
+DataMaps-Hard 94.50 92.61 89.54 6.26 98.84 85.71 97.43 61.95
+0.0 0.1 0.4 0.9 0.0 0.0 0.0 1.1
+DataMaps-Easy 94.00 91.94 86.81 5.92 98.87 83.33 97.17 60.33
+0.1 0.2 0.6 0.7 0.0 3.4 0.1 3.8
+Table2: EvaluationoflexicalbiasremovalforalldebiasingmethodsontheFountaetal.(2018)testset. Results
+showthemeanands.d.(subscript)ofaccuracyandF across3runs,aswellasF andfalsepositiverateexclusively
+1 1
+ontestexamplescontainingspecificTOXTRIGmentions—NOI,OIandONI,alongwiththenumberofexamples
+in each category. The lower the FPR , the less the model infers lexical associations for toxicity. The first block
+*
+shows debiased training approaches, along with the vanilla classifier, which are trained on the full dataset. The
+second block shows data filtering approaches, all trained on only 33% of the training data. Best performance in
+eachblockisboldfaced. Takeaway: Whiledatafilteringapproachesachieveoverallhigherperformance,debiased
+trainingapproachesperformbetteronlexicalbiasreduction,inaggregate.
+Gold DM- DM-
+Hard Easy
+@userTHIS?LMAOOOOO...doyourselfasolidandstayoutofBlackpeople’smentionsand ¤ A ¤
+mindyourcaucasia...
+RT@userIwishIwasn’tsoannoyinglikeIevenpissmyselfoff A ¤ A
+@user If you want to attack people, attack fundamentalists of all faiths. Attack those who ¤ A ¤
+condemn1.5bnpeopleoutofhand.
+Table3: Examplesoftestsettweetswiththeirgold-standardannotationsandpredictionsfrommodelstrainedon
+DataMaps-Hard(DM-Hard)andDataMaps-Easy(DM-Easy)subsets. Adenotestweetswithtoxiclabels,and¤
+representsnon-toxiclabels. Weanonymizetheusernamestoprotectuserprivacy.
+in §4.2. These annotation ambiguities might also than both LMIXIN models. Regardless, none of
+impairourmeasurementformodels’performance the models we test are good at predicting subtle,
+and debiasing effects, and expose a limitation of non-overttoxicity.
+thesedatasets.
+5 Experiments: DialectalandRacial
+4.4 AdversarialEvaluation: ONI-Adv
+Biases
+To further study the reliance of debiased models
+Wetesttheefficacyofthebiasreductionmethods
+on the ONI words, we use the test set from Di-
+from§3fordialectalbias(§2.2)reduction.
+nan et al. (2019), which contains 3000 manually
+created sentences, 300 toxic. The toxic sentences
+5.1 DialectalBiases
+barely contain any ONI mentions, e.g., Cheese is
+made by french people who smell. We call this For our dialectal bias experiments, we first infer
+test set ONI-Adv (for adversarial) since it chal- the dialect of a tweet as described in §2.2. Then,
+lenges models with a reversal in the association analogoustothelexicalbiasevaluation,wequan-
+betweentoxicityandoffensivenon-identitywords tifythedialectaldebiasingusingthePearson’scor-
+(e.g.,“f*ck”,“sh*t”). relation between estimated probabilities of AAE
+We report F for all models in Figure 2, which andtoxicity(R ),andthefalsepositiveratesof
+1 AAE
+shows how well a model identifies toxicity in of- models on AAE tweets (FPR ). See Appendix
+AAE
+fensive tweets that do not contain overtly lexical A.3 for hyperparameters and other experimental
+cuesoftoxicity. Thedebiasedtrainingapproaches settings.
+improveoverthebaselines;datafilteringmethods Results in Table 4 show that almost all data fil-
+do not. One reason for this might be that data tering and debiasing methods reduce dialectal bi-
+filtering methods were trained on much less data ases, with DataMaps-Easy as the exception (con-
+3148
+niart%33
+Test
+R ↓ F ↑ FPR ↓
+AAE 1 AAE
+Vanilla 0.4079 92.33 16.84
+0.0 0.3
+LMIXIN-Dialect - 92.26
+0.1
+16.07
+0.4
+Random 0.4027 92.18 16.67
+0.1 0.6
+AFLite 0.3577 91.94 16.84
+0.1 0.8
+DataMaps-Ambig. 0.2965 92.45 15.99
+0.1 0.4
+DataMaps-Hard 0.2878 92.61 13.71
+0.1 0.2
+DataMaps-Easy 0.5347 91.94 19.46
+0.2 2.8
+AAE-relabeled 0.3453 91.64
+0.3
+12.69
+0.0
+Table 4: Dialectal bias evaluation for all debiasing
+methods (§5), as well as the relabeling approach (§6)
+Figure 2: Challenge set evaluation for lexical biases,
+on the Founta et al. (2018) test set. We report F and
+1
+comparingalldebiasingmethodswithbaselines,using
+the false positive rate with respect to tweets in AAE
+theONI-Advtestset.Takeaway:F 1(↑)measuresshow
+(FPR ), reflecting dialectal bias (lower is less bi-
+AAE
+thatallmodelsperformpoorlyatidentifyingtoxictext
+ased),showingmeanands.d. (subscript)across3runs.
+notcontainingovertlylexicalcuesoftoxicity. Ingen-
+(TopBlock)Debiasedtrainingapproaches,alongwith
+eral,debiasedtrainingapproachesoutperformtheorig-
+thevanillaclassifier,arealltrainedonthefulldataset.
+inalmodelonthischallengeset,whiledatafilteringis
+(Middle Block) Random, AFLite and DataMaps all
+notaseffective.
+are trained on only 33% of the training data. Best
+performance for each training set size is in boldface.
+Takeaway: Both debiasing approaches improve per-
+sistent with Table 1). Notably, DataMaps-Hard
+formanceoverbaselines,withDataMaps-Hardproving
+performs the best at dialectal debiasing, both in
+the most effective at debiasing. (Bottom Block) AAE-
+terms of toxicity-AAE correlation (R AAE) and in relabelingresultsinamodelwhichdespitefollowinga
+termsoffalseflaggingoftoxicity(FPR ). Inter- noisy process yields even larger improvements for di-
+AAE
+estingly, most models’ decrease in false flagging alectaldebiasing.
+issmall,suggestingroomforimprovement.
+ing methods and baselines, except for DataMaps-
+5.2 RacialBiases
+Easy, which shows the most racial bias in toxic-
+To quantify the real-world impact of dialect-
+ityflagging. Surprisingly,DataMaps-Hard,which
+based racial bias, we measure the rates of toxi-
+mitigated dialectal bias the best out of all debi-
+city predicted by models on a corpus of tweets
+asing methods, also shows high discrepancy be-
+for which the race of authors is available, but
+tween author races. Confirming previous results,
+not annotations of toxicity. Specifically, we con-
+thissuggeststhatdebiasingthesesystemsrequires
+sider the dataset released by Preo¸tiuc-Pietro and
+morethanautomaticdebiasingmethods.
+Ungar (2018), which consists of 5.4M tweets,
+collected from 4,132 survey participants (3,184 6 TowardsDataRelabeling
+White, 374 African American) with self-reported
+Based on our quantitative and qualitative analy-
+race/ethnicityandTwitteruserhandles.12
+ses, we believe there still is room for improve-
+Wequantifyourmodels’racialbiasbymeasur-
+ment in debiasing hate speech detection. There-
+ing the difference in rates of flagging tweets by
+fore,weturnourattentiontotheroleoflabelnoise
+African American authors and those by white au-
+indatasets. Partlyinspiredbyourqualitativeanal-
+thors,followingSapetal.(2019).13
+yses of debiased models’ predictions, we design
+Listed in Table 5, our results show that auto-
+a proof-of-concept study where we automatically
+matic debiasing methods do not consistently de-
+correctthelabeloftweetsusinga(nautomatic)di-
+crease the racial discrepancy in flagging toxicity.
+alectal translation of the tweet, inspired by previ-
+Notably, the toxicity rates on tweets by African
+ous work showing that highlighting AAE tweets’
+American authors—and the diferences compared
+dialect led them to be labeled as less toxic (Sap
+to white authors—are similar across all debias-
+etal.,2019). Weconcludethisstudybydiscussing
+12Forefficiency, werandomlyselect12ktweetsfromthe thelimitationsandethicalimplicationsofthesyn-
+datasetastheOODtestset.
+thetic data, and cautioning against its real-world
+13Notethatweassumethatauthorsfromallraceshavethe
+samelikelihoodofwritingtoxiclanguage. application.
+3149
+niart%33
+W-Tox. AA-Tox. ∆↓AA/W↓ non-toxic(examplesinTable6). Toassesstheva-
+lidityoftherelabeling,thefirstthreeauthorsman-
+Original 7.24 12.61 5.37 1.74
+LMIXIN-Dialect 7.50 12.55 5.06 1.67 ually annotated toxicity of 50 randomly selected
+Random 8.28 13.24 4.96 1.60 relabeledtweets. Onaverage,authorsagreedwith
+AFLite 7.32 11.64 4.33 1.59 84%oftherelabelingdecisions.
+DataMaps-Ambig. 6.75 12.17 5.42 1.80
+DataMaps-Hard 6.36 11.67 5.31 1.84
+Then, we evaluate the dialectal bias of AAE-
+DataMaps-Easy 8.46 16.30 7.83 1.94 relabeled and quantify the dialect and racial pre-
+AAE-relabeled 6.93 10.60 3.67 1.53 diction biases from a RoBERTa-large classifier
+trainedonAAE-relabeled,following§5. Asshown
+Table 5: Racial disparity in toxicity prediction re- in the last row of Table 4, this relabeling scheme
+ported on Preo¸tiuc-Pietro and Ungar (2018). W-Tox.
+decreasesdialectalbiasmorethananyotherdebi-
+indicates % of white users’ tweets being flagged as
+asingmethod,specificallyasmeasuredbytheFPR
+toxic,AA-Tox.indicates%ofAfricanAmericanusers’
+tweets being flagged as toxic, ∆ refers to the differ- on AAE tweets, with one point drop in F 1 score.
+TheF scoreonthe“gold”testdata(Table4)are
+encebetweenAA-Tox.andW-Tox., andAA/Wrefers 1
+totheratiobetweenAA-Tox. andW-Tox. Takeaway: not fully reliable, as test data contain label biases
+Methods generally fail in debiasing on this OOD test and better performance could come from exploit-
+setexcepttherelabelingapproachshowssomebenefit. ing these biases. As shown in Table 5, the model
+trainedonAAE-relabeledhasthelowestracialdis-
+parity in toxicity flagging rates compared to all
+Focusing on dialectal bias, our key assumption
+othermethods.
+is that an AAE tweet and its corresponding WAE
+These results highlight that debiasing meth-
+versionshouldhavethesametoxicitylabel,there-
+ods are much less effective at mitigating dialec-
+fore toxic AAE tweets whose WAE versions are
+tal dataset biases compared to data relabeling.
+non-toxicarecandidatesforlabelcorrection.14
+For future investigations, we recommend obtain-
+However, gold-standard translations of AAE to ing human-written AAE-WAE pairs (e.g., as done
+WAE would require qualified translators, and au- by Groenwold et al., 2020). Additionally, to en-
+tomatic AAE-to-WAE translation systems do not
+sure less biased toxicity labeling, we recommend
+exist, to the best of our knowledge. Therefore,
+recruiting AAE speakers or experts for avoid-
+we create a proof-of-concept study—we set up a
+ing over-identification of AAE-markers as toxic
+AAE to WAE “translation” system using the few- (Spears, 1998; Croom, 2013). Alternatively, we
+shot capabilities of the GPT-3 language model
+recommend exploring more holistic representa-
+(Brown et al., 2020). Under this mechanism, we
+tions of social biases or toxicity (e.g., Social Bias
+prompt GPT-3 with four translation pairs (taken
+Frames;Sapetal.,2020).
+from Spears, 1998) and an AAE tweet from our
+training data, and generate its WAE “translation”. EthicalImplications&Limitations
+The list of prompts, as well as further details, are
+The above synthetic setting is meant to illustrate
+providedinAppendixC.Notethatwedonot rec-
+the role of labeling quality on biases in annota-
+ommendthisapproachtobuildlargescaleparallel
+tions. We strongly caution against using this ap-
+datafordialects,asdiscussedunderethicalimpli-
+proach in real-world applications, such as build-
+cationsandlimitations.
+ing parallel datasets for dialects. First, due to
+Next,asperourheuristic,weonlyrelabeltoxic
+how its training data was selected, GPT-3 has
+AAE tweetswhose WAE translationispredictedas
+likely not been exposed to many African Ameri-
+non-toxic by either our vanilla classifier trained
+can English varieties during training (Jo and Ge-
+on the original Founta et al. (2018) dataset, or an
+bru, 2020). Second, pretrained language models
+identical classifier trained on the WAE translated
+areknowntogeneratetoxiclanguageatnon-trivial
+tweets. The resulting dataset (AAE-relabeled) is
+rates(Gehmanetal.,2020),whichcouldcausedif-
+thesamesizeastheoriginaldataset, butwith954
+ferentialtoxicityinthetranslations.
+(12%) out of 8260 toxic AAE tweets relabeled as
+7 RelatedWork
+14Notethatthisassumptiondoesnotholdforlexicalitems,
+becausesubstitutinglexicalitems(e.g.,swappingaminority
+DebiasingToxicityDetection Asthepopularity
+mentionforamajoritymention)woulddrasticallychangethe
+denotationalmeaningofthesentence. of hate speech and toxic language detection sys-
+3150
+niart%33
+AAE GPT-3WAETranslation Gold New
+RT@userIcan’tstandabadtexterbruhlikedon’t RT@userIcan’tstandabadtexterbrolikedon’t A ¤
+bemadifIforgetaboutyoass bemadifIforgetaboutyou
+RT@userRetweetifyoufuckwiththis!!!! RT@userRetweetifyoulikethis! A ¤
+RT@userThatnigganeedsangermanagement RT@userThatguyneedsangermanagement A ¤
+RT@userohfuckinghelltakeadayoffman RT@userohfucktakeadayoffman A A
+Table 6: Examples of AAE tweets with their GPT-3 based WAE translation, and original gold standard and new
+annotations based on AAE-relabeled. For the first three tweets, the (biased) gold labels are changed by models
+predicting the new labels on their WAE translations. A indicates presence of toxicity, and ¤ represents non-
+toxic. Weanonymizetheusernamestoprotectuserprivacy.
+temshasgrown,severalbiaseshavebeenfoundin tasks. Focusingontwotypesofbiases,lexicaland
+datasetandmodels,spurringvariousdebiasingef- dialectal, our experiments show that these meth-
+fortstomitigatetheseindividualbiases(e.g.,gen- ods face significant challenges in reducing the bi-
+der bias, racial bias; Park et al., 2018; Sap et al., asedbehaviorintoxicitydetectors. Thisindicates
+2019; Davidson et al., 2019). Some work tackles that biases in toxic language detection might be
+identity-basedbiases,e.g.,usingdatare-balancing different in nature compared to spurious associa-
+(Dixon et al., 2018), or adversarial feature learn- tions studied in typical NLU settings. We studied
+ing (Vaidya et al., 2019). Less work has tackled a synthetic scheme for relabeling examples with
+racial or dialectal bias. Notably, Xia et al. (2020) potential dialectal biases; our results indicate that
+useadversarialtrainingtopreventthemodelfrom correctingnoisylabelsresultsinbetterbiasreduc-
+associatingtoxicitywithAAE,showingonlysmall tion. Our findings suggest that instead of solely
+improvements in fairness. Based on those results, relying on development of automatic debiasing
+wedonotexploreadversarialmethods, optingin- for existing, imperfect datasets, future work fo-
+stead for ensemble-based methods of predefined cusprimarilyonthequalityoftheunderlyingdata
+bias reduction. In contemporary work, Mozafari for hate speech detection, such as accounting for
+etal.(2020)useare-weightingmechanism,which speaker identity and dialect. Indeed, such efforts
+shows some effects in debiasing racial bias. We couldactasanimportantsteptowardsmakingsys-
+leave it for future work to evaluate this method tems less discriminatory, and hence safe and us-
+in our setting. In contrast to all previous work, able.
+our experiments alsomeasure the effectiveness of
+bias-agnosticmethods. Acknowledgments
+OtherGeneralDebiasingMethods Severalap- We thank the anonymous reviewers and Laura
+proaches for debiasing NLU tasks have been pro- Vianna for helpful comments on this work. This
+posedlately. Someapproachesrelyonadversarial research was supported in part by NSF grants
+training to remove protected attributes (e.g. gen- 1813153and1714566.
+der or race), from a model’s internal representa-
+tions (Zhang et al., 2018; Wang et al., 2019; Xia
+References
+et al., 2020). Other approaches include confi-
+dence regularization (Utama et al., 2020), as well Su Lin Blodgett, Solon Barocas, Hal Daume´, III, and
+as other product of expert approaches (He et al., Hanna Wallach. 2020. Language (technology) is
+power: Acriticalsurveyof“bias”inNLP. InProc.
+2019; Karimi Mahabadi et al., 2020) similar to
+ofACL.
+the debiased training approach from Clark et al.
+(2019),whichistheonlydebiasedtrainingweem- Su Lin Blodgett, Lisa Green, and Brendan O’Connor.
+ployduetoitsrelativelystrongperformance. 2016. Demographicdialectalvariationinsocialme-
+dia: AcasestudyofAfrican-AmericanEnglish. In
+Proc.ofEMNLP.
+8 Conclusion
+SamuelR.Bowman,GaborAngeli,ChristopherPotts,
+We investigate whether toxic language detection
+and Christopher D. Manning. 2015. A large anno-
+systemscanbedebiasedusingrecentlyintroduced
+tatedcorpusforlearningnaturallanguageinference.
+methods for debiasing text classification in NLU InProc.ofEMNLP.
+3151
+Ronan Le Bras, Swabha Swayamdipta, Chandra Bha- Samuel Gehman, Suchin Gururangan, Maarten Sap,
+gavatula, Rowan Zellers, Matthew Peters, Ashish Yejin Choi, and Noah A. Smith. 2020. Realtoxici-
+Sabharwal, and Yejin Choi. 2020. Adversarial fil- typrompts: Evaluating neural toxic degeneration in
+tersofdatasetbiases. InProc.ofICML. languagemodels. InFindingsofEMNLP.
+TomB.Brown,BenjaminMann,NickRyder,Melanie Lisa Green. 2002. African American English: A Lin-
+Subbiah, Jared Kaplan, Prafulla Dhariwal, Arvind guisticIntroduction. CambridgeUniversityPress.
+Neelakantan,PranavShyam,GirishSastry,Amanda
+Askell, Sandhini Agarwal, Ariel Herbert-Voss, Sophie Groenwold, Lily Ou, Aesha Parekh, Samhita
+Gretchen Krueger, Tom Henighan, Rewon Child, Honnavalli, Sharon Levy, Diba Mirza, and
+Aditya Ramesh, Daniel M. Ziegler, Jeffrey Wu, William Yang Wang. 2020. Investigating African-
+Clemens Winter, Christopher Hesse, Mark Chen, American vernacular english in Transformer-Based
+Eric Sigler, Mateusz Litwin, Scott Gray, Benjamin textgeneration. InProc.ofEMNLP.
+Chess, Jack Clark, Christopher Berner, Sam Mc-
+Candlish, Alec Radford, Ilya Sutskever, and Dario Suchin Gururangan, Swabha Swayamdipta, Omer
+Amodei. 2020. Language models are few-shot Levy, Roy Schwartz, Samuel R. Bowman, and
+learners. InProc.ofNeurIPS. Noah A. Smith. 2018. Annotation artifacts in nat-
+urallanguageinferencedata. InProc.ofNAACL.
+Christopher Clark, Mark Yatskar, and Luke Zettle-
+moyer.2019. Don’ttaketheeasywayout: Ensem- Jessica Guynn. 2020. What civil rights groups want
+ble based methods for avoiding known dataset bi- from facebook boycott: Stop hate speech and ha-
+ases. InProc.ofEMNLP. rassmentofblackusers.
+Adam M Croom. 2013. How to do things with slurs:
+Moritz Hardt, Eric Price, and Nati Srebro. 2016.
+Studies in the way of derogatory words. In Lan-
+Equality of opportunity in supervised learning. In
+guage&communication.
+Proc.ofNeurIPS.
+Thomas Davidson, Debasmita Bhattacharya, and Ing-
+HeHe,ShengZha,andHaohanWang.2019. Unlearn
+mar Weber. 2019. Racial bias in hate speech and
+dataset bias in natural language inference by fitting
+abusive language detection datasets. In Abusive
+theresidual. InEMNLPWorkshoponDeepLearn-
+LanguageWorkshop(atACL).
+ingApproachesforLow-ResourceNLP.
+Thomas Davidson, Dana Warmsley, Michael Macy,
+and Ingmar Weber. 2017. Automated hate speech Eun Seo Jo and Timnit Gebru. 2020. Lessons from
+detectionandtheproblemofoffensivelanguage. In archives: strategiesforcollectingsocioculturaldata
+Proceedings of the International AAAI Conference inmachinelearning. InProc.ofFAT.
+onWebandSocialMedia.
+Rabeeh Karimi Mahabadi, Yonatan Belinkov, and
+Thiago Dias Oliva, Dennys Marcelo Antonialli, and JamesHenderson.2020. End-to-endbiasmitigation
+AlessandraGomes.2020. Fightinghatespeech, si- bymodellingbiasesincorpora. InProc.ofACL.
+lencing drag queens? artificial intelligence in con-
+tentmoderationandriskstolgbtqvoicesonline. In Gabriele Kasper. 1990. Linguistic politeness: current
+Sexuality&Culture. researchissues. InJournalofPragmatics.Elsevier.
+Emily Dinan, Samuel Humeau, Bharath Chintagunta, Jae Yeon Kim, Carlos Ortiz, Sarah Nam, Sarah Santi-
+and Jason Weston. 2019. Build it break it fix it for ago, and Vivek Datta. 2020. Intersectional bias in
+dialoguesafety:Robustnessfromadversarialhuman hatespeechandabusivelanguagedatasets.
+attack. InProc.ofEMNLP.
+YinhanLiu,MyleOtt,NamanGoyal,JingfeiDu,Man-
+LucasDixon,JohnLi,JeffreyScottSorensen,Nithum
+dar Joshi, Danqi Chen, Omer Levy, Mike Lewis,
+Thain, and L. Vasserman. 2018. Measuring and
+Luke Zettlemoyer, and Veselin Stoyanov. 2019.
+mitigating unintended bias in text classification. In
+Roberta: A robustly optimized bert pretraining ap-
+Proc.ofAES.
+proach. InarXivpreprintarXiv:1907.11692.
+Marta Dynel. 2012. Swearing methodologically : the
+Marzieh Mozafari, Reza Farahbakhsh, and Noe¨l
+(im)politenessofexpletivesinanonymouscommen-
+Crespi.2020. Hatespeechdetectionandracialbias
+tariesonyoutube. InJournalofEnglishStudies.
+mitigation in social media based on bert model. In
+MartaDynel.2015. Thelandscapeofimpolitenessre- PLOSONE.PublicLibraryofScience.
+search. InJournalofPolitenessResearch.
+Ji Ho Park, Jamin Shin, and Pascale Fung. 2018. Re-
+Antigoni-Maria Founta, Constantinos Djouvas, De- ducinggenderbiasinabusivelanguagedetection. In
+spoina Chatzakou, Ilias Leontiadis, Jeremy Black- Proc.ofEMNLP.
+burn, Gianluca Stringhini, Athena Vakali, Michael
+Sirivianos, and Nicolas Kourtellis. 2018. Large Daniel Preo¸tiuc-Pietro and Lyle Ungar. 2018. User-
+scale crowdsourcing and characterization of twitter levelraceandethnicitypredictorsfromtwittertext.
+abusivebehavior. InProc.ofWSM. InProc.ofCOLING.
+3152
+PranavRajpurkar,JianZhang,KonstantinLopyrev,and Tianlu Wang, Jieyu Zhao, Mark Yatskar, Kai-Wei
+Percy Liang. 2016. SQuAD: 100,000+ questions Chang,andV.Ordonez.2019. Balanceddatasetsare
+for machine comprehension of text. In Proc. of not enough: Estimating and mitigating gender bias
+EMNLP,pages2383–2392. indeepimagerepresentations. InProc.ofICCV.
+Sarah T Roberts. 2019. Behind the screen: Content AdinaWilliams,NikitaNangia,andSamuelBowman.
+moderation in the shadows of social media. Yale 2018. A broad-coverage challenge corpus for sen-
+UniversityPress. tence understanding through inference. In Proc. of
+NAACL.
+JonathanRosa.2019. Lookinglikealanguage,sound-
+inglikearace. OxfordUniversityPress. Thomas Wolf, Lysandre Debut, Victor Sanh, Julien
+Chaumond,ClementDelangue,AnthonyMoi,Pier-
+Jonathan Rosa and Nelson Flores. 2017. Unsettling ricCistac,TimRault,R’emiLouf,MorganFuntow-
+raceandlanguage:Towardaraciolinguisticperspec- icz, and Jamie Brew. 2019. Huggingface’s trans-
+tive. InLanguageInSociety.CambridgeUniversity formers: State-of-the-art natural language process-
+Press. ing.
+Bjo¨rn Ross, Michael Rist, Guillermo Carbonell, Ben- Mengzhou Xia, Anjalie Field, and Yulia Tsvetkov.
+jamin Cabrera, Nils Kurowsky, and Michael Wo- 2020. Demotingracialbiasinhatespeechdetection.
+jatzki. 2017. Measuring the reliability of hate InProc.ofSocialNLP.
+speechannotations:thecaseoftheeuropeanrefugee
+Danyaal Yasin. 2018. Blackand banned: Who is free
+crisis. InNLP4CMCWorkshop.
+speechfor?
+MaartenSap,DallasCard,SaadiaGabriel,YejinChoi,
+Brian Hu Zhang, Blake Lemoine, and Margaret
+andNoahA.Smith.2019. Theriskofracialbiasin
+Mitchell.2018. Mitigatingunwantedbiaseswithad-
+hatespeechdetection. InProc.ofACL.
+versariallearning. InProc.ofAES.Associationfor
+ComputingMachinery.
+MaartenSap,SaadiaGabriel,LianhuiQin,DanJuraf-
+sky, Noah A Smith, and Yejin Choi. 2020. Social
+biasframes: Reasoningaboutsocialandpowerim-
+plicationsoflanguage. InProc.ofACL.
+RoySchwartz,MaartenSap,IoannisKonstas,LiZilles,
+Yejin Choi, and Noah A Smith. 2017. The effect
+ofdifferentwritingtasksonlinguisticstyle: Acase
+studyoftherocstoryclozetask. InProc.ofCoNLL.
+Arthur K Spears. 1998. African-American language
+use: Ideology and so-called obscenity. In African-
+American English: Structure, History and Use.
+RoutledgeNewYork.
+SwabhaSwayamdipta,RoySchwartz,NicholasLourie,
+Yizhong Wang, Hannaneh Hajishirzi, Noah A.
+Smith, and Yejin Choi. 2020. Dataset cartography:
+Mapping and diagnosing datasets with training dy-
+namics. InProc.ofEMNLP.
+Bjo¨rnTechnau.2018. Goingbeyondhatespeech: The
+pragmatics of ethnic slur terms. Lodz Papers in
+Pragmatics,14(1):25–43.
+PrasetyaAjieUtama,NafiseSadatMoosavi,andIryna
+Gurevych. 2020. Mind the trade-off: Debiasing
+NLU models without degrading the in-distribution
+performance. InProc.ofACL.
+Ameya Vaidya, Feng Mai, and Yue Ning. 2019. Em-
+pirical analysis of multi-task learning for reducing
+modelbiasintoxiccommentdetection. InProc.of
+ICWSM.
+BertieVidgen,HelenMargetts,andAlexHarris.2019.
+How much online abuse is there? In Alan Turing
+Institute.
+3153
+Appendix setandtheyobtain94.15%and94.17%accuracy,
+respectively. This is competitive performance as
+A FurtherDetailsforModels
+showninTable2.
+A.1 ModelDebiasing
+B AlternativeDatasetofToxicLanguage
+The LEARNED-MIXIN ensembleallowsthemodel
+Davidson et al. (2017) collected data from Twit-
+toexplicitlydeterminehowmuchtotrustthebias
+ter, starting with 1,000 terms from HateBase (an
+giventheinput:
+online database of hate speech terms) as seeds,
+pˆ =softmax{log(p )+g(x )logb } which the process relies on lexical biases. We
+i i i i
+find that performing data filtering methods over
+where x i is the ith input text, p i and b i is the thisdatasetleadstodegeneratebehaviour. Specifi-
+toxicity prediction produced by RoBERTa, and cally,asshowninTable7,theeasyregiondemon-
+bias-only model respectively, and g is a para- stratesleastspuriouscorrelationduetoitsheavily
+metric function, which is defined as softplus(w · skewedclassdistribution,whichfurtherpreventus
+h i), where w is a learned vector, h i is the last fromdownsamplingtocontrolthetoxicratio. We
+hidden layer of the model for example x i, and alsotrainLMIXIN-TOXTRIGandLMIXIN-dialect
+the softplus(x) = log(1 + expx). To prevent over the dataset. Table 8 shows that FPR of the
+the LEARNED-MIXIN ensemble from ignoring b i, debiasedmodelincreaseinsteadexceptforthe OI
+Clark et al. (2019) add an entropy penalty (H) to category and Table 9’s results behave in-line with
+theloss: Table4.
+R =αH(softmax{g(x )logb }) C Few-shot AAE-to-WAE Translation
+i i
+(cid:80) Note that we do not recommend the following
+Where H(z) = − z logz is the entropy and
+j j j
+approach to build large scale parallel data for
+αisahyperparameter.
+dialects,asdiscussedunderethicalimplications
+A.2 DataFiltering andlimitations(§6).
+We use GPT-3 (Brown et al., 2020) to create
+Forthedatafilteringmethods,wefirstfilterdatato
+a few-shot AAE-to-WAE translation system, us-
+50% of the original data as in Swayamdipta et al.
+ing the following set of example translation pairs
+(2020). Then we further downsample the dataset
+drawnfromSpears(1998):
+to 33% of the original data to control that each
+training set has the same toxic ratio as the origi- AAE: Getyourtriflin’assoutofhere.
+naltrainingset. Thisstepistoavoidconfounding WAE: Getyourtriflingselfoutofhere.
+ourresultswithdifferenttoxicratioamongdiffer-
+AAE: Isawhisassyesterday.
+enttrainingsets.
+WAE: Isawhimyesterday.
+A.3 TrainingSettings AAE: Hisassisgonnagetfried.
+For all the experiments, we fine-tune RoBERTa- WAE: Heisgonnagetfried
+large(Liuetal.,2019)overthecorrespondingcor- AAE: Wassup,nigga?
+puswithoneGTX2080Ti. Weusethedefaulthy- WAE: What’supbro?
+perparametersasprovided in theHuggingFace
+AAE: (cid:104)tweet(cid:105)
+Transformerslibrary(Wolfetal.,2019),with
+WAE:
+twomajorchanges: weusealearningrateof10−5
+and8batchsizeinallexperiments. NotethatSpears(1998)refersto WAE asWhite
+language varieties, and deals with English preva-
+A.4 PredictionCombiningwithBias-only
+lentintheUnitedStates.
+Model
+Weprependtheformattedexamplepairstoeach
+To prevent the possibility that our LMIXIN- AAE tweet in our training data, and generate the
+TOXTRIG/ONI is not well trained, thus resulting translation from GPT-3 using top-0.95 nucleus
+in the decrease of models’ in-distribution perfor- samplingwithatemperatureof0.5. Prompts,for-
+mance, we use the joint-prediction from the main matting, and generation parameters were chosen
+andbias-onlymodeltoinferthein-distributiontest basedonmanualinspectionoftheoutput.
+3154
+ToxicRatio R ↓ R ↓ R ↓ R ↓
+NOI OI ONI AAE
+Original† 0.8308 0.0287 0.4320 0.2610 0.4061
+Random 0.8312 0.0288 0.4312 0.2621 0.4011
+AFLite 0.7669 0.0342 0.4708 0.2835 0.4236
+DataMaps-Ambig. 0.6736 0.0493 0.4683 0.3230 0.4445
+DataMaps-Hard 0.6645 0.0521 0.4533 0.3190 0.4426
+DataMaps-Easy 0.9972 0.0135 0.0771 0.0396 0.0928
+Table 7: Lexical and dialectal associations between toxicity in the original dataset (Davidson et al., 2017) and
+various filtered counterparts. Random, AFLite, and DataMaps all contain only 50% of the original data after
+filtering. (Wecouldnotperformdownsamplingonthesedatasetsduetotheirheavilyskewedlabeldistribution.)
+LowerPearsonRcorrelationvalueindicateslesssuperficialpatternsinthedataset,thusarelessbiased. Theeasy
+subsetgivesthebestresultshereareduetoitssevereinbalancedlabeldistribution.
+Test NOI OI ONI
+Acc.↑ F ↑ F ↑ FPR ↓ F ↑ FPR ↓ F ↑ FPR ↓
+1 1 NOI 1 OI 1 ONI
+Original 96.37 97.81 96.42 25.00 99.86 57.14 99.57 63.64
+LMIXIN-TOXTRIG 96.15 97.69 96.19 28.57 99.78 42.86 99.28 72.73
+Table8: Lexicalbiasremovalevaluationfordebiasingmethods. Originalreferstothemodeltrainedoverthefull
+trainingset. Thetestsetisfurthercategorizedintotweetsthatcontainedrelevant TOXTRIG words. F
+1
+indicates
+models’ performance while the false positive rate (FPR ) reflects models’ bias. The lower the FPR is, the less
+* *
+biasedthemodeltendtobe.
+DebiasingMethod Test
+R Acc.↑ F ↑ FPR ↓
+AAE 1 AAE
+Original 0.4079 96.37 97.81 24.76
+LMIXIN-Dialect - 96.48 97.88 22.86
+Table 9: Dialectal bias evaluation for all debiasing
+methods,onbothin-distributiontestsetaswellasout-
+of-distributiondialectandraceprimingtestsets. Inad-
+ditiontoaccuracyandF , wereportthefalsepositive
+1
+ratewithrespecttotweetsinAAE(FPR ),reflecting
+AAE
+dialectalbias(lowerislessdebiased). Eachmethodis
+basedonaRoBERTa-largeclassifier.
+3155
