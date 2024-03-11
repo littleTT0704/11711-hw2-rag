@@ -1,0 +1,38 @@
+9TNohXoPA)showingafirst-personview
+of several agents navigating the environment with corre-
+spondingbirds-eye-viewmaps.
+A.2.CandidateReranker
+Givenacollectionofcandidatetrajectories,ourreranker
+moduleassignsascoretoeachofthetrajectories.Thehigh-
+est scoring trajectory is selected for the FAST agent’s next
+step. In our implementation, we use a 2-layer MLP as the
+reranker. Wetraintheneuralnetworkusingpairwisecross-
+entropyloss[4].
+As input to the reranker, we concatenate the following
+featurestoobtaina6-dimensionalvector:
+• Sumofscorelogitsforactionsonthetrajectory.
+• Meanofscorelogitsforactionsonthetrajectory.
+• Sumoflogprobabilitiesforactionsonthetrajectory.
+• Meanoflogprobabilityforactionsonthetrajectory.
+• Progressmonitorscoreforthecompletedtrajector.
+• Speakerscoreforthecompletedtrajectory.
+We feed the 6-dimensional vector through an MLP:
+BN → FC → BN → Tanh → FC, where BN is a
+layer of Batch Normalization, FC is a Fully
+Connectedlayer,andTanhisthenonlinearityused. The
+first FC layer transforms the 6-dimensional input vector to
+a6-dimensionalhiddenvector.ThesecondFClayerproject
+the 6-dimensional vector to a single floating-point value,
+whichisusedasthescoreforthegivenpartialtrajectory.
+To train the MLP, we cache the candidate queue after
+runningFASTfor40steps. Eachcandidatetrajectoryinthe
+queue has a corresponding score s. To calculate the loss,
+i
+weminimizethepairwisecross-entropyloss:
+−(s −s )+log(1+exp(s −s ))
+1 2 1 2
+where s is the score for a qualified candidate and s is
+1 2
+thescoreforanunqualifiedcandidate. Wedefinequalified
+candidate trajectories as those that end within 3 meters of
+groundtruthdestination.Inourcachedtrainingset,we

@@ -1,0 +1,21 @@
+ Hello Robots Stretch runs low-level controllers State estimation In the real world, we use Hector
+andmappingcode.Thisallowsustousemorecomputethan SLAM(Kohlbrecheretal.2014)toprovideourrobot’sbase
+isstrictlypossibleonthemobilerobotfordecisionmaking pose as it moves around in a novel environment. This is
+andsceneunderstanding. asrecommendedintheHelloRobotdocumentation(Kemp
+etal.2022).Thisisareliable,LIDAR-basedSLAMmethod,
+which in our experience works well in home-like environ-
+thereisanuptodateimageobservationfromtherobotside. ments such as that used in the HomeRobot OVMM real-
+Thismeansthattimingbetweentherobotandtheworksta- worldchallenge.
+tionisextremelyimportant:ifwedonothaveuptodatetim- However,HectorSLAMhasalotofhigh-frequencynoise
+ing, we might have SLAM poses and depth measurements particularly when the robot is rotating. At the same time,
+thatdonotmatch,whichwillleadtoworseperformance. we have access to wheel odometry signals, which provides
+Wesolvedthisbyhavingaclockontherobotsidepublish accurateandlowlatencyreadingsofdisplacementbetween
+itstimeoverROS,andconfigureallsystemstousethisROS time steps, but is subject to drift when integrated through
+masterclockinsteadofsystemtime.Thispreventstheuser time to estimate absolute position. We combine the signal
+fromhavingtoworryaboutLinuxtimesynchronizationpro- comingfromHectorSLAMwiththeposesignalfromwheel
+tocolslikeNTPwhensettinguptherobotforthefirsttime. odometry by effectively applying a discrete high-pass filter
+on the odometry signal and a discrete low-pass filter with
+TheHomeRobotStack thesamecutofffrequencyontheHectorSLAMsignal,then
+blendingthetwosignalstogetheratafixedrate:
+HomeRobot is based on ROS (Quigley et al. 2009), with
+the goal being to provide abstractions which make it easy x =x +(1−λ)·(xs−x )+λ·(x
