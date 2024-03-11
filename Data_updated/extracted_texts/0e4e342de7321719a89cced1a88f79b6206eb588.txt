@@ -1,0 +1,587 @@
+Bear the Query in Mind: Visual Grounding with Query-conditioned Convolution
+ChonghanChen1∗, QiJiang1∗, Chih-HaoWang1∗, NoelChen1∗, HaohanWang1,2,
+XiangLi1, BhikshaRaj1
+1,2SchoolofComputerScience,CarnegieMellonUniversity
+2 SchoolofInformationScience,UniversityofIllinoisUrbana-Champaign
+{chonghac,qij,chihaow,yunhsua3,haohanw,xl6}@andrew.cmu.edu,
+bhiksha@cs.cmu.edu
+Abstract (x,y,w,h) (x,y,w,h) (x,y,w,h)
+Prediction Head Prediction Head Prediction Head
+Visualgroundingisataskthataimstolocateatar-
+Fusion Module Fusion Module
+get object according to a natural language expres-
+Visual Encoder Visual Encoder sion. Asamulti-modaltask,featureinteractionbe- Textual Visual Textual Textual
+Query-conditioned Query-conditioned
+Encoder Encoder Encoder Encoder
+tween textual and visual inputs is vital. However, Convolution Convolution
+previoussolutionsmainlyhandleeachmodalityin- text text text
+dependently before fusing them together, which query image query image query image
+doesnottakefulladvantageofrelevanttextualin- (a) Extract-and-fuse pipeline (b)VGQC pipelinewith fusion (c) VGQC pipelinewithout fusion
+formationwhileextractingvisualfeatures. Tobet-
+Figure 1: Previous extract-and-fuse pipeline (a) and our VGQC
+ter leverage the textual-visual relationship in vi- pipeline(b)and(c). In(a),textualandvisualfeaturesareextracted
+sual grounding, we propose a Query-conditioned independently and fused together in the following fusion module.
+Convolution Module (QCM) that extracts query- (b) uses a visual encoder with query-conditioned convolution that
+awarevisualfeaturesbyincorporatingqueryinfor- takesinboththeimageandquerytokentoproducequery-awarevi-
+mationintothegenerationofconvolutionalkernels. sualfeatures. (c)removesthefusionmoduleasquery-awarevisual
+With our proposed QCM, the downstream fusion featuresareinformativeenoughtobeuseddirectlyforprediction.
+module receives visual features that are more dis-
+criminative and focused on the desired object de-
+AsshowninFigure1(a),mostpreviousmethods[Chenet
+scribedintheexpression,leadingtomoreaccurate
+al.,2018;Liaoetal.,2020;Duetal.,2021;Yangetal.,2020;
+predictions. Extensiveexperimentsonthreepopu-
+Deng et al., 2021] follow the extract-and-fuse pipeline that
+lar visual grounding datasets demonstrate that our
+extracts visual and textual features independently using two
+method achieves state-of-the-art performance. In
+isolated encoders followed by an additional fusion module
+addition,thequery-awarevisualfeaturesareinfor-
+to enable multi-modal feature interaction. As the visual en-
+mativeenoughtoachievecomparableperformance
+coderisunawareofthetextqueryduringfeatureextraction,
+tothelatestmethodswhendirectlyusedforpredic-
+it only encodes visual features based on intra-image infor-
+tionwithoutfurthermulti-modalfusion.
+mation,neglectingthepotentialcorrespondencebetweentext
+query and target image. Consequently, the extracted visual
+features may not convey the required information described
+1 Introduction
+bythetextquery. Inthiscase,thevisualencoderislikelyto
+VisualGrounding,alsoknownasReferringExpressionCom- passredundantorevenmisleadingvisualfeaturestothefol-
+prehension [Mao et al., 2016; Yu et al., 2016], is a task lowingfusionmoduleandthuscompromisetheperformance.
+of locating a target object in an image according to a nat- Intuitively, the extract-and-fuse pipeline is similar to asking
+ural language query. It requires the machine to understand humans to first memorize an image and then recall it while
+both textual and visual information, as well as the rela- locatinganobjectgivenanaturallanguagedescription. The
+tionship between them. Pioneer works [Hu et al., 2017; unnecessary memorization makes the problem difficult and
+Zhang et al., 2018] of visual grounding mainly utilize a violates the nature of human behaviors which typically lo-
+two-stage propose-and-rank scheme, and then the focus has catestheobjectwhileunderstandingtheimage.
+shifted to one-stage methods [Liao et al., 2020; Yang et al., To address this problem, we follow the intuition of hu-
+2020] that directly predict the bounding box coordinates. man behavior that knowing what to look for before looking
+Withthesuccessoftransformer-basedmodels[Vaswanietal., at the image will make object localization problems easier.
+2017] in recent years, a novel transformer-based one-stage For a neural network, this is equivalent to asking the visual
+paradigmforvisualgroundingemerges. encodertounderstandthetextqueryandextractrelevantvi-
+sualfeaturesguidedbythetextquery. Dynamicconvolution
+∗EqualContribution [Landietal., 2019;Chenetal., 2020], whichtypicallycon-
+2202
+nuJ
+22
+]VC.sc[
+2v41190.6022:viXra
+trols feature generation with internal or external signals, de
+Visual Encoder Fusion Module
+factofitstheneedfortext-awarevisualfeatureextraction. In- 𝑟!" 𝑓!" Pre Hd eic at dion
+spired by a previous dynamic convolution method [Chen et Backbone w/ QCM Transformer
+al.,2020],weproposeaquery-conditionedconvolutionmod- image Encoders (x,y,w,h)
+ule (QCM) that dynamically constructs convolutional ker- [CLS]
+Textual
+nels according to input queries. In this way, the output vi- qt ue ex rt y Encoder
+sual features are more discriminative for each query-image
+pairandleadtomoreaccuratepredictions. Toenablequery- (a) VGQC pipeline with fusion
+aware feature extraction, we replace the vanilla convolution
+inthevisualencoderwithQCMinamulti-scalefashion. We
+Visual Encoder
+termourmethodasVGQC,aVisualGroundingpipelinewith 𝑟!" 𝑓!" Pre Hd eic at dion
+Query-Conditionedvisualencoder. Differentfromotherfu-
+image
+Backbone w/ QCM T Er na cn os df eo rr smer
+sion methods [Joze et al., 2020; Nagrani et al., 2021] that (x,y,w,h)
+enableunbiasedmulti-modalinteractionbi-directionally,our [CLS] Textual
+methodsolelyimportstextualinformationintothevisualrep- qt ue ex rt y Encoder
+resentation, and it happens during the process of extracting
+(b) VGQC pipeline without fusion
+visual features instead of the post-processing of extracted
+staticvisualfeatures.Inaddition,query-awarevisualfeatures Figure 2: Two variants of our query-conditioned visual grounding
+generatedbyQCMareinformativeenoughtobedirectlyused (VGQC) pipelines. (a) combines query-aware visual features and
+for prediction without the requirement for additional multi- queryfeatureswithafusionmodule, while(b)removesthefusion
+modalfusionmodulesusedinpreviousmethods[Dengetal., moduleandpassesquery-awarevisualfeaturesdirectlyintothepre-
+2021;Duetal.,2021],resultinginasimplerVGQCpipeline. dictionhead.
+The experiment results show that VGQC w/ fusion achieves
+state-of-the-artperformanceonnearlyalltestingdatasets,and
+scores [Yu et al., 2018], and recently many two-stage meth-
+VGQCw/ofusionincreasestheinferencespeedwhileachiev-
+ods focus on modeling the inter-object relationships using
+ingcomparableperformanceasthelatestmethods. Then,ex-
+graphrepresentations. [Yangetal.,2019;Wangetal.,2019;
+tensive analysis and visualization illustrate the effectiveness
+Hongetal.,2019;Liuetal.,2020].
+ofQCMandquery-awarevisualfeatures.
+One-stage methods. One-stage methods directly predict
+Insummary,thecontributionofourworkisthree-fold:
+theboundingboxesandmostofthemadopttheextract-and-
+1. Wepresentanovelquery-conditionedconvolutionmod- fusepipeline.RCCF[Liaoetal.,2020]usesacross-modality
+ule(QCM)thatextractsquery-awarevisualfeaturesand
+correlationfilteringonvisualandtextualfeatures,andReSC
+canbeflexiblyintegratedintovisualencoders. Wealso [Yangetal.,2020]proposesarecursivesub-queryconstruc-
+introduceavisualgroundingpipelineVGQCwhichuti-
+tionframeworktohandlecomplexqueries. Withthesuccess
+lizes QCM to address the problem in previous extract- andpopularityoftransformers[Vaswanietal.,2017],recent
+and-fusemethods.
+one-stage methods have adopted transformer-based fusion
+2. Our experiments show that VGQC w/ fusion achieves modulesandhaveachievedstate-of-the-artperformance[Du
+state-of-the-art performance on RefCOCO [Yu et al., etal.,2021;Dengetal.,2021].
+2016], RefCOCO+ [Yu et al., 2016], and RefCOCOg
+2.2 Multi-modalFeatureFusion
+[Maoetal.,2016],andVGQCw/ofusionachievescom-
+parable performance with faster inference speed and a We also review several multi-modal feature fusion methods.
+simplermodelstructure. [Landi et al., 2019] constructs dynamic convolution filters
+fromtextandpost-processestheoutputfeaturemapswiththe
+3. We conduct extensive analysis with visualizations to
+filters. Comparedtodynamicconvolution[Chenetal.,2020]
+demonstrate the diversity of candidate kernels as well
+which composes convolution kernels with attention weights
+as the effectiveness of encoding query information into
+derived from the previous feature map, it directly generates
+QCM’sattentionweightsandaggregatedkernels,which
+convolution kernels from text. Another convolution-based
+enable such kernels to extract query-aware visual fea-
+method MMTM [Joze et al., 2020] learns a joint represen-
+tures.
+tation and generates an excitation signal for each modality.
+In transformer-based fusion methods, [Nagrani et al., 2021]
+2 RelatedWork
+proposes fusion bottlenecks in transformer encoders, while
+2.1 VisualGrounding [Zhaoetal., 2021]appendscross-modalattentionafterself-
+attentionintheirfusiontransformerencoders.
+Two-stage methods. Two-stage methods, also known as
+propose-and-rankmethods,generateimageregioncandidates
+3 Methodology
+and then rank them using the information from text queries
+to select the best matching one. The candidates are usu- We leverage the transformer-based network to tackle the vi-
+ally generated using a pre-trained object detector [Wang et sual grounding problem. Unlike previous methods [Chen et
+al., 2019] or unsupervised methods [Yu et al., 2018]. Some al., 2018; Yang et al., 2020; Deng et al., 2021; Chen et al.,
+earlymethodsutilizemodularnetworkstocomputematching 2021] that extract visual and textual features separately, we
+…
+…
+…
+…
+… …
+…
+sredocnE
+remrofsnarT
+query token𝑓 weightedsumofthecandidatekernelscomputedas:
+$%&’(
+non-linear transformation 𝜑
+!!→# K
+(cid:88)
+W = α w (2)
+softmax i i
+𝛼!𝛼" 𝛼# attention weight 𝛼 i=1
+By incorporating query information into the generation of
+𝑤
+! convolutional kernels, QCM blocks can extract distinct fea-
++ 𝑊 turesaccordingtodifferenttextqueriestoproducevisualfea-
+𝑤 " turesthataremorerelevanttotargetobjects.
+candidate kernels aggregated kernel Visualencoder. Thevisualencoderconsistsofabackbone
+equipped with QCM followed by a stack of transformer en-
+Figure3: Thestructureofaquery-conditionedconvolutionmodule coderstoextractquery-awarevisualfeatures. Specifically,to
+(QCM).ThereareKcandidatekernels{w 1,w 2,...,w K}. Anat- considermulti-scalefeatures,wereplacethefirstvanillacon-
+tention weight α is derived from the query token f query, and the volution in the backbone in [1,1, 1 , 1 ] resolution stages
+aggregatedkernelW isaweightedsumofthecandidatekernels. 4 8 16 32
+with our query-conditioned convolution. Let us denote the
+extractedvisualfeaturesfromthebackboneasf(cid:48) withchan-
+v
+encouragequery-awarevisualfeatureextractioninthevisual nelsizeofC(cid:48). Asinespatialpositionalencoding[Carionet
+v
+encoder. With query-aware visual features, the downstream al.,2020]isaddedtotheprojectedfeaturemapbeforefeed-
+multi-modalfusion[Yangetal.,2020;Dengetal.,2021]be- ingittothetransformerencoders.
+comes optional. Figure 2 shows the overall pipeline of our
+f(cid:48)(cid:48) =Flatten(ϕ (f(cid:48))+P) (3)
+proposed method. In particular, our VGQC network can be v C v(cid:48)(cid:55)→Cv v
+boileddowntofourparts:atextualencoder,avisualencoder, where f(cid:48)(cid:48) is the input to the transformer encoders, P is the
+v
+anoptionalfusionmodule,andapredictionhead.
+positionalencoding,andϕ (·)isadimensionalreduc-
+C v(cid:48)(cid:55)→Cv
+tion operation. A stack of transformer encoders is further
+3.1 TextualEncoder
+leveraged to model the non-local correspondence in the ex-
+The textual encoder extracts textual features from input ex-
+tracted feature map. The final output of the visual encoder
+pressions at both sentence and word levels. Following pre- f
+v
+∈ RCv×Nv is a set of query-aware visual tokens, where
+vious works [Deng et al., 2021; Yang et al., 2020], we use C isthefeaturedimensionandN isthenumberofthevi-
+v v
+BERT [Devlin et al., 2019] as our textual encoder. The in-
+sualtokens.
+put to the textual encoder is the concatenation of a [CLS]
+token, word tokens, and a [SEP] token. The output of the 3.3 Multi-modalFusion
+textualencoderisthequerytokenf
+query
+∈RCq×1 encoding
+After deriving the textual tokens f and query-aware visual
+thesentencelevelinformationofthegivenqueryandasetof q
+tokens f from the encoders, they are further passed into a
+wordtokensoftheinputqueryf
+q
+∈RCq×Nq whereN qisthe
+fusion
+mv
+odule to generate a grounding representation. Fol-
+numberofwordtokens,andC issetto768foreachtoken.
+q lowingpreviousmethods[Duetal.,2021;Dengetal.,2021;
+3.2 VisualEncoder
+Nagranietal.,2021],weutilizetransformerencoderstocon-
+duct multi-modal interaction. As shown in Figure 2(a), the
+Toenablequery-awarevisualfeatureextraction,wepropose
+transformer encoders take both f and f as inputs. In par-
+aquery-conditionedconvolutionmodule(QCM)andreplace v q
+ticular, the textual and visual tokens are first projected into
+parts of the vanilla convolution in the visual encoder with it
+the same dimension C separately. Let us denote the pro-
+inamulti-scalemanner. jected visual tokens asr r
+q
+∈ RCr×Nq and textual tokens as
+Query-conditioned convolution. A QCM block takes in r
+v
+∈ RCr×Nv. Inaddition,toforcemulti-modalinteraction,
+the query token f query to compose a convolution kernel to weaddaregressiontokenr qv ∈ RCr×1 intothetransformer
+extractquery-relevantfeaturesfromaninputfeaturemap. As encoders. Thefinalinputtothemulti-modaltransformeren-
+showninFigure3,ineachQCMblock,thereareKlearnable codersistheconcatenationoftheregressiontoken,visualto-
+candidateconvolutionkernels{w 1,w 2,...,w K}wherew i ∈ kens and textual tokens r qv ⊕r v ⊕r q. In the self-attention
+RCin×Cout×N×N,andeachcandidatekernelrepresentsapar-
+layers of the transformer encoders, the regression token r
+qv
+ticularsetoffeaturestobeextracted.Astextquerieswithdif- can learn from all the textual and visual tokens as well as
+ferentsemanticmeaningsmayrequiredifferentcombinations therelationshipsbetweenthem. Therefore,itscorresponding
+ofthesesetsoffeatures,thecandidatekernelsareaggregated outputafterinteractionf representstheglobalinformation
+qv
+according to an attention weight α = [α 1,...,α K] ∈ RK×1 encodedinthequery-imagepair. f
+qv
+islaterpassedintothe
+computedfromthequerytokenf query. Theattentionweight predictionheadasthegroundingrepresentation.
+α is calculated by projecting f query into a K-dimensional To showthe power of ourquery-conditioned convolution,
+vectorusinganon-linearprojectionandasoftmaxlayer: weremovetheoptionalfusionmoduleintheVGQCpipeline
+as shown in Figure 2(b). After deriving the query-aware
+α=Softmax(ϕ (f )) (1)
+Cq(cid:55)→K query visual features f(cid:48) from the backbone, a regression token
+v
+aw gh ge rr ee gϕ atC eq d(cid:55)→ cK on( v·) oi ls uta ion non k- eli rn ne ea lr Wtran ∈sfo Rrm Ca inti ×o Cn of uu tn ×c Nti ×on N.T ishe
+a
+r siq tv io∈ nalR eC nv c× o1 dii ns ga Ppp be en fd oe rd ei bn eif nro gn pt ao sf seϕ dC iv n(cid:48)(cid:55)→ toC tv h( ef tv(cid:48) r) anw sfit oh rmpo er-
+encoders. Asf(cid:48) alreadycontainstextualinformation,there- and apply QCM with K = 5 on each stage. A pre-trained
+v
+gressiontokenr canalsolearnboththetextualandvisual BERT-base[Devlinetal.,2019]isadoptedasthetextualen-
+qv
+information. The corresponding output f is considered as coder. We train our model for 90 epochs on RefCOCO and
+qv
+the grounding representation and can be directly used in the RefCOCOg,and180epochsforRefCOCO+. Dataaugmen-
+predictionhead. tation is adopted to obtain a strong baseline. Each image is
+paddedandresizedto640×640. NotethatforRefCOCOg,
+3.4 PredictionHead
+we report the scores of the models trained on RefCOCO.
+Thefinalboundingboxpredictionisderivedfromtheground- Moreimplementationdetailscanbefoundinthesupplemen-
+ingrepresentationf as: tarymaterials.
+qv
+b=ϕ (f ) (4) 4.2 QuantitativeResults
+Cv(cid:55)→4 qv
+whereϕ (·)istwofullyconnectedlayerswithReLUac- InTable1, wecompareourVGQCwithtwo-stageandone-
+tivatiton.C bv(cid:55)→ is4
+thecoordinatesofthepredictedboundingbox. stagevisualgroundingmodels,amongwhichTransVGisthe
+previous state-of-the-artwhich doesn’t exploitextra data. A
+3.5 TrainingObjective predictionisconsideredcorrectiftheIoUbetweenthepredic-
+The training objective is the GIoU loss plus a smooth L1 tion and the ground-truth bounding boxes is larger than 0.5.
+loss. LetA(S)denotetheareacoveredbyaboundingboxS, Wereportthetop-1accuracy(%)onRefCOCO,RefCOCO+,
+andletS andSˆ betheground-truthandpredictedbounding andRefCOCOg. TheresultsshowthatourVGQCw/fusion
+i i achieves state-of-the-art performance on all three datasets.
+boxes for sample d , respectively. Intersection-over-Union
+i On testA and testB of RefCOCO and RefCOCO+, our ac-
+(IoU)ratioiscalculatedas:
+curacy scores reach 85.02%, 77.98%, 73.52%, and 58.97%
+A(S ∩Sˆ) with an absolute improvement of 2.49%, 2.73%, 3.43% and
+IoU = i i (5)
+i A(S ∪Sˆ) 1.77%. On RefCOCOg, VGQC w/ fusion outperforms pre-
+i i vious methods on the validation sets and achieves similar
+InGeneralizedIoU [Rezatofighietal., 2019], letS denote performance on the test set. Even after removing the fusion
+c
+thesmallestconvexobjectenclosingS andSˆ,andGIoUis module,VGQCw/ofusionalsoachievescomparableperfor-
+i i
+calculatedas: mance to previous methods on RefCOCO and RefCOCOg,
+and it outperforms TransVG on RefCOCO+ with less refer-
+A(S \(S ∪Sˆ))
+GIoU =IoU − c i i (6) encetime.
+i i A(S )
+c
+4.3 QualitativeAnalysis
+whereX \Y meansX excludingY. GIoUlossisL =
+GIoU Qualitative results. To understand how VGQC performs
+1 − GIoU. The smooth L1 loss is calculated between the
+betterthanTransVGinaqualitativemanner,weshowfourex-
+ground-truth coordinates and the predicted coordinates nor-
+amplesfromRefCOCO+testAsetinFigure4. Itisobserved
+malizedbythesizeoftheimage. Thetrainingobjectiveisto
+that when a query contains multiple objects, VGQC locates
+minimizetheoveralllossL:
+the target object correctly while TransVG fails. For exam-
+L=L +L (7) ple, “female” and “driver” are both mentioned in the query
+GIoU smoothl1
+in Figure 4(a). VGQC locates the correct target “female”,
+4 Experiments butTransVGmistakenlychooses“driver”. Inaddition,QCM
+alsooutperformsTransVGincaseswheretherearemultiple
+4.1 DatasetsandImplementationDetails
+objectswithdifferentattributes.AsshowninFigure4(b),(c),
+Dataset. We evaluate our models on three widely used and (d), TransVG can correctly locate a person, but it fails
+datasets,RefCOCO[Yuetal.,2016],RefCOCO+[Yuetal., toselecttheonematchingtheattributesinthequerieswhile
+2016],andRefCOCOg[Maoetal.,2016]. Allthreeofthem VGQC succeeds. This indicates that VGQC has a stronger
+share image data from COCO [Lin et al., 2014] with ad- abilitytounderstandtheimagewithrespecttothequery.
+ditional referring expressions. On average, RefCOCOg has
+Diversity of QCM candidate kernels. To show that each
+longerexpressionsthanRefCOCOandRefCOCO+(8.4v.s.
+candidatekernelencodesanimagefromadifferentperspec-
+3.5wordsperexpression)andhasmorecomplicatedexpres-
+tive and has the potential to produce expressive aggregated
+sionswithmoreattributes. Therearetwotypesofdataparti-
+kernels,westudythediversityofcandidatekernelsbyexam-
+tionsfortheRefCOCOgdataset,RefCOCOg-google[Maoet
+ining VGQC’s performance when it is forced to exclusively
+al., 2016] and RefCOCOg-umd [Nagaraja et al., 2016]. We
+useoneofthecandidatekernelsatthefinalQCMblock. As
+evaluateVGQC’sperformanceonbothofthem.
+shown in Figure 5, VGQC predicts a different object when
+Implementation details. The following is the best hyper- relying on each one of the five candidate kernels. Although
+parametersettingthatwehaveexperimentedwith. Weusea two of the candidate kernels (#4 and #5) can give the cor-
+learningrateof0.0002,abatchsizeof32,andastepsched- rectpredictionontheirownwithminordeviation,suchone-
+ulerthatshrinksthelearningratebyafactorof0.1every60 candidate-kernel setting leads to a significant performance
+epochs. We use AdamW optimizer [Loshchilov and Hutter, drop on the overall datasets shown in Table 2. Thus, we
+2017]withaweightdecay = 10−4 forallexperiments. We conclude that QCM uses a diverse set of candidate kernels
+choose ResNet-50 [He et al., 2015] as the visual backbone toachievecompetentperformance.
+RefCOCO RefCOCO+ RefCOCOg Time
+Models
+val testA testB val testA testB val-g val-u test-u (ms)
+Two-stage:
+LGRANs[Wangetal.,2019] - 76.60 66.40 - 64.00 53.40 61.78 - - -
+DGA[Yangetal.,2019] - 78.42 65.53 - 69.07 51.99 - - 63.28 -
+RvG-Tree[Hongetal.,2019] 75.06 78.61 69.85 63.51 67.45 56.66 - 66.95 66.51 -
+NMTree[Liuetal.,2019] 76.41 81.21 70.09 66.46 72.02 57.52 64.62 65.87 66.44 -
+One-stage:
+RCCF[Liaoetal.,2020] - 81.06 71.85 - 70.35 56.32 - - 65.73 -
+ReSC-large[Yangetal.,2020] 77.63 80.45 72.30 63.59 68.36 56.81 63.12 67.30 67.20 -
+VGTR[Duetal.,2021] 78.29 81.49 72.38 63.29 70.01 55.64 61.64 64.19 64.01 -
+TransVG[Dengetal.,2021] 80.18 82.53 75.25 65.47 70.09 57.20 66.23 66.87 67.94 30.99
+Ours:
+VGQCw/fusion 82.47 85.02 77.98 69.17 73.52 58.97 68.72 67.95 67.89 31.74
+VGQCw/ofusion 80.01 83.02 73.94 66.37 73.11 56.50 65.50 65.44 65.75 27.92
+Table 1: Comparison of top-1 accuracy (%) with previous methods on RefCOCO [Yu et al., 2016], RefCOCO+ [Yu et al., 2016] and
+RefCOCOg [Mao et al., 2016]. “val-g” stands for RefCOCOg-google’s validation set, and “val-u”, “test-u” stand for RefCOCOg-umd’s
+validation, test set, respectively. The results of TransVG [Deng et al., 2021] are reproduced using its released source code. The column
+“Time”showstheinferencetimeofasinglesample. WerepeattheinferencetimemeasurementovertheentireRefCOCOtestAsetonan
+NVIDIAT4GPUandreporttheaverage.
+Candidate Kernel #1 Candidate Kernel #2 Candidate Kernel #3
+ground
+truth
+TransVG
+Candidate Kernel #4 Candidate Kernel #5
+VGQC
+w/ fusion
+(a) female (b) woman (c) man sitting (d) woman red
+behind the serving the on the bike gloves
+driver sub
+Figure 4: Qualitative results of VGQC w/ fusion on RefCOCO+
+testAset.Thegreenboxesarethegroundtruthlabels,theredboxes
+Figure 5: Ablations on candidate kernels. We force the model to
+arethepredictedlabelsfromTransVG,theblueboxesarethepre-
+relyononlyonecandidatekernelinthefinalQCMblockandshow
+dictedlabelsfromourVGQCw/fusion, andthelastrowcontains
+thepredictions. Thegreenboxesarethegroundtruthlabelsandthe
+thecorrespondingqueries.
+blueboxesarethepredictedlabelsfromourVGQCw/fusion. The
+queryis“womanservingthesub”.Usingdifferentcandidatekernels
+givedifferentpredictionresults.
+Attention in QCM with query semantics. By analyzing
+theattentionweightsinQCMblocks,weshowthattheycarry
+thesemanticsofqueriesfromquerytokens. InFigure6, we
+to aggregated kernels. Specifically, kernels composed from
+visualize the attention weights in the last 4 out of the total
+similar text queries have a closer cosine distance between
+16 QCM blocks of VGQC w/ fusion with heat maps. Each
+eachotherintheirownspace. Wepassindifferentqueriesto
+attention weight is a 5-dimensional vector. It can be ob-
+VGQCandtaketheaggregatedkernelsfromQCMblock#10.
+servedthatquerieswithsimilarsemantics,e.g. “bluemiddle
+Theaggregatedkernelsareflattenedintovectorstocalculate
+man”and“maninblueshirt”,aswellas“reddresswoman”
+the cosine distances, and their distances between each other
+and “woman in red dress”, have similar attention weights.
+areshowninTable3. Theaggregatedkernelsfrom“woman
+Contrarily, queries with different semantics, e.g. “blue mid-
+in red dress” and “lady red” are close to each other, and the
+dle man” and “red dress woman”, have dissimilar attention
+distancebetweentheaggregatedkernelsfrom“maninstriped
+weights.ThisimpliesthatQCMsuccessfullyincorporatesthe
+shirtonbike”and“stripedshirt”arealsosmall. Onthecon-
+sentencerepresentationintotheattentionweights,resultingin
+trary, “woman in red dress” and “striped shirt” have differ-
+ameaningfulweightassignmenttothecandidatekernels.
+entsemanticsandtheiraggregatedkernelsarefarapartfrom
+Aggregatedkernelswithquerysemantics. Thequeryse- eachother.Thisdemonstratesthattheaggregatedconvolution
+mantics carried by attention weights are further propagated kernelsareembeddedwithmeaningfultextualinformationto
+Query1 Query2 VGQC VGQC Models val testA testB
+All #1 #2 #3 #4 #5 w/fusion w/ofusion
+val 69.17 54.80 43.54 58.73 57.55 55.76 womaninreddress ladyred 0.0001 0.0106 TransVG 80.18 82.53 75.25
+testA 73.52 57.28 30.73 58.66 58.69 58.87 womaninreddress stripedshirt 0.5794 0.2779 VGQCw/fusion(a) 80.81 82.44 76.33
+testB 58.97 49.96 55.83 54.48 57.55 49.94 maninstripedshirt VGQCw/fusion(b) 80.66 82.42 75.39
+onbike stripedshirt 0.0033 0.0025 VGQCw/fusion 82.47 85.02 77.98
+Table2: Overallaccuracy(%)onRefCOCO+
+when VGQC w/ fusion uses only one candi- Table 3: Cosine distances of aggregated Table 4: Comparing different derivations
+datekernelinthefinalQCMblock.Theirper- kernels for different query pairs in QCM of QCM’s attention weights α on Ref-
+formanceisworsethanthenormalVGQCw/ block #10. The model is trained on Ref- COCO.(a): αisalearnablevectoronits
+fusionmodel(column“All”). COCO. own.(b):αisderivedfromfeaturemaps.
+Model val testA testB
+Structure val testA testB
+K val testA testB
+TransVG-6-layers 80.18 82.53 75.25
+TransVG 80.18 82.53 75.25
+3 79.24 83.04 73.69 VGQCw/fusion-6-layers 82.47 85.02 77.98
+VGQC-layer2&3&4 80.01 83.02 73.94
+5 80.01 83.02 73.94 VGQCw/fusion-4-layers 82.67 84.54 78.26
+VGQC-layer3&4 79.11 81.70 72.23
+8 79.05 81.96 73.23 VGQCw/fusion-2-layers 81.61 84.68 76.57
+VGQC-layer4 78.93 82.37 73.08
+VGQCw/ofusion 80.01 83.02 73.94
+Table6: Ablationstudyondifferentnum-
+Table5: AblationstudyonVGQCw/ofusion
+berofcandidatekernels(K)inQCMblock Table7: Ablationstudyonthenumberof
+model trained on RefCOCO where we apply
+basedonVGQCw/ofusiontrainedonRe- layersusedinthefusiontransformereval-
+QCMblocksonlytothelaterlayersofthevi-
+fCOCOdataset. uatedonRefCOCOdataset.
+sualencoderbackbone.
+𝑖 blue middle man man in blue shirt red dress woman woman in red dress and layer 2&3&4. The experiment is conducted on VGQC
+…1 (layers omitted) … … … … 1.00 w/ofusiononRefCOCOdataset. TheresultinTable5shows
+13 thattheperformancedropswhenapplyingQCMtoonlylater
+14 0.50 layers,whichmeansitisbeneficialtostartincorporatingtex-
+15 tualinformationfromearlierlayers.
+16 0.00 Number of candidate kernels. We measure the effect of
+𝛼 1(𝑖)𝛼 2(𝑖)𝛼 3(𝑖)𝛼 4(𝑖)𝛼 5(𝑖)𝛼 1(𝑖) … 𝛼 5(𝑖) 𝛼 1(𝑖) … 𝛼 5(𝑖) 𝛼 1(𝑖) … 𝛼 5(𝑖)
+changingthenumberofcandidatekernelsusedinourQCM
+Figure 6: Attention weights of the last 4 out of 16 QCM blocks blocks. We trained three VGQC w/o fusion models on Ref-
+of VGQC w/ fusion model trained on RefCOCO, with 4 different COCO dataset and evaluate them in all three splits. Among
+queriesshownatthetop.α(i)representstheattentionweightforthe thethreesettingsinTable6,themodelwith5candidateker-
+k
+k-thcandidatekernelatblocki. nels performs the best, and having fewer or more candidate
+kernelsnegativelyaffectstheperformance.
+Number of fusion layers. We show that query-aware vi-
+extractquery-awarevisualfeatures.
+sualrepresentationsproducedbyvisualencoderswithQCM
+are better in the sense that it requires less or no further fu-
+4.4 AblationStudy
+sion layers. As shown in Table 7, our method outperforms
+Convolutionkernelgenerationfromtextandimage. We TransVGwithfewerfusionlayers,andVGQCwitha4-layer
+showthattheperformanceimprovementbroughtbyQCMis fusionmodulehascomparableperformancetoVGQCwitha
+notattributedtotheintroductionofnewparameters(theatten- 6-layerfusionmodule.
+tion and candidate kernels), but the incorporation of textual
+information. In our experiments, we apply two other meth- 5 Conclusion
+odstoderivetheattentionweightvectorαandthustheaggre-
+In this paper, we propose a query-conditioned convolu-
+gatedkernelineveryQCMblock.Method(a):αisrandomly
+tion module (QCM) to be integrated into visual encoders
+initializedasalearnableK-dimensionalvector. Method(b):
+to extract query-aware visual features. We also present a
+α is computed from the output feature map of the previous
+query-conditionedvisualgroundingpipeline(VGQC)utiliz-
+CNN layer through average-pooling and a linear projection
+ing QCM to address the limitation of the previous extract-
+followedbyasoftmaxlayer.Wecomparethemwithourmain
+and-fusepipeline,wheretheextractedvisualfeaturesmaynot
+method, where the attention weights are computed from the
+convey the required information described in the text query.
+text query, as illustrated in Section 3.2. All three methods
+Ourquery-awarevisualfeaturesnotonlyfacilitatethemulti-
+utilize attention weights to compose the aggregated kernels,
+modal interaction but are also informative enough to be di-
+but(a)and(b)donotincorporatetextualinformationduring
+rectlyusedforpredictionwithoutfurthermulti-modalfusion.
+visualfeatureextraction. TheresultsinTable4onRefCOCO
+ExperimentsshowthatVGQCw/fusionoutperformsallpre-
+datasetshowthatincorporatingtextualinformationresultsin
+viousone-stagevisualgroundingmethodsandachievesstate-
+the largest performance improvement, and adding extra pa-
+of-the-art performance, and VGQC w/o fusion increases in-
+rameters without leveraging textual information brings only
+ference speed with a simpler structure while reaching com-
+insignificantimprovements. Thisdemonstratestheeffective-
+parable performance as the latest methods. In addition, the
+nessofQCM.
+extensiveanalysisandvisualizationsshowthatQCMcanef-
+Number of query-conditioned convolution blocks. We fectively comprehend query information and extract query-
+studytheimpactofstartapplyingQCMatdifferentlayersin aware visual features. Finally, our method is applicable to
+thevisualencoder. IntheResNetbackbonewhichhas4lay- other textual-visual tasks, which merits further investigation
+ersofconvolutionblocks,weuseQCMinlayer4,layer3&4, infuturework.
+References [Liuetal.,2019] Daqing Liu, Hanwang Zhang, Feng Wu,
+[Carionetal.,2020] Nicolas Carion, Francisco Massa, and Zheng-Jun Zha. Learning to assemble neural mod-
+ule tree networks for visual grounding. In ICCV, pages
+Gabriel Synnaeve, Nicolas Usunier, Alexander Kirillov,
+4673–4682,2019.
+andSergeyZagoruyko. End-to-endobjectdetectionwith
+transformers,2020. [Liuetal.,2020] Yongfei Liu, Bo Wan, Xiaodan Zhu, and
+[Chenetal.,2018] Xinpeng Chen, Lin Ma, Jingyuan Chen, Xuming He. Learning cross-modal context graph for vi-
+Zequn Jie, Wei Liu, and Jiebo Luo. Real-time referring sualgrounding. AAAI,34(07),Apr.2020.
+expressioncomprehensionbysingle-stagegroundingnet- [LoshchilovandHutter,2017] Ilya Loshchilov and Frank
+work,2018. Hutter. Decoupled weight decay regularization. arXiv
+[Chenetal.,2020] Yinpeng Chen, Xiyang Dai, Mengchen preprintarXiv:1711.05101,2017.
+Liu, Dongdong Chen, Lu Yuan, and Zicheng Liu. Dy- [Maoetal.,2016] JunhuaMao,JonathanHuang,Alexander
+namicconvolution: Attentionoverconvolutionkernels. In Toshev, Oana Camburu, Alan Yuille, and Kevin Murphy.
+CVPR,2020. Generationandcomprehensionofunambiguousobjectde-
+[Chenetal.,2021] Feilong Chen, Fandong Meng, Xiuyi scriptions. InCVPR,pages11–20,2016.
+Chen, Peng Li, and Jie Zhou. Multimodal incremental [Nagarajaetal.,2016] Varun K. Nagaraja, Vlad I. Morariu,
+transformerwithvisualgroundingforvisualdialoguegen- andLarryS.Davis. Modelingcontextbetweenobjectsfor
+eration. InACL-IJCNLP,August2021. referringexpressionunderstanding,2016.
+[Dengetal.,2021] JiajunDeng,ZhengyuanYang,Tianlang [Nagranietal.,2021] Arsha Nagrani, Shan Yang, Anurag
+Chen,WengangZhou,andHouqiangLi.Transvg:End-to-
+Arnab,ArenJansen,CordeliaSchmid,andChenSun. At-
+endvisualgroundingwithtransformers.InICCV,October
+tention bottlenecks for multimodal fusion. Advances in
+2021.
+NeuralInformationProcessingSystems,34,2021.
+[Devlinetal.,2019] Jacob Devlin, Ming-Wei Chang, Ken-
+[Rezatofighietal.,2019] Hamid Rezatofighi, Nathan Tsoi,
+ton Lee, and Kristina Toutanova. Bert: Pre-training of
+JunYoung Gwak, Amir Sadeghian, Ian Reid, and Silvio
+deep bidirectional transformers for language understand-
+Savarese. Generalized intersection over union: A metric
+ing,2019.
+andalossforboundingboxregression. InCVPR,2019.
+[Duetal.,2021] Ye Du, Zehua Fu, Qingjie Liu, and Yun-
+[Vaswanietal.,2017] AshishVaswani,NoamShazeer,Niki
+hong Wang. Visual grounding with transformers. arXiv
+Parmar, Jakob Uszkoreit, Llion Jones, Aidan N. Gomez,
+preprintarXiv:2105.04281,2021.
+Lukasz Kaiser, and Illia Polosukhin. Attention is all you
+[Heetal.,2015] Kaiming He, Xiangyu Zhang, Shaoqing need,2017.
+Ren,andJianSun.Deepresiduallearningforimagerecog-
+[Wangetal.,2019] Peng Wang, Qi Wu, Jiewei Cao, Chun-
+nition,2015.
+huaShen,LianliGao,andAntonvandenHengel. Neigh-
+[Hongetal.,2019] RichangHong,DaqingLiu,XiaoyuMo, bourhoodwatch: Referringexpressioncomprehensionvia
+XiangnanHe,andHanwangZhang. Learningtocompose language-guided graph attention networks. In CVPR,
+andreasonwithlanguagetreestructuresforvisualground- 2019.
+ing. TPAMI,2019.
+[Yangetal.,2019] SibeiYang,GuanbinLi,andYizhouYu.
+[Huetal.,2017] Ronghang Hu, Marcus Rohrbach, Jacob Dynamicgraphattentionforreferringexpressioncompre-
+Andreas, Trevor Darrell, and Kate Saenko. Modeling re- hension. InICCV,2019.
+lationships in referential expressions with compositional
+[Yangetal.,2020] Zhengyuan Yang, Tianlang Chen, Liwei
+modularnetworks. InCVPR,2017.
+Wang,andJieboLuo. Improvingone-stagevisualground-
+[Jozeetal.,2020] Hamid Reza Vaezi Joze, Amirreza Sha-
+ingbyrecursivesub-queryconstruction,2020.
+ban,MichaelL.Iuzzolino,andKazuhitoKoishida.Mmtm:
+[Yuetal.,2016] Licheng Yu, Patrick Poirson, Shan Yang,
+Multimodaltransfermoduleforcnnfusion. CVPR,2020.
+AlexanderC.Berg,andTamaraL.Berg.Modelingcontext
+[Landietal.,2019] Federico Landi, Lorenzo Baraldi, Mas-
+inreferringexpressions. InECCV,2016.
+similianoCorsini, andRitaCucchiara. Embodiedvision-
+and-language navigation with dynamic convolutional fil- [Yuetal.,2018] Licheng Yu, Zhe Lin, Xiaohui Shen, Jimei
+ters. InProceedingsoftheBritishMachineVisionConfer- Yang, Xin Lu, Mohit Bansal, and Tamara L Berg. Mat-
+ence,2019. tnet: Modular attention network for referring expression
+comprehension. InCVPR,2018.
+[Liaoetal.,2020] YueLiao, SiLiu, GuanbinLi, FeiWang,
+Yanjie Chen, Chen Qian, and Bo Li. A real-time cross- [Zhangetal.,2018] Hanwang Zhang, Yulei Niu, and Shih-
+modalitycorrelationfilteringmethodforreferringexpres- FuChang. Groundingreferringexpressionsinimagesby
+sioncomprehension. InCVPR,June2020. variationalcontext. InCVPR,2018.
+[Linetal.,2014] Tsung-Yi Lin, Michael Maire, Serge Be- [Zhaoetal.,2021] Lichen Zhao, Daigang Cai, Lu Sheng,
+longie, James Hays, Pietro Perona, Deva Ramanan, Piotr and Dong Xu. 3dvg-transformer: Relation modeling for
+Dolla´r, and C. Lawrence Zitnick. Microsoft coco: Com- visualgroundingonpointclouds. InICCV,October2021.
+monobjectsincontext. InECCV,2014.

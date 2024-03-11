@@ -1,0 +1,600 @@
+Rethinking Voice-Face Correlation: A Geometry View
+XiangLi1,YandongWen2,MuqiaoYang1,JingluWang3,RitaSingh1,BhikshaRaj1,4
+1CarnegieMellonUniversity,2MaxPlanckInstitute,3Microsoft,
+4MohamedbinZayedUniversityofArtificialIntelligence
+ABSTRACT
+Previousworksonvoice-facematchingandvoice-guidedfacesyn- VocalTract Vocal Track
+thesisdemonstratestrongcorrelationsbetweenvoiceandface,but
+mainlyrelyoncoarsesemanticcuessuchasgender,age,andemo-
+𝐻(𝑧)
+tion.Inthispaper,weaimtoinvestigatethecapabilityofreconstruct-
+ingthe3Dfacialshapefromvoicefromageometryperspectivewith- Air Unit Impulse LPCFilter Speech
+outanysemanticinformation.Weproposeavoice-anthropometric (a) Voice Production (b) Linear Predictive Coding
+measurement(AM)-faceparadigm,whichidentifiespredictablefa-
+cial AMs from the voice and uses them to guide 3D face recon-
+struction.ByleveragingAMsasaproxytolinkthevoiceandface
+Phonatory Module
+geometry,wecaneliminatetheinfluenceofunpredictableAMsand
+GaussianNoise
+makethefacegeometrytractable.Ourapproachisevaluatedonour Speech
+proposeddatasetwithground-truth3Dfacescansandcorresponding
+AM-guided
+voicerecordings,andwefindsignificantcorrelationsbetweenvoice
+Reconstruction
+andspecificpartsofthefacegeometry,suchasthenasalcavityand
+Speech Voice Code AMs Face Geometry
+cranium.Ourworkoffersanewperspectiveonvoice-facecorre-
+(c) Speech-AMs-Face
+lationandcanserveasagoodempiricalstudyforanthropometry
+science. Figure 1: (a) Human voice production. (b) Linear predictive
+codingrepresentsthevoicebyaunitimpulsewithasetoflinear
+CCSCONCEPTS filterswhichcanbeinterpretedasanestimationofthevocal
+•Computingmethodologies→Appearanceandtexturerepresen- tract.(c)Ourvoice-AM-Facepipelinefirstpredictsandverifies
+predictableanthropometricmeasurements(AMs)andthenuti-
+tations.
+lizesAMstoguide3Dfacereconstruction.Aphonatorymodule
+KEYWORDS isinvolvedtoobtainabetterrepresentationforAMprediction.
+voice,face,vocaltract
+ACMReferenceFormat:
+XiangLi1,YandongWen2,MuqiaoYang1,JingluWang3,RitaSingh1,Bhik- synthesis, the generated faces have reasonable appearances with
+shaRaj1,4.2023.RethinkingVoice-FaceCorrelation:AGeometryView.In propergender,ageandemotionstatuscorrespondingtothevoice.
+ProceedingsofACMConference(Conference’23).ACM,NewYork,NY, Thosesemanticcorrelationsarestrongandeasytolearnthusdomi-
+USA,10pages.https://doi.org/10.1145/nnnnnnn.nnnnnnn nantpreviousmodelswhileafundamentalquestionwewanttocast
+is,arethereanyothervoice-facecorrelationsexceptforthosecoarse
+1 INTRODUCTION semantics?Isreconstructingidentity-fidelity3Dfacefromvoicepos-
+Thestudyofface-voicecorrelationhasbeenextensivelyinvestigated sible?Inthispaper,weaimtoexplorethevoice-facecorrelationsin
+inrecentyears.Previousworksonvoice-facematching[28,44,53], ageometryviewafterconstrainingallthoseeasilylearnedsemantic
+voice-guidedfacesynthesis[9,16,19,54],andvoice-guidedface biases.
+modificationhaveindicatedastrongcorrelationbetweenvoiceand Thereareseveralpreviousworksinvestigatingrecoveringface
+face.Themostintuitiveandcommonlyusedconsensusencodedbe- fromvoice.Mostofthemarefroma2Dperspective[16,19,54],
+tweenvoiceandfaceismainlybasedonsemantics,suchasgender, whichutilizeGenerativeAdversarialNetwork(GAN)[14,26]to
+ageandemotion.Mostpriorworksaimtolearnasemanticcorre- generatefaceswithvoiceasthecondition.However,facerecovering
+spondencebetweenvoiceandfaceandconductcrossmodaltasksby fromvoiceisill-posed.[29]foundthattherecoverymainlyfocuses
+leveragingthoseconsensuses.Forexample,forvoice-guidedface onsomesemanticsofthespeaker.Forexample,attributessuchas
+ethnicityhasweakornofunctionwhilegenderandagetendtobe
+Permissiontomakedigitalorhardcopiesofallorpartofthisworkforpersonalor
+recovered.Sincethosemodelsmainlyrelyonsemantics,theresults
+classroomuseisgrantedwithoutfeeprovidedthatcopiesarenotmadeordistributed
+forprofitorcommercialadvantageandthatcopiesbearthisnoticeandthefullcitation arenotidentity-fidelitywhichmeansgeneratedfacescanlookvery
+onthefirstpage.CopyrightsforcomponentsofthisworkownedbyothersthanACM differentfromtheoriginalones.Inaddition,fora2Dfaceimage,
+mustbehonored.Abstractingwithcreditispermitted.Tocopyotherwise,orrepublish,
+identity-unrelatedfactorslikeexpressions,hairs,glasses,illumina-
+topostonserversortoredistributetolists,requirespriorspecificpermissionand/ora
+fee.Requestpermissionsfrompermissions@acm.org. tion, background, etc., are also involved in the recovery process
+Conference’23,July2023,Ottawa,Canada leadingtonoisyandunstableoutcomes.Differentfrom2Dimages,
+©2023AssociationforComputingMachinery.
+general3Dfacialshapeisrepresentedbythe3Dcoordinatesofa
+ACMISBN978-x-xxxx-xxxx-x/YY/MM...$15.00
+https://doi.org/10.1145/nnnnnnn.nnnnnnn numberofpointsonitssurfacecalledvertices[4]whichinherently
+3202
+luJ
+62
+]VC.sc[
+1v84931.7032:viXra
+Conference’23,July2023,Ottawa,Canada XiangLi1,YandongWen2,MuqiaoYang1,JingluWang3,RitaSingh1,BhikshaRaj1,4
+excludestheidentity-unrelatedfactors.Moreover,sincethetopology WiththepredictedAMs,wereconstructthefacialshapesbyan
+of3Dfacialshapeispredefinedandconsistentacrossdifferentfaces, optimization-basedmethod,whichfirstprojectsthe3Dfacialshapes
+wecaneasilymeasurethereconstructionaccuracywithdistances intoalow-dimensionallinearspace[4].Byadjustingthecoefficients
+betweenthepredictedverticesandtheirgroundtruths. inlow-dimensionalspace,weobtaindifferentre-projected3Dfacial
+Similartoourtarget,onerecentwork[47]attemptstorecover3D shapes. Though this paper mainly focuses on understanding the
+facesfromvoicewhile,duetothelackofground-truth3Dfacescans, relationshipbetweenthe3Dfacialshapeandvoicefromascientific
+theyfirstgenerate2Dfaceimagesfromvoiceandthenreconstruct angle, this technique has its potential applications. For example,
+3Dfacesguidedbyanoff-the-shelf3Dfacereconstructionmodel. theidentity-fidelityfacialshapecanbeusedforcriminalprofiling
+Thenoiseenrolledinthe2D-to-3Dfacereconstructionmakesthe scenarios,suchashoaxcallsandvoice-basedphishing.
+resultunconvincing.Forexample,anyexpressioninthe2Dface Inthispaper,wetrytoanswertwocorequestions-(1)Istherea
+fromthefirststagewillforcethereconstructed3Dfacetohavethe correlationbetweenfacegeometryandvoice?(2)Ifso,whichpart
+sameexpression.Inthisway,weconsiderthefaceisstilldetermined ofthefacecanberepresentedbythevoice?Tofulfillourtarget,we
+bythefirst-stage2Dfaceimage. collectalarge-scaledatasetcontainingground-truth3Dfacescans
+Inourmethod,weaimtodisableallpreviouslyusedsemantics, andcorrespondingvoicerecordingsfrom1026speakeridentities.
+e.g.,gender,ageandemotion,andfocusonthevoice-facecorrelation Avoice-AM-faceparadigmequippedwithaphonatorymoduleis
+fromapuregeometryview.Beforeintroducingourmethod,letus proposedforanalyzingthevoice-facecorrelation.Ourcontributions
+gobackandunderstandhowvoiceisgeneratedbyhumanbeings. canbesummarizedasfollows.
+voiceisproducedbyphonatorystructures(Fig.1(a)),e.g.,vocal • Weproposeavoice-AM-faceparadigmandacorresponding
+tractandvocalcords.Specifically,whenproducingvowels,thevocal voice-facedatasetfortractable3Dfacedeductionfromvoice.
+cordsvibratewithnoobstructioninthevocaltract.Incontrast,for • Weinvestigatevoice-facecorrelationinafine-grainedman-
+mostconsonants,thephonationpurelydependsonthevocaltract nerbystatisticallyverifyingwhichpartofthefacecanbe
+resonancewithapulmonicairflow.Thevocaltractcanbeassumed reflectedbythevoice.Theresultscanserveasagoodrefer-
+asafilterthatmakesthephonemesversatileandpersonalized.With encetosupportfuturevoice-faceresearch,suchasvoice-face
+thephonationmechanismofhumanbeings,asshowninFig.1(b), verification.
+Markeletalintroduceslinearpredictivecoding(LPC)[25]which • Weleveragevoiceproductionasaproxytasktolearnface
+modelsphonationasaunitimpulsesignalmodifiedbyastackof geometryrepresentationandverifythatvoiceproductionis
+tubes(vocaltract)andencodespersonalizedvoicebyvocaltract highlyrelatedto3Dfacialshapes.
+coefficients.TheLPCyieldsagoodphysicalmodelofthevocaltract
+withonlyvoiceinputsinanunsupervisedmanner.Asthemouth 2 RELATEDWORKS
+andnoseserveasthemostimportantpartsofthevocaltract,we
+2.1 Voice-faceMatchingandVoice-guidedFace
+hypothesizethattheirgeometryshouldbeencodedinthevoice.With
+Synthesis
+thetightbindofmusclesandskeletons,otherpartsoffacegeometry
+mayalsoberepresentedbyvoice. The human voice contains rich information that can be used to
+Thoughvoiceandfacegeometryshouldhavesomecorrelations, recognize personality traits, such as speaker identity [6, 24, 33],
+wehavenoideaaboutwhichpartofthefacevoicecanrepresent. gender[22],age[15,30,39],andemotionstatus[43,51].Voices
+Constructinguncorrelatedrelationswillleadtorandomresultsand can also be used for monitoring health conditions [1] and other
+raise the model instability. To tackle this problem, we introduce medicalapplications[17].Mostexistingworksinthisareafocus
+thevoice-anthropometricmeasurement(AM)-faceparadigm.Pre- onpredictingpersonalitytraitsthatareintuitivelyrelatedtovoice.
+viousstudieshaveshownthatanthropometricmeasurementslike Suchpersonalitytraitsmayhaveessentialcorrelationsbetweenthe
+thedimensionsofnasalcavities[42]orcranium[48,49]directly humanvoiceandtheirfaces[45].
+influence the speaker’s voices. In our voice-AM-face paradigm, Cross-modalvoice-facematching[28,44,53]andcross-modal
+we first summarize a set of AMs from anthropometry literature verification[27,37,41]aretaskswherevoicesareusedasqueriesto
+[10,11,32,38,55],thenidentifypredictableAMsandusethemto retrievefacesorviceversa,whichhavereceivedincreasingattention
+guidethe3DfacereconstructionbyconductingAM-guidedopti- inrecentyears.Voice-guidedfacesynthesisisanotherrelatedtask,
+mization.ByleveragingAMsasaproxytolinkthevoiceandface whichaimstogeneratecoherentandnaturallipmovements,and
+geometry,wecaneliminatetheinfluenceofunpredictableAMsand includesmethodsthatdrivetemplateimages[16,19,54]ortemplate
+makethefacegeometrytractable.Inaddition,theanalysisofAMs facemeshes[9]totalkbyspeechinputs,orreplacelipmovements
+alsobringsanewviewtounderstandingvoice-facecorrelationina inavideowithmovementsinferredfromanothervideoorspeech
+fine-grainedfashion. [8,46].
+InspiredbyLPCwhichlearnstheshapeofthevocaltractbypro- Unliketheexistingworkinrelatedfieldsthataremorefocusedon
+ducingvoice,weutilizeaphonatorymoduletofacilitatevoicerepre- semanticcorrelationsbetweenvoiceandface,ourworkinvestigates
+sentationlearningforfacegeometry.Similartotheauto-regressive thevoice-facecorrelationfromageometryviewbystudyingholistic
+impulse-by-filtermodelusedinLPC,recentlyintroduceddenoising facialstructures.Therehasbeenrecentworkthatseekstounder-
+diffusionprobabilisticmodels[18]shareasimilarstructure,which standthecorrelationsbetweenvoiceandfacialgeometrybyfirst
+samplesarandomnoisewithauto-regressiveupdatingtoformthe recovering2Dfacesfromvoiceandthenreconstructing3Dfaces
+finalresult.Basedonthestructuresimilarity,wechoosethediffusion fromthe2Drepresentations[47].However,duringthisprocess,itis
+modelasourphonatorymodule. stillinevitablethatthesemanticcorrelationsareencodedinthe2D
+RethinkingVoice-FaceCorrelation:AGeometryView Conference’23,July2023,Ottawa,Canada
+faceandaffectthe2D-to-3Dfacereconstruction.Instead,weaimto empiricallyvalidatingthedependency.Specifically,thedatasetDis
+modelourvoice-facecorrelationfromapuregeometryviewwithout splitintoatrainingsetD𝑡 formodellearning,avalidationsetD𝑣1
+theinfluenceofanysemantics. formodelselection,avalidationsetD𝑣2forAMselection,andan
+evaluationsetD𝑒 forevaluatingthereconstructed3Dfacialshapes.
+2.2 PhonationandAnthropometry Allsplitshavenooverlap.
+The human voice is generated by phonatory structures, and the
+3.2 PipelineOverview
+phonation of different phonemes may be dependent on different
+physiologicalstructures.Forexample,thephonationofconsonants AsshowninFig.2,theproposedmethodhasthreemaincomponents
+includessomeairflowobstructioninthevocaltract,whilevowelsdo -facialAMprediction,AM-guidedreconstructionandanauxiliary
+not.Byutilizingsuchproperties,ithasbeenproventobeinformative phonatorymodule.Ononehand,wepredicttheAMsthatarepoten-
+andhelpfulinvarioustasks,includingautomaticspeechrecogni- tiallycorrelatedwithvoiceproductionfromanthropometryliterature
+tion[12],speechenhancement[50]andemotionrecognition[13]. [10,11,32,38,55].AnestimatorEistrainedwithuncertaintylearn-
+Beyondthoselanguage-relatedusages,humanattributesarealso ingwithavoicecode𝑒.Ontheotherhand,inspiredbythevoice
+predictablefromvoice.Thereisasubstantialbodyofresearchon productionmechanism,weintroduceaphonatorymoduleasacon-
+inferringhumanattributesfromaperson’svoice,includingspeaker strainttofacilitatethetrainingofAMprediction.Inparticular,a
+identity[7,34],age[3,31],gender[23],andemotionstatus[43,52]. diffusion-basedvoicegenerationmoduleisinvolvedasthephona-
+The interaction between these physiological structures may play torymodulewhichaimstoimitatethevoiceidentityconditioning
+an important role in the recovery of 3D faces from voice. More onthevoicecode𝑒.Afterthat,weselecttheAMspredictablefrom
+specifically,theunderlyingskeletalandarticulatorystructureofthe voiceforhypothesistesting.Thenullhypothesisismadeforeach
+faceandthetissuecoveringthemmaygoverntheshapes,sizes,and AMandstatestheAMisunpredictablefromvoice.Wecansuccess-
+acousticpropertiesofthevocaltractthatproducesthevoice.Linear fullyrejectthecorrespondingnullhypothesisifanyAMestimation
+predictivecoding(LPC)[25]whichmodelsphonationasaunitim- is better than chance on a held-out validation set with statistical
+pulsesignalmodifiedbyastackoftubes(vocaltract)andencodes significance.Thefinal3Dfacialshapescanbereconstructedbya
+personalized voice by vocal tract coefficients. The LPC yields a fittingprocess[5]basedonthepredictableAMs.Thisisconducted
+goodphysicalmodelofthevocaltractwithonlyvoiceinputsinan byadjustingasetofcoefficientsinlow-dimensionalspace,such
+unsupervisedmanner. thatthedifferencesbetweentheAMsofthegenerated3Dfacial
+To explicitly describe the correspondence between vocal and shapeandthepredictedAMsareminimized.Intuitively,ifthereare
+facial features, anthropometric measurements have been used in morepredictableAMsspanningdifferentlocationsofaface,the
+a wide range of applications to associate with voice production reconstructioncanbemoreindistinguishable.
+[10,11,32,38,40,55].Inabroadsense,AMsmaycovervarious
+bodyparametersandcharacteristics,includingskeletalproportions, 3.3 FacialAMPrediction
+race,height,bodysize,etc.Thesecharacteristicsmayinfluencethe Inthissection,weillustrateourmethodtopredictfacialAMsfrom
+phonationofvoicebythedifferencesintheplacementoftheglottis, voice.
+lengthofvocalcords,etc.
+In this work, we summarize a large set of AMs that is highly AMsummarization.Thereisalargebodyofliteratureonanthro-
+associatedwithvoice-facecorrelation.Meanwhile,wealsoidentify pometry.ExtensivestudiesshowthatmanyAMsofhumanfaces
+thepredictableAMstoguidethe3Dfacialshapereconstruction.The canbeassociatedwithvoiceproduction[10,11,32,38,55].We
+resultscanserveasagoodreferencetosupportfuturevoice-face summarizethemostcommonlyusedAMsasshowninFig.3(the
+research. complete list of AMs is available in the appendix). The chosen
+AMsarecategorizedasproportion,anglesanddistanceofasetof
+3 METHOD facelandmarks.Thoseintra-facefeaturesaremorerobustthan3D
+coordinaterepresentationsasthevariationsresultingfromspatial
+In this section, we first introduce the task formulation and then
+misalignmentarecompletelyeliminated.
+demonstrateourmethodindetail.
+Uncertainty-aware AM estimation. The AM prediction is con-
+3.1 Formulation ductedbyanestimatortrainedwithanuncertainty-awarescheme.
+We aim to reconstruct any speaker’s 3D facial shape from their
+Let𝐹 𝑘(𝑣;E𝑘,𝜔 𝑘):𝑣 ↦→Rbeanestimatorthatmapsvoicerecording
+voice recordings. Given a set of paired voice recordings and 3D 𝑣 intothe𝑘-thpredictedAMs,whereE𝑘 and𝜔 𝑘 arethelearnable
+facialshapes{(𝑣 𝑖,𝑓 𝑖)}fromdifferentindividuals,where𝑣 𝑖 isavoice parameters.Asthisisaregressionproblem,weleverage
+r s fae c cc a io n ar n ld e si dn hg af pros ep mo 𝑓k t ohe fen asb npy yea st kh pee er a𝑖 ko- et fh r𝑣 f𝑖p r.e oTr ms ho e tn hg ea o in rad l vi o𝑓 s𝑖 icti o es rra ee cc3 ooD rn ds if t nra u gc ci 𝑣a t .l th Is neha o3p uDe
+r
+{E 𝑘∗,𝜔 𝑘∗}=ar Eg 𝑘,m 𝜔𝑘in |D1 𝑡| (𝑣,𝑚∑︁ (𝑘))∈D𝑡(𝐹 𝑘(𝑣;E𝑘,𝜔 𝑘)−𝑚(𝑘))2 (1)
+method,weintroduceanthropometricmeasurements(AMs)𝑚 = as the training objective for the𝑘-th AM. |D𝑡| is the number of
+{𝑚(1),···,𝑚(𝑘)}computedfrom𝑓 asaproxy,where𝐾isapositive thetriplets(voice,faceandAMs)indatasetD𝑡.Byincorporating
+integer and𝑚𝑘 (𝑘 ∈ [1,𝐾]) denotes the 𝑘-th AM. Accordingly, uncertaintyintotheestimatorlearning,thepredictionbecomesa
+theoveralldatasetisdenotedasD ={(𝑣 𝑖,𝑓 𝑖,𝑚 𝑖)}.Tostatistically randomvariableratherthanasinglevalue.WeleverageaGaussian
+analyze the results, we construct an additional validation set for distributiontotheprediction.Theestimator𝐹 𝑘(𝑣;E𝑘,𝜔 𝑘) maps𝑣
+Conference’23,July2023,Ottawa,Canada XiangLi1,YandongWen2,MuqiaoYang1,JingluWang3,RitaSingh1,BhikshaRaj1,4
+Phonatory Module AM-guided
+Bases
+Reconstruction
+DiffusionProcess DenoisingProcess
+𝑏
+$
+UNet𝜖!
+𝑧! 𝑧"
+×(T−1) AM-guided
+𝒫 ⋯ 𝒜 𝒜 𝒫#$ 𝑏 Optimization
+6
+Speech𝑣% Speech𝑣* Face Geometry
+𝑥 𝑥 𝑥~𝒩(0, 1) 𝑥* 𝑥*
+Share ! $ "#$ ! 𝑏
+7
+Identity
+𝒜 Attention
+𝜔
+ℰ AM 𝒫 Pre-Processing
+𝜙 [0.1 ⋯0.7] Selection
+Speech 𝑣 Log-melSpec. Voice Code 𝑒 Uncertainty Predictable AM
+AMs AMs
+Facial AM Prediction Unpredictable AM
+Figure2:Illustrationofouranalysispipelineforvoice-facecorrelation.Werandomlypicktwovoicerecordingswithsharedspeaker
+identityas𝑣and𝑣′.WethenanalyzetherelationshipbetweeneachAMandvoicebypredictingeachAMfromvoicewithanestimator
+andanintermediatevoicecode𝑒.Theoptionalphonatorymoduleequipsadiffusion-basedvoicegenerationmodelwithavoicecode𝑒
+asaconditiontoconductvoicestylecloningtohelpusunderstandtherelationshipbetweenfacegeometryandvoicecharacteristics,
+whichservesasanadditionalconstrainttoenforcetheestimatorlearnvoiceidentity.WeanalyzeandselectAMswithhypothesis
+testing.ThestaticallysignificantlypredictableAMsareutilizedfor3Dfacialshapereconstructionforfurtheranalysis.
+AMswhenthepredictedvariancesaresmall,anddeferthevoice
+recordingstohumanexpertsotherwise.Anextremecaseis𝐺 𝑘(𝑣)≡
+1wheretheuncertaintylearningobjectivedegradestotheregular
+regressionmodel.
+Temporal aggregation. In practice, following the convention of
+(a) Landmarks (b) Proportion (c) Angle (d) Distance voiceunderstanding,thelongvoicerecording𝑣isfedintothenet-
+workintheformofmultipleshortsegments{𝑣(1),···,𝑣(𝐿)}.We
+Figure3:ExamplesofsummarizedAMs.Wesummarizedthree obtain a sequence of means and variances of the predicted AM.
+typesofAM:proportion,angleanddistance.ThoseAMsare Duringtraining,wecomputethelossforeachsegmentindividually
+computedfromthepredefinedlandmarkonthe3Dfacerepre- andaveragethemasthetrainingloss.Whileduringevaluation,the
+sentation. predictedAManditsuncertaintyaregivenbyaggregatingthepre-
+dictionsamongallsegments.Assumingtheshortsegmentsfroma
+longrecordingareclass-conditionallyindependent,theformulations
+into the mean of the𝑖-th predicted AM. Similarly, we define an ofaggregationare
+vu aban r lc i ee ar n pt c aa e rin ao mty f ete h ts eet ri s𝑘m .-ta Tht ho p er r𝐺 e pd r𝐿 ei( c d𝑣 t ie; cdE te𝑘 A d, M𝜙 A𝑘 . M) A: g a𝑣 a ni↦→ dn, itER s𝑘+ ga∪ ron u{ d0 n𝜙} d𝑘t th a ra uret th𝑣 th bi en et clo e oat mrh ne e- 𝑚ˆ(𝑘) =∑︁ 𝑙=𝐿
+1
+𝐺
+𝑘𝑤 (( 𝑣𝑘 ()
+𝑙))
+·𝐹 𝑘(𝑣(𝑙)),
+N(𝐹 𝑘(𝑣),𝐺 𝑘(𝑣))andN(𝑚(0),0)respectively[20].Giventworan-
+𝐿
+(3)
+domvariables,amorereasonablelearningobjectiveistominimize 1 =∑︁ 1
+theirKLdivergence. 𝑤(𝑘)
+𝑙=1
+𝐺 𝑘(𝑣(𝑙))
+{E∗,𝜔∗,𝜙∗}= argmin 1 ∑︁ (𝐹 𝑘(𝑣;E𝑘,𝜔 𝑘)−𝑚(𝑘))2 where𝑚ˆ(𝑘) istheaggregatedmeanandalsothepredicted𝑘-thAM.
+𝑘 𝑘 𝑘 E𝑘,𝜔𝑘,𝜙𝑘 |D𝑡| (𝑣,𝑚(𝑘))∈D𝑡 𝐺 𝑘(𝑣;E𝑘,𝜙 𝑘) H taio nw tyev oe fr t, ht ehe pra eg dg icr te eg da 𝑘te -d thv Aar Mian sc ine c𝑤 et( h𝑘 e) ci os nn do it tiou nse ad linas det ph ee nu dn ec ne cr e-
++ln𝐺 𝑘(𝑣;E𝑘,𝜙 𝑘)
+assumptiondoesnotalwaysholdincasessuchasnoises,silences,
+(2)
+Forafixed (𝐹 𝑘(𝑣;E𝑘,𝜔 𝑘)−𝑚(𝑘))2,thereisanoptimalvariance thecomputedaggregatedvariancewillbebiasedbythenumberof
+𝐺 𝑘(𝑣;E𝑘,𝜙 𝑘)=(𝐹 𝑘(𝑣;E𝑘,𝜔 𝑘)−𝑚(𝑘))2suchthatthelossfunction v asoi 𝑤c ˆe (𝑘se )g =m 𝐿en ·t 𝑤si (n 𝑘)th .elongrecording.Sowecalibratetheuncertainty
+isminimized.Therebytheuncertaintyestimator𝐺 𝑘 islearnedto
+produceasmallvarianceifthepredictionerrorissmallandvice Predictable AM identification. We have collected a number of
+versa.Onthecontrary,asmallervarianceindicatesthatthepredicted AMsandtrainedestimatorsforpredictingthem.However,onlya
+AM is more likely to yield a small prediction error,i.e., close to fewoftheAMsareactuallypredictablefromvoice,whichwehad
+thegroundtruth.Inthisway,wecanchoosetotrustthepredicted anticipated while designing the task. To identify those AMs, we
+⋯
+⋯
+RethinkingVoice-FaceCorrelation:AGeometryView Conference’23,July2023,Ottawa,Canada
+usehypothesistestingtothem.Formally,wecanwritethenulland onlyservesasanadditionaltrainingconstraintandisnotapplied
+alternativehypothesesforthe𝑘-thAMas during inference. Let𝑥 0,···,𝑥 𝑇 be a sequence of variables with
+𝐻 0:theAM𝑚(𝑘) isNOTpredictablefromvoice thesamedimensionwhere𝑡 istheindexfordiffusiontimesteps.
+𝐻 1:theAM𝑚(𝑘) ispredictablefromvoice Thenthediffusionprocesstransforms𝑥 0intoaGaussiannoise𝑥 𝑇
+throughachainofMarkovtransitionswithasetofvarianceschedule
+I thn ao trd ve or ict eor ie sje inc dt𝐻 ee0 d,w use eo funl ly inne pe rd et do icfi tin nd ga Aco Mun 𝑚te (r 𝑘ex ).am Ap nle efto fes ch tio vw
+e
+i𝛽 n1 g,· t· o· t, h𝛽 e𝑇 M.S arp ke oc vifi trc aa nll sy it, ie oa nc ph rotr ba an bs if lo itr ym 𝑞a (t 𝑥io 𝑡n
+|𝑥
+𝑡is −1p ,e 𝑒r )fo ar sm sue md ea dcc toor bd e-
+exampleistocomparetheestimatorswithandwithoutthevoice independentofthestylecode𝑒as
+input. Ifthereexistsalearned estimator𝐹 𝑘(𝑣) performingbetter
+thanthechance-levelestimator𝐶 𝑘 withoutusingvoiceinputand 𝑞(𝑥 𝑡|𝑥 𝑡−1,𝑒)=N(𝑥 𝑡;√︁ 1−𝛽 𝑡𝑥 𝑡−1,𝛽 𝑡𝐼). (5)
+theresultsarestatisticallysignificant,wecansuccessfullyreject𝐻
+0
+andaccept𝐻 1.Herethechance-levelestimatorforthe𝑘-thAMis Unlikethediffusionprocess,thedenoisingprocessaimstorecover
+a thc eo tn rast ia nn int g𝐶 𝑘 set= D|D 𝑡1 .𝑡 S| o(cid:205) t𝑚 h( e𝑘) n∈ uD ll𝑡 a𝑚 nd(𝑘 a), ltw erh ni ac th ivi es hth ye pom the ea sn is𝑚 c( a𝑘 n) bo ef t tih oe ns ap le de ic sth ris bi ug tn ioa nlf 𝑝ro 𝜃m (𝑥 0G :𝑇a −u 1s |s 𝑥i 𝑇an ,𝑐n )o .i Tse hrw ouh gic hh this ed re evfi en re sd ea trs aa nsc io tin od ni s-
+rewrittenas
+𝑝 𝜃(𝑥 0:𝑇−1|𝑥 𝑇,𝑐),thevariablesaregraduallyrestoredtoaspeechsig-
+nalwithstylecodecondition.Thephonatorymoduleactuallymodels
+𝐻 𝐻0 1: :𝜇 𝜇( (𝜖 𝜖𝑘 𝑘/ /𝜖 𝜖𝑘 𝑘𝐶 𝐶)
+)
+≤ ≥1
+1
+wa edi os btr ti ab iu nti to hn e𝑞 ad(𝑥 d0 it| i𝑐 o) n. aB ly traa ip np il ny gin cg onth ste rap ia nr ta am seterizationtrick[21],
+w wih te hr oe u𝜖 t𝑘 voa in cd ei𝜖 n𝑘𝐶 pua tr se ot nhe vam lie da an tios nqu sea tre De 𝑣r 2r ,o rr es so pf ece ts it vi em lya .to Tr hs ew foit rh ma un lad
+-
+{E∗,𝜃∗}=arg Em ,𝜃in=E 𝑥 0,𝜖,𝑡∥𝜖−𝜖 𝜃(√ 𝛼¯𝑡𝑥 0+√ 1−𝛼¯𝑡𝜖,𝑡,𝑒)∥ 1 (6)
+t ai no dns 𝜖o 𝑘𝐶f𝜖 =𝑘a |n Dd 1 𝑣2𝜖 |𝑘𝐶 (cid:205)a 𝑚re (𝑘g )i ∈ve Dn 𝑣2a (s 𝐶𝜖 𝑘𝑘 −= 𝑚|D (1 𝑘𝑣2 )| )2(cid:205) .𝑚 S( i𝑘 n) c∈ eD t𝑣 h2 e(𝑚 tˆ ru(𝑘 e)− va𝑚 ri( a𝑘 n) c) e2 w ah Ne er te [𝛼 3𝑡 6]= w1 it− h𝛽 c𝑡 roa sn sd -a𝛼 t¯ t𝑡 en= ti(cid:206) on𝑡 𝑡′ [= 31 5𝛼 ].𝑡′ S. iA ncs es th ho ew pn hi on naF ti og r. y2 m,t oh de e𝜃 lii ss
+of𝜖 𝑘/𝜖 𝑘𝐶 isunknown,thetypeofhypothesistestingisone-sided onlyutilizedasanauxiliaryconstraintduringtraining,weomitthe
+paired-samplet-test.Theupperboundoftheconfidenceinterval(CI) inferencedetailstoobtain𝑣˜here.
+isgivenby
+𝐶𝐼 𝑢 =𝜇(𝜖 𝑘/𝜖 𝑘𝐶 )+𝑡 1−𝛼,𝜈 ·
+𝜎(𝜖
+√𝑘
+𝑁/𝜖 𝑘𝐶)
+(4)
+T3 o.4 recoA nsM tru- cG ttu heid 3e Dd fa3 cD ialF sha ac pi ea ,l wS eh fia rp ste neR edec toon prs et dr icu tc Ati Mon
+sof
+thevoicerecordingsinD𝑒 first.Subsequently,wegeneratethe3D
+where𝜇(·)and𝜎(·)arethefunctionsforcomputingmeanandstan-
+facialshapesbasedonthepredictedAMsbyanoptimization-based
+darddeviationrespectively.𝑁 isthenumberoftherepeatedexperi-
+method.Todoso,wefirstprojectthe3Dfacialshapesintoalow-
+mentsandweset𝑁 =100here.𝛼and𝜈 =𝑁−1arethesignificance
+dimensionallinearspace[5].Byadjustingthecoefficientsinlow-
+level and the degree of freedom respectively. For the purpose of
+dimensionalspace,weobtaindifferentre-projected3Dfacialshapes.
+this section, we adopt the significance level of 5% and then we
+Thelearningobjectiveistofindasetofcoefficients,suchthatthe
+canread𝑡 0.95,𝑁−1fromt-distributiontable.Nowwecandetermine
+differencesbetweentheAMsofthere-projected3Dfacialshapeand
+whethertoreject𝐻 0andaccept𝐻 1,i.e.,theAM𝑚(𝑘) ispredictable thepredictedAMsareminimized.Specifically,weconstructabig
+fromvoice.Accordingtotheexperimentalresults,theprobability matrix𝐵= [𝑏 1,𝑏 2,···] ∈R3𝑇×|D𝑡| whereeachcolumn𝑏
+𝑖
+∈R3𝑇×1
+thattheaforementioneddecisioniscorrectishigherthan95%,i.e., isalongvectorobtainedbyflatteninga3Dfacialshape𝑓
+𝑖
+∈R𝑇×3.
+statisticallysignificant.Incontrast,𝐶𝐼 𝑢 ≥1impliesthatwefailto 𝑇 is the number of vertices on 3D faces. Since 3𝑇 ≫ |D𝑡|, we
+reject𝐻 0,forthecurrentexperimentalresultsarenotstatistically computetheprojectmatrix𝑃 ∈R3𝑇×𝑑(𝑑 ≫3𝑇)usingeigenfaces
+significantenough.Notethatfailingtoreject𝐻 0doesnotimplywe [5]on𝐵.Nowanyflattened3Dfacialshape𝑏canbeapproximated
+accept𝐻 0. byre-projectingalow-dimensionalvector𝛽 ∈R𝑏×1intheformof
+Weemphasizethatitisnecessarytocompute𝜖 𝑘𝐶 and𝜖 𝑘 onD𝑣2 𝑃𝛽.WedefinethecomputationofAMas𝑄 𝑘(𝑏) :𝑏 ↦→ R,which
+ratherthanD𝑡 orD𝑣1.Thisisbecauseourestimatorsaretrainedon mapsanyflattened3Dfacialshape𝑏intothe𝑘-thAMof𝑏.Since
+lD ow𝑡 ea rnd
+𝜖
+𝑘se al ne dct 𝜖e 𝑘𝐶db oy nt th he ese err so prs lito sn .D𝑣1,wecaneasilygetsignificantly 𝑄 sh𝑘 a( p· e) ,c io tm isp aut de is ffa ed reis nt ta in ac be le,a fup nro ctp io or nt .io Tn h, eor oa pn timan ig zl ae tio of nth oe bj3 eD ctf ivac eia isl
+Optionalphonatorymodule.Inspiredbylinearpredictivecoding givenbelow.
+(LPC) [25] which leverages voice producing to learn vocal tract 𝐾
+geometry,weaimtofacilitatefacegeometrycapturebylearning 𝛽∗=argmin𝜆∥𝛽∥2 2+∑︁ (𝑄 𝑘(𝑃𝛽)−𝑚ˆ(𝑘))2·𝑧(𝑘) (7)
+characteristicsofvoice.Weenrollaphonatorymoduleservingas 𝛽 𝑘=1
+an additional constraint when predicting facial AMs. In particu-
+where𝜆isthelossweightbalancingtwoterms.Thereconstructed
+lar, we leverage a diffusion-based [18] voice generation method
+3Dfacialshapeisgivenby𝑏ˆ=𝑃𝛽∗.
+tomodelthetime-domainspeechsignals.AsshowninFig.2,the
+diffusionmodelconvertsthenoisedistributiontoaspeech𝑣˜ con-
+trolledbythevoicecode𝑒extractedfromspeech𝑣.Duringtraining 4 EXPERIMENTS
+speech𝑣′ whichsharesspeakeridentitywith𝑣 isfedtothediffu- Inthissection,weelaborateonthedatasetsetting,implementation
+sionmodelasground-truth.Pleasenotethatthephonatorymodule detailsandexperimentalresults.
+Conference’23,July2023,Ottawa,Canada XiangLi1,YandongWen2,MuqiaoYang1,JingluWang3,RitaSingh1,BhikshaRaj1,4
+Figure4:Thenormalizederrorsand𝐶𝐼sof24AMson(a)malesubset,(b)femalesubset,and(c)asmallerfemalesubset.If1−𝐶𝐼
+𝑢
+>0,
+theAMispredictableelseunpredictable.
+4.1 Dataset 4.2 ImplementationDetails
+WeperformexperimentsonaprivateaudiovisualdatasetD.The We leverage a backbone E to learn voice code𝑒 which is a sim-
+datasetconsistsofpairedvoicerecordingsandscanned3Dfacial pleconvolutionalneuralnetwork.Thedetailednetworkstructure
+shapesfrom1,026people,with364malesand662females.The ispresentedinthesupplementarymaterials.𝐹 𝑘 and𝐺 𝑘 sharethe
+scanned3Dfaceisstoredinthemeshformatwith6790pointsfor backbone’slearnableparametersbuthaveindividualparametersfor
+eachface.Thevoicerecordingsareabout2minuteslongforeach theirheads.Weuseasinglelayerfully-connectednetworkforeach
+speaker. We reduce the influencing factors to the voice and face head.Forthevariancehead,weaddanexponentialactivationto
+by(1)askingparticipantstospeakasetofspecifiedsentences,(2) thelastlayerof𝐺 𝑘 fornon-negativepositiveoutput.Wefollowthe
+askingparticipantstospeakwithoutemotion,(3)controltheageof typicalsettingsofstochasticgradientdescent(SGD)foroptimiza-
+participants(roughly18-28yearsold).Inaddition,topreventthe tion.Minibatchsizeis64.Themomentum,learningrate,andweight
+modelsfromtakingthegendershortcuts,wesplitthedatasetDby decayvaluesare0.9,0.1,and0.0005,respectively.Thetrainingis
+gender,andexperimentsareindividuallyperformedonmaleandfe- completedat5kiterations.Sincethephonatorymodulerequiresa
+malesubsets.Foreachsubset,weadopt7/1/1/1splittingforD𝑡/D𝑣1 longtrainingprocedure,wefirsttrainitwiththevoicecodeencoder
+/D𝑣2/D𝑒.Intraining,thevoicerecordingsarerandomlytrimmed Efor60kstepsonourtrainingsetD𝑡.Wefollowthetrainingsetting
+tosegmentsof6to8seconds,whileweusetheentirerecordings in[18]totrainthephonatorymodule.Theotherparametersetting
+intesting.ThegroundtruthAMsarenormalizedtozeromeanand follows[18].Wedirectlynormalizedthevoicesignalasinputtothe
+unitvariance.Forvoicefeatures,weextract64-dimensionallogMel- networkinsteadoffirstconvertingittoLog-Melspectrum.Toensure
+spectrogramsusingananalysiswindowof25ms,withthehopof statisticalsignificance,weperformN=100repeatedexperimentsto
+10msbetweenframes.Weperformmeanandvariancenormalization computethe𝐶𝐼 𝑢.Fortheexperimentsatphonemelevel,weleverage
+ofeachMel-frequencybin. Wav2Vec[2]tocutthelongvoicerecordingsintophonemes.
+decnalaB
+)c(
+tesbus
+elaM
+)a(
+tesbus
+elameF
+)b(
+tesbus
+elameF
+RethinkingVoice-FaceCorrelation:AGeometryView Conference’23,July2023,Ottawa,Canada
+PhonationModule 100%𝑤ˆ 75%𝑤ˆ 50%𝑤ˆ PhonatoryModule Predictable Unpredictable
+(cid:33) 0.953±0.009 0.909±0.024 0.842±0.030 (cid:33) 0.628±0.021 0.990±0.032
+(cid:37) 0.952±0.014 0.927±0.030 0.879±0.041 (cid:37) 0.730±0.048 1.002±0.031
+Table1:Effectofthephonatorymodule.Wemeasurethenormal- Table2:Effectofphonatorymoduleforpredictableandunpre-
+izedmeansquarederrorbetweenpredictedandground-truth dictableAMs.Wemeasurethenormalizedmeansquarederror
+AMamongallAMswithdifferentconfidencethresholds. betweenpredictedandground-truthAMamongallpredictable
+andunpredictableAMs.Interestingly,wefindphonatorymod-
+uleonlyimprovespredictableAMs.
+Male Female
+subset,i.e.,364females.Surprisingly,theresultsonthenewsubset
+arestillbetterthanthoseonthemalesubset,asshowninFig.4(c).
+Thisispossiblebecausethefemalesubjectshavehighernasalance
+scoresonthenasalsentences[42]amongotherthings,whichpro-
+videsusefulinformationforpredictingtheAMsaroundthenose.
+Herewenotethatourexperimentshaverevealedthatmeasurements
+aroundthenosearehighlycorrelatedtovoice.Moreinvestigations
+areleftforfuturework.
+Figure5:VisualizationofthepredictableAMs.Bluebox:male,
+Ontheotherhand,someAMshavenotbeenshowntobepre-
+Redbox:female.
+dictablefromvoice.Thisobservationsuggeststhatvoicesmayonly
+associatewithafewspecificregionsofthe3Dfacialshape,likethe
+4.3 PredictableAMAnalysis noseandmouth.FortheAMswithhighererrorsthanchancelevel,
+wedonotclaimtheyarenotpredictablefromvoice.Instead,wefail
+ForAMprediction,theestimationmodelsaretrainedonD𝑡 and
+todemonstratetheirpredictabilitybasedonourcurrentempirical
+selectedbasedontheirperformanceonD𝑣1(hyperparametertun-
+results.Thepossiblereasonsincludeimperfectmodeling,limited
+ing).ForAMselection,thepredictableAMsareselectedbasedon
+data,datanoise,etc.
+theupperboundoftheCI(𝐶𝐼 𝑢)onD𝑣2.Theperformancecanbe
+evaluatedbythemeanerrorofeachAManditsCI.
+4.4 EffectofPhonatoryModule
+Fig.4showstheresults,including20AMswithhighest1−𝐶𝐼
+𝑢
+and4AMswithlowest1−𝐶𝐼 𝑢.Thegraybarsaretheresultson AspresentedinTable1,itisevidentthatutilizingthephonatory
+theentirevalidationsetD𝑣2,whiletheredandyellowonesarethe moduleduringtrainingenhancestheaccuracyofpredictedAMs.
+resultsof75%and50%voicesampleswithlowestuncertainty𝑤ˆ on Ourevaluationinvolvedcomputingthenormalizederroracrossall
+D𝑣2,respectively.Theself-constructedfemalesubsethasthesame AMswithvariousconfidencethresholds.Althoughthemodelswith
+sizeasthemalesubset.Higher1−𝐶𝐼 𝑢 indicatesbetterresultsand andwithoutthephonatorymoduleexhibitedamarginaldifferencein
+errorwhenevaluatingallthedata,theonestrainedwiththephona-
+thenormalizederrorof0indicatesthechance-levelperformance.
+torymoduleshowedaclearimprovementinerrorwhenconsidering
+Assuggestedbyourhypothesistestingformulation,theAMswith
+1−𝐶𝐼 𝑢 > 0areconsideredpredictablefromvoice.Inthissense, moreconfidentsamples.
+Furthermore,weconductedanerrorevaluationforpredictable
+wehavediscoveredanumberofpredictablefemaleAMs(seethe
+gray bars and their𝐶𝐼 𝑢 in Fig. 4 (b)). By filtering out the voice andunpredictableAMsasdepictedinTable2.Weobservedthat
+sampleswithhighuncertainties,weachieveevenhigher1−𝐶𝐼 𝑢 (see utilizingthephonatorymoduleresultedina0.102-pointdecreasein
+theredandyellowbarsandtheir𝐶𝐼s).Theimprovedperformance normalizederrorforpredictableAMs,highlightingitseffectiveness
+inimprovingthepredictionperformance.Interestingly,thephona-
+indicatesthatmoreAMsarediscoveredaspredictablefromvoice.
+torymoduledidnothaveanyapparenteffectonunpredictableAMs.
+The complete results of all AMs are given in the appendix. The
+Overall, the results indicate that utilizing the phonatory module
+resultsempiricallydemonstratethattheinformationof3Dfacial
+during training is beneficial for predicting AMs, particularly for
+shapeisindeedencodedinthevoicesandcanbediscoveredbyour
+predictableones.
+analysispipeline.
+To intuitively locate the predictable AMs on the 3D face, we
+4.5 Phoneme-levelAnalysis
+visualizetheminFig.5.Weclearlyobservethatmostofthepre-
+dictableAMsarearoundnoseandmouth,andmanyofthemare Wealsoexperimentwiththevoice-facecorrelationatthephoneme
+sharedbetweenmaleandfemalesubsets.Thisisconsistentwiththe level.Forthisexperiment,wetrainandevaluateestimatorsbytaking
+factthatnoseandmouthshapesaffectpronunciation. onephonemeasinputeachtime.Wecomputedtheaverage1−𝐶𝐼 𝑢
+Wealsonoticethattheperformanceoffemalesubsetismuch valueforeachphonemeacrossallAMs,asshowninFig.7.Our
+betterthanthatofthemalesubset.Toinvestigatewhethertheim- resultsindicatethat/i:/hadthehighestaverage1−𝐶𝐼 𝑢 valueof
+provements come from the larger data scale (364 males𝑣.𝑠. 662 0.199,while/b/hadthelowestvalueof-0.06.Whenthe1−𝐶𝐼 𝑢
+females),weperformanothersetofrepeatedexperimentsonaself- valueislessthan0,itsuggeststhatAMsaregenerallyunpredictable
+constructed female subset, which has the same size as the male fromthecorrespondingphoneme.
+Conference’23,July2023,Ottawa,Canada XiangLi1,YandongWen2,MuqiaoYang1,JingluWang3,RitaSingh1,BhikshaRaj1,4
+100 % 90 % 80 % 70 % 60 % 50 %
+Male
+Female
+Figure6:Errormapsofthereconstructed3Dfacialshapesforthemaleandfemalesubsets.Fromlefttoright:theerrormaps
+correspondingto100%(i.e.theentiretestset)to50%ofthetestset.
+aboutfacialfeatures,makingiteasierforthemodeltocapturethe
+hiddencorrelationwhenpredictingAMs.
+4.6 3DFacialShapeReconstruction
+InSection4.3,wehavediscoveredanumberofpredictableAMs,
+fromwhichwechoose10AMswiththehighest1−𝐶𝐼 𝑢 forthe
+subsequentreconstructionsonmaleandfemalesubsets.
+Toevaluatetheperformance,wecomputetheper-vertexerrors
+betweenthereconstructed3Dfacialshapeandtheirgroundtruths.
+Wealsofilteroutaportionofvoicesampleswiththehighestuncer-
+taintiesandevaluatetheerrorsintheremainingdata.Thefilter-out
+rateisfrom0%to50%,asshownfromlefttorightinFig.6.
+Unsurprisingly, we achieve the lowest errors around the nose
+regionformaleandfemalesubsets,consistentwiththeAMestima-
+tions.Moreover,thereconstructionerrorsdecreasesignificantlyby
+Phonemes
+filteringoutthevoicesampleswiththehighestuncertainties.This
+indicatesthatthelearneduncertaintyiseffectivelyassociatedwith
+Figure7:Phonemeswithcorrespondingaveraged𝐶𝐼 𝑢indecreas- thereconstructionqualityandallowsthesystemtodecidewhether
+ingorder. totrustthemodelornot.
+5 CONCLUSION
+Weobservedthatthethreephonemeswiththelowestandnegative
+Inconclusion,thispaperpresentsanovelapproachtoexploringthe
+1−𝐶𝐼 𝑢 valueswere/t/,/b/,and/d/,allofwhichareplosive
+voice-facecorrelationbyfocusingonthegeometricaspectsofthe
+consonants.Duringthepronunciationofplosiveconsonants,there
+faceratherthanrelyingonsemanticcuessuchasgender,age,and
+isacompletestoppageofairflowfollowedbyasuddenreleaseof
+emotion.Theproposedvoice-anthropometricmeasurement(AM)-
+airthroughminimalmouthopeningandclosing.Asaresult,there
+faceparadigmidentifiespredictablefacialAMsfromthevoiceto
+isminimalmovementofthefacialmusclesandstructures,making
+guide3Dfacereconstruction,whichresultsinsignificantcorrela-
+itchallengingforthemodeltopredictAMsbasedsolelyonthese
+tionsbetweenvoiceandspecificpartsofthefacegeometry,suchas
+phonemes.
+thenasalcavityandcranium.Thisapproachnotonlyeliminatesthe
+Incontrast,mostvowelsachievedgoodperformanceinthetestset,
+influenceofunpredictableAMsbutalsooffersanewperspective
+withallofthetop6phonemesbelongingtovowelswith1−𝐶𝐼
+𝑢
+>
+onvoice-facecorrelation,whichcanbevaluableforanthropometry
+0.10.Comparedtoconsonants,theproductionofvowelsdoesnot
+science.Theresultsofthisstudyopenuppossibilitiesforfuture
+involveconstrictionofairflowinthevocaltract.Instead,thefacial
+researchinthisarea,suchasdevelopingmoreaccuratevoice-guided
+muscleshaverelativelygreatermovementduringthepronunciation
+facesynthesistechniquesandabetterunderstandingoftherelation-
+ofthesephonemes,suchasjawmovementduetomouthopeningor
+shipbetweenvoiceandfacialgeometry.
+lipspreading.Thus,vowelphonemesmaycarrymoreinformation
+𝐼𝐶−1
+!
+RethinkingVoice-FaceCorrelation:AGeometryView Conference’23,July2023,Ottawa,Canada
+REFERENCES
+[27] ShahNawaz,MuhammadSaadSaeed,PietroMorerio,ArifMahmood,Ignazio
+[1] ZulfiqarAli,GhulamMuhammad,andMohammedFAlhamid.2017.Anauto- Gallo,MuhammadHaroonYousaf,andAlessioDelBue.2021. Cross-Modal
+matichealthmonitoringsystemforpatientssufferingfromvoicecomplicationsin SpeakerVerificationandRecognition:AMultilingualPerspective.InCVPRW.
+smartcities.IEEEAccess5(2017),3900–3908. [28] HailongNing,XiangtaoZheng,XiaoqiangLu,andYuanYuan.2021.Disentangled
+[2] AlexeiBaevski,YuhaoZhou,AbdelrahmanMohamed,andMichaelAuli.2020. RepresentationLearningforCross-modalBiometricMatching.TMM(2021).
+wav2vec2.0:Aframeworkforself-supervisedlearningofspeechrepresentations. [29] Tae-HyunOh,TaliDekel,ChangilKim,InbarMosseri,WilliamTFreeman,
+Advancesinneuralinformationprocessingsystems33(2020),12449–12460. MichaelRubinstein,andWojciechMatusik.2019.Speech2face:Learningtheface
+[3] MohamadHasanBahari,MitchellMcLaren,HugoVanhamme,andDavidA. behindavoice.InProceedingsoftheIEEE/CVFconferenceoncomputervision
+vanLeeuwen.2012.AgeEstimationfromTelephoneSpeechusingi-vectors.In andpatternrecognition.7539–7548.
+Interspeech. [30] PaulHPtacekandEricKSander.1966.Agerecognitionfromvoice.Journalof
+[4] VolkerBlanzandThomasVetter.1999.Amorphablemodelforthesynthesisof speechandhearingResearch9,2(1966),273–277.
+3Dfaces.InProceedingsofthe26thannualconferenceonComputergraphics [31] PaulH.PtacekandEricK.Sander.1966.Agerecognitionfromvoice.Journalof
+andinteractivetechniques.187–194. speechandhearingresearch92(1966),273–7.
+[5] VolkerBlanzandThomasVetter.2003.Facerecognitionbasedonfittinga3D [32] NarayananRamanathanandRamaChellappa.2006.Modelingageprogression
+morphablemodel.IEEETransactionsonpatternanalysisandmachineintelligence inyoungfaces.In2006IEEEComputerSocietyConferenceonComputerVision
+25,9(2003),1063–1074. andPatternRecognition(CVPR’06),Vol.1.IEEE,387–394.
+[6] RayBull,HarrietRathborn,andBrianRClifford.1983.Thevoice-recognition [33] MircoRavanelliandYoshuaBengio.2018.Speakerrecognitionfromrawwave-
+accuracyofblindlisteners.Perception12,2(1983),223–226. formwithsincnet.In2018IEEESpokenLanguageTechnologyWorkshop(SLT).
+[7] R. H. C. Bull, Harriet Rathborn, and Brian R. Clifford. 1983. The Voice- IEEE,1021–1028.
+RecognitionAccuracyofBlindListeners.Perception12(1983),223–226. [34] MircoRavanelliandYoshuaBengio.2018. SpeakerRecognitionfromRaw
+[8] LeleChen,ZhihengLi,RossKMaddox,ZhiyaoDuan,andChenliangXu.2018. WaveformwithSincNet. 2018IEEESpokenLanguageTechnologyWorkshop
+Lipmovementsgenerationataglance.InECCV.520–535. (SLT)(2018),1021–1028.
+[9] DanielCudeiro,TimoBolkart,CassidyLaidlaw,AnuragRanjan,andMichaelJ [35] RobinRombach,AndreasBlattmann,DominikLorenz,PatrickEsser,andBjörn
+Black.2019. Capture,learning,andsynthesisof3Dspeakingstyles.InCVPR. Ommer.2022. High-resolutionimagesynthesiswithlatentdiffusionmodels.
+10101–10111. InProceedingsoftheIEEE/CVFConferenceonComputerVisionandPattern
+[10] LeslieGFarkas,OttoGEiben,StefanSivkov,BryanTompson,MarkoJKatic, Recognition.10684–10695.
+andChristopherRForrest.2004. Anthropometricmeasurementsofthefacial [36] OlafRonneberger,PhilippFischer,andThomasBrox.2015.U-net:Convolutional
+frameworkinadulthood:age-relatedchangesineightagecategoriesin600healthy networksforbiomedicalimagesegmentation.InMedicalImageComputingand
+whiteNorthAmericansofEuropeanancestryfrom16to90yearsofage.Journal Computer-AssistedIntervention–MICCAI2015:18thInternationalConference,
+ofCraniofacialSurgery15,2(2004),288–298. Munich,Germany,October5-9,2015,Proceedings,PartIII18.Springer,234–
+[11] DonyaGhafourzadeh,CyrusRahgoshay,SahelFallahdoust,AdelineAubame, 241.
+AndreBeauchamp,TiberiuPopa,andEricPaquette.2019. Part-based3Dface [37] LedaSarı,KritikaSingh,JiatongZhou,LorenzoTorresani,NayanSinghal,and
+morphablemodelwithanthropometriclocalcontrol.(2019). YatharthSaraf.2021.AMulti-ViewApproachtoAudio-VisualSpeakerVerifica-
+[12] PrasantaKumarGhoshandShrikanthNarayanan.2011.Automaticspeechrecog- tion.InICASSP.
+nitionusingarticulatoryfeaturesfromsubject-independentacoustic-to-articulatory [38] ZhiyiShan,RichardTai-ChiuHsung,CongyiZhang,JuanjuanJi,WingShanChoi,
+inversion.TheJournaloftheAcousticalSocietyofAmerica130,4(2011),EL251– WenpingWang,YanqiYang,MinGu,andBalvinderSKhambay.2021.Anthro-
+EL257. pometricaccuracyofthree-dimensionalaveragefacescomparedtoconventional
+[13] PatrickGomezandBrigittaDanuser.2007.Relationshipsbetweenmusicalstruc- facialmeasurements.ScientificReports11,1(2021),1–12.
+tureandpsychophysiologicalmeasuresofemotion.Emotion7,2(2007),377. [39] RitaSingh,JosephKeshet,DenizGencaga,andBhikshaRaj.2016.Therelation-
+[14] IanGoodfellow,JeanPouget-Abadie,MehdiMirza,BingXu,DavidWarde-Farley, shipofvoiceonsettimeandvoiceoffsettimetophysicalage.InICASSP.IEEE,
+SherjilOzair,AaronCourville,andYoshuaBengio.2020.Generativeadversarial 5390–5394.
+networks.Commun.ACM63,11(2020),139–144. [40] RitaSingh,BhikshaRaj,andDenizGencaga.2016.Forensicanthropometryfrom
+[15] JoannaGrzybowskaandStanislawKacprzak.2016.SpeakerAgeClassification voice:anarticulatory-phoneticapproach.In201639thInternationalConvention
+andRegressionUsingi-Vectors..InINTERSPEECH.1402–1406. onInformationandCommunicationTechnology,ElectronicsandMicroelectronics
+[16] YudongGuo,KeyuChen,SenLiang,YongjinLiu,HujunBao,andJuyongZhang. (MIPRO).IEEE,1375–1380.
+2021.AD-NeRF:AudioDrivenNeuralRadianceFieldsforTalkingHeadSynthe- [41] RuijieTao,RohanKumarDas,andHaizhouLi.2020. Audio-visualspeaker
+sis.InICCV. recognitionwithacross-modaldiscriminativenetwork.InINTERSPEECH.
+[17] Jing Han, Chloë Brown, Jagmohan Chauhan, Andreas Grammenos, Apinan [42] TomášVampola,JaromírHorácˇek,VojteˇchRadolf,JanGŠvec,andAnne-Maria
+Hasthanasombat,DimitrisSpathis,TongXia,PietroCicuta,andCeciliaMas- Laukkanen.2020.Influenceofnasalcavitiesonvoicequality:Computersimula-
+colo.2021.ExploringAutomaticCOVID-19Diagnosisviavoiceandsymptoms tionsandexperiments.TheJournaloftheAcousticalSocietyofAmerica148,5
+fromCrowdsourcedData.InICASSP.IEEE. (2020),3218–3231.
+[18] JonathanHo,AjayJain,andPieterAbbeel.2020.Denoisingdiffusionprobabilistic [43] Zhong-QiuWangandIvanTashev.2017.Learningutterance-levelrepresentations
+models.AdvancesinNeuralInformationProcessingSystems33(2020),6840– forspeechemotionandage/genderrecognitionusingdeepneuralnetworks.In
+6851. ICASSP.IEEE,5150–5154.
+[19] AmirJamaludin,JoonSonChung,andAndrewZisserman.2019.Yousaidthat?: [44] PeisongWen,QianqianXu,YangbangyanJiang,ZhiyongYang,YuanHe,and
+Synthesisingtalkingfacesfromaudio.InternationalJournalofComputerVision QingmingHuang.2021.SeekingtheShapeofSound:AnAdaptiveFramework
+(IJCV)127,11(2019),1767–1779. forLearningVoice-FaceAssociation.InCVPR.16347–16356.
+[20] AlexKendallandYarinGal.2017.Whatuncertaintiesdoweneedinbayesian [45] YandongWen,BhikshaRaj,andRitaSingh.2019. FaceReconstructionfrom
+deeplearningforcomputervision?Advancesinneuralinformationprocessing VoiceusingGenerativeAdversarialNetworks.InNeurIPS,Vol.32.
+systems30(2017). [46] OliviaWiles,AKoepke,andAndrewZisserman.2018. X2face:Anetwork
+[21] DiederikPKingmaandMaxWelling.2013. Auto-encodingvariationalbayes. forcontrollingfacegenerationusingimages,audio,andposecodes.InECCV.
+arXivpreprintarXiv:1312.6114(2013). 670–686.
+[22] ShengLi,DabreRaj,XugangLu,PengShen,TatsuyaKawahara,andHisashi [47] Cho-YingWu,Chin-ChengHsu,andUlrichNeumann.2022.Cross-ModalPer-
+Kawai.2019.ImprovingTransformer-BasedSpeechRecognitionSystemswith ceptionist:CanFaceGeometrybeGleanedfromVoices?.InProceedingsofthe
+CompressedStructureandSpeechAttributesAugmentation..InINTERSPEECH. IEEE/CVFConferenceonComputerVisionandPatternRecognition.10452–
+4400–4404. 10461.
+[23] ShengLi,DabreRaj,XugangLu,PengShen,TatsuyaKawahara,andHisashi [48] MarzenaWyganowska-Swikatkowska,IwonaKowalkowska,GrazynaFlicinska-
+Kawai.2019.ImprovingTransformer-BasedSpeechRecognitionSystemswith Pamfil,MikolajDabrowski,PrzemyslawKopczynski,andBozenaWiskirska-
+CompressedStructureandSpeechAttributesAugmentation.InInterspeech. Woznica.2017.Vocaltraininginananthropometricalaspect.LogopedicsPhoni-
+[24] CorrinaMaguinness,ClaudiaRoswandowitz,andKatharinavonKriegstein.2018. atricsVocology42,4(2017),178–186.
+Understandingthemechanismsoffamiliarvoice-identityrecognitioninthehuman [49] MarzenaWyganowska-Swikatkowska,IwonaKowalkowska,KatarzynaMehr,and
+brain.Neuropsychologia116(2018),179–193. MikolajDkabrowski.2013.Ananthropometricanalysisoftheheadandfacein
+[25] JohnDMarkel,AugustineHGray,andAugustineHGray.1976.Linearprediction vocalstudents.FoliaPhoniatricaetLogopaedica65,3(2013),136–142.
+ofspeech:Communicationandcybernetics.(1976). [50] MuqiaoYang,JosephKonan,DavidBick,YunyangZeng,ShuoHan,Anurag
+[26] MehdiMirzaandSimonOsindero.2014.Conditionalgenerativeadversarialnets. Kumar,ShinjiWatanabe,andBhikshaRaj.2023.PAAPLoss:APhonetic-Aligned
+arXivpreprintarXiv:1411.1784(2014). AcousticParameterLossforSpeechEnhancement.Proc.ofICASSP(2023).
+Conference’23,July2023,Ottawa,Canada XiangLi1,YandongWen2,MuqiaoYang1,JingluWang3,RitaSingh1,BhikshaRaj1,4
+[51] ZixingZhang,BingwenWu,andBjörnSchuller.2019. Attention-augmented [53] AihuaZheng,MenglanHu,BoJiang,YanHuang,YanYan,andBinLuo.2021.
+end-to-endmulti-tasklearningforemotionpredictionfromspeech.InICASSP. Adversarial-metriclearningforaudio-visualcross-modalmatching.TMM(2021).
+IEEE,6705–6709. [54] HangZhou,YuLiu,ZiweiLiu,PingLuo,andXiaogangWang.2019. Talking
+[52] ZixingZhang,BingwenWu,andBjörnSchuller.2019. Attention-augmented facegenerationbyadversariallydisentangledaudio-visualrepresentation.InAAAI,
+End-to-endMulti-taskLearningforEmotionPredictionfromSpeech.ICASSP Vol.33.9299–9306.
+2019-2019IEEEInternationalConferenceonAcoustics,SpeechandSignal [55] ZiqingZhuang,DouglasLandsittel,StaceyBenson,RaymondRoberge,and
+Processing(ICASSP)(2019),6705–6709. RonaldShaffer.2010.Facialanthropometricdifferencesamonggender,ethnicity,
+andagegroups.Annalsofoccupationalhygiene54,4(2010),391–402.

@@ -1,0 +1,356 @@
+Masked Proxy Loss For Text-Independent Speaker Verification
+JiachenLian∗,AiswaryaVinodKumar∗,HiraDhamyal∗,BhikshaRaj+,RitaSingh+
+∗ElectricalandComputerEngineering,+LanguageTechnologiesInstitute
+CarnegieMellonUniversity
+Pittsburgh,PA,USA-15213
+{jlian2, avinodku}@andrew.cmu.edu, {hyd, bhiksha, rsingh}@cs.cmu.edu
+Abstract computationofsuchcomparisonsscalesbyO(N3),aninfeasi-
+blecomputationforanyreasonably-sizedtrainingcorpus.
+Open-setspeakerrecognitioncanberegardedasametriclearn- Secondly,modelupdatesareusuallyperformedovermini-
+ing problem, which is to maximize inter-class variance and batches of data rather than the entire training set, and most
+minimizeintra-classvariance. Supervisedmetriclearningcan metriclearningapproachesrestrictthemselvestocomparisons
+becategorizedintopair-basedlearningandproxy-basedlearn- of classes that are present within the minibatches [3,11,12].
+ing[1]. Mostoftheexistingmetriclearningobjectivesbelong Whilethecomputationhereislessdaunting–scalingonlyby
+totheformerdivision,theperformanceofwhichiseitherhighly O(NB2)forminibatchesofsizeBforasinglepassthroughthe
+dependent on sample mining strategy or restricted by insuffi- data–adifferentsuboptimalityresults.Thesizeofminibatches
+cient label information in the mini-batch. Proxy-based losses istypicallymuchsmallerthanthetotalnumberofclassesinthe
+mitigatebothshortcomings,however,fine-grainedconnections training data. Even with exhaustive comparison of all triplets
+amongentitiesareeithernotorindirectlyleveraged. Thispa- withineachminibatch,updatesmadetothemodelwillnothave
+perproposesaMaskedProxy(MP)losswhichdirectlyincor- considered the complete possible set of comparisons across
+poratesbothproxy-basedrelationshipandpair-basedrelation- classes.
+ship. We further propose Multinomial Masked Proxy (MMP) ProxyNCA[13],attemptstoaddressthesedeficienciesby
+losstoleveragethehardnessofspeakerpairs. Thesemethods introducing learnable proxy embeddings, one per class in the
+have been applied to evaluate on VoxCeleb test set and reach trainingset, andreplacinginstance-instancecomparisonswith
+state-of-the-artEqualErrorRate(EER). instance-proxy comparisons, thereby reducing the time com-
+Index Terms: speaker recognition, deep metric learning, plexitytovisitallcomparisonstoO(NP),whereP isnumber
+maskedproxy,fine-grained ofproxies.Sinceeachtraininginstanceiscomparedtoallprox-
+ies, includingthoseforclassesnotcurrentlyintheminibatch,
+1. Introduction Proxy-NCAleadsnotonlytofasterconvergence,butpotentially
+also better models. However, by concentrating on entity-to-
+Text-independentspeakerverification[2]isthetaskofverifying proxydistances(by“entity”,wemeananactualdatainstance,
+speakers’claimedidentitiesfromrecordingsoftheirvoicewith asopposedtotheproxieswhicharepurelysynthetic), itloses
+noexpectationthatthewordsspokenintworecordingsarethe themorefine-grainedentity-to-entityrelationships. ProxyAn-
+same. Themostsuccessfulapproachesaretousethedeepneu- chor[1]attemptstoaddressthisbyassigningdynamicweights
+ralnetworktoderivediscriminativespeakerembeddings.These totheentity-to-proxycomparisons,however,therealentity-to-
+approachestypicallytakeoneoftwoforms. entity relationships remain unexploited, since the actual com-
+Inthefirstapproach,thenetworkistrainedasamulti-class parisonsarestillbetweenentitiesandproxies.
+classificationnetworkthatclassifiesalargenumberofspeakers ThispaperproposesaMaskedProxy(MP)losswhichtakes
+usingsoftmaxcrossentropylossanditsenhancedvariants[3– bothentity-to-entitydistanceandentity-to-proxydistanceinto
+8]. Theexpectationisthatthisbehaviorwillgeneralizetodata consideration.Withineachminibatchweutilizeentity-to-entity
+outsidethetrainingset. comparisonsforallclassesrepresentedintheminibatch,com-
+Thesecondapproach,whichrelatesdirectlytothetopicof puted through the comparison of a randomly reserved query
+thispaper,isbasedonmetriclearning. Inmetriclearning,in- sampletobatchcentroidsforthewithin-minibatchclasses,and
+steadofexplicitlymodellingtheclasses,thetraininglossesare utilize entity-proxy comparisons only for classes not repre-
+computed directly from comparison of distances between in- sented in the minibatch (i.e. by masking out the proxies for
+stances.Anumberofmetriclearningobjectiveshavebeenpro- thewithin-minibatchclasses).Toleveragemulti-similarity[14]
+posed for this purpose, such as the Contrastive [3,9], Triplet andthehardnessofpositivepairs[1],wealsoproposeaMulti-
+[3,10],GE2E[3,11],Prototypical[3,12],andAngularProto- nomialMaskedProxy(MMP)loss. Tothebestofourknowl-
+typical[3]losses. edge,thisisthefirstworktoapplyproxy-basedlossinspeaker
+recognition.Usingourproposedapproach,weachievestate-of-
+While this approach has proven to be more effective than
+artEqualErrorRates(EER)ontheVoxCelebtestsettrainingon
+the classification-based approach [3], it faces considerable lo-
+theVoxCeleb2devset.
+gistic challenges. Firstly, in order to maximally ensure that
+the distance between embeddings of same-class instances is
+consistently smaller than that between instances of different 2. RelatedWorks
+classes,ideallythedistances(orsimilarities)betweeneverypair
+2.1. Proxy-BasedLoss
+ofsame-classinstancesmustbecomparedtoeverypairofeither
+ofthoseinstanceswitheveryrecordingfromtheotherclasses Incontrasttopair-basedmetriclearningwhichcomputeslosses
+inthetrainingset.ForatrainingsetofsizeN (recordings),raw entirelyfromauthenticdatainstances, proxy-basedlossesuti-
+1202
+nuJ
+52
+]DS.sc[
+2v19440.1102:viXra
+lizesynthetic,learnableproxiestocomposetriplets. where
+s(u,v)=α((uTv)−β) (5)
+2.1.1. ProxyNCA
+Bothembeddingsandproxiesarenormalizedbylength. αand
+ProxyNCA[13]assignsaproxytoeachdatapointaccordingto βarelearnablesmoothingfactorandbias.
+itsclasslabel. Theobjectiveistomakeeachembeddingcloser ThenumeratorinEquation4considersthesimilarityofthe
+toitsproxythanotherproxies,asshownbelow: instance to its own proxy. The first term in the denominator
+invokesthesimilarityoftheinstancetothemini-batchcentroids
+1 (cid:88)N e−d(xi,pi) forallclassesintheminibatch,andiseffectivelyentirelyentity-
+L =− log( ) (1)
+NCA N (cid:80)N e−d(xi,pj) based. Thesecondtermreferstothesimilarityoftheinstance
+i=1 j=1,j(cid:54)=i to the proxies of all classes that are not in the minibatch and
+whereddenotesEuclideandistance. isproxy-based. Thelossobjectiveovertheentireminibatchis
+formulatedasfollows:
+2.1.2. ProxyAnchor
+1 (cid:88)
+IncontrasttoProxyNCA,ProxyAnchor[1]regardstheproxy l = l(x ) (6)
+1 |X | i
+as an anchor that instances are drawn to. Both positive and Q xi∈XQ
+negativepairscontributetothelossobjectivebytheirhardness,
+whichisillustratedinEquation6in[1]. Equation 6 does not refer to the proxies of classes repre-
+sentedintheminibatch.Inordertobeabletoalsoupdatethese
+proxies classes, we include a Mask Proxy Regulator (MPR),
+L = 1 (cid:88) log(1+ (cid:88) e−α(s(x,p)−δ)) which minimizes the distance between these proxies and the
+Anchor |P |
++ p∈P+ x∈Xp+ centroid for their class, while maximizing their separation to
+(2) othercentroids:
++ 1 (cid:88) log(1+ (cid:88) eα(s(x,p)+δ))
+|P| 1 (cid:88) es(cLi,pi)
+HereP
+representsthp∈ eP proxyset,x P∈ +Xp r−
+epresentsthesetofprox-
+l 2 =− |L M|
+Li∈LMcL
+,Li
+pi=Lilog( Lj(cid:80) (cid:54)=Lies(cLj,pi)) (7)
+iesforallclassesrepresentedintheminibatch,X+denotesthe
+p
+setofallinstances(fromtheminibatch)belongingtothesame MaskProxylosscanbedefinedastheweightedsummationof
+classasproxyp,andX−denotessetofinstancesnotfromthe Equations6and7:
+p
+sameclassasp.αisascalingfactor,δisamarginandsrefers
+l =l +λ l (8)
+tocosinesimilarity. mp 1 mp 2
+Note that neither Proxy NCA nor Proxy Anchor invoke
+whereλ isbalancingfactor,whichissetto0.5inthispaper.
+actual entity-to-entity distances, thus not leveraging the fine- mp
+graineddistance/similarityrelationswithinaminibatch.
+3.2. MultinomialMaskedProxy(MMP)
+3. ProposedMaskedProxyMethods Multinomial-based loss functions can leverage both multi-
+similarityamongpairs[14]andhardnessofpositivepairs[1]as
+3.1. MaskedProxy(MP) compared to softmax-based functions. The multinomial form
+ofEquation6canbeformulatedasfollows:
+AsseeninEquations1and2,bothProxyNCAandProxyAn-
+c bh oo thr o en nl ty ityd -e pa rol xw yit ph ae irn stit ay n- dpr eo nx ty ityp -a ei nrs ti. tyIn pao iu rsr p arr eop to as ke ed nl io ns ts o, l
+1m
+=log(1+ (cid:88) e−s(xi,cLi))
+consideration. Specifically, for all classes represented within xi∈XQ
+aminibatchwewillcomputeentity-baseddistances,andcom- + 1 (cid:88) log(1+ (cid:88) es(xi,cLj))
+pute entity-proxy distances for the remaining classes. In the |X |
+followingdiscussion,allcomputationsareoveraminibatch. Q xi∈XQ Lj(cid:54)=Li (9)
+Lj∈LM
+LetL denotetheclasslabelofx andL denotethecorre-
+spondingi classlabelofproxyp . L i isthep li abelsetofclasses + 1 (cid:88) log(1+ (cid:88) es(xi,pk))
+i M |X |
+r de ip nr ge sse wn hte od sein lat bh ee lm sain reib Lat ic .h. Nc LL ii ii sst th he ec ne un mtr bo eid r[ o1 f2 i] no stf ae nm ceb sed in- Q xi∈XQ Lpkp ∈/k LM
+theminibatchwithlabelsareL . Similarto[3,11,12],were-
+i In Mask Proxy loss, every positive entity-centroid pair con-
+serveoneinstancefromeachclassintheminibatchasa“query”
+tributes equally to the loss objective, which can be illustrated
+fortheclassembeddingasqueryforeachclass,andwedefine
+throughEq.10.
+X asthequerysetfortheminibatch,withoutduplicates. The
+Q
+centroidscanberepresentedasfollows: ∂l ∂l 1
+MP = 1 =− (10)
+∂s(x ,c ) ∂s(x ,c ) |X |
+1 (cid:88) i Li i Li Q
+c = x (3)
+Li N Li −1
+j
+j However,multinomiallosswillassignadynamicweighttoeach
+j(cid:54)=i,Lj=Li positivepair. AsshowninEquation11,thisdynamicweightis
+dependentonthepairitself,meaningtheharderpositivepairs
+ForeachqueryinstanceinX ,wecomposethefollowingloss:
+Q
+withlowersimilaritywouldcontributemoretothelossobjec-
+es(xi,cLi) tive.
+l(x i)=−log( Lj(cid:80)
+(cid:54)=Li
+es(xi,cLj)+ (cid:80)
+pk
+es(xi,pk)) (4) ∂s(∂ xl i1 ,m
+c Li)
+=−
+1+
+e (cid:80)−s(xi e, −cL si (x)
+i,cLi)
+(11)
+Lj∈LM Lpk∈/LM xi∈XQ
+Figure1:Contrastive Figure3:Triplet Figure5:(Angular)Prototypical Figure7:ProxyNCA
+Figure2:ProxyAnchor Figure4:MPl1loss(Eq.6) Figure6:MPRegulator(Eq.7) Figure8:MMPPositivePairs
+Figure9:Eachcolorrepresentsauniqueclass.Solidcirclepointistheentitywhilethetrianglewithaspecificcoloristheproxyofthe
+correspondingclass. Thehollowcircleconnectedwithsolidcirclesbydashlinerepresentsthecentroidcomputedbyaveragingthose
+entities.For(Angular)PrototypicalorMP(MMP),oneembeddingisreservedasaqueryandotherembeddingsareappliedtocompute
+thecentroidregardingeachclass. NoadditionalidentitiesareincorporatedforContrastive,Tripletand(Angular)Prototypical. For
+proxy-basedlosses,allclassesareincluded.Themaskedproxyisthetrianglesurroundedbyablackcircleandmaskedbyadashline,
+showninFig. (4)(6)(8). ForMPl1loss,wecomputethedistancebetweenthequeryandallcentroidsandthedistancebetweenthe
+queryandunmaskedproxies,asshowninFig.4.ForMPregulator,wecomputethedistancebetweentheproxyandallcentroidsforall
+maskedproxies,asshowninFig.6.TheillustrationofMMPl1lossisalmostthesameasthatofMPl1loss,exceptthateachpositive
+pairisassignedaweightwhichiscorrelatedtothedistanceofthispositivepair,whichisshownbythewidthoflinesinFig.8.
+TheexpressionofMMPcanbeformulatedasfollows: LossCriterion TrainingComplexity
+Triplet O(N3)
+l mmp =l 1m+λ mmpl 2 (12) Semi-hardTriplet[15] O(N B23)
+SmartTriplet[16] O(N2)
+Wheretheregulatorl 2iskeptasitsoriginalformandλ mmpis (Angular)Prototypical[3] O(N2)*
+abalancingfactor.λ mmpissetto0.5inthispaper. ProxyNCA[13] O(NP)
+Acomparisonofthedifferentmetriclearningobjectivesde- ProxyAnchor[1] O(NP)
+scribedinthissectionandotherstandardmetriclearningobjec- MP/MMP O(NP)
+tivesisshowninFig.9.
+Table1:TrainingComplexityComparison
+3.3. TrainingComplexity
+*Here we discuss the case where number of data
+WedenoteN,B,P astrainingsize,batchsizeandproxysize pointsis2foreachclasswithinthemini-batch.
+respectively. For each data point in Eq. 6, we compute dis-
+tancesoverCpairs,whichgivesrisetoatrainingcomplexityof similarityscoreiscomputedusingthesamemethodwith[3,9]:
+O(NP).InEq.7,complexityshouldbeO(P2)tovisitallpos-
+10featuresaresampledusingaspecificwindowsizeforeach
+sibleproxy-centroidpairs.Hence,thefinaltrainingcomplexity utteranceinapair,thenthemeanof10×10Euclideandistances
+shouldbe withinO(NP +P2) ∼ O(NP), The sameresult arecomputedasthedistancemeasurement. Notethatthese10
+can be derived for MMP. Table 1 is a comparison of training featurescoverthefullutterance. Thatistosay,duringtesting,
+complexityoverdifferentlossfunctions. thefullutteranceratherthanafixed-lengthsamplefromtheraw
+audioisevaluated. Detailsforevaluationmethodcanbefound
+4. Experiments in[3,9].
+4.1. Dataset
+4.3. ImplementationDetails
+We use the VoxCeleb dataset [9,17]. We train on VoxCeleb2
+dev set which contains 5994 identities and test on VoxCeleb1 TheexperimentsareperformedonNvidiaTeslaV100platform
+testsetwhichcontains40identities. usingPyTorch. Wedenoteτ asaudioduration. Weapplyfixed
+τ =2sandτ =4srandomsegmentsrespectivelyduringtrain-
+4.2. ModelandEvaluationScoringMethod
+ingwhileusingthefullutteranceduringtesting[3,9]. Weem-
+Weapplythebackbone(Thin-ResNet34+SAP)proposedin[3] ploytheMel-Spectrogramfeaturewith40frequencychannels.
+asbaselinemodel,whereSAPisself-attentivepooling[18].We Inaccordancewith[3],weadoptthewindowsizeof25msand
+adopt Equal Error Rate(EER) as evaluation metric, where the stepsizeof10ms.Samplingrateissetas16k.
+LossFunction Hyper-parameters EER%(E1,τ=2s,B=400) EER%(E2,τ=2s,B=800) EER%(E3,τ=4s,B=400)
+Triplet[3] m=0.1 2.50±0.06 2.49±0.08 2.50±0.07
+ProtoTypical[3] M=2 2.37±0.10 2.34±0.08 2.32±0.02
+GE2E[3] M=3 2.53±0.03 2.51±0.03 2.50±0.01
+AngularPrototypical[3] M=2 2.31±0.05 2.21±0.03 2.26±0.05
+ProxyNCA \ 2.42±0.07 2.42±0.05 2.40±0.04
+ProxyAnchor m=0.15,s=50 2.39±0.03 2.40±0.02 2.39±0.01
+MP(ours) λ=0.3 2.08±0.03 2.04±0.05 2.05±0.03
+MMP(ours) λ=0.3 2.06±0.03 2.02±0.04 2.02±0.02
+MP-Balance(ours) M=2,λ=0.3 2.03±0.01 1.97±0.03 1.99±0.01
+MMP-Balance(ours) M=2,λ=0.3 1.99±0.02 1.95±0.03 1.93±0.01
+Table2:EvaluationonVoxCeleb1testset
+We experiment with Proxy NCA, Proxy Anchor, MP and wespeculatethatbothfine-graineddata-to-dataconnectionand
+MMPonThin-ResNet34.WhenexperimentingwithProxyAn- numberofclassesincorporatedinthemini-batcharethemajor
+chor,differentsetsofhyper-parametersareexplored.Tobespe- contributingfactorsforalowerEERachievedbytheproposed
+cific,marginisvariedfrom0.1to0.5withanincrementof0.1 lossfunctions.
+and smoothing factor is varied from 10 to 70 with an incre-
+mentof10. Thebalancingfactorλisvariedfrom0.1to1with
+an increment of 0.1. While training with MP and MMP, the
+initial margin β is set to 0.1 and smoothing factor α is set to
+10. Inspired by the idea that balanced training samples mat-
+ter[3,11,12],wealsoadoptthismannerinMPandMMP.Con-
+cretely, the number of samples for each class is a fixed value
+M whichisahyper-parameter. Inthisexperiment, wesetM
+as2basedonthefactthatfewershotlearningmattersinAngu-
+larPrototypicalloss[3]. WecallthismannerMP-Balancefor
+MaskProxyandMMP-BalanceforMultinomialMaskProxy.
+Weadoptthe*expectedbatchsize*Bof800and4001respec-
+tively. WeapplySGDasoptimizerwithastartinglearningrate
+of0.2andReduceLROnPlateauaslearningrateschedulerwith
+Figure10: EERonthetestset-VoxCeleb1datasetusingdif-
+afactorof0.8,patienceof3andEER%asmetric.
+ferentlossobjectivesoverepochs. DetailscanbefoundinSec.
+Basedontheaforementionedstatement,threeexperiments
+4.3
+areperformedandwedenotethemasE1(τ = 2s,B = 400),
+E2(τ = 2s,B = 800), E3(τ = 4s,B = 400)respectively. AblationStudyBasedontheresultsinTable. 2,balanced
+Wealsoduplicatetheexperimentsin[3]usingTriplet,Prototyp- datainputsalwaysresultinlowerEERforbothMPandMMP.
+ical, GE2EandAngularPrototypicalrespectively. Toanalyze Both larger batch size B and larger training audio duration τ
+thetrainingspeedoverdifferentlossobjectives,ineachepoch, givelowerEERforMP,MMP,MP-BalanceandMMP-Balance.
+wecomputetheEER%ontestsetandrecordtheresultsinFig. TheseconclusionsholdforallthreeexperimentsE1, E2and
+10.Basedonourexperiments,thereisnosignificantdifference E3.
+on training convergence over E1, E2 and E3. Thus we just Training Complexity and Speed. Based on our experi-
+takeE1intoconsiderationinFig. 10. Thefinalresultsaredis- ments,bothtrainingaudiodurationandbatchsizemakenodif-
+playedinTable2. Thehyper-parametersinbothTable. 2and ferenceinthetrainingspeed.Tobeconcise,wejustchoosethe
+Fig.10arethebestonesthatwehaveexplored. trainingprocessofE1inFig. 10fortheillustrationoftraining
+speed over different loss functions. It is observed that Triplet
+4.4. Discussion convergesthemostslowlyduetoitslargesttrainingcomplex-
+ity as shown in Table. 1. Other non-proxy-based losses con-
+ResultsAnalysis.Table2presentstheEERachievedusingdif-
+vergefasterthanTripletduetoitssmallertrainingcomplexity.
+ferent loss functions under certain settings. The performance
+Proxy-based losses converge fastest. Note that though Proxy
+forProxyNCAandProxyAnchoraresimilartothatofProto-
+NCAandProxyAnchorgivealargerfinalEERincomparison
+typical.Basedonthecurrentbestsmoothingfactorandmargin,
+to that ofAngular Prototypical, they stillconverge fasterthan
+ProxyAnchorreachesslightlylowerEERthanProxyNCA.The
+AngularPrototypical.Ourproposedlossfunctionsgivethebest
+potential reason is that Proxy Anchor indirectly leverages the
+EERaswellastrainingspeed.
+fine-graineddatarelationship.
+The proposed loss functions including Mask Proxy and
+5. Conclusion
+MultinomialMaskProxyoutperformtheexistingstate-of-the-
+artAngularPrototypicallossobjective. Basedontheseresults, Theproposedlossobjectivesinthispaperachievestate-of-the-
+art speaker verification performance on the VoxCeleb dataset.
+1ForMP/MMP-Balance,inputsizeis2×[batchsize,featuresize]
+To the best of our knowledge, it is the first work that applies
+and*expectedbatchsize*isbatchsize×2,whichisconsistentwith
+[3]. ForMPandMMP,inputsizeis[(cid:80)b i=at 1chsizeMi, featuresize], p pr oo sx ey d- Mba as se kd el dos Ps re os xo yn loth se set sas lk evo ef ras gp eea rk ee ar lv de ar ti afi -c toa -t dio an ta.T reh le atp ioro n-
+-
+whereMiisnumberoffeaturesforacertainclassi. Miisrandomly
+d iset te hr em *i en xe pd et co teb de b2 atco hr s3 i, zea *n .d E(cid:80) .g.b i=a ft 1 oc rhs *i ez xe pM ecti ed= batb ca htc sh izs ei *ze 80× 0,2 th.5
+e
+s Oh uip rs fum tuo rr ee wth oa rn ko wth ile lr fp or co ux sy o-b na ss ee ld f-o sub pje ec rt viv ise es din ana dn lo ov we -l rm esa on un re cr e.
+batchsizeissetto320. speakerrecognition.
+6. References
+[1] S.Kim,D.Kim,M.Cho,andS.Kwak,“Proxyanchorlossfor
+deepmetriclearning,” in2020IEEE/CVFConferenceonCom-
+puterVisionandPatternRecognition(CVPR),2020, pp.3235–
+3244.
+[2] T.KinnunenandH.Li,“Anoverviewoftext-independentspeaker
+recognition:Fromfeaturestosupervectors,”SpeechCommunica-
+tion,vol.52,no.1,pp.12–40,2010.[Online].Available:http://
+www.sciencedirect.com/science/article/pii/S0167639309001289
+[3] J.S.Chung,J.Huh,S.Mun,M.Lee,H.-S.Heo,S.Choe,C.Ham,
+S. Jung, B.-J. Lee, and I. Han, “In defence of metric learning
+forspeakerrecognition,” Interspeech2020, Oct2020.[Online].
+Available:http://dx.doi.org/10.21437/Interspeech.2020-1064
+[4] Y.Liu,L.He,andJ.Liu,“Largemarginsoftmaxlossforspeaker
+verification,”inINTERSPEECH,2019.
+[5] X.Shi,X.Du,andM.Zhu,“End-to-endresidualcnnwithl-gm
+lossspeakerverificationsystem,”in2018IEEE23rdInternational
+ConferenceonDigitalSignalProcessing(DSP). IEEE,2018,pp.
+1–5.
+[6] Z.Wang,K.Yao,S.Fang,andX.Li,“Jointoptimizationofclas-
+sification and clustering for deep speaker embedding,” in 2019
+IEEE Automatic Speech Recognition and Understanding Work-
+shop(ASRU),2019,pp.284–290.
+[7] N.Li,D.Tuo,D.Su,Z.Li,D.Yu,andA.Tencent,“Deepdis-
+criminativeembeddingsfordurationrobustspeakerverification.”
+inInterspeech,2018,pp.2262–2266.
+[8] Y.Li,F.Gao,Z.Ou,andJ.Sun,“Angularsoftmaxlossforend-to-
+endspeakerverification,”in201811thInternationalSymposium
+onChineseSpokenLanguageProcessing(ISCSLP). IEEE,2018,
+pp.190–194.
+[9] A.Nagrani,J.S.Chung,W.Xie,andA.Zisserman,“Voxceleb:
+Large-scale speaker verification in the wild,” Computer Speech
+Language,vol.60,p.101027,2020.[Online].Available: http://
+www.sciencedirect.com/science/article/pii/S0885230819302712
+[10] C.Zhang,K.Koishida,andJ.H.L.Hansen,“Text-independent
+speakerverificationbasedontripletconvolutionalneuralnetwork
+embeddings,” IEEE/ACM Transactions on Audio, Speech, and
+LanguageProcessing,vol.26,no.9,pp.1633–1644,2018.
+[11] L. Wan, Q. Wang, A. Papir, and I. L. Moreno, “Generalized
+end-to-endlossforspeakerverification,”in2018IEEEInterna-
+tional Conference on Acoustics, Speech and Signal Processing
+(ICASSP),2018,pp.4879–4883.
+[12] J. Wang, K. Wang, M. T. Law, F. Rudzicz, and M. Brudno,
+“Centroid-baseddeepmetriclearningforspeakerrecognition,”in
+ICASSP2019-2019IEEEInternationalConferenceonAcous-
+tics, Speech and Signal Processing (ICASSP), 2019, pp. 3652–
+3656.
+[13] Y. Movshovitz-Attias, A. Toshev, T. K. Leung, S. Ioffe, and
+S.Singh,“Nofussdistancemetriclearningusingproxies,”2017
+IEEEInternationalConferenceonComputerVision(ICCV),pp.
+360–368,2017.
+[14] X.Wang,X.Han,W.Huang,D.Dong,andM.R.Scott,“Multi-
+similaritylosswithgeneralpairweightingfordeepmetriclearn-
+ing,”2019IEEE/CVFConferenceonComputerVisionandPat-
+ternRecognition(CVPR),pp.5017–5025,2019.
+[15] F.Schroff,D.Kalenichenko,andJ.Philbin,“Facenet: Aunified
+embeddingforfacerecognitionandclustering,”2015IEEECon-
+ferenceonComputerVisionandPatternRecognition(CVPR),pp.
+815–823,2015.
+[16] B. Harwood, G. VijayKumarB., G. Carneiro, I. Reid, and
+T. Drummond, “Smart mining for deep metric learning,” 2017
+IEEEInternationalConferenceonComputerVision(ICCV),pp.
+2840–2848,2017.
+[17] A.Nagrani,J.S.Chung,andA.Zisserman,“Voxceleb: Alarge-
+scalespeakeridentificationdataset,”inINTERSPEECH,2017.
+[18] Y.Zhu, T.Ko, D.Snyder, B.K.-W.Mak, andD.Povey, “Self-
+attentivespeakerembeddingsfortext-independentspeakerverifi-
+cation,”inINTERSPEECH,2018.

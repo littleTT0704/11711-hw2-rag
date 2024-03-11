@@ -1,0 +1,446 @@
+Improving weakly supervised sound event detection with self-supervised
+auxiliary tasks
+SohamDeshmukh1,BhikshaRaj2,RitaSingh2
+1Microsoft,2CarnegieMellonUniversity
+sdeshmukh@andrew.cmu.edu, bhiksha@cs.cmu.edu, rsingh@cs.cmu.edu
+Abstract [10,11,12,13,14]. However,fewworkshavefocusedonhow
+soundeventdetectionmodelsperformineitherlimiteddataor
+Whilemultitaskandtransferlearninghasshowntoimprovethe
+noisysettingsletaloneinbothofthem.
+performanceofneuralnetworksinlimiteddatasettings,theyre-
+The noisy data also affects the training of networks for
+quirepretrainingofthemodelonlargedatasetsbeforehand. In
+soundeventdetection.Specifically,thedeepCNNarchitectures
+thispaper, wefocusonimprovingtheperformanceofweakly
+[15,16]currentlyusedtoprovidebenchmarkperformancefor
+supervisedsoundeventdetectioninlowdataandnoisysettings
+differentspeechandaudiotasks[17]requirelargelabelledclean
+simultaneouslywithoutrequiringanypretrainingtask. Tothat
+datasetstotrainonandwhenconsideredinanoisyenvironment
+extent, we propose a shared encoder architecture with sound
+theperformanceisknowntodeteriorate[10]. Thetwogeneral
+eventdetectionasaprimarytaskandanadditionalsecondary
+learning strategies used as solutions are transfer learning and
+decoder for a self-supervised auxiliary task. We empirically
+multitasklearningwhichwererecentlyutilisedforsoundevent
+evaluatetheproposedframeworkforweaklysupervisedsound
+detection[18,19,20].However,inthemultitasklearningsetup,
+eventdetectiononaremixdatasetoftheDCASE2019task1
+it’sassumedyouhaverichlyannotatedlabelsforallthetasks.
+acousticscenedatawithDCASE2018Task2soundseventdata
+Weinvestigateacounterpartofthiswhereonlyweaklabelsare
+under0,10and20dBSNR.Toensureweretainthelocalisation
+available without any labels for the secondary task. For this
+information of multiple sound events, we propose a two-step
+setting, we propose a self-supervised auxiliary task that will
+attentionpoolingmechanismthatprovidesatime-frequencylo-
+be jointly trained with the primary task of sound event detec-
+calisation of multiple audio events in the clip. The proposed
+tion.Theauxiliarytaskischosentobethereconstructionoflog
+frameworkwithtwo-stepattentionoutperformsexistingbench-
+Melspectrogramofaudioandweshowhowtheauxiliarytask
+markmodelsby22.3%,12.8%,5.9%on0,10and20dBSNR
+denoisesinternalrepresentationsandimprovesnetworkperfor-
+respectively. We carry out an ablation study to determine the
+manceinnoisysettings.
+contributionoftheauxiliarytaskandtwo-stepattentionpooling
+In all, in this paper, we address the challenge of training
+totheSEDperformanceimprovement.1.
+sound event detection models in noisy (domestic or environ-
+IndexTerms: soundeventdetection,self-supervisedlearning,
+mental)andlimiteddatasettings. Tothateffort,wemaketwo-
+poolingfunction
+fold contributions. First, identify appropriate self-supervised
+auxiliary task for sound event detection in noisy settings and
+1. Introduction
+demonstrate performance benefits to the same. Second, de-
+velop a two step attention pooling mechanism that improves
+SoundEventDetection(SED)aimstodeterminethepresence,
+time-frequency localisation of audio events and indirectly im-
+natureandtemporallocationofsoundeventsinaudiosignals.
+provessoundeventdetectionperformanceinnoisysettings.We
+Many SED algorithms rely on strongly labelled data [1, 2, 3]
+perform all the experiments on a standard noisy sound event
+fortrainingtoperformaccurateeventdetectionandlocalisation.
+detectiondatasetremix[10]andreleasethecodepublicly.
+However,producingstronglylabelleddataforSEDisquiteex-
+pensiveintermsoftheexpertise,timeandhumanresourcesre-
+quiredfortheannotation.Thishasledtothecreationofweakly 2. Relatedwork
+labelledsoundeventdetectiondatasetlikeAudioset[4]which
+A prominent recent work [10] analysed the performance of
+containsaudiocliplevelannotationswithoutthecorresponding
+differentmodelarchitectures(segmentationnetworkandpool-
+onsetandoffsettimesoftheaudioevents.
+ing functions) under different Signal to Noise Ratio (SNR)
+Theweaklysupervisedsoundeventdetectionwasfirstfor-
+forsoundeventdetectionandlocalisation. Thepapershowed
+mulatedasaMultiple-InstanceLearning(MIL)problem[5,6]
+that the segmentation network of type ‘VGG-like’ CNN per-
+withtherecentemergenceofNeuralMIL.InNeuralMIL,the
+formed best for audio tagging and variability in performance
+firsthalfofthenetwork(segmentationnetwork)producestem-
+resulted from the choice of pooling methods with not a clear
+poralpredictionswhicharethenaggregatedbythesecondhalf
+winning pooling method across different SNR. Specifically,
+of the network (classification network) usually a pooling op-
+GlobalAttentionPoolingoutperformedotherpoolingmethods
+erator to produce audio clip level predictions. The benefit of
+onsomeSNRandmetrics,whileGlobalWeightedRankPool-
+such formulation is, along with detecting audio events in the
+ing(GWRP)resultsinthebestperformanceonothers.Still,the
+clip, it provides insight into time level localisation of those
+workonsoundeventdetectionperformanceinlimiteddataand
+soundeventsintheaudioclip. Sincethen, recentworkshave
+noisysettingsissparse.
+focusedonimprovingthemodelarchitectureofthesegmenta-
+tion network [7, 8, 9] and developing better pooling methods Thoughthevarioustypeofmultitasklearningmethodshave
+beengreatlyexploredforvisionandnaturallanguageprocess-
+TheworkwasdoneatCarnegieMellonUniversity ing(NLP)tasks[21],ithasnotbeenutilisedbytheaudiocom-
+1Thecodeispubliclyreleased. munity. Most of the works in multitask learning for SED fo-
+1202
+nuJ
+21
+]SA.ssee[
+1v85860.6012:viXra
+Figure 1: Our proposed self-supervised learning assisted framework for weakly supervised sound event detection. (A) The general
+architecturewithsharedencoderandmultipledecoderbranches. Sharedencoder,primarydecoder,auxiliarydecoderisrepresented
+byg,g ,g respectively(B)showsthetwostepattentionpoolingfunctionusedforprimarydecoder.(C)Theattentionmechanismused
+2 4
+forfrequencyandtimeattentionintwostepattentionpoolingalongdifferentaxis. (D)TheCNNarchitectureusedforsharedencoder
+andauxiliarydecoder.Thelastlayeriseitherclassorreverseconvolutionforencoderanddecoderrespectively.
+cusonjointlytrainingSEDwithanotherstronglylabelledtask task of SED. If g (.) is encoder mapping for reconstruction
+3
+like Sound Source Localisation (SSL) [18] or Acoustic Scene task, we now represent g (.) = g (.) = g(.) as the shared
+1 3
+Classification(ASC)[19,22,23]. Acombinationofmultitask segmentation mapping function. The second part of auxiliary
+learningandself-supervisedlearningisshowntoimproveper- task,isadecodernetworkwhichlearnsamappingg suchthat
+4
+formanceonspeechandaudiotasks[20]. However, thework g : Z (cid:55)→ X¯ where X¯ is the reconstructed time-frequency
+4
+useslargescalespeechdatasetslikeLibrispeech[24]aspretasks representation. Specifically{x¯}T = g ({z }T ). Herethe
+i i=1 4 i i=1
+topretrainthenetworksusingself-supervisedlearninganddoes learnedmappingfunctiong (.)shouldsatisfy:
+4
+notanalysetheeffectofnoise(domesticorenvironmental)on
+g−1(g(.))=g−1(g (.))=I (2)
+soundeventdetectionperformance. 4 4
+To learn the function mappings satisfying primary SED task,
+3. Methodology let the objective function be L . To enforce the constraint
+1
+of auxiliary task, let the objective function be L where the
+2
+Thissectioncontainsthedetailsoftheproposedapproachfor
+aim is to minimise the difference between T-F representation
+SED, segmentation mapping network g 1, classification map- {xˆ}T and predicted time-frequency representation{x¯}T
+i i=1 i i=1
+pingnetworkg ,andtheauxiliarytime-frequencyreconstruc-
+2 ofaudioclip. IfthelearnableparametersareW=[w,w ,w ]
+2 4
+tionauxiliarytask.Thearchitectureisdepictedinfigure1
+and w,w ,w corresponding to g(.),g (.),g (.) respectively,
+2 4 2 4
+thentheoptimisationproblemcanbeframedintermsofthese
+3.1. Self-supervisedLearningformulationforSED weightsWoveralldatapointsas:
+eL ae ct hth xe
+i
+r ∈aw Rau isdi ao fb rae mr eep ir nes te hn ete ad udb iy
+o
+cX lip.= W{ ex ei} xT i tr= a1 ctw tih mer ee
+-
+m WinL 1(P,y|w,w 4)+αL 2({x¯ i}T i=1,{xˆ i}T i=1|w,w 2) (3)
+frequency features for each audio, let them be represented by Theparameteralpha(α)accountsforscaledifferencebetween
+Xˆ = {xˆ i}T i=1 where each xˆ i ∈ Rd, d ∈ Z corresponds to lossesL 1andL 2. Ithelpsinadjustingthecontributionofaux-
+frame in the audio clip. In practice, d are the number of mel iliarytaskrelativetotheprimarytaskinlearningweights.
+bins obtained after computing the spectrogram. As per MIL
+formulation,wecanrepresenteachsampleindatasetasabag 3.2. Sharedencoderandauxiliarytaskdecodernetwork
+B =({xˆ }T ,y)|N wherey∈RC istheweaklabel,Nare
+j i i=1 j=0 Thesegmentationmappingfunction(sharedencoder)converts
+thenumberofsamplesandCarethenumberofaudioevents.
+the time-frequency audio input into a T-F representation for
+Theprimarytaskinourself-supervisedframeworkisSED.The
+eachoftheaudioevents. Thetime-frequencyfeatureextracted
+segmentation mapping g (.) of SED also acts as a shared en-
+1
+foraudiohereislogMelspectrogramasithasshowntoprovide
+coderfortheauxiliarytask. Thesharedencodermapsthefea-
+tureset{xˆ }T toZ = {z }T wherez ∈ RC×F×T. The betterperformance[27,28,17].WechooseaCNNbasedarchi-
+secondparti oi f= S1 EDtaskisnei twi= o1 rkwhichci lassifies{z }T to tecturesimilarto‘VGG-like’[10]forbothsharedencoderand
+P = {p }C whereP ∈ RC. Thenetworklearnsami ai p= p1 ing auxiliarytaskdecoder.ThesharedencoderhasCNNbasednet-
+i i=1 workconsistsof8blocksof2DConvolution,BatchNormand
+g whichmapseachaudioeventstime-frequencysegmentation
+2
+tocorrespondingpresenceprobabilitiesofcth eventknownas ReLUwithanAveragePoolafterevery2blocks.Havingacom-
+monencoderhelpsthenetworktolearnasharedrepresentation
+p
+k
+g :Xˆ (cid:55)→Z g :Z (cid:55)→P (1) byexploitingthesimilarityacrossSEDandT-Freconstruction
+1 2 andenablesthenetworktogeneralisebetteronouroriginaltask.
+Theauxiliaryself-supervisedtaskchosenneedstohelpin Weuseahardparametersharingframeworktoreducetherisk
+learning robust representations which generalise to noisy set- ofoverfitting[29]tolimitedsamples.
+tingswithoutrequiringadditionallabels. Thiswillimpactnot The decoder of the auxiliary-task takes Z = {z }T as
+i i=1
+only the learned internal representation but also downstream input and reconstructs it to {x¯}T . The decoder consists
+i i=1
+sound event detection and localisation performance. Inorder of CNN based network for combining the intermediate time-
+to achieve that we choose auxiliary task as reconstruction of frequency representations obtained for each audio event to an
+extracted time-frequency features for audio. By having time- audio level time-frequency representation. The architecture
+frequencyreconstructionauxiliarytaskwehypothesisethenet- closely follows the common encoder structure in reverse or-
+workwilllearnrepresentationswhichretainaudioeventinfor- derconsistingof8blocksof2DConvolution,BatchNormand
+mation better [25, 26]. We use an auto-encoder structure for ReLUwithAveragePoolaftereverytwoblockswithadecreas-
+reconstruction where the encoder is shared with the primary ingnumberoffilters.
+Table1:WeaklysupervisedsoundeventdetectionperformanceacrossdifferentSNR
+Network SNR20dB SNR10dB SNR0dB
+encoder pooling aux. micro-p macro-p AUC micro-p macro-p AUC micro-P macro-p AUC
+VGGish GAP (cid:55) 0.5067 0.6127 0.9338 0.4291 0.5390 0.9144 0.3295 0.4093 0.8694
+VGGish GMP (cid:55) 0.5390 0.5186 0.8497 0.5263 0.5023 0.8422 0.4640 0.4441 0.8189
+VGGish GWRP (cid:55) 0.7018 0.7522 0.9362 0.6538 0.7129 0.9265 0.5285 0.6084 0.8985
+VGGish(dil.) AP (cid:55) 0.7391 0.7586 0.9279 0.6740 0.7404 0.9211 0.5714 0.6341 0.9014
+VGGish 2AP (cid:51) 0.7829 0.7645 0.9390 0.7603 0.7486 0.9343 0.6986 0.6892 0.9177
+3.3. Primarydecoder 4. Experiments
+The primary decoder is not CNN based, instead, it is a pool- 4.1. Dataset
+ingoperatortosatisfyMILformulation. Thechoiceofpooling
+To study the effect of noise in limited data settings, we form
+operatorhasasignificantperformanceeffectonboththeSED
+a noisy dataset by mixing DCASE 2019 Task 1 of Acoustic
+andeachaudioeventsintermediatetime-frequencyrepresenta-
+scene classification [30] and DCASE 2018 Task 2 of General
+tionobtained. Globalmaxpoolingandglobalaveragepooling
+purposeAudiotagging[31].TheDCASE2019Task1provides
+resultsinunderestimateandoverestimatetheaudioevent’stem-
+backgroundsounds(noise)recordedfromavarietyofrealworld
+poralpresencerespectively,andtoovercomethisproblemdy-
+scenesinwhichthesoundsfromDCASE2019Task2areran-
+namicpoolingswereproposed[10,12,14].However,thedevel-
+domlyembedded[10].Toensurethenoiseconditionsarenatu-
+opedpoolingmechanismsstilllacksthegranularityintemporal
+ral,diverseandchallenging,weusethenewDCASE2019Task
+predictionsanddoesnotprovidefrequencylocalisationwhich
+1 instead of DCASE 2018 as used in [10]. The 2019 variant
+mightbeusedtofurtherdisambiguatesoundevents. Also,the
+extends the TUT Urban Acoustic Scenes 2018 with the other
+standard attention pooling [14] is known to be unstable with
+6 cities to a total of 12 large European cities. This results in
+cross-entropyusuallyusedformulti-classsetupinpractice.
+32000 audio clips with 8000 audio clips for each 20,10,0 dB
+We propose a two-step attention pooling mechanism to
+coverteachaudioeventssegmentationmaps{z }T intoaudio SNRwhereeachaudioclipisof10secswithbackgroundnoise
+i i=1 andthreerandomaudioevents(outoftotal41)init.
+levelpredictionsP.Thefirststepinthetwostepattentionpool-
+ingtakesZ = {z }T asinput. Thisundergoestwoindepen-
+i i=1 4.2. Setup
+dentlearnedlineartransformationtoproduceclassificationand
+attentionoutputrespectively. Theattentionoutputissquashed Therawdataisconvertedtotime-frequencyrepresentationby
+toensureitsvalidprobabilitydistribution. Mathematically,the applying FFT with a window size of 2048 and an overlap of
+attentionoutputZ a1 andclassificationoutputZ c1 are: 1024betweenwindows. ThisisfollowedbyapplyingMelfil-
+ter banks with 64 bands and converting them to log scale to
+Z =
+eσ(ZWaT 1+ba1)
+Z =(ZWT +b ) (4) obtainlogMelspectrogram. Thenetworkarchitectureusedis
+a1 (cid:80)F i=1eσ(ZWaT 1+ba1) c1 c1 c1 describedinsection3.2. Theentirenetworkistrainedend-to-
+end with a batch size of 24 and learning of 1e-3 using Adam
+This is followed by a weighted combination of classification optimiser[32].Thecodeandsetupispubliclyreleased2.
+outputZ byattentionweightsZ :
+c1 a1
+5. Results
+F
+(cid:88)
+Z = Z ·Z (5)
+p1 c1 a1 5.1. Soundeventdetection
+i=0
+Weevaluateourself-supervisionassistedarchitectureandpool-
+Thetimelevelattentionissimilartofrequency(firststep)atten-
+ingmethodagainstdifferentbaselines,benchmarkarchitectures
+tionexceptitoperatesalongtimeaxis:
+and pooling methods [14, 10]. Table 1 shows weakly super-
+Z =
+eσ(Zp1WaT 2+ba2)
+Z =(ZWT +b ) (6)
+v oi fse 2d 0,s 1o 0u ,n ad ndev 0en dt Bd .e Tte hc etio imn pp oe rr tf ao nr tm ea vn ac le uaa tc ioro nss md ei tf rf ie cre hn et reSN unR
+-
+a2 (cid:80)T t=1eσ(Zp1WaT 2+ba2) p1 c2 c2 derconsiderationismicroprecision(micro-p),asitusesglobal
+countsoftruepositives, falsenegativesandfalsepositivesfor
+(cid:88)T metric computation against macro precision which does sim-
+Z = Z ·Z (7)
+p2 c2 a2 ple unweighted averaging disregarding class-imbalance. The
+t=0 VGGish(dil.) encoderhereindicatesVGGisharchitecturebut
+whereZ p2 ∈[0,1]anddenotesthepresenceprobabilityofeach withdilated/atrousconvolutionsknowntoprovidebenchmark
+soundeventintheaudioclip. Figure1subsectionc,provides performanceforsoundeventdetection,[14]. TheVGGishen-
+anoverviewofasingleattentionstep. Inrelationtofigure,Z a, coderwithreconstructionbasedauxiliarytaskandtwostepat-
+Z c,Z paretheoutputsafterattentionmatrix,classificationma- tention pooling outperforms the existing benchmark of atrous
+trixandP(.)respectivelyinthefirststageandsecondstagede- attentionpooling[14]onSNR20,10and0dBby5.9%,12.8%
+pendingonsubscript. Bybreakingtheattentionintotwosteps, and22.3%respectively.Apartfromimprovingperformance,by
+itmakesthepoolingmoreinterpretablebyansweringtheques- breakingtheattentionintotwosteps,itallowsfortheinterme-
+tionsofwhatfrequencybinsandwhattimestepscontributesto diateuseofsigmoidwhichhelpsinensuringtheoutputsdon’t
+whichaudioeventsbyvisualisingnormalisedattentionweights overflowabove1duringtraining.
+Z ,Z andoutputZ ,Z . Also,thesigmoid(σ)ensures
+a1 a2 p1 p2
+the attention output stays between 0 to 1 and avoids unstable 2https://github.com/soham97/MTL_Weakly_
+trainingformultilabeltrainingwithcross-entropyinpractice. labelled_audio_data
+Table2:Ablationstudytodetermineauxiliarytaskcontribution
+auxiliarytask SNR20dB SNR10dB SNR0dB
+α=0.0 0.7772 0.7430 0.6937
+α=0.001 0.7829 0.7603 0.6986
+α=0.1 0.7637 0.7428 0.6792
+5.2. Ablationstudyforauxiliarytaskcontribution
+Weperformanablationstudytodeterminethecontributionof
+reconstructionauxiliarytaskandtwostepattentionpoolingto-
+wardsthetotalperformanceimprovement.AsdescribedinSec-
+tion3.1,thetotallossis:
+L=L (P,y|w,w )+αL ({x¯}T ,{xˆ}T |w,w ) (8)
+1 4 2 i i=1 i i=1 2
+Bychangingthevalueofαbeforetraining, wecanadjustthe
+contributionoftheauxiliarytasktoprimarysoundeventdetec-
+tion. Whenα=0.0,thenetworkhasnocontributionfromthe
+reconstructionauxiliarytaskduringtraininganditcanbeused Figure2:Visualisationoftwostepattentionpoolingandrecon-
+to evaluate the performance of two step attention pooling. In structiondecoderoutputs.Subplot1depictsthescaledlogMel
+termsofmicro-precision,thetwostepattentionpoolingoutper- spectrogram of an audio clip. Subplot 2 is the output of the
+forms existing benchmark of atrous AP (row 4) from table 1 reconstructionauxiliarytask. Subplots3,4and5areattention
+on SNR 20, 10 and 0 dB by 5.2%, 10.2% and 21.4% respec- weightsforthethreemostprobableaudioeventsintheaudio
+tively. Byaddingtheauxiliarytaskcontributionwitharelative clip. Subplot6istheoutputofthefirststepattentionpooling.
+weightageofα = 0.001,anadditionalimprovementof0.7%, Subplot 7 and 8 is the attention weight and output of second
+2.3%and0.7%isobserved. Thisindicatesthattwostepatten- step attention pooling respectively. The y-axis in subplot 1-4
+tionhasaprominentcontributioninimprovingtheperformance correspondstoMel-binsandsoundeventsinsubplot5-6. The
+ofsoundeventdetectioninlimiteddataandnoisysettings,with x-axisinsubplot1-7correspondstotimeandsoundeventsin
+additionalperformancegainsfromtheauxiliarytask. Whenα subplot8
+isincreasedto0.01,theperformancecomparedtoα=0.001is
+decreased. Thissuggeststhattheauxiliarytask’slosscontribu-
+tionstartstooverpowertheprimarySEDtask’slosscontribu- intheaudioclipalongwithboththetimeandfrequencyaxis.
+tionratherthanimprovinggeneralisation. Toillustratethis,wepickarandomexamplewithSNR20dB
+andshowtheendtoendvisualisationofthetwostepattention
+Table3:Twotopandworstperformingsoundevents-SNR0dB
+poolingmechanisminfigure2. Theaudiounderconsideration
+hasthreeeventsoccurringinit: telephoneringing,celloplay-
+model aux. bus cowbell gong meow
+ingandcatmeowing,withoutdoorenvironmentalbackground
+Atrous+AP (cid:55) 0.2 0.781 0.692 0.583
+noise.Subplot2infigure2depictsthereconstructedMelspec-
+VGGish+2AP (cid:55) 0.572 0.921 0.643 0.483
+VGGish+2AP (cid:51) 0.627 0.94 0.663 0.532 trogramoftheaudioclip.Fromthesubplot,wecanseethatthe
+decoderisnotonlyabletoreconstructtheaudioeventsclearly
+but it is also denoising the log Mel spectrogram retaining the
+keyelementsofthreeaudioevents. Afutureextensionofwork
+5.3. SEDperformanceonspecificaudioevents
+istojointlytrainsoundsourceseparationalongwithweaklysu-
+For almost all audio events, our proposed architectures have pervisedSEDbyusingtheauxiliarytaskreconstructionoutput.
+the best precision scores against GMP, GAP, GWRP, Atrous
+acrossallSNR=0, 10, 20. Particularly, foraudioeventslike 6. Conclusions
+‘Bass drum’, ‘bus’, ‘double bass’, ‘cowbell’ the architecture
+outperformsothermodelsbyalargemarginasshownintable This paper proposes assisted self-supervised task for improv-
+3. However,theproposedmodelstrugglesinaudioeventslike ing sound event detection in limited data and noisy settings.
+‘gong’,‘chime’and‘meow’wheretheattentionpoolingwithdi- The architecture consists of sound event detection as a pri-
+latedconvolutionencoderperformsbetter[14]. Thisindicates marytaskwithtwo-stepattentionpoolingasaprimarydecoder
+using atrous or dilated convolutions helps in detecting audio and time-frequency representation reconstruction as an auxil-
+events whose energy is spread wide in the temporal domain. iary task. We empirically evaluate the proposed framework
+This can be incorporated into our current architecture by re- formulti-label weaklysupervised soundeventdetection, ona
+placing the linear convolutions in the shared encoder with di- remix DCASE 2019 and 2018 dataset under 0, 10 and 20 dB
+lated convolutions. Further analysis and event-specific results SNR. The proposed self-supervised auxiliary task framework
+areavailableinthelongversionofpaper3 andskippeddueto withtwo-stepattentionoutperformsexistingbenchmarkmod-
+spaceconstraints. elsby22.3%,12.8%,5.9%on0,10and20dBSNRrespec-
+tively. Theablationstudycarriedoutindicatesthemajorityof
+5.4. Interpretablevisualisationofaudioevents performanceimprovementisassociatedwithtwostepattention
+pooling with secondary performance improvement from self-
+Apart from improved performance, using two step attention
+supervised auxiliary task. Furthermore, by using two step at-
+pooling provides a way to localise each audio event present
+tention,wecaneasilyvisualisethesoundeventpresencealong
+3https://arxiv.org/pdf/2008.07085.pdf bothtime-frequencyaxis.Thecodeispubliclyreleased.
+7. References
+[16] K.He,X.Zhang,S.Ren,andJ.Sun,“Deepresiduallearningfor
+imagerecognition,”2016IEEEConferenceonComputerVision
+[1] D.Stowell,D.Giannoulis,E.Benetos,M.Lagrange,andM.D.
+andPatternRecognition(CVPR),pp.770–778,2016.
+Plumbley, “Detection and classification of acoustic scenes and
+events,” IEEETransactionsonMultimedia, vol.17, no.10, pp. [17] S. Hershey, S. Chaudhuri, D. P. W. Ellis, J. F. Gemmeke,
+1733–1746,2015. A. Jansen, C. Moore, M. Plakal, D. Platt, R. A. Saurous,
+B. Seybold, M. Slaney, R. Weiss, and K. Wilson, “Cnn
+[2] E. C¸akır, G. Parascandolo, T. Heittola, H. Huttunen, and architecturesforlarge-scaleaudioclassification,”inInternational
+T.Virtanen, “Convolutionalrecurrentneuralnetworksforpoly- Conference on Acoustics, Speech and Signal Processing
+phonicsoundeventdetection,” IEEE/ACMTransactionsonAu- (ICASSP),2017.[Online].Available: https://arxiv.org/abs/1609.
+dio,Speech,andLanguageProcessing,vol.25,no.6,pp.1291– 09430
+1303,2017.
+[18] W.Xue, Y.Tong, C.Zhang, G.-H.Ding, X.He, andB.Zhou,
+[3] A.Mesaros,T.Heittola,andT.Virtanen,“Tutdatabaseforacous- “Sound event localization and detection based on multiple doa
+ticsceneclassificationandsoundeventdetection,”in201624th beamformingandmulti-tasklearning,”inINTERSPEECH,2020.
+EuropeanSignalProcessingConference(EUSIPCO),2016, pp.
+[19] K.Imoto,N.Tonami,Y.Koizumi,M.Yasuda,R.Yamanishi,and
+1128–1132.
+Y. Yamashita, “Sound event detection by multitask learning of
+[4] J. F. Gemmeke, D. P. W. Ellis, D. Freedman, A. Jansen, sound events and scenes with soft scene labels,” ICASSP 2020
+W.Lawrence,R.C.Moore,M.Plakal,andM.Ritter,“Audioset: -2020IEEEInternationalConferenceonAcoustics,Speechand
+Anontologyandhuman-labeleddatasetforaudioevents,”in2017 SignalProcessing(ICASSP),pp.621–625,2020.
+IEEEInternationalConferenceonAcoustics,SpeechandSignal
+[20] T.Lee, T.Gong, S.Padhy, A.Rouditchenko, andA.Ndirango,
+Processing(ICASSP),2017,pp.776–780.
+“Label-efficient audio classification through multitask learning
+[5] T.G.Dietterich, R.H.Lathrop, andT.Lozano-Pe´rez, “Solving andself-supervision,”ArXiv,vol.abs/1910.12587,2019.
+themultipleinstanceproblemwithaxis-parallelrectangles,”Artif.
+[21] Y.ZhangandQ.Yang,“Asurveyonmulti-tasklearning,”2018,
+Intell.,vol.89,no.1–2,p.31–71,Jan.1997.[Online].Available:
+preprintarXiv,https://arxiv.org/abs/1707.08114.
+https://doi.org/10.1016/S0004-3702(96)00034-3
+[22] N. Tonami, K. Imoto, M. Niitsuma, R. Yamanishi, and Y. Ya-
+[6] A. Kumar and B. Raj, “Audio event detection using weakly
+mashita, “Jointanalysisofacousticeventsandscenesbasedon
+labeled data,” in Proceedings of the 24th ACM International
+multitasklearning,”2019IEEEWorkshoponApplicationsofSig-
+ConferenceonMultimedia,ser.MM’16. NewYork,NY,USA:
+nalProcessingtoAudioandAcoustics(WASPAA),pp.338–342,
+Association for Computing Machinery, 2016, p. 1038–1047.
+2019.
+[Online].Available:https://doi.org/10.1145/2964284.2964310
+[23] H. L. Bear, I. Nolasco, and E. Benetos, “Towards joint sound
+[7] S.-Y. Tseng, J. Li, Y. Wang, F. Metze, J. Szurley, and scene and polyphonic sound event recognition,” in INTER-
+S.Das, “Multipleinstancedeeplearningforweaklysupervised SPEECH,2019.
+small-footprintaudioeventdetection,”inProc.Interspeech2018,
+2018, pp. 3279–3283. [Online]. Available: http://dx.doi.org/10. [24] V. Panayotov, G. Chen, D. Povey, and S. Khudanpur, “Lib-
+21437/Interspeech.2018-1120 rispeech: Anasrcorpusbasedonpublicdomainaudiobooks,”
+in2015IEEEInternationalConferenceonAcoustics,Speechand
+[8] A. Kumar and B. Raj, “Deep cnn framework for audio event SignalProcessing(ICASSP),2015,pp.5206–5210.
+recognitionusingweaklylabeledwebdata,”2017,arXivpreprint,
+https://arxiv.org/abs/1707.02530. [25] E.M.GraisandM.D.Plumbley,“Singlechannelaudiosource
+separationusingconvolutionaldenoisingautoencoders,”in2017
+[9] Y. Xu, Q. Kong, W. Wang, and M. D. Plumbley, “Large-scale IEEEGlobalConferenceonSignalandInformationProcessing
+weaklysupervisedaudioclassificationusinggatedconvolutional (GlobalSIP),2017,pp.1265–1269.
+neural network,” in 2018 IEEE International Conference on
+[26] D.StowellandR.E.Turner,“Denoisingwithoutaccesstoclean
+Acoustics, Speech and Signal Processing (ICASSP), 2018, pp.
+datausingapartitionedautoencoder,”2015,preprintarXiv,https:
+121–125.
+//arxiv.org/abs/1509.05982.
+[10] Q. Kong, Y. Xu, I. Sobieraj, W. Wang, and M. D. Plumbley,
+[27] K.J.Piczak,“Environmentalsoundclassificationwithconvolu-
+“Sound event detection and time–frequency segmentation from
+tionalneuralnetworks,”in2015IEEE25thInternationalWork-
+weakly labelled data,” IEEE/ACM Trans. Audio, Speech and
+shoponMachineLearningforSignalProcessing(MLSP),2015,
+Lang. Proc., vol. 27, no. 4, p. 777–787, Apr. 2019. [Online].
+pp.1–6.
+Available:https://doi.org/10.1109/TASLP.2019.2895254
+[28] J.SalamonandJ.P.Bello,“Deepconvolutionalneuralnetworks
+[11] S.-Y.Chou,J.-S.R.Jang,andY.-H.Yang,“Framecnn:Aweakly-
+and data augmentation for environmental sound classification,”
+supervisedlearningframeworkforframe-wiseacousticeventde-
+IEEESignalProcessingLetters,vol.24,no.3,pp.279–283,2017.
+tectionandclassification,”2017,technicalreport,DCASE.
+[29] J.Baxter,“Abayesian/informationtheoreticmodeloflearningto
+[12] B. McFee, J. Salamon, and J. P. Bello, “Adaptive pooling
+learnviamultipletasksampling,”inMachineLearning,1997,pp.
+operatorsforweaklylabeledsoundeventdetection,”IEEE/ACM
+7–39.
+Trans. Audio, Speech and Lang. Proc., vol. 26, no. 11, p.
+2180–2193, Nov. 2018. [Online]. Available: https://doi.org/10. [30] A.Mesaros,T.Heittola,andT.Virtanen,“Amulti-devicedataset
+1109/TASLP.2018.2858559 for urban acoustic scene classification,” in Proceedings of the
+DetectionandClassificationofAcousticScenesandEvents2018
+[13] T.Su,J.Liu,andY.Yang,“Weakly-supervisedaudioeventdetec- Workshop (DCASE2018), November 2018, pp. 9–13. [Online].
+tionusingevent-specificgaussianfiltersandfullyconvolutional Available:https://arxiv.org/abs/1807.09840
+networks,”in2017IEEEInternationalConferenceonAcoustics,
+SpeechandSignalProcessing(ICASSP),2017,pp.791–795. [31] E. Fonseca, M. Plakal, F. Font, D. P. W. Ellis, X. Favory,
+J. Pons, and X. Serra, “General-purpose tagging of freesound
+[14] Z.Ren, Q.Kong,J.Han, M.D.Plumbley,andB.W.Schuller, audio with audioset labels: Task description, dataset, and
+“Attention-based atrous convolutional neural networks: Visual- baseline,” in Proceedings of the Detection and Classification
+isation and understanding perspectives of acoustic scenes,” in of Acoustic Scenes and Events 2018 Workshop (DCASE2018),
+ICASSP2019-2019IEEEInternationalConferenceonAcous- November 2018, pp. 69–73. [Online]. Available: https:
+tics,SpeechandSignalProcessing(ICASSP),2019,pp.56–60. //arxiv.org/abs/1807.09902
+[15] K. Simonyan and A. Zisserman, “Very deep convolutional net- [32] D.P.KingmaandJ.Ba,“Adam: Amethodforstochasticopti-
+worksforlarge-scaleimagerecognition,” inInternationalCon- mization,”2017,preprintarXiv,https://arxiv.org/abs/1412.6980.
+ferenceonLearningRepresentations,2015.

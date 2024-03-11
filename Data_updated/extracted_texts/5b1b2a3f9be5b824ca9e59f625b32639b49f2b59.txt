@@ -1,0 +1,1127 @@
+1
+Online Video Instance Segmentation via Robust Context Fusion
+Xiang Li, Jinglu Wang, Xiaohao Xu, Bhiksha Raj, Fellow, IEEE Yan Lu, Senior Member, IEEE
+Video instance segmentation (VIS) aims at classifying, segmenting and tracking object instances in video sequences. Recent
+transformer-based neural networks have demonstrated their powerful capability of modeling spatio-temporal correlations for the
+VIS task. Relying on video- or clip-level input, they suffer from high latency and computational cost. We propose a robust context
+fusion network to tackle VIS in an online fashion, which predicts instance segmentation frame-by-frame with a few preceding
+frames. To acquire the precise and temporal-consistent prediction for each frame efficiently, the key idea is to fuse effective and
+compact context from reference frames into the target frame. Considering the different effects of reference and target frames on
+the target prediction, we first summarize contextual features through importance-aware compression. A transformer encoder is
+adopted to fuse the compressed context. Then, we leverage an order-preserving instance embedding to convey the identity-aware
+information and correspond the identities to predicted instance masks. We demonstrate that our robust fusion network achieves
+the best performance among existing online VIS methods and is even better than previously published clip-level methods on the
+Youtube-VIS 2019 and 2021 benchmarks.
+In addition, visual objects often have acoustic signatures that are naturally synchronized with them in audio-bearing video
+recordings. By leveraging the flexibility of our context fusion network on multi-modal data, we further investigate the influence of
+audios on the video-dense prediction task, which has never been discussed in existing works. We build up an Audio-Visual Instance
+Segmentation dataset, and demonstrate that acoustic signals in the wild scenarios could benefit the VIS task.
+Index Terms—video instance segmentation, multimodal learning
+I. INTRODUCTION acrossframes.Severalsubsequentmethods[29],[2],[18],[48]
+The recently introduced video instance segmentation (VIS) fuse inter-frame features in the encoding stage. In particular,
+problem receives increasing attention because of growing some methods [18], [29], [48] crop out ROI features to fuse
+interest among researchers in the multimedia community. VIS context within local regions, but cropped features are isolated
+aims at simultaneously classifying, segmenting and tracking from the global context. To involve the global context, some
+objects in video sequences. methods [18], [60], [26] generally concatenate reference and
+With strong capabilities for modeling long-range data target feature maps together; such “fusion” procedures do
+dependencies, some transformer-based methods [55], [23] not distinguish reference and target frames, and thus the
+achieve impressive results. However, they deal with the input specific importance of the target frame is ignored. Moreover,
+atthevideo-orclip-level,thusincurringhighlatency.Thecost as reference frames are usually similar to the target, spatio-
+ofmodelingfullspatio-temporalcorrelationsisprohibitivefor temporal correlations among them could be highly redundant.
+practical applications. In this work, we focus on online VIS Some reference features unrelated to the target could even
+for streaming applications. The problem setting is as follows: mislead the target prediction.
+given a small set of preceding reference frames, the goal is Besides the contextual information contained in reference
+to segment, classify and track object instances in each target video frames, information in other modalities, such as audio,
+frame. can also serve as reference context to guide the VIS task.
+In addition to the challenges of segmentation and classifi- Visualobjectsoftenhaveacousticsignaturesthatarenaturally
+cation in the image domain, online VIS should also address synchronized with them in audio-bearing video recordings.
+the problem of finding correspondences and fusing contexts While audio-visual synchrony has been exploited in many
+in adjacent frames. Yang et al. [66] approach this problem contexts, most audio-visual representation learning methods
+by performing frame-based predictions independently and handle signals in constrained environments, with clearly-
+fusing the evidence across frames in a post-processing stage evident audio-visual correspondences, such as music perfor-
+using sophisticated matching algorithms. Matching as post- mance or lip reading. We deal with videos with audios in the
+processing has a high cost, and the final result may suffer wildwherethecorrelationbetweenaudioandvisualsignalsis
+fromflickeringbecauseofneglectingfeature-levelcorrelations difficult to establish. Previous methods [70], [53], [50], [45]
+have already demonstrated the correlation between audio and
+Part of this work was done when Xiang Li was an intern at Microsoft video modalities through sound localization and audio-visual
+Research Asia. Xiang Li is currently with Department of Electrical and
+separation, but there is no investigation on dense prediction
+Computer Engineering, Carnegie Mellon University, Pittsburgh, PA 15213
+USA.(email:xl6@andrew.cmu.edu) done jointly with audio and visual modalities, potentially
+JingluWangandYanLuarewithMicrosoftResearchAsia,Beijing,China. offering lost opportunities.
+(email:jinglwa@microsoft;yanlu@microsoft.com)
+In this paper, we propose a robust context fusion method
+ThisworkwasdonewhenXiaohaoXuwasaninternatMicrosoftResearch
+Asia. Xiaohao Xu is currently with Department of Mechanical Engineering, for online VIS. To preserve the location information of in-
+Huazhong University of Science and Technology, Wuhan, China. (email: stances, we build our model on the crop-free transformer-
+xxh11102019@outlook.com)
+basednetwork.AsshowninFigure1,weemployanattention-
+BhikshaRajiscurrentlywithSchoolofComputerScience,CarnegieMellon
+University,Pittsburgh,PA15213USA.(email:bhiksha@cs.cmu.edu) based context fusion module for multi-modal contextual in-
+2202
+luJ
+21
+]VC.sc[
+1v08550.7022:viXra
+2
+1) We analyze the mathematical intuition behind the order-
+ContextFusion
+Seg.map preservingpropertyofinstancecode andconductmoreexper-
+Reference frames ℬ iments to understand its behavior. 2) We simplify the instance
+ℬ
+Att. from… ref. frames code generation to improve the network generalization, and at
+thesametimethecomputationalcostisreduced.3)Weextend
+the framework to accept audio-visual inputs, and present an
+Target frame 𝐼! ℬ! (Order-preserI vn is nt ga )nce mask 𝑀!
+effective method to fuse the multimodal context information
+Att. from audio
+Attention maps
+Instance emb. 𝑒! leveraging the compatibility of the network. 4) We provide
+Audio extensive quantitative and qualitative experimental results to
+(a) Timestamp 𝑡
+show the performance of our framework in different settings
+and examine the effectiveness of the key modules in ablation
+Reference data Instance emb. 𝑒!"#
+studies.
+ContextFusion
+Seg.map
+II. RELATEDWORK
+Target frame 𝐼!"# (b) Timestamp 𝑡+1 Instance mask 𝑀!"#
+Video instance segmentation. Video instance segmentation
+Fig. 1. We propose a robust context fusion (RCF) network for the online [66], [7], [38], [54], [54], [68], [31] requires classifying and
+VIS task. Considering the redundancy and noise in the reference visual or segmenting each instance in a frame and assigning the same
+audiocontext,theRCFmoduleextractscompactandrepresentativecontexts
+instance with the same identity across frames. There are
+from features (extracted by backbones B and B(cid:48)), and then fuses them into
+the target feature with expressive attentions. The fused context is decoded mainlytwotypesofmethodsforVIStasks:onlineandoffline.
+intoaninstancecodeandsegmentationmaps.Wedirectlycomposethefinal Online VIS: Given a small set of preceding reference
+instancemasksbyleveragingtheorder-preservinginstancecodeandtracking
+frames, online VIS aims to segment, classify and track object
+instanceidentitieswithoutadditionalmatching.
+instances in each target frame. Mask-Track-RCNN [66] is
+the first attempt to address the VIS problem in an online
+setting. It extends the Mask-RCNN [20] with a tracking head
+formation interaction, in which we compress the reference
+to associate instance identities. SipMask [7] and SG-Net [38]
+features to mitigate redundancy, improve robustness, and also
+build the tracking head on top of the modified one-stage still-
+introduce audio cues. An order-preserving instance code is
+imageinstancesegmentationmethodFCOS[54]andBlender-
+further learned by the transformer decoder with a fixed-length
+Mask[9],andachievebetterspeedandperformancecompared
+instance query. Also, by leveraging the Lipschitz continuity
+to MaskTrack-RCNN. CrossVIS [68] introduces the cross-
+of the network, we employ a matching-free instance identity
+over learning scheme and global instance embedding to learn
+tracking approach. The instance identity (shown as red and
+better features for robust instance tracking and segmentation.
+green colors in Figure 1) can be directly corresponded to
+HITF proposes inter-frame attention and intra-frame attention
+the index of the instance code, thus greatly reducing the
+layerswhichbridgesinstanceinformationacrossframesbyan
+matching cost in the inference stage. From experimental and
+instance code.
+mathematical perspectives, we demonstrate that the order-
+Offline VIS: The offline methods handle the sequence-to-
+preserving property of instance codes is tight under natural
+sequence prediction, where all frames are considered to be
+scenes even without any supervision. This can shed light
+equivalent. Given a clip of video, offline VIS is to segment,
+on new directions of instance tracking. Our context fusion
+classifyandtrackobjectinstancesinallclip-levelframesatthe
+module is flexible to fuse multi-modal signals. We construct
+same time. VISTR [60] utilizes a transformer encoder on top
+an unconstrained audio-visual dataset for the VIS task, and
+of the convolutional backbone and matches instance identities
+demonstrate that audio is helpful for the VIS task but the
+by transformer decoder. IFC introduces a frame memory
+improvement is not significant due to the weak correlation
+to reduce the computational cost for temporal aggregation,
+between audio and visual signals in the wild scenarios. Our
+which decouples the segmentation in each frame and only
+contributions are three-fold.
+communicates via frame memory.
+• A robust context fusion module for modeling compact Videoobjectsegmentation.Videoobjectsegmentation(VOS)
+andeffectivespatio-temporalcorrelationsforonlineVIS.
+aimstosegmentobjectmasksacrossframesinaclass-agnostic
+Our method achieves the state-of-the-art performance
+manner. Typically, additional cues are given to specify the
+among online VIS methods on Youtube-VIS 2019 and
+target object. Semi-supervised VOS [67], [24], [61], [6], [46]
+2021 benchmarks.
+gives the first frame object mask to specify the target object.
+• A matching-free and supervision-free instance identity RANet [61] proposes a ranking attention module to filter our
+tracking method, and its corresponding mathematical
+irrelevant features based on the pixel-level similarity obtained
+explanation.
+from an encoder-decoder network. Space-Time-Memory net-
+• We are the first to investigate audio effects on the video works (STM) [46] introduces a new paradigm that builds
+dense prediction task and contribute a corresponding
+a memory bank for each object in the video and segments
+dataset with synchronized audio-visual signals.
+following objects by matching them to the memory bank.
+A preliminary version of our method has been published in More recently, referring video object segmentation (R-VOS)
+[30].Inthismanuscript,wemakethefollowingimprovements. emerges and attracts more and more attention because of its
+3
+Optional audio branch
+Legend:
+R Reshape
+Audio
+backbone ⊕ Concatenate
+Audio 𝐴" "! #!$% Audio feature𝑓!+,- ⊗Dot Product
+Fused token
+Instance code
+Backbone 𝒪′=𝒪’ !(!⨁ 𝒪′")*
+generation
+PandaEmptyPanda⋯
+Reference feature
+⨁𝒪′+,- (O Inr sd tae nr- cp er ce ose dr ev 𝑒in !g) Instance classes𝐶!
+Reference frames 𝐼" "!$ #& !$% 𝑓 !")* Context fusion
+𝒪′!(!
+R
+Mask
+Backbone
+decoder
+Target feature𝑓 ! Fused feature𝑓!’
+Target frame𝐼! Instance masks𝑀!
+Segmentation map𝑆!
+Fig.2. Overview of the proposed network at timestamp t.ForeachtargetframeIt,weconsiderreferenceframes{Ir}t r− =1
+t−δ
+ascontextforpredicting
+theinstancemasksMt andclassesCt.Bothtargetfeatureft andreferencefeaturef tref areextractedbyasharedbackboneandfusedinthecontextfusion
+module.ThemaskdecoderdecodesthefusedtargettokenO t(cid:48)
+gt
+intothesegmentationmapSt.ThetransformerdecoderdecodesthefusedtokenO(cid:48) intoan
+order-preserving instance embedding et in which each slot corresponds to a specific instance in It. The final predictions, instance classes Ct and instance
+masksMt,areobtainedfromtheinstanceembeddinget andsegmentationmapSt withasimpledotproductoperation.Fortheinstanceidentitymatching,
+we constrain the slot indices (indicated in red and green) of instance embedding et to represent the instance identity. The optional audio signal serves as
+anothercontextandcanbefusedinthesamewayasreferenceframes.
+strongabilitytofacilitatehuman-computerinteraction.R-VOS (RPN) equipped with RoIAlign feature pooling strategy and
+[62], [5], [34], [51], [15], [32] aims to segment object masks a feature pyramid networks (FPN) [36] to obtain fixed-sized
+throughout the entire video by giving a linguistic expression. featuresofeachproposal.Thepooledfeaturesarefurtherused
+URVOSfirstsegmentsobjectmasksbyvisualcuesthenselect forboundingboxpredictionandmasksegmentation.Followed
+the referred one by referring expression. MTTR follows this by Mask R-CNN, several methods are proposed to improve
+paradigmwhileenablethemultimodalfusionbyatransformer pooling and confidence scoring strategy [33], [39], [22].
+encodertoenhancethesemanticconsensusbetweenlinguistic
+and visual modalities. ReferFormer directly segments the
+referred object by employing a language-conditioned instance
+query in the transformer decoder which avoids segmenting
+irrelevant objects. Audio-visual representative learning. Audio-visual repre-
+Image Instance Segmentation Most of image instance seg- sentative learning aims to correspond the sound to their
+mentation methods adopt either bottom-up [12], [64], [58], sources in the video frames. Sound localization [70], [53],
+[59], [57], [69], [10], [56] or top-down [20], [8], [39], [22] [50], [65], [44], [14] is one of the more extensively explored
+paradigm.Forbottom-upmethods,severalrepresentationscan tasks in this domain, which locates the sound sources of the
+be adopted to represent instance identities, such as object audio recording in the image. Sound-of-pixel [70] conducts
+centers [12], object-specific coefficients [8]. PolorMask [64] sound source localization and separation simultaneously on
+directlymodelsinstancecontourbyusing36uniformly-spaced an instrument dataset, by estimating time-frequency masks
+rays in polar coordinates, which can be assumed as a general- on the audio spectrogram from the video, and recovering the
+izationofboxrepresentationthatmodelseachinstancecontour separatedsoundsthroughaninverseShortTimeFourierTrans-
+by 4 rays in polar coordinates. SOLO [58], [59] discriminates form (STFT). A2V [53] leverages the attention mechanism to
+each instance by its location and size. Panoptic-Deeplab [12] link the audio and video in unconstrained videos. Similarly,
+models semantic segmentation, object center heatmap and Senocaketal.[50]furtherexpandtheaudio-visuallocalization
+center offset separately and then assembles those components task into semi-supervised scenarios and managed to improve
+to instance masks. SipMask [8] follows the previous one- thelocalizationperformancebyintroducingunsupervisedloss.
+stagemethodFCOS[54]torepresenteachinstancebyobject- Audio-visualsoundsource(speaker)separation[1],[16],[42],
+specific coefficients and corresponding mask prototypes. To [45], [19], [70] aims to isolate the target sound in a noisy
+achieve more accurate segmentation result, SipMask divides scene. Recent methods leverage visual cues to guide the
+the input image to four parts and predicts masks in each part separation. Gabbay et al. [19] first feed the video frames into
+separately. For top-down methods, instance identity is mainly a video-to-speech model to predict the speaker’s voice from
+represented by the bounding-box of detected object. Mask facial movements, then use it to separate the target speaker
+R-CNN [20] employs a region proposal generation network from sound mixtures.
+…
+4
+(To mask decoder) (To transformer decoder) The online audio-visual instance segmentation framework is
+𝒪′𝑡𝑔𝑡 𝒪′=𝒪′ 𝑡𝑔𝑡⨁𝒪′𝑟𝑒𝑓⨁𝒪′𝑎𝑢𝑑 detailed in Section III-C.
+⋯ ⋯ B. Online Video Instance Segmentation
+Since our method performs online inference, we process
+Transformer Encoder one target frame I at each iteration with additional reference
+t
+frames {I }t−1 . The target features f are extracted by
+r r=t−δ t
+a shared backbone, while reference features {f }t−1 are
+⋯ ⋯ r t−δ
+obtained from previous iterations. Note that feature extraction
+Tgt. token𝒪𝑡𝑔𝑡 Ref. token𝒪𝑟𝑒𝑓 Audio token𝒪𝑎𝑢𝑑
+for each frame is performed only once in the online inference
+𝒫 Positional encoding 𝒫 𝒫
+stage,thussavingprocessingtime.Theextractedvideofeature
+ofbothtargetframeandreferenceframesaresenttotherobust
+𝜑𝛿∙𝐶↦𝐶′ context fusion module for further interaction.
+𝜙𝐻×𝑊↦𝐾×𝐾
+𝜑 𝐶𝑎↦𝐶′ 1) Robust Context Fusion (RCF)
+𝜑 𝐶↦𝐶′ 𝑊 We fuse the context information using compact and rep-
+bi-LSTM
+resentative visual tokens for target and reference frames by
+taking their importance into consideration. The structure of
+RCF is illustrated in Figure 3.
+Target frame feature Reference frame feature Audio feature(optional) Target token. Since the target frame contains the most im-
+𝑓𝑡 𝑓 𝑡𝑟𝑒𝑓=𝑓𝑡−1⨁…⨁𝑓𝑡−𝛿 𝑓𝑡𝑎𝑢𝑑=𝑎𝑡⨁…⨁𝑎𝑡−𝛿 portant information about spatial and semantic cues, we only
+compress the feature map along the channel dimension and
+Fig. 3. Robust context fusion module. The target frame feature ft is
+preserve the spatial dimension.
+projectedtoalowerdimension,andthenflattenedandaddedwithpositional
+encodingtobetokensOtgt.Consideringtheimportancetothetargetpredic-
+O =P(ϕ (f )), (1)
+tion, features from reference frames fref are first reweighted by a learned tgt C(cid:55)→C(cid:48) t
+t
+mask W, and then compressed to lower spatial and channel dimensions as
+whereϕ isa1×1convlayertoprojectthefeaturemap
+O Or ae uf d. aT fth ee rbo ip -Lti So Tna Ml .a Wud eio cof ne ca atu ter nes atear te hep sr oo uje rc ct eed tokto ena salo nw de fr eed dim the en msio ton tha es f
+t
+∈ RC×C H(cid:55)→ ×C W(cid:48) to a lower dimension RC(cid:48)×H×W, P denotes
+transformerencodertomodeltheircorrelations. operations to flatten the feature and add it with positional
+encoding.
+Referencetoken.Referencetokensareusedtoenhancetarget
+III. METHOD
+tokens according to their correlations with the target, while
+theirownrepresentationislessimportant.Weemploycompact
+A. Overview
+andrepresentativereferencetokenstoalleviatematchingnoise
+Pipeline overview. We first introduce our transformer-based andenhancetheimportanceofthetarget.Featurecompression
+networktargetingonlinevideoinstancesegmentation,andthen in both spatial and channel dimensions is applied.
+extend it by adding optional synchronized audio signals. The O =P(ϕ (φ (W ·fref))), (2)
+pipeline is illustrated in Figure 2. For each iteration t with ref δ·C(cid:55)→C(cid:48) H×W(cid:55)→K×K t
+a target frame I t and reference frames {I r}t r− =1 t−δ, we first where f tref = f t−1⊕,...,⊕f t−δ is a concatenated feature of
+extract the target feature f t and reference features {f r}t r− =1 t−δ allreferencefeatures,φ H×W(cid:55)→K×K isapoolingordepth-wise
+withasharedbackbone.Consideringtheredundancyandnoise conv layer to compress the spatial dimension from H×W to
+in the pixel-wise correlations from reference to target frames, K×K,ϕ δ·C(cid:55)→C(cid:48) isa1×1convlayertocompressthechannel
+we compress the target and reference context as tokens O
+tgt
+dimension from δ·C to C(cid:48), W =ϕ δ·C(cid:55)→1(f ref) is a learned
+and O respectively. Then, a transformer encoder in the pixel-wiseweightmap(visualizedinFigure4(b)).Wegetthe
+ref
+robust context fusion (RCF) module fuses the original tokens final reference tokens as O ref ∈RC(cid:48)×K·K.
+as O(cid:48) =O t(cid:48) gt⊕O r(cid:48) ef, where O t(cid:48) gt and O r(cid:48) ef are fused tokens Token fusion. The target tokens O tgt and reference tokens
+correspond to target and reference contexts. Afterwards, O t(cid:48) gt O ref are concatenated and fused with a transformer encoder,
+isdecodedintothetargetsegmentationmapS andtheoverall and then we get the fused tokens O(cid:48) = O(cid:48) ⊕ O(cid:48) ∈
+t tgt ref
+O(cid:48)isdecodedintoaninstancecodee ,whichrepresentsorder- RC(cid:48)×(H·W+K·K). The fused target tokens O(cid:48) ∈ RC(cid:48)×H·W
+t tgt
+preserving instance identities. We directly compose the final are further reshaped and fed into a mask decoder to generate
+instance segmentation map M by dynamic convolution be- the segmentation map S . In addition, the whole fused tokens
+t t
+tweenS ande withoutanysophisticatedmatchingalgorithm. O(cid:48) are fed into a transformer decoder to extract instance-
+t t
+We elaborate our online VIS framework in Section III-B. specific information, which is discussed in Section III-B2.
+Our pipeline is flexible to aggregate multi-modal contexts. RCF analysis. We further analyze our design of RCF from
+Audio is verified to be helpful for object recognition and theoreticalandexperimentalperspectives.Followingthetrans-
+localization, and we investigate the audio-visual correspon- formerstructure[3],weadoptstandardthescaleddot-product
+denceandleverageittoimprovethedenseprediction(instance attention, i.e., Attention(Q,K,V) = softmax(Q √KT )V, in
+dk
+segmentation in this work). We align and fuse audio features thetransformerencoderofRCF.Asoftmaxfunctionisapplied
+faud in the RCF the same way as reference video frames. to obtain the weights on the values. Given a much smaller
+t
+5
+Reference Target learnable instance query is used to decode instance-specific
+information from the fused tokens O(cid:48) using a transformer
+decoder,whereinstancequeryisasetoflearnableembedding
+as previous methods [60], [23], [63]. We term the decoded
+(a) Input frames (b) Pixel weight 𝑊
+instance-specificfeaturesasinstancecodee
+t
+∈RCe×N,where
+Target-to-target Reference-to-target C eandN arethechanneldimensionandlengthoftheinstance
+code respectively. For decoding the segmentation mask, we
+follow the FPN structure [36] to fuse the low-level features.
+Let the upsampled segmentation map be S
+t
+∈ RCo×Ho×Wo
+where C , H and W are the dimension, height and width
+o o o
+of the upsampled segmentation map. After that, we leverage
+dynamic convolution [25] to obtain instance masks M from
+t
+instance code. In particular, dynamic filters θ
+t
+∈ RCo×N are
+learned from instance code by two fully connected layers.
+(c) Attention map (d) Predicted mask
+The mask prediction M
+t
+∈ RN×Ho×Wo can be computed as
+Fig.4. VisualizationofintermediatecomponentsinRCF.Giventhehard M t =θ tTS t.
+cases(a)withconfusingbackground,ourdesignwithtokencompressioncan 3) Loss Function
+generatemorerepresentativeattentionmaps(c)andgetbetterresult(d).
+We assign each prediction with a ground-truth label then
+applyasetoflossfunctionsbetweenthem.Givenasetofpre-
+token set (with size |C(cid:48) ×K ×K|) of references, the target dictions {pˆ i(c),mˆ i}N
+i=0
+and a set of ground-truth {c i,m i}N
+i=0
+tokens(|C(cid:48)×H×W|)dominatetheattentioninthetransformer (padded with ∅), we search for an assignment σ ∈ S
+N
+encoder. We thus get larger weights for target values of the with highest similarity, where p i(c) is the probability of class
+compressed tokens than the uncompressed counterpart. The c (including ∅) and m i is the mask of the i-th instance
+target-to-target attention map in Figure 4 (c) shows that target respectively. S N is a set of permutations of N elements. The
+tokens in the transformer play more important roles than that similarity can be computed as
+withoutcompression.Besides,thecompressedtokensfilterout Sim=1 (cid:2) Dice(m ,mˆ )+pˆ (c )(cid:3) , (3)
+irrelevant or noisy pixels and contain global information of {ci(cid:54)=∅} σ(i) i σ(i) i
+references frames, thus are more discriminative and generate where 1 is an indicator function and Dice indicates the Dice
+morerepresentativeattention.Thereference-to-targetattention
+loss [43]. The best assignment σˆ is solved by the Hungarian
+is visualized in Figure 4 (c), where the compressed version
+algorithm[28].Giventhebestassignmentσˆ,thelossbetween
+looks more informative. According to the above two factors,
+ground-truth and predictions can be computed as
+our robust token compression can generate a better segmenta-
+tion mask. (cid:88)N
+L= −logpˆ (c )+1 Dice(mˆ ,m ), (4)
+We underline that the goal of our online method is dif- σˆ(i) i {ci(cid:54)=∅} σˆ(i) i
+ferent from the offline methods [60], [23], and the network i=0
+designs should be different accordingly. The offline methods Following [13], we only consider the mask loss when the
+tackle sequence-to-sequence prediction. The importance of all class prediction is not the empty class.
+framesisequivalent,andcompressingreferencecontextisnot 4) Instance Identity Matching
+mercenary.Fortheonlinesetting,thetargetforeachprediction Unlikepreviousonlinemethods[68],[7],[66]croppingout
+is only the current frame, and importance-aware compression instances and using multiple cues (e.g., class, position and
+could benefit as discussed above. appearance) for matching instances across frames, we directly
+2) Decoder leverage the constraint that non-empty predictions from the
+same slot of the instance code have the same identity.
+(Order-preserving) Order-preservinginstancecode.Oursimpleinstanceidentity
+Instance code𝑒 matching approach takes advantage of the Lipchitz continuity
+!
+of our network (Appendix A) on the condition of bounded
+Transformer inputs. Given the Lipchitz continuity of our network Θ(·)
+decoder
+on the normalized image space I, the relation of input and
+prediction can be represented as
+Learnableinstance query
+0≤(cid:107)Θ(I )−Θ(I )(cid:107) ≤λ(cid:107)I −I (cid:107) , (5)
+𝒪′=𝒪! ⨁ 𝒪′ ⨁𝒪′ t t−1 p t t−1 p
+"#" $%& ’()
+where λ is the Lipchitz constant and (cid:107)·(cid:107) represents p-norm
+p
+Fig.5. Illustrationofinstancecodegeneration.Alearnableinstancequery with p ∈ [1,∞]. In most cases, the discrepancy of adjacent
+isutilizedtoquerytheoutputoftransformerencoderO(cid:48)toformtheinstance
+frames is small, leading the discrepancy of their outputs Θ(·)
+codeet.
+to be also small. Formally,
+We generate instance code using a transformer decoder
+lim (cid:107)Θ(I )−Θ(I )(cid:107) =0. (6)
+with a learnable instance query. As shown in Figure 5, the t t−1 p
+(cid:107)It−It−1(cid:107)p→0
+.pmoc
+o/w
+.pmoc
+htiw
+⋯
+⋯
+6
+Since the order of output Θ(I )={pˆ(c),mˆ }N is directly the sound source. Compared to video data, audio stores the
+t i i i=0
+linkedtotheorderoftheinstancecodee ,iftheorderofe and informationinamorecompactrepresentationwhile2Dspatial
+t t
+e are different, the discrepancy (cid:107)(Θ(I )−Θ(I )(cid:107) >∆ locations of sound sources in the video frames can still be
+t−1 t t−1 p
+could be large and does not satisfy Equation 6. Therefore, conveyed by audio cues [70], [53], [50], [45], [47].
+the order of instance code e t would preserve given (cid:107)I t − VIS task requires semantic and spatial information of the
+I t−1(cid:107) p → 0. We utilize the preserved instance code order to objects which de facto corresponds to the information con-
+trackinstanceidentitiesacrossframes.Differentfromprevious veyed in the audio modality. We investigate the benefit of
+offline methods [60], [23], [63], [30] that leverage losses to introducing audio data into VIS task in the following.
+supervisetheorder-preserving,weclaimthatorder-preserving
+1) Audio-Visual Instance Segmentation Dataset
+is a property of our deep model and can work well in the
+To investigate the influence of the audio data on the video-
+online setting (with only adjacent frames) even without any
+level fine-grained prediction tasks, we collect a novel dataset,
+supervision.
+AVIS,containingsynchronizedaudioandvideoclips.Thedata
+When (cid:107)I − I (cid:107) → 0 holds, the order will preserve.
+t t−1 p is collected from publicly available videos with 20 vocal cat-
+While the this property of instance code is not constrained as
+egories overlapped with Youtube-VIS dataset. AVIS contains
+tightas(cid:107)I −I (cid:107) →0butrelatedtothelocalsmoothnessof
+t t−1 p 1427 videos with synchronized raw audio recordings, which
+the network Θ. In other words, with a good local smoothness
+are further randomly split by 75% and 25% for training and
+at a local region of Θ, even if (cid:107)I −I (cid:107) → 0 does not
+t t−1 p validation usage. All videos are annotated with high-quality
+hold, the order can still preserve. We provide with a relaxed
+instance-level labels in the format of Youtube-VIS dataset.
+deduction: If the order of the instance code changes, the
+2) Audio Feature Extraction
+Lipschitz continuity of the network will be violated. Let us
+denote I ∈ I as a local region containing input images
+sub
+I and I , where I is the normalized input image space.
+t t−1
+Equation 5 (Lipschitz continuity) can be rewritten as:
+Preprocessing
+||Θ(I )−Θ(I )|| <λ(I )·||I −I ||
+t t−1 p sub t t−1 p
+Audio𝐴𝑡={𝐽𝑡−𝜂,…,𝐽𝑡} Log-Mel spectrum Audio feature𝑎𝑡
+whereλ(I )istheLipschitzconstantofthenetworkatI . VGG
+sub sub
+Forthecases of order changes,wedenote(cid:15) =||I −I ||
+c t t−1 p Fig. 6. Audio processing. The raw audio signal At is preprocessed by
+as the input discrepancy, and ∆ c = ||Θ(I t)−Θ(I t−1)|| p as resampling, STFT, log mel transformation [40], and then fed into the pre-
+the output discrepancy. As the order changes, ∆
+c
+can be very trainedVGG[52]model(withoutthelastlinearlayer)toextractfeatureat.
+large according to the network design (Line 498-500). Then,
+the Lipschitz continuity takes the form: Since audio data has much higher sampling rate than video
+data, we combine multiple audio frames to one image. Given
+∆
+(cid:15)c <λ(I sub) the image sequence {I t}T
+t=1
+and audio sequence {J t}T t=1, we
+c combine A = {J ,...,J } audio frames for each image
+t t−η t
+If the network is well trained, Lipschitz constant λ(I sub) I where η is the audio frame length for each image. We
+t
+at a local region is always small to ensure the network first resample A to 16 kHz mono then compute the spectrum
+t
+smoothness.Since∆ islargeand(cid:15) isaconstantdetermined
+c c usingmagnitudesoftheShort-TimeFourierTransform(STFT)
+by the data, ∆ (cid:15)cc can probably be larger than λ(I sub), which with a window size of 25 ms, a window hop of 10 ms,
+violates the Lipschitz continuity. Therefore, we can conclude
+and a periodic Hann window. We pad the audio sequence to
+that the order preserving property is mainly determined by
+ensure the output has the same length as the input. The mel
+λ(I ) which reflects the local smoothness of the network,
+sub spectrogram is computed by mapping the spectrogram to 64
+rather than purely by the input discrepancy ||I −I ||. In
+t t−1 mel bins covering the range 125-7500 Hz. A stabilized log
+the case of p = 1, when the order changes, ∆ (cid:15)cc ∼ O(103) mel spectrogram is further computed by applying log(mel-
+in Youtube-VIS dataset. Thus, the order can keep when the
+spectrum + 0.01) where the offset is used to avoid taking
+λ(I )<O(103), which is not a tight constraint.
+sub a logarithm of zero. Figure 6 illustrates the audio feature
+We empirically verify that the order-preserving matching
+extraction process. The generated log mel spectrogram [40]
+solves most cases. However, there are still exceptional cases
+is fed to the pretrained VGG [52] network to generate audio
+wecannotassume(cid:107)I −I (cid:107) →0and(cid:107)(Θ(I )−Θ(I )(cid:107)
+t t−1 p t t−1 p features.NotethatweremovethelastlinearlayerintheVGG
+couldalsobesmalliftinyobjectsexist.Therefore,toenhance
+toobtainhighdimensionfeatures.Theextractedaudiofeature
+the model robustness, if the mask in i-th slot in time t has
+for time t is denoted as a .
+t
+the IoU larger than 0.5 with mask in j-th slot in time t−
+Audiofeaturescontaincontextualinformationwhichrelates
+1, we directly assume they share the same identity without
+tothepositionandsemanticcategoriesofthedesiredinstances
+considering the order. Visualization analysis of fired slots in
+[70]. However, since audio understanding also depends on
+instance code will be discussed in Section IV-B1.
+the contextual information in audio from prior frames, we
+introduce reference audio features as reference video features.
+C. Online Audio-Visual Instance Segmentation Figure 2 shows an example of considering δ reference audio
+The video and audio data are naturally synchronized and frames. The extracted features are sent to the context fusion
+contain the homogeneous semantic and spatial information of module for cross-modal fusion.
+7
+Method Pipeline Backbone FPS Latency (s) AP AP50 AP75 AR1 AR10
+VisTR [60] Offline ResNet-101 43.5 >1.9 38.6 61.3 42.3 37.6 44.2
+MaskProp [4] Offline ResNet-101 - - 42.5 - 45.6 - -
+IFC [23] Offline ResNet-101 89.4 6.4 44.6 69.2 49.5 44.0 52.1
+Mask2Former [11] Offline ResNet-101 - - 49.2 72.8 54.2 - -
+SeqFormer∗ [63] Offline ResNet-101 - - 49.0 71.1 55.7 46.8 56.9
+SeqFormer∗ [63] Offline Swin-L - - 59.3 82.1 66.4 51.7 64.4
+MaskTrack R-CNN [66] Online ResNet-101 28.6 0.2 31.9 53.7 32.3 32.5 37.7
+SipMask++[7] Online ResNet-101 27.8 0.2 35.0 56.1 35.2 36.0 41.2
+SG-Net [38] Online ResNet-101 - - 36.3 57.1 39.6 35.9 43.0
+CrossVIS [68] Online ResNet-101 35.6 0.19 36.6 57.3 39.7 36.0 42.0
+STMask [29] Online ResNet-101 23.4 0.21 36.8 56.8 38.0 34.8 41.8
+PCAN [26] Online ResNet-101 <15 >0.23 37.6 57.2 41.3 37.2 43.9
+HITF [30] Online HITF <8 >0.29 41.3 61.5 43.5 42.7 47.8
+Ours Online ResNet-101 23.9 0.21 40.8 63.4 43.5 42.4 46.7
+Ours Online Swin-B 9.0 0.28 44.9 66.2 48.1 44.3 48.3
+Ours Online Swin-L 5.3 0.36 47.6 70.3 50.8 46.1 52.3
+TABLEI
+COMPARISONTOTHESTATE-OF-THE-ARTOFFLINEANDONLINEVISMETHODSONTHEYOUTUBE-VIS-2019VALIDATIONSET.THEINFERENCESPEED
+ISMEASUREDONASINGENVIDIAV100GPUWITHbatchsize=1.∗INDICATESTHATVALUESAREIMPORTEDFROMAPREPRINT.
+3) Audio Context Fusion the M ∈ RN×H×W by a threshold of 0.5. Then we filter
+t
+We correspond the audio features to pixel-wise visual out slots with a class probability less than 0.4 and keep
+feature maps with cross-modal attention in the transformer the remaining ones as the predictions at time t. Dataset.
+encoder. Similar to tokens from visual features, we create We evaluate our method on the two extensively used VIS
+audio tokens to support subsequent context fusion. datasets, Youtube-VIS-2019 and Youtube-VIS-2021, as well
+Audio token. We combine the overall audio features as the as our newly constructed AVIS dataset.
+reference audio context f taud =a t−δ⊕···⊕a t ∈RCa×(1+δ), • Youtube-VIS-2019has40categories,4,883uniquevideo
+whereC a =4096.Atwo-layerbi-directionalLongShortTime instances.Thereare2,238trainingvideos,302validation
+Memory (bi-LSTM) [21] network with hidden size 512 is videos, and 343 test videos in it.
+leveraged to aggregate the temporal information. After that, • Youtube-VIS-2021 is an improved version of Youtube-
+we project the audio features f taud to a lower dimension C(cid:48) VIS-2019, which contains 8,171 unique video instances.
+with two fully-connected layers and ReLU activation. Thus, There are 2,985 training videos, 421 validation videos,
+we get the audio token O aud ∈RC(cid:48)×(1+δ). and 453 test videos in this dataset.
+• AVIS has 20 overlapped categories with Youtube-VIS
+IV. EXPERIMENT
+dataset, 2390 unique video instances. There are 1427
+In this section, we will elaborate on the dataset, implemen- videos with synchronized raw audio recordings in it.
+tation details and experiment results for our online VIS and To the best of our knowledge, AVIS is the first dataset
+AVIS frameworks. with densely annotated instance-level masks matched to
+corresponding audio recordings.
+A. Implementation Details. Metrics. The evaluation metric for this task is defined as the
+Training. We implement our method in the PyTorch frame- area under the precision-recall curve with different IoUs as
+work.Followingpreviousmethods[18],[35],wefirstpre-train thresholds.
+our model with both Youtube-VIS and overlapped categories
+on MS-COCO dataset [37] then finetune the model on the
+B. Video Instance Segmentation Results
+Youtube-VIS dataset. We train our model for 60k iterations
+with a “poly” learning rate policy with the learning rate Wefirstpresentthemainresultsandablationexperimentsof
+(1− iter )0.9 for each iteration with an initial learning rate VIStaskonYoutube-VIS-2019andYoutube-VIS-2021dataset
+of 0.0it 0e 0rm 6a fx or all ResNet backbones and 0.0003 for all Swin without audio involved.
+backbones in experiments. We adopt batchsize = 16 and an 1) Main results
+AdamW [41] optimizer with weightdecay = 10−4 for all We compare our method with state-of-the-art methods in
+ResNet backbones and weightdecay = 10−2 for all Swin this section.
+backbones is leveraged. A learning rate multiplier of 0.1 is Quantitativeresult.Wecompareourmethodagainststate-of-
+appliedtoResNetbackbones,and1.0isappliedtotransformer art VIS methods on Youtube-VIS-2019 dataset in Table I. (1)
+backbones. Multi-scale training is adopted to obtain a strong Compared to online methods: Our method achieves the best
+baseline. performance of 40.8 mAP when using the same ResNet-101,
+Inference.Theimageisresizedto640×360duringinference. outperforming the previous start-of-art method PCAN [26] by
+Toobtainthefinalobjectsegmentationresult,wefirstbinarize a large margin of 3.2 mAP. The recent method HITF [30]
+8
+Fig.7. Qualitativecomparisontothestate-of-the-artonlinevideoinstancesegmentationmethodCrossVIS[68]ontheYoutube-VIS-2019validationset.
+1 in Figure 7. The result indicates that CrossVIS fails to detect
+or track instances in occluded scenarios, while our methods
+successfully maintain robust high-quality segmentation and
+0.5
+tracking performance. More qualitative results are shown in
+thesupplementarymaterial.AsshowninFigure8,wecompare
+0
+PCA Head 1 Head 2 Head 3 Head 4 the reference-to-target (R2T) attention map in the transformer
+encoderusingfullandcompressedreferencetokens.ThePCA
+Fig.8. Visualizationofreference-to-targetattentionmap.Theattention is conducted among all 8 heads of R2T attention map and
+mapsfromcompressedtokensaremorerepresentative. keeps three main components for RGB channels. We show
+the first 4 heads of the R2T attention. The attention maps
+of compressed tokens are sharper in the instance region than
+leverages a stronger backbone with a higher resolution input, those of full tokens, which can also be verified by the PCA
+we compare it with our results using the Swin-B backbone map.
+for fairness. Our method outperforms HITF by 3.6 mAP with Inference time. Online VIS is mainly for streaming applica-
+a faster inference speed. (2) Compared to offline methods: tions. In the video streaming pipeline, the input video is re-
+Ourmethodeclipsesanothertransformer-basedmethodVisTR ceivedframebyframe,andlatency(includingvideostreaming
+[60] even if it takes video-level input. The results of Seq- andmodelprocessingtime)istheessentialtimemeasurement.
+Former [63] is imported from preprint, which uses a stronger Wefurtherdiscussthelatencyofbothonlineandofflinemeth-
+deformable-transformer[71]toconducttemporalfusion,while ods for fair comparison. Let t =1/FPS denote
+stream stream
+other settings are similar to VisTR [60]. Although it achieves the streaming time of each frame and t =1/FPS
+model model
+animpressiveresult,weconsideritmainlyduetotheadoption denote the average model processing time for each frame. For
+of a stronger deformable transformer. We also compare our online methods, the final latency of each frame is
+method against the state-of-the-art VIS methods on Youtube-
+VIS 2021 in Table II. Since Youtube-VIS-2021 is a newly Latency online =t stream+t model
+introduced dataset, there are only a few methods for compari-
+Forofflinemethods,weneedtowaittilltheN -thframeofthe
+son. Our method achieves the best performance among online f
+clip comes, where N is the frame number of the processed
+methods. f
+clip. The latency of the last frame (the whole clip) is
+Qualitative result. We compare the qualitative result of our
+method against CrossVIS [68] on Youtube-VIS-2019 val set Latency =t ∗N +t ∗N
+offline stream f model f
+segamI
+SIVssorC
+sruO
+segamI
+SIVssorC
+sruO
+lluF
+desserpmoC
+9
+Method Backbone AP AP50 AP75 AR1 AR10 Ref.Frame AP AP50 AP75 AR1 AR10
+MaskTrack ResNet-50 28.6 48.9 29.6 26.5 33.8 0 37.3 58.4 40.1 37.6 43.0
+SipMask-VIS ResNet-50 31.7 52.5 34.0 30.8 37.8 1 40.8 63.4 43.5 42.4 46.7
+CrossVIS ResNet-50 34.2 54.4 37.9 30.4 38.2 2 40.4 63.8 42.3 40.5 47.0
+CrossVIS ResNet-101 35.2 56.3 36.4 33.9 40.6 3 40.7 64.8 44.0 39.2 45.5
+HITF HITF 35.8 56.3 39.1 33.6 40.3 4 39.8 62.1 43.6 40.6 45.8
+Ours ResNet-101 37.6 56.0 41.4 35.7 42.7 5 37.2 59.5 39.1 38.4 42.5
+TABLEII TABLEIII
+COMPARISONTOTHESTATE-OF-THE-ARTONLINEMETHODSON IMPACTOFTHEREFERENCEFRAMENUMBERONYOUTUBE-VIS-2019
+YOUTUBE-VIS-2021VALIDATIONSET. VALIDATIONSET.
+TokenSize AP AP50 AP75 AR1 AR10
+Method AP AP50 AP75 AR1 AR10
+1 38.3 58.3 39.8 38.0 43.1
+full-featureEnc.[60] 35.6 58.8 37.3 36.6 41.3
+4 40.8 63.4 43.5 42.4 46.7
+full-featureDec.[60] 36.6 57.7 38.0 36.9 41.8
+16 37.8 59.4 38.8 37.0 42.9
+reference-token 40.8 63.4 43.5 42.4 46.7
+64 36.3 58.5 37.9 36.4 42.0
+TABLEIV
+TABLEV
+COMPARISONOFDIFFERENTTEMPORALFUSIONMETHODSON
+IMPACTOFTHEREFERENCE-TOKENSIZEONYOUTUBE-VIS-2019
+YOUTUBE-VIS-2019VALIDATIONSET.
+VALIDATIONSET.
+Inst.Queries AP AP50 AP75 AR1 AR10
+10 40.8 63.4 43.5 42.4 46.7 Supervision AP AP50 AP75 AR1 AR10
+15 40.4 63.9 44.2 40.3 45.3 (cid:33) 40.5 63.5 42.6 40.5 46.7
+20 40.5 64.6 43.6 41.2 46.8 (cid:37) 40.8 63.4 43.5 42.4 46.7
+25 40.3 63.3 44.2 40.4 46.1
+TABLEVII
+TABLEVI IMPACTOFSUPERVISIONONTHEORDER-PRESERVINGPROPERTY.
+IMPACTOFNUMBEROFINSTANCEQUERIESONYOUTUBE-VIS-2019
+VALIDATIONSET.
+WeightW AP AP50 AP75 AR1 AR10
+(cid:37) 40.1 63.2 42.1 40.3 46.3
+(cid:33) 40.8 63.4 43.5 42.4 46.7
+TABLEVIII
+IMPACTOFPIXEL-WISEWEIGHTW ONTHETOKENFUSION.
+As the videos in Youtube-VIS dataset is of 6 FPS, the latency
+of our method is 0.171 s, while the latency of the offline Fig. 9. Illustration of fired slots and class correlation of instance code.
+Theheatmapisnormalizedbyeachclass.
+method IFC with a clip containing N = 36 frames is 6.4
+f
+s (FPS =89.4 reported in [13]).
+model
+As shown in Table I, we compare both FPS and latency of
+transformer decoder respectively. To directly fuse features in
+our method and previous methods. Our method achieves the
+transformer encoder, we compute reference tokens similarly
+best trade-off of accuracy and latency among online methods.
+to the target token. To fuse features in transformer decoder,
+Analysisoffiredslotandclasscorrelationofinstancecode. we extract reference tokens O(cid:48) by separate transformer
+ref
+We consider the slot is fired it has a class probability larger encodersandconcatenatethembeforethetransformerdecoder.
+than0.4andonlykeeppredictionsinfiredslotsasfinaloutput. As shown in Table IV, both baseline settings will result
+As shown in Figure 9, we visualize the correlation of fired in a plummet in performance. Two reasons may account
+slots in instance code and each class. We noticed that most for the decrease. First, the instance position and appearance
+of objects are predicted from the same slot while, for several in the target frame differ from those in reference frames,
+classes, e.g., person, duck and earless seal, they are predicted which can mislead the network if giving reference frames the
+in stand-alone slots. Those classes are either most commonly same importance as the target frame. Second, in transformer
+appearedorchallengingclassesinthedataset.Inthisway,we encoder,theattentionofeachlayerisnormalizedbyasoftmax
+consider the network encodes some class-specific information among all inputs. However, the mask prediction only needs
+in the slot to improve instance segmentation quality. fine-grained target frame information. Therefore, the softmax
+2) Ablation Experiments function downplays the importance of the target frame and
+We conduct ablation studies on Youtube-VIS-2019 to show introduces noises from reference frames.
+the effectiveness of different components of our method. Reference token size. The optimal reference token size is
+Fusionmethod.Toinvestigatetheimportanceofcompressing a trade-off between information compression loss and target
+reference features, we compare the performance of using importance gain. We conduct experiments on different token
+reference tokens against using two baseline settings that di- sizes. As shown in Table V, the token size of 4 achieves the
+rectly fuse full reference features in transformer encoder and best performance.
+10
+t=T t=T+5 t=T+10 t=T t=T+5 t=T+10
+Attn Attn Attn
+Attn PCA Attn PCA Attn PCA
+Fig.10. Qualitativecomparisonoftheperformancewithandw/oaudioinputs.Themulti-headattentionmapiscompressedtothreedimensionbyPCAfor
+visualization.
+Reference frame number. To investigate the importance of Ref.number AP AP50 AP AP50 p-value
+w/oAudio-token withAudio-token
+temporalinformation,weconductanablationstudyontraining
+1 42.9 60.2 44.8(+1.9) 60.3 0.30
+with different reference frames. As shown in Table III, as the 2 44.3 60.9 46.0(+1.7) 63.8 0.26
+reference frame number varies from 0 to 4, the mAP first 3 45.6 61.9 46.6(+1.0) 63.3 0.65
+4 45.6 62.2 45.7(+0.1) 62.7 -
+increasesto40.8thensaturatesanddecreases.Thisisbecause
+5 45.2 62.9 45.0(-0.2) 62.6 -
+the frames in Youtube-VIS dataset are provided at 6 FPS,
+TABLEX
+thus introducing long-term references may bring in irrelevant IMPACTOFINTEGRATINGAUDIO-TOKENWITHDIFFERENTREFERENCE
+information. FRAMESONAVISVALIDATIONSET.
+Numberofinstancequeries.Thenumberofinstancequeries
+indicates the maximum detected instances in a frame. How-
+ever, there may be a varying number of instances in a frame video data. Our method outperforms CrossVIS baseline by
+within a video clip. As shown in Table VI, we notice that 4.4 and 3.9 mAP with ResNet-50 and ResNet-101 backbone
+the model is robust to different instance query numbers even respectively.
+whentheyareseverelyredundant.Therobustnesstoredundant ToexplorethebenefitofintroducingaudiomodalitytoVIS
+queries enables the model to stay effective in scenarios that task, we conduct experiments on AVIS dataset to compare
+have extremely few instances. the models trained with audio inputs and without audio
+Supervision on the order of instance code. Previous online inputs. Figure 10 shows an example where audio improves
+VISmethodHITF[30]explicitlygivessupervisiontokeepthe the segmentation results. The attention between audio and
+order-preserving.However,asweproved,theorder-preserving video modality manages to locate the instance which is
+is actually a property of the network. As shown in Table VII, weakly distinguishable against the background. As shown in
+we notice that the supervision of instance orders cannot Table XII, we notice a slight gain from audio with a small
+improve the performance. reference frame number. However, as the reference frame
+Pixel-wiseweightW forthetokenfusion.Pixel-wiseweight numberincreases,thegainbeginstosaturate.Thereareseveral
+W aims to help the reference feature focus on the foreground reasons accounting for the marginal gain. For example, there
+area.AsshowninTableVIII,weablateontheinfluenceofthe are some sound events that do not last for the whole video
+pixel-wise weight W on the final segmentation performance. duration. Thus, the audio fusion is meaningless for several
+We notice that the performance drops 0.7 mAP if we disable time steps. Moreover, since we add audio data serially with
+the weight in the token fusion. fixed reference audio frames, it is hard to construct a long-
+term correlation between audios thus the sound event cannot
+be fully utilized. To explore the statistical robustness of the
+C. Audio-Visual Instance Segmentation Results
+gain, we conduct a t-test between corresponding experiments.
+AsshowninTableXII,the p-valueindicatesthegainsarenot
+Method Backbone AP AP50 AP75 AR1 AR10
+statisticallysignificant.Therefore,wecansafelyconcludethat
+CrossVIS ResNet-50 42.2 59.1 47.4 42.1 49.9
+CrossVIS ResNet-101 44.7 60.4 50.5 42.0 49.7 whiletheaudiomaypotentiallybenefitthevideosegmentation
+Ours ResNet-50 46.6 63.3 51.3 44.2 51.5 task,inthecurrentsetting,theireffectinunconstrainedvideos
+Ours ResNet-101 48.6 63.9 52.5 44.6 52.9
+is limited.
+TABLEIX
+COMPARISONTOSTATE-OF-THE-ARTVIDEOINSTANCESEGMENTATIONON
+AVISVALSET. V. CONCLUSION
+We propose a robust context fusion module for the online
+WereporttheperformanceofusingResNet-50andResNet- VIS task, which corresponds and fuses compact and effective
+101 backbone on AVIS dataset. As shown in Table XI, we reference features to the target features in a transformer
+also compare the CrossVIS baseline which only leverages the encoder. We observe that the importance-aware compression
+emarF
+oiduA
+oidua
+w
+ksaM
+oidua
+o/w
+ksaM
+11
+for reference context is critical in the online setting because [16] Ariel Ephrat, Inbar Mosseri, Oran Lang, Tali Dekel, Kevin Wilson,
+the impact of frames are different for the target prediction. AvinatanHassidim,WilliamTFreeman,andMichaelRubinstein.Look-
+ing to listen at the cocktail party: A speaker-independent audio-visual
+In addition, we leverage an order-preserving instance code
+modelforspeechseparation. arXivpreprintarXiv:1804.03619,2018. 3
+to track instance identities, thus avoiding time-consuming [17] HerbertFederer. Geometricmeasuretheory. Springer,2014. 13
+[18] Yang Fu, Linjie Yang, Ding Liu, Thomas S Huang, and Humphrey
+matching algorithms. The mathematical explanation indicates
+Shi. Compfeat: Comprehensive feature aggregation for video instance
+thatorder-preservingisthenaturalpropertyofthenetworkand segmentation. arXivpreprintarXiv:2012.03400,2020. 1,7
+can work even without any explicit supervision, which may [19] Aviv Gabbay, Ariel Ephrat, Tavi Halperin, and Shmuel Peleg. Seeing
+throughnoise:Visuallydrivenspeakerseparationandenhancement. In
+shedlightonnewdirectionsofinstancetracking.Ourpipeline
+2018 IEEE International Conference on Acoustics, Speech and Signal
+isflexibleandpermitsmulti-modaldata.Thebenefitsofusing Processing(ICASSP),pages3051–3055.IEEE,2018. 3
+audiocontexttoVISareseentobelimitedintheonlinesetting [20] KaimingHe,GeorgiaGkioxari,PiotrDolla´r,andRossGirshick. Mask
+r-cnn.InProceedingsoftheIEEEinternationalconferenceoncomputer
+due to weak correlation between audio and visual data in the
+vision,pages2961–2969,2017. 2,3
+wild scenes. [21] Sepp Hochreiter and Ju¨rgen Schmidhuber. Long short-term memory.
+Neuralcomputation,9(8):1735–1780,1997. 7
+[22] Zhaojin Huang, Lichao Huang, Yongchao Gong, Chang Huang, and
+REFERENCES XinggangWang. Maskscoringr-cnn. InProceedingsoftheIEEE/CVF
+ConferenceonComputerVisionandPatternRecognition,pages6409–
+[1] Triantafyllos Afouras, Joon Son Chung, and Andrew Zisserman. The 6418,2019. 3
+conversation: Deep audio-visual speech enhancement. arXiv preprint [23] SukjunHwang,MiranHeo,SeoungWugOh,andSeonJooKim.Video
+arXiv:1804.04121,2018. 3 instance segmentation using inter-frame communication transformers.
+[2] Ali Athar, Sabarinath Mahadevan, Aljosa Osep, Laura Leal-Taixe´, and arXivpreprintarXiv:2106.03299,2021. 1,5,6,7
+Bastian Leibe. Stem-seg: Spatio-temporal embeddings for instance [24] SuyogDuttJain,BoXiong,andKristenGrauman. Fusionseg:Learning
+segmentation in videos. In European Conference on Computer Vision, tocombinemotionandappearanceforfullyautomaticsegmentationof
+pages158–177.Springer,2020. 1 genericobjectsinvideos. In2017IEEEconferenceoncomputervision
+[3] IrwanBello,BarretZoph,AshishVaswani,JonathonShlens,andQuocV andpatternrecognition(CVPR),pages2117–2126.IEEE,2017. 2
+Le. Attentionaugmentedconvolutionalnetworks. InProceedingsofthe [25] Xu Jia, Bert De Brabandere, Tinne Tuytelaars, and Luc V Gool.
+IEEE/CVF international conference on computer vision, pages 3286– Dynamic filter networks. Advances in neural information processing
+3295,2019. 4 systems,29:667–675,2016. 5
+[4] Gedas Bertasius and Lorenzo Torresani. Classifying, segmenting, and [26] Lei Ke, Xia Li, Martin Danelljan, Yu-Wing Tai, Chi-Keung Tang, and
+trackingobjectinstancesinvideowithmaskpropagation.InProceedings Fisher Yu. Prototypical cross-attention networks for multiple object
+oftheIEEE/CVFConferenceonComputerVisionandPatternRecogni- trackingandsegmentation. arXivpreprintarXiv:2106.11958,2021. 1,
+tion,pages9739–9748,2020. 7 7
+[5] AdamBotach,EvgeniiZheltonozhskii,andChaimBaskin. End-to-end [27] HyunjikKim,GeorgePapamakarios,andMnih. Thelipschitzconstant
+referringvideoobjectsegmentationwithmultimodaltransformers.arXiv of self-attention. In International Conference on Machine Learning,
+preprintarXiv:2111.14821,2021. 3 pages5562–5571.PMLR,2021. 13
+[6] Sergi Caelles, Kevis-Kokitsi Maninis, Jordi Pont-Tuset, Laura Leal- [28] Harold W Kuhn. The hungarian method for the assignment problem.
+Taixe´, Daniel Cremers, and Luc Van Gool. One-shot video object Navalresearchlogisticsquarterly,2(1-2):83–97,1955. 5
+[29] MinghanLi,ShuaiLi,LidaLi,andLeiZhang.Spatialfeaturecalibration
+segmentation.InProceedingsoftheIEEEconferenceoncomputervision
+andtemporalfusionforeffectiveone-stagevideoinstancesegmentation.
+andpatternrecognition,pages221–230,2017. 2
+[7] JialeCao,RaoMuhammadAnwer,HishamCholakkal,FahadShahbaz In Proceedings of the IEEE/CVF Conference on Computer Vision and
+Khan, Yanwei Pang, and Ling Shao. Sipmask: Spatial information PatternRecognition,pages11215–11224,2021. 1,7
+[30] Xiang Li, Jinglu Wang, Xiao Li, and Yan Lu. Hybrid instance-aware
+preservation for fast image and video instance segmentation. In Com-
+temporalfusionforonlinevideoinstancesegmentation. arXivpreprint
+puter Vision–ECCV 2020: 16th European Conference, Glasgow, UK,
+arXiv:2112.01695,2021. 2,6,7,10
+August 23–28, 2020, Proceedings, Part XIV 16, pages 1–18. Springer,
+[31] XiangLi,JingluWang,XiaoLi,andYanLu. Videoinstancesegmenta-
+2020. 2,5,7
+tionbyinstanceflowassembly.arXivpreprintarXiv:2110.10599,2021.
+[8] JialeCao,RaoMuhammadAnwer,HishamCholakkal,FahadShahbaz
+2
+Khan, Yanwei Pang, and Ling Shao. Sipmask: Spatial information
+[32] Xiang Li, Jinglu Wang, Xiaohao Xu, Xiao Li, Yan Lu, and Bhiksha
+preservationforfastinstancesegmentation,2020. 3 Raj. R2ˆvos: Robust referring video object segmentation via relational
+[9] HaoChen,KunyangSun,ZhiTian,ChunhuaShen,YongmingHuang,
+multimodalcycleconsistency. arXive-prints,pagesarXiv–2207,2022.
+andYouliangYan. Blendmask:Top-downmeetsbottom-upforinstance
+3
+segmentation.InProceedingsoftheIEEE/CVFconferenceoncomputer
+[33] Yi Li, Haozhi Qi, Jifeng Dai, Xiangyang Ji, and Yichen Wei. Fully
+visionandpatternrecognition,pages8573–8581,2020. 2
+convolutionalinstance-awaresemanticsegmentation. InProceedingsof
+[10] Liang-ChiehChen,RaphaelGontijoLopes,BowenCheng,MaxwellD
+theIEEEconferenceoncomputervisionandpatternrecognition,pages
+Collins, Ekin D Cubuk, Barret Zoph, Hartwig Adam, and Jonathon
+2359–2367,2017. 3
+Shlens. Naive-student: Leveraging semi-supervised learning in video
+[34] ChenLiang,YuWu,YaweiLuo,andYiYang.Clawcranenet:Leveraging
+sequences for urban scene segmentation. In European Conference on
+object-level relation for text-based video segmentation. arXiv preprint
+ComputerVision,pages695–714.Springer,2020. 3
+arXiv:2103.10702,2021. 3
+[11] Bowen Cheng, Anwesa Choudhuri, Ishan Misra, Alexander Kirillov,
+[35] HuaijiaLin,RuizhengWu,ShuLiu,JiangboLu,andJiayaJia. Video
+Rohit Girdhar, and Alexander G Schwing. Mask2former for video
+instancesegmentationwithapropose-reduceparadigm. arXivpreprint
+instancesegmentation. arXivpreprintarXiv:2112.10764,2021. 7
+arXiv:2103.13746,2021. 7
+[12] Bowen Cheng, Maxwell D Collins, Yukun Zhu, Ting Liu, Thomas S
+[36] Tsung-YiLin,PiotrDolla´r,RossGirshick,KaimingHe,BharathHariha-
+Huang, Hartwig Adam, and Liang-Chieh Chen. Panoptic-deeplab: A
+ran,andSergeBelongie.Featurepyramidnetworksforobjectdetection.
+simple, strong, and fast baseline for bottom-up panoptic segmentation.
+InProceedingsoftheIEEEconferenceoncomputervisionandpattern
+In Proceedings of the IEEE/CVF Conference on Computer Vision and
+recognition,pages2117–2125,2017. 3,5
+PatternRecognition,pages12475–12485,2020. 3 [37] Tsung-Yi Lin, Michael Maire, Serge Belongie, James Hays, Pietro
+[13] Bowen Cheng, Alexander G Schwing, and Alexander Kirillov. Per-
+Perona,DevaRamanan,PiotrDolla´r,andCLawrenceZitnick.Microsoft
+pixelclassificationisnotallyouneedforsemanticsegmentation. arXiv
+coco:Commonobjectsincontext.InEuropeanconferenceoncomputer
+preprintarXiv:2107.06278,2021. 5,14
+vision,pages740–755.Springer,2014. 7
+[14] Ying Cheng, Ruize Wang, Zhihao Pan, Rui Feng, and Yuejie Zhang.
+[38] Dongfang Liu, Yiming Cui, Wenbo Tan, and Yingjie Chen. Sg-net:
+Look,listen,andattend:Co-attentionnetworkforself-supervisedaudio-
+Spatial granularity network for one-stage video instance segmentation.
+visual representation learning. In Proceedings of the 28th ACM Inter-
+In Proceedings of the IEEE/CVF Conference on Computer Vision and
+nationalConferenceonMultimedia,pages3884–3892,2020. 3
+PatternRecognition,pages9816–9825,2021. 2,7
+[15] Zihan Ding, Tianrui Hui, Shaofei Huang, Si Liu, Xuan Luo, Junshi
+[39] Shu Liu, Lu Qi, Haifang Qin, Jianping Shi, and Jiaya Jia. Path
+Huang,andXiaomingWei. Progressivemultimodalinteractionnetwork
+aggregation network for instance segmentation. In Proceedings of the
+for referring video object segmentation. The 3rd Large-scale Video
+IEEE conference on computer vision and pattern recognition, pages
+ObjectSegmentationChallenge,page7,2021. 3
+12
+8759–8768,2018. 3 attention network for fast video object segmentation. In Proceedings
+[40] BethLogan.Melfrequencycepstralcoefficientsformusicmodeling.In of the IEEE/CVF International Conference on Computer Vision, pages
+In International Symposium on Music Information Retrieval. Citeseer, 3978–3987,2019. 2
+2000. 6 [62] JiannanWu,YiJiang,PeizeSun,ZehuanYuan,andPingLuo.Language
+[41] IlyaLoshchilovandFrankHutter. Decoupledweightdecayregulariza- as queries for referring video object segmentation. arXiv preprint
+tion. arXivpreprintarXiv:1711.05101,2017. 7,13 arXiv:2201.00487,2022. 3
+[42] RuiLu,ZhiyaoDuan,andChangshuiZhang. Listenandlook:Audio– [63] Junfeng Wu, Yi Jiang, Wenqing Zhang, Xiang Bai, and Song Bai.
+visual matching assisted speech source separation. IEEE Signal Pro- Seqformer:afrustratinglysimplemodelforvideoinstancesegmentation.
+cessingLetters,25(9):1315–1319,2018. 3 arXivpreprintarXiv:2112.08275,2021. 5,6,7,8
+[43] Fausto Milletari, Nassir Navab, and Seyed-Ahmad Ahmadi. V-net: [64] Enze Xie, Peize Sun, Xiaoge Song, Wenhai Wang, Xuebo Liu, Ding
+Fully convolutional neural networks for volumetric medical image Liang, Chunhua Shen, and Ping Luo. Polarmask: Single shot instance
+segmentation. In 2016 fourth international conference on 3D vision segmentationwithpolarrepresentation.InProceedingsoftheIEEE/CVF
+(3DV),pages565–571.IEEE,2016. 5 conference on computer vision and pattern recognition, pages 12193–
+[44] Trisha Mittal, Uttaran Bhattacharya, Rohan Chandra, Aniket Bera, 12202,2020. 3
+and Dinesh Manocha. Emotions don’t lie: An audio-visual deepfake [65] Haoming Xu, Runhao Zeng, Qingyao Wu, Mingkui Tan, and Chuang
+detectionmethodusingaffectivecues. InProceedingsofthe28thACM Gan. Cross-modal relation-aware networks for audio-visual event
+internationalconferenceonmultimedia,pages2823–2832,2020. 3 localization. InProceedingsofthe28thACMInternationalConference
+[45] Giovanni Morrone, Sonia Bergamaschi, Luca Pasa, Luciano Fadiga, onMultimedia,pages3893–3901,2020. 3
+VadimTikhanoff,andLeonardoBadino. Facelandmark-basedspeaker- [66] Linjie Yang, Yuchen Fan, and Ning Xu. Video instance segmentation.
+independent audio-visual speech enhancement in multi-talker environ- InProceedingsoftheIEEE/CVFInternationalConferenceonComputer
+ments. In ICASSP 2019-2019 IEEE International Conference on Vision,pages5188–5197,2019. 1,2,5,7
+Acoustics, Speech and Signal Processing (ICASSP), pages 6900–6904. [67] Linjie Yang, Yanran Wang, Xuehan Xiong, Jianchao Yang, and Agge-
+IEEE,2019. 1,3,6 los K Katsaggelos. Efficient video object segmentation via network
+[46] SeoungWugOh,Joon-YoungLee,NingXu,andSeonJooKim. Video modulation.InProceedingsoftheIEEEConferenceonComputerVision
+objectsegmentationusingspace-timememorynetworks.InProceedings andPatternRecognition,pages6499–6507,2018. 2
+of the IEEE/CVF International Conference on Computer Vision, pages [68] ShushengYang,YuxinFang,XinggangWang,YuLi,ChenFang,Ying
+9226–9235,2019. 2 Shan, Bin Feng, and Wenyu Liu. Crossover learning for fast online
+[47] Jie Pu, Yannis Panagakis, Stavros Petridis, and Maja Pantic. Audio- video instance segmentation. arXiv preprint arXiv:2104.05970, 2021.
+visualobjectlocalizationandseparationusinglow-rankandsparsity. In 2,5,7,8
+2017 IEEE International Conference on Acoustics, Speech and Signal [69] Tien-Ju Yang, Maxwell D Collins, Yukun Zhu, Jyh-Jing Hwang,
+Processing(ICASSP),pages2901–2905.IEEE,2017. 6 Ting Liu, Xiao Zhang, Vivienne Sze, George Papandreou, and Liang-
+[48] JiyangQi,YanGao,YaoHu,XinggangWang,XiaoyuLiu,XiangBai, Chieh Chen. Deeperlab: Single-shot image parser. arXiv preprint
+Serge Belongie, Alan Yuille, Philip HS Torr, and Song Bai. Occluded arXiv:1902.05093,2019. 3
+videoinstancesegmentation. arXivpreprintarXiv:2102.01558,2021. 1 [70] Hang Zhao, Chuang Gan, Andrew Rouditchenko, Carl Vondrick, Josh
+[49] RalphSchmidt. Multipleemitterlocationandsignalparameterestima- McDermott,andAntonioTorralba.Thesoundofpixels.InProceedings
+tion. IEEE transactions on antennas and propagation, 34(3):276–280, oftheEuropeanconferenceoncomputervision(ECCV),pages570–586,
+1986. 13 2018. 1,3,6
+[50] Arda Senocak, Tae-Hyun Oh, Junsik Kim, Ming-Hsuan Yang, and [71] XizhouZhu,WeijieSu,LeweiLu,BinLi,XiaogangWang,andJifeng
+In So Kweon. Learning to localize sound source in visual scenes. In Dai. Deformable detr: Deformable transformers for end-to-end object
+Proceedings of the IEEE Conference on Computer Vision and Pattern detection. arXivpreprintarXiv:2010.04159,2020. 8
+Recognition,pages4358–4366,2018. 1,3,6
+[51] SeongukSeo,Joon-YoungLee,andBohyungHan.Urvos:Unifiedrefer-
+ring video object segmentation network with a large-scale benchmark.
+InEuropeanConferenceonComputerVision,pages208–223.Springer,
+2020. 3
+[52] Karen Simonyan and Andrew Zisserman. Very deep convolu-
+tional networks for large-scale image recognition. arXiv preprint
+arXiv:1409.1556,2014. 6
+[53] Yapeng Tian, Jing Shi, Bochen Li, Zhiyao Duan, and Chenliang Xu.
+Audio-visualeventlocalizationinunconstrainedvideos.InProceedings
+of the European Conference on Computer Vision (ECCV), pages 247–
+263,2018. 1,3,6
+[54] Zhi Tian, Chunhua Shen, Hao Chen, and Tong He. Fcos: Fully con-
+volutionalone-stageobjectdetection. InProceedingsoftheIEEE/CVF
+international conference on computer vision, pages 9627–9636, 2019.
+2,3
+[55] Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion
+Jones,AidanNGomez,ŁukaszKaiser,andIlliaPolosukhin. Attention
+isallyouneed. InAdvancesinneuralinformationprocessingsystems,
+pages5998–6008,2017. 1
+[56] Huiyu Wang, Yukun Zhu, Hartwig Adam, Alan Yuille, and Liang-
+ChiehChen.Max-deeplab:End-to-endpanopticsegmentationwithmask
+transformers. arXivpreprintarXiv:2012.00759,2020. 3
+[57] HuiyuWang,YukunZhu,BradleyGreen,HartwigAdam,AlanYuille,
+and Liang-Chieh Chen. Axial-deeplab: Stand-alone axial-attention for
+panoptic segmentation. In European Conference on Computer Vision,
+pages108–126.Springer,2020. 3
+[58] Xinlong Wang, Tao Kong, Chunhua Shen, Yuning Jiang, and Lei Li.
+Solo: Segmenting objects by locations. In European Conference on
+ComputerVision,pages649–665.Springer,2020. 3
+[59] Xinlong Wang, Rufeng Zhang, Tao Kong, Lei Li, and Chunhua Shen.
+Solov2:Dynamic,fasterandstronger.arXivpreprintarXiv:2003.10152,
+2020. 3
+[60] Yuqing Wang, Zhaoliang Xu, Xinlong Wang, Chunhua Shen, Baoshan
+Cheng,HaoShen,andHuaxiaXia. End-to-endvideoinstancesegmen-
+tationwithtransformers. InProceedingsoftheIEEE/CVFConference
+onComputerVisionandPatternRecognition,pages8741–8750,2021.
+1,2,5,6,7,8,9
+[61] ZiqinWang,JunXu,LiLiu,FanZhu,andLingShao. Ranet:Ranking
+13
+VI. LIPSCHITZCONTINUITYOFOURNETWORK B. Attention Layers
+The self-attention layer is not Lipschitz continuous [27].
+We first define the notion of Lipschitz continuity, and
+However,whenweconsidertheboundedinputs,theLipschitz
+proceed to the Lipschitz continuity of fully-connected, con-
+constant of attention layers Lip (f) is bounded [27]. Since
+volutional and self-attention layers. We refer to the proof in p
+the input images are normalized and the network is trained
+[27] with bounded inputs.
+withadamw[41]whichpenalizesthelargeweights,theinputs
+a) High-level Proof: Continuous functions are Lipschitz
+to attention layer is bounded. Therefore, we can assume the
+continuous given bounded inputs w.r.t. p-norm where p ∈
+attention layer in our network is bounded with normalized
+[1,∞].
+image inputs.
+Definition1:Giventwometricspaces(X,d )and(Y,d ),
+X Y
+a function f : X → Y is called Lipschitz continuous (or K-
+Lipschitz) if there exists a constant K ≤0 such that C. Entire Transformer-based Network
+Our transformer-based network is a composition of CNN,
+d Y(f(x),f(x(cid:48)))≤Kd X(x,x(cid:48)) (7) FC, and attention layers. By leveraging Lemma 1 on the
+normalized image space I, we have
+The smallest such K is the Lipschitz constant of f, denoted
+Lip(f). Lip (Model)≤Lip (CNN)·Lip (FC)·Lip (Attn)
+p p p p
+In the following proof, the d and d are induced by a p-
+norm (cid:107)x(cid:107) :=
+((cid:80)
+|x
+|p)1/p.X FollowinY
+g [27], we emphasise
+where Lip p(Model), Lip p(CNN), Lip p(FC) and Lip p(Attn)
+p i i aretheLipschitzconstantsoftheentiremodel,allCNNlayers,
+the dependence of the Lipschitz constant on the choice of p-
+all FC layers and all attention layers respectively.
+normbydenotingitasLip (f).Inthiscase,itfollowsdirectly
+p
+from Definition 1 that the Lipschitz constant is given by
+VII. AUDIO-VISUALCORRESPONDENCE
+(cid:107)f(x)−f(x(cid:48))(cid:107)
+Lip (f)= sup p (8)
+p x(cid:54)=x(cid:48)∈Rn (cid:107)x−x(cid:48)(cid:107) p z
+A. Fully-connected/convolutional Layers
+𝑥!"≡𝑃"×𝑋!"
+Frame 𝐼!
+We describe how Lipschitz constant of fully-connected
+y
+networks (FC) and convolutional neural networks (CNN) are
+bounded, using the fact that both are compositions of linear 𝑋!"=arg max𝐸(𝐴",𝑋)
+#
+maps and pointwise non-linearities.
+x
+Theorem 1: ([17]) Let f : Rn → Rm be differentiable and
+Audio𝐴!
+Lipschitzcontinuousunderachoiceofp-nom(cid:107)·(cid:107) .LetJ (x)
+p f
+denote its total derivative (Jacobian at x. Then Lip (f) =
+p Fig.11. Audio-visualrelationship.
+sup (cid:107)J (x)(cid:107) ) where (cid:107)J (x)(cid:107) is the induced operator
+x∈Rn f p f p
+norm on J f(x). Given the audio recordings At, we can decode the 3D
+Therefore if f is a linear map represented by a matrix W location of sound source by signal processing methods such
+when as MUSIC algorithm [49] which searches for the location of
+Lip (f)=(cid:107)W(cid:107) := sup (cid:107)Wx(cid:107) the maximum of the spatial energy spectrum as
+p p p
+(cid:107)x(cid:107)p=1
+Xt =argmaxE(At,X) (9)
+s
+X
+(cid:26)
+σ (W) ifp=2
+= ma (cid:80)x where E(·) is the spatial energy spectrum and Xt ∈R3 is the
+max |W | ifp=∞ s
+i j ij 3Dcoordinateofsoundsourceat timet.Therefore,thesound
+where (cid:107)W(cid:107) is the operator norm on matrices induced by the source can be easily corresponded to the pixel on a frame
+p
+vector p-norm, and σ (W) is the largest singular value of by applying camera matrix. Given that, we can represent the
+max
+W. relationship between audio recordings At and 2D location of
+sound source x in frame I by
+We can show the Lipschitz continuity of FC and CNN by s t
+applying the following lemma. xt ≡Pt×argmaxE(At,P) (10)
+s
+Lemma 1: ([17]) Let g, h be two composable Lipschitz X
+functions. Then g ◦ h is also Lipschitz with Lip(g ◦ h) ≤ where Pt is the camera matrix at time t and x is the homo-
+t
+Lip(g)Lip(h).
+geneous coordinate of sound source in frame I . In practice,
+t
+Corollary 1: For a fully-connected network or a convolu- the camera matrix Pt is unknown but can be estimated by
+tional neural network (cid:81)f =W k◦ρ K−1◦W K−1◦···◦ρ 1◦W 1, a adjacent input frames Pt = H(I t,I t−1). Consequently, we
+wehaveLip p(f)≤ k(cid:107)W k(cid:107) p underachoiceofp-normwith can link the sound source location pt s in frames I t from audio
+1-Lipschitz non-linearities ρ k. A t.
+14
+Ref. Full
+Tgt. Token
+Frame PCA Head 1 Head 2 Head 3 Head 4 Head 5 Head 6 Head 7 Head 8
+Fig.12. Visualizationofreference-to-targetattentionmapinlastlayeroftransformerencoder.Wecomparetheattentionmapinthetransformerencoder
+using full reference feature maps and compressed reference token. The PCA is conducted among the 8 heads of reference-to-target (r2t) attention map and
+keeps3maincomponentsforRGBchannels.Weonlyshowtheall8headsofther2tattention.Theattentionmapoftokeninputsissharperontheinstance
+regionthanthatoffullinputswhichcanalsobeverifiedbythePCAcolormap.
+VIII. DETAILEDAUDIOPREPROCESSING
+classesasamaskwithcorrespondingsemanticcategories.The
+We first resample A to 16 kHz mono then compute the
+i pixel and transformer decoder used in our model is similar
+spectrum using magnitudes of the Short-Time Fourier Trans-
+to the structure adopted in MaskFormer. Here we formally
+form(STFT)withawindowsizeof25ms,awindowhopof10
+analyze the difference between our method and MaskFormer.
+ms, and a periodic Hann window. We pad the audio sequence
+Our method is a video-level instance segmentation method
+toensuretheoutputhasthesamelengthastheinput.Themel
+which equips with a context fusion module (CFM) to fuse
+spectrogram is computed by mapping the spectrogram to 64
+the contextual information. The proposed CFM module is
+mel bins covering the range 125-7500 Hz. A stabilized log
+leveraged to compress the historical features from adjacent
+mel spectrogram is further computed by applying log(mel-
+frames with low redundancy and construct the spatial cor-
+spectrum + 0.01) where the offset is used to avoid taking a
+relation between target and contextual features using atten-
+logarithm of zero.
+tion mechanism. The importance of the final segmentation is
+considered when fusing the context features. By utilizing the
+Method Backbone AP AP50 AP75 AR1 AR10
+CrossVIS ResNet-50 42.2 59.1 47.4 42.1 49.9 flexibilityofCFM,wealsofusetheaudiomodalitytofacilitate
+CrossVIS ResNet-101 44.7 60.4 50.5 42.0 49.7
+Ours ResNet-50 46.6 63.3 51.3 44.2 51.5 the instance segmentation task. The transformer decoder of
+Ours ResNet-101 48.6 63.9 52.5 44.6 52.9
+TABLEXI our model takes the multi-modal features as inputs, which is
+COMPARISONTOSTATE-OF-THE-ARTVIDEOINSTANCE different from MaskFormer. The decoded instance embedding
+SEGMENTATIONONAVISVALSET.
+is further to be leveraged to track the instance identities given
+the Lipschitz continuity of the network.
+IX. ADDITIONALEXPERIMENTSONAVISDATASET
+WereporttheperformanceofusingResNet-50andResNet-
+XI. VISUALIZATIONOFATTENTIONMAPSINCFM
+101 backbone on AVIS dataset. As shown in Table XI, we
+also compare the CrossVIS baseline which only leverages the
+video data. Our method outperforms CrossVIS baseline by We demonstrate the attention map of all eight heads of
+4.4 and 3.9 mAP with ResNet-50 and ResNet-101 backbone the reference-to-target attention. The attention map of the
+respectively. compressed feature is sharper than the attention map using
+We also report the p-value of t-test on AVIS results with the full features. The attention map is selected from the same
+different thresholds. As shown in Table XII, the p-value position in the transformer encoder for fairly comparison.
+under IoU>0.75 threshold is smaller than that under IoU>0.5
+threshold, which means the audio inputs have more effect on
+the high-quality results.
+XII. LIMITEDGAINOFINVOLVINGAUDIOMODALITY
+X. DIFFERENCEWITHMASKFORMER[13]
+Our method introduces audio modality in an online fashion
+MaskFormer [13] is an image-level panoptic segmentation
+with synchronized the audio and video data. Since we con-
+methodthattreatspredictionbelongingtobothstuffandthings
+sidering streamlining video frames (as previous online VIS
+methods), we also introduce the corresponding audio frames
+Ref.number AP AP50 AP AP50 p-value in the same way. However, for audio data analysis, long-term
+w/oAudio-token wAudio-token
+1 42.9 60.2 44.8(+1.9) 60.3 0.30(0.24) historicalinformationisrequired.Althoughwehavereference
+2 44.3 60.9 46.0(+1.7) 63.8 0.26(0.16)
+audioframes,theyarelimitedtoasmallnumbersincewecan
+3 45.6 61.9 46.6(+1.0) 63.3 0.65(0.42)
+4 45.6 62.2 45.7(+0.1) 62.7 - only consider a moderate number of reference video frames
+5 45.2 62.9 45.0(-0.2) 62.6 -
+TABLEXII with speed concerns. In this way, we believe that the audio
+IMPACTOFINTEGRATINGAUDIO-TOKENWITHDIFFERENTREFERENCE modality can be further leveraged in asynchronized audio-
+FRAMESONAVISVALSET.THEP-VALUEISCOMPUTEDBYT-TEST
+visual inputs or clip-level inputs. We will investigate those
+AMONGSAMPLESHAVINGANIoU>0.5(IoU>0.75INTHEBRACKET).
+settings in the future.
