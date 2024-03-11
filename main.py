@@ -1,0 +1,92 @@
+from haystack import Pipeline
+from haystack.schema import Document
+from typing import List, Tuple
+import os
+import tqdm
+
+from models import baseline
+from evaluation import normalize_answer, f1_score, exact_match_score
+
+
+def load_documents(data_dir: str) -> List[str]:
+    # Courses @ CMU
+    courses = []
+    for root, dirs, files in os.walk(os.path.join(data_dir, "Courses")):
+        for file in files:
+            if file.endswith(".txt"):
+                file_path = os.path.join(root, file)
+                print(file_path)
+                with open(file_path, "r") as f:
+                    courses += f.read().split("\n\n\n")
+
+    # Events @ CMU
+    events = []
+    for root, dirs, files in os.walk(os.path.join(data_dir, "Events")):
+        for file in files:
+            if file.endswith(".txt"):
+                file_path = os.path.join(root, file)
+                print(file_path)
+                with open(file_path, "r") as f:
+                    events += f.read().split("\n\n\n")
+
+    res = courses + events
+    return [Document(content=s) for s in res]
+
+
+def load_qa(question_file: str, answer_file: str) -> Tuple[List[str], List[str]]:
+    questions = []
+    answers = []
+    with open(question_file, "r") as fq, open(answer_file, "r") as fa:
+        for lineq, linea in zip(fq, fa):
+            if lineq[0] == "#":
+                continue
+            q, a = lineq.strip(), linea.strip()
+            questions.append(q)
+            answers.append(a)
+    return questions, answers
+
+
+def predict(p: Pipeline, queries: List[str]) -> List[str]:
+    res = []
+    for query in tqdm.tqdm(queries):
+        answer = p.run(query=query)
+        res.append(answer["answers"][0].answer)
+    return res
+
+
+def evaluate(output: List[str], truth: List[str]) -> Tuple[float, float, float]:
+    assert len(output) == len(truth)
+
+    f1 = 0
+    recall = 0
+    em = 0
+    for o, t in zip(output, truth):
+        if "|" in t:
+            l = t.split("|")
+        else:
+            l = [t]
+
+        f1_, recall_ = f1_score(o, l, normalize_fn=normalize_answer)
+        em_ = exact_match_score(o, l, normalize_fn=normalize_answer)
+        f1 += f1_
+        recall += recall_
+        em += em_
+
+        print(f"Prediction: {o}")
+        print(f"Truth: {t}")
+        print(f"F1: {f1_}, Recall: {recall_}, EM: {em_}")
+
+    return f1 / len(output), recall / len(output), em / len(output)
+
+
+if __name__ == "__main__":
+    docs = load_documents("data")
+    questions, answers = load_qa("dev/questions.txt", "dev/reference_answers.txt")
+
+    p = baseline(docs)
+    prediction = predict(p, questions)
+    with open("dev/prediction.txt", "w") as f:
+        for p in prediction:
+            f.write(p + "\n")
+    f1, recall, em = evaluate(prediction, answers)
+    print(f"F1: {f1}, Recall: {recall}, EM: {em}")
