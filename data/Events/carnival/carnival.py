@@ -48,3 +48,69 @@ for day in table.find_all("div", recursive=False):
 
 with open(input_file.replace(".html", ".json"), "w") as f:
     json.dump(res, f, indent=4)
+
+with open(input_file.replace(".html", ".txt"), "w") as f:
+    f.write(
+        """A few notes about 2024 Spring Carnival schedule:
+Use Tracks to filter events by category, including student, reunion, virtual, family friendly and school/college. You may use the search function to find a specific day, category or event.
+Check out the first draft of the Carnival map.
+Additional events will be added up through Carnival, so be sure to bookmark this page. Below are just a few of the events that are in the works:
+Spring Carnival Committee weekend entertainment schedule
+Tartan Tuba
+Yarnivores Pop-up Shop
+Songkran: Thai New Year Celebration
+CMU Feminists Engaged in Multicultural Matters and Education Panel (FEMME)
+Street Styles performances
+
+
+2024 Spring Carnival
+Weekend Highlights
+Booth, Rides and Dog Houses
+Thursday: 3-11 p.m.
+Friday & Saturday: 11 a.m.-11 p.m. 
+
+
+2024 Spring Carnival
+Weekend Highlights
+Carnival Headquarters Tent
+Check-In & Registration
+Thursday, Friday and Saturday: 8 a.m.-7 p.m.
+
+
+2024 Spring Carnival
+Weekend Highlights
+Activities, Wellness and Kidzone tents
+Thursday: 3-7 p.m.
+Friday and Saturday: 8 a.m.-7 p.m.
+
+
+2024 Spring Carnival
+Weekend Highlights
+Buggy Races and Donut Tent
+Friday's Preliminary Sweepstakes Race: 8 a.m.-Noon
+Saturday's Final Sweepstakes Race: 8 a.m.-Noon
+
+
+2024 Spring Carnival
+Weekend Highlights
+Scotch'n'Soda Performance of The Little Mermaid
+Thursday: 7-9:30 p.m.
+Friday: 6-8:30 p.m. and 10 p.m.-12:30 a.m.
+Saturday: 3-5:30 p.m. and 7-9:30 p.m.
+
+
+"""
+    )
+    for event in res:
+        date = event["date"]
+        for e in event["events"]:
+            f.write("2024 Spring Carnival\n")
+            f.write(f"{e['title']}\n")
+            if "span_date" in e:
+                f.write(f"{e['span_date']}\n")
+            else:
+                f.write(f"{date}\n")
+            f.write(f"{e['time']}\n")
+            f.write(f"{e['permission']}\n")
+            f.write(f"{e['description']}\n")
+            f.write("\n\n")
