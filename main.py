@@ -86,11 +86,15 @@ def load_qa(question_file: str, answer_file: str) -> Tuple[List[str], List[str]]
     return questions, answers
 
 
-def predict(p: Pipeline, queries: List[str]) -> List[str]:
+def predict(p: Pipeline, queries: List[str], output_file: str) -> List[str]:
     res = []
-    for query in tqdm.tqdm(queries):
-        answer = p.run(query=query)
-        res.append(answer["answers"][0].answer)
+    with open(output_file, "w") as f:
+        for query in tqdm.tqdm(queries):
+            answer = p.run(query=query)
+            ans = answer["answers"][0].answer
+            res.append(ans)
+            f.write(ans + "\n")
+            f.flush()
     return res
 
 
@@ -118,16 +122,20 @@ def evaluate(output: List[str], truth: List[str]) -> Tuple[float, float, float]:
 
     return f1 / len(output), recall / len(output), em / len(output)
 
-
 if __name__ == "__main__":
     docs = load_documents("data")
     questions, answers = load_qa("dev/questions.txt", "dev/reference_answers.txt")
 
     p = baseline(docs)
-    prediction = predict(p, questions)
-    with open("dev/prediction.txt", "w") as f:
-        for p in prediction:
-            f.write(p + "\n")
+    prediction = predict(p, questions, "test/prediction.txt")
 
     f1, recall, em = evaluate(prediction, answers)
     print(f"F1: {f1}, Recall: {recall}, EM: {em}")
+
+    if False:
+        with open("test/questions.txt", "r") as fq:
+            for lineq in fq:
+                q = lineq.strip()
+                if q != "":
+                    questions.append(q)
+        prediction = predict(p, questions, "test/prediction.txt")
