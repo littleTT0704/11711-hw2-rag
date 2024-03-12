@@ -88,5 +88,6 @@ if __name__ == "__main__":
     with open("dev/prediction.txt", "w") as f:
         for p in prediction:
             f.write(p + "\n")
+
     f1, recall, em = evaluate(prediction, answers)
     print(f"F1: {f1}, Recall: {recall}, EM: {em}")
