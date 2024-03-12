@@ -1,0 +1,1335 @@
+PublishedasaconferencepaperatICLR2023
+SOFTMATCH: ADDRESSING THE QUANTITY-QUALITY
+TRADE-OFF IN SEMI-SUPERVISED LEARNING
+HaoChen1∗,RanTao1∗,YueFan2,YidongWang3
+JindongWang3†,BerntSchiele2,XingXie3,BhikshaRaj1,4,MariosSavvides1†
+1CarnegieMellonUniversity,2MaxPlanckInstituteforInformatics,SaarlandInformaticsCampus,
+3MicrosoftResearchAsia,4MohamedbinZayedUniversityofAI
+ABSTRACT
+The critical challenge of Semi-Supervised Learning (SSL) is how to effectively
+leverage the limited labeled data and massive unlabeled data to improve the
+model’s generalization performance. In this paper, we first revisit the popular
+pseudo-labelingmethodsviaaunifiedsampleweightingformulationanddemon-
+strate the inherent quantity-quality trade-off problem of pseudo-labeling with
+thresholding, which may prohibit learning. To this end, we propose SoftMatch
+to overcome the trade-off by maintaining both high quantity and high quality of
+pseudo-labelsduringtraining,effectivelyexploitingtheunlabeleddata.Wederive
+atruncatedGaussianfunctiontoweightsamplesbasedontheirconfidence,which
+canbeviewedasasoftversionoftheconfidencethreshold. Wefurtherenhance
+the utilization of weakly-learned classes by proposing a uniform alignment ap-
+proach.Inexperiments,SoftMatchshowssubstantialimprovementsacrossawide
+varietyofbenchmarks,includingimage,text,andimbalancedclassification.
+1 INTRODUCTION
+Semi-Supervised Learning (SSL), concerned with learning from a few labeled data and a large
+amount of unlabeled data, has shown great potential in practical applications for significantly re-
+ducedrequirements onlaborious annotations(Fanet al.,2021; Xieet al.,2020;Sohn etal., 2020;
+Phametal.,2021;Zhangetal.,2021;Xuetal.,2021b;a;Chenetal.,2021;Oliveretal.,2018). The
+mainchallengeofSSLliesinhowtoeffectivelyexploittheinformationofunlabeleddatatoimprove
+themodel’sgeneralizationperformance(Chapelleetal.,2006). Amongtheefforts,pseudo-labeling
+(Lee et al., 2013; Arazo et al., 2020) with confidence thresholding (Xie et al., 2020; Sohn et al.,
+2020;Xuetal.,2021b;Zhangetal.,2021)ishighly-successfulandwidely-adopted.
+The core idea of threshold-based pseudo-labeling (Xie et al., 2020; Sohn et al., 2020; Xu et al.,
+2021b; Zhang et al., 2021) is to train the model with pseudo-label whose prediction confidence is
+above a hard threshold, with the others being simply ignored. However, such a mechanism inher-
+ently exhibits the quantity-quality trade-off, which undermines the learning process. On the one
+hand, ahighconfidencethresholdasexploitedinFixMatch(Sohnetal.,2020)ensuresthequality
+ofthepseudo-labels. However,itdiscardsaconsiderablenumberofunconfidentyetcorrectpseudo-
+labels. AsanexampleshowninFig.1(a),around71%correctpseudo-labelsareexcludedfrom
+thetraining. Ontheotherhand,dynamicallygrowingthreshold(Xuetal.,2021b;Berthelotetal.,
+2021),orclass-wisethreshold(Zhangetal.,2021)encouragestheutilizationofmorepseudo-labels
+butinevitablyfullyenrollserroneouspseudo-labelsthatmaymisleadtraining.Asanexampleshown
+by FlexMatch (Zhang et al., 2021) in Fig. 1(a), about 16% of the utilized pseudo-labels are in-
+correct. Insummary,thequantity-qualitytrade-offwithaconfidencethresholdlimitstheunlabeled
+datautilization,whichmayhinderthemodel’sgeneralizationperformance.
+Inthiswork,weformallydefinethequantityandqualityofpseudo-labelsinSSLandsummarizethe
+inherenttrade-offpresentinpreviousmethodsfromaperspectiveofunifiedsampleweightingfor-
+∗
+EqualContribution:haoc3@andrew.cmu.edu,taoran1@cmu.edu
+†
+Correspondenceto:jindong.wang@microsoft.com,marioss@andrew.cmu.edu.
+1
+3202
+raM
+51
+]GL.sc[
+2v12901.1032:viXra
+PublishedasaconferencepaperatICLR2023
+160 All FixMatch 1.0 1.0 1.0 2 FixMatch Wrong FlexMatch 120 S Co of rt rM eca ttch 0.8 0.8 0.9 1 SoftMatch
+0.6 0.6 0.8
+80 FlexMatch 0
+0.4 0.4 0.7
+40 0.2 0.2 F Fi lx exM Ma atc th
+ch
+0.6 F Fi lx exM Ma atc th
+ch
+−1
+SoftMatch SoftMatch
+0.0 0.0 0.5
+00.5 0.6 C0 o.7 nfide0 n. c8
+e
+0.9 1.0 0 500 I1 t0 e0 r0
+.
+1500 2000 0 500 I1 t0 e0 r0
+.
+1500 2000 −2 −1 x0 1 2
+(a) Confi.Dist. (b) Quantity (c) Quality (d) DecisionBoundary
+Figure1:IllustrationonTwo-MoonDatasetwithonly4labeledsamples(trianglepurple/pinkpoints)
+withothersasunlabeledsamplesintraininga3-layerMLPclassifier.TrainingdetailisinAppendix.
+(a)Confidencedistribution,includingallpredictionsandwrongpredictions.Theredlinedenotesthe
+correctpercentageofsamplesusedbySoftMatch. Thepartofthelineabovescatterpointsdenotes
+the correct percentage for FixMatch (blue) and FlexMatch (green). (b) Quantity of pseudo-labels;
+(c)Qualityofpseudo-labels;(d)Decisionboundary. SoftMatchexploitsalmostallsamplesduring
+trainingwithlowesterrorrateandbestdecisionboundary.
+mulation. Wefirstidentifythefundamentalreasonbehindthequantity-qualitytrade-offisthelack
+ofsophisticatedassumptionimposedbytheweightingfunctiononthedistributionofpseudo-labels.
+Especially,confidencethresholdingcanberegardedasastepfunctionassigningbinaryweightsac-
+cordingtosamples’confidence,whichassumespseudo-labelswithconfidenceabovethethreshold
+areequallycorrectwhileothersarewrong. Basedontheanalysis, weproposeSoftMatchtoover-
+comethetrade-offbymaintaininghighquantityandhighqualityofpseudo-labelsduringtraining.
+AtruncatedGaussianfunctionisderivedfromourassumptiononthemarginaldistributiontofitthe
+confidence distribution, which assigns lower weights to possibly correct pseudo-labels according
+to the deviation of their confidence from the mean of Gaussian. The parameters of the Gaussian
+functionareestimatedusingthehistoricalpredictionsfromthemodelduringtraining. Furthermore,
+weproposeUniformAlignmenttoresolvetheimbalanceissueinpseudo-labels,resultingfromdif-
+ferentlearningdifficultiesofdifferentclasses. Itfurtherconsolidatesthequantityofpseudo-labels
+whilemaintainingtheirquality.Onthetwo-moonexample,asshowninFig.1(c)andFig.1(b),Soft-
+Matchachievesadistinctivelybetteraccuracyofpseudo-labelswhileretainingaconsistentlyhigher
+utilization ratio of them during training, therefore, leading to a better-learned decision boundary
+as shown in Fig. 1(d). We demonstrate that SoftMatch achieves a new state-of-the-art on a wide
+rangeofimageandtextclassificationtasks. WefurthervalidatetherobustnessofSoftMatchagainst
+long-taileddistributionbyevaluatingimbalancedclassificationtasks.
+Ourcontributionscanbesummarizedas:
+• Wedemonstratetheimportanceoftheunifiedweightingfunctionbyformallydefiningthe
+quantityandqualityofpseudo-labels,andthetrade-offbetweenthem. Weidentifythatthe
+inherenttrade-offinpreviousmethodsmainlystemsfromthelackofcarefuldesignonthe
+distributionofpseudo-labels,whichisimposeddirectlybytheweightingfunction.
+• We propose SoftMatch to effectively leverage the unconfident yet correct pseudo-labels,
+fitting a truncated Gaussian function the distribution of confidence, which overcomes the
+trade-off.WefurtherproposeUniformAlignmenttoresolvetheimbalanceissueofpseudo-
+labelswhilemaintainingtheirhighquantityandquality.
+• WedemonstratethatSoftMatchoutperformspreviousmethodsonvariousimageandtext
+evaluation settings. We also empirically verify the importance of maintaining the high
+accuracyofpseudo-labelswhilepursuingbetterunlabeleddatautilizationinSSL.
+2 REVISIT QUANTITY-QUALITY TRADE-OFF OF SSL
+Inthissection,weformulatethequantityandqualityofpseudo-labelsfromaunifiedsampleweight-
+ingperspective,bydemonstratingtheconnectionbetweensampleweightingfunctionandthequan-
+tity/qualityofpseudo-labels. SoftMatchisnaturallyinspiredbyrevisitingtheinherentlimitationin
+quantity-qualitytrade-offoftheexistingmethods.
+2
+selpmaSforebmuN selpmaSfoegatnecreP slebaL-oduesPfoytitnauQ slebaL-oduesPfoytilauQ
+y
+PublishedasaconferencepaperatICLR2023
+2.1 PROBLEMSTATEMENT
+We first formulate the framework of SSL in a C-class classification problem. Denote the labeled
+andunlabeleddatasetsas = (cid:8) xl,yl(cid:9)NL and = xu NU,respectively,wherexl,xu Rd
+DL i i i=1 DU { i}i=1 i i ∈
+isthed-dimensionallabeledandunlabeledtrainingsample,andyl istheone-hotground-truthlabel
+i
+for labeled data. We use N and N to represent the number of training samples in and ,
+L U L U
+respectively. Let p(yx) RC denote the model’s prediction. During training, giveD n a batcD h of
+| ∈
+labeleddataandunlabeleddata,themodelisoptimizedusingajointobjective = + ,where
+s u
+L L L
+isthesupervisedobjectiveofthecross-entropyloss( )ontheB -sizedlabeledbatch:
+s L
+L H
+1
+(cid:88)BL
+= (y ,p(yxl)). (1)
+Ls B H i | i
+L
+i=1
+Fortheunsupervisedloss,mostexistingmethodswithpseudo-labeling(Leeetal.,2013;Arazoetal.,
+2020;Xieetal.,2020;Sohnetal.,2020;Xuetal.,2021b;Zhangetal.,2021)exploitaconfidence
+thresholding mechanism to mask out the unconfident and possibly incorrect pseudo-labels from
+training. In this paper, we take a step further and present a unified formulation of the confidence
+thresholdingscheme(andotherschemes)fromthesampleweightingperspective. Specifically, we
+formulatetheunsupervisedloss astheweightedcross-entropybetweenthemodel’sprediction
+u
+ofthestrongly-augmenteddataΩL (xu)andpseudo-labelsfromtheweakly-augmenteddataω(xu):
+1
+(cid:88)BU
+= λ(p ) (pˆ ,p(yΩ(xu))), (2)
+Lu B i H i | i
+U
+i=1
+wherepistheabbreviationofp(yω(xu)),andpˆ istheone-hotpseudo-labelargmax(p);λ(p)is
+|
+thesampleweightingfunctionwithrange[0,λ ];andB isthebatchsizeforunlabeleddata.
+max U
+2.2 QUANTITY-QUALITYTRADE-OFFFROMSAMPLEWEIGHTINGPERSPECTIVE
+Inthissection,wedemonstratetheimportanceoftheunifiedweightingfunctionλ(p),byshowing
+itsdifferentinstantiationsinpreviousmethodsanditsessentialconnectionwithmodelpredictions.
+Westartbyformulatingthequantityandqualityofpseudo-labels.
+Definition2.1(Quantityofpseudo-labels). Thequantityf(p)ofpseudo-labelsenrolledintraining
+isdefinedastheexpectationofthesampleweightλ(p)overtheunlabeleddata:
+f(p)=E [λ(p)] [0,λ ]. (3)
+DU
+∈
+max
+Definition2.2(Qualityofpseudolabels). Thequalityg(p)istheexpectationoftheweighted0/1
+errorofpseudo-labels,assumingthelabelyuisgivenforxuforonlytheoreticalanalysispurpose:
+g(p)=(cid:88)NU
+1(pˆ
+i
+=y iu)
+(cid:80)Nλ U(p
+λi
+()
+p )
+=E λ¯(p)[1(pˆ =yu)] ∈[0,1], (4)
+i j j
+whereλ¯(p)=λ(p)/(cid:80) λ(p)istheprobabilitymassfunction(PMF)ofpbeingclosetoyu.
+Basedonthedefinitionsofqualityandquantity,wepresentthequantity-qualitytrade-off ofSSL.
+Definition 2.3 (The quantity-quality trade-off). Due to the implicit assumptions of PMF λ¯(p) on
+themarginaldistributionofmodelpredictions,thelackofsophisticateddesignonitusuallyresults
+inatrade-offinquantityandquality-whenoneofthemincreases,theothermustdecrease. Ideally,
+awell-definedλ(p)shouldreflectthetruedistributionandleadtobothhighquantityandquality.
+Despite its importance, λ(p) has hardly been defined explicitly or properly in previous methods.
+In this paper, we first summarize λ(p), λ¯(p), f(p), and g(p) of relevant methods, as shown in
+Table1,withthedetailedderivationpresentinAppendixA.1. Forexample,naivepseudo-labeling
+(Lee et al., 2013) and loss weight ramp-up scheme (Samuli & Timo, 2017; Tarvainen & Valpola,
+2017;Berthelotetal.,2019b;a)exploitthefixedsampleweighttofullyenrollallpseudo-labelsinto
+training.Itisequivalenttosetλ=λ andλ¯ =1/N ,regardlessofp,whichmeanseachpseudo-
+max U
+labelisassumedequallycorrect. Wecanverifythequantityofpseudo-labelsismaximizedtoλ .
+max
+3
+PublishedasaconferencepaperatICLR2023
+Table1: Summaryofdifferentsampleweightingfunctionλ(p), probabilitydensityfunctionλ¯(p)
+ofp,quantityf(p)andqualityg(p)ofpseudo-labelsusedinpreviousmethodsandSoftMatch.
+Scheme Pseudo-Label FixMatch SoftMatch
+λ(p) λmax (cid:26)λ 0.m 0a ,x, i of thm era wx i( sp e.) ≥τ, (cid:40) λ λm ma ax x,exp(cid:16) −(max( 2p σ) t2−µt)2(cid:17) , i of thm era wx i( sp e.)<µt,
+λ¯(p) 1/NU (cid:26)1 0/ .0N ,ˆ Uτ, i of thm era wx i( sp e.) ≥τ,   N N2 2U U+ +(cid:80) (cid:80)ex i iN Np 2 2( U U− e e( x xm p pa ( (x 1− −( 2p σ ( (ˆi t m m) 2− a ax xµˆ ( (t 2 2p p) σ σˆ ˆ2 i it t) )) 2 2− −µ µˆ ˆt t) )2 2) ),
+,
+m ma ax x( (p p) )< ≥µµt
+t
+f(p) λmax λmaxNˆ Uτ/NU λmax/2+λmax/NU(cid:80) iN 2U exp( −(max( 2p σˆi t) 2−µˆt)2)
+g(p) (cid:80)N iU1(pˆ=yu)/NU (cid:80)N iˆ U1(pˆ=yu)/Nˆ Uτ (cid:80)N iU−Nˆ Uµt1(pˆ i(cid:80) =N j yˆ U iuµt )1 ex(p pˆ (j −= (my aju x) (/ p σ2 i t2)N −ˆ µU t+ )2)/2(NU−Nˆ Uµt)
+HighQuantity LowQuantity HighQuantity
+Note
+LowQuality HighQuality HighQuality
+However,maximizingquantityalsofullyinvolvestheerroneouspseudo-labels,resultingindeficient
+quality,especiallyinearlytraining. Thisfailuretrade-offisduetotheimplicituniformassumption
+onPMFλ¯(p)thatisfarfromtherealisticsituation.
+Inconfidencethresholding(Arazoetal.,2020;Sohnetal.,2020;Xieetal.,2020),wecanviewthe
+sampleweightsasbeingcomputedfromastepfunctionwithconfidencemax(p)astheinputanda
+pre-definedthresholdτ asthebreakpoint. Itsetsλ(p)toλ whentheconfidenceisaboveτ and
+max
+otherwise0.DenotingNˆτ =(cid:80)NU 1(max(p) τ)asthetotalnumberofsampleswhosepredicted
+U i ≥
+confidenceareabovethethreshold,λ¯issettoauniformPMFwithatotalmassofNˆτ withinafixed
+U
+range [τ,1]. This is equal to constrain the unlabeled data as ˆτ = xu;max(p(yxu)) τ ,
+DU { | ≥ }
+withotherssimplybeingdiscarded. WecanderivethequantityandthequalityasshowninTable1.
+A trade-off exists between the quality and quantity of pseudo-labels in confidence thresholding
+controlled by τ. On the one hand, while a high threshold ensures quality, it limits the quantity of
+enrolledsamples. Ontheotherhand,alowthresholdsacrificesqualitybyfullyinvolvingmorebut
+possiblyerroneouspseudo-labelsintraining. Thetrade-offstillresultsfromtheover-simplification
+of the PMF from actual cases. Adaptive confidence thresholding (Zhang et al., 2021; Xu et al.,
+2021b) adopts the dynamic and class-wise threshold, which alleviates the trade-off by evolving
+the (class-wise) threshold during learning. They impose a further relaxation on the assumption of
+distribution,buttheuniformnatureoftheassumedPMFremainsunchanged.
+While some methods indeed consider the definition of λ(p) (Ren et al., 2020; Hu et al., 2021;
+Kim et al., 2022), interestingly, they all neglect the assumption induced on the PMF. The lack of
+sophisticatedmodelingofλ¯(p)usuallyleadstoaquantity-qualitytrade-offintheunsupervisedloss
+ofSSL,whichmotivatesustoproposeSoftMatchtoovercomethischallenge.
+3 SOFTMATCH
+3.1 GAUSSIANFUNCTIONFORSAMPLEWEIGHTING
+Inherently different from previous methods, we generally assume the underlying PMF λ¯(p) of
+marginaldistributionfollowsadynamicandtruncatedGaussiandistributionofmeanµ andvari-
+t
+anceσ att-thtrainingiteration. WechooseGaussianforitsmaximumentropypropertyandempir-
+t
+icallyverifiedbettergeneralization. Notethatthisisequivalenttotreatthedeviationofconfidence
+max(p) from the mean µ of Gaussian as a proxy measure of the correctness of the model’s pre-
+t
+diction, wheresampleswithhigherconfidencearelesspronetobeerroneousthanthatwithlower
+confidence,consistenttotheobservationasshowninFig.1(a). Tothisend,wecanderiveλ(p)as:
+(cid:40)
+λ
+exp(cid:16) (max(p)−µt)2(cid:17)
+, if max(p)<µ ,
+λ(p)= max − 2σ t2 t (5)
+λ , otherwise.
+max
+whichisalsoatruncatedGaussianfunctionwithintherange[0,λ ],ontheconfidencemax(p).
+max
+4
+PublishedasaconferencepaperatICLR2023
+However, the underlying true Gaussian parameters µ and σ are still unknown. Although we can
+t t
+set the parameters to fixed values as in FixMatch (Sohn et al., 2020) or linearly interpolate them
+withinsomepre-definedrangeasinRamp-up(Tarvainen&Valpola,2017),thismightagainover-
+simplifythePMFassumptionasdiscussedbefore.RecallthatthePMFλ¯(p)isdefinedovermax(p),
+wecaninsteadfit thetruncatedGaussianfunctiondirectlytotheconfidencedistributionforbetter
+generalization. Specifically,wecanestimateµandσ2 fromthehistoricalpredictionsofthemodel.
+Att-thiteration,wecomputetheempiricalmeanandthevarianceas:
+µˆ =Eˆ [max(p)]=
+1
+(cid:88)BU
+max(p ),
+b BU B i
+U
+i=1
+(6)
+σˆ2 =Vˆar [max(p)]=
+1
+(cid:88)BU
+(max(p ) µˆ )2.
+b BU B i − b
+U
+i=1
+Wethenaggregatethebatchstatisticsforamorestableestimation,usingExponentialMovingAv-
+erage(EMA)withamomentummoverpreviousbatches:
+µˆ =mµˆ +(1 m)µˆ ,
+t t−1 b
+−
+B (7)
+σˆ2 =mσˆ2 +(1 m) U σˆ2,
+t t−1 − B 1 b
+U
+−
+whereweuseunbiasedvarianceforEMAandinitializeµˆ as 1 andσˆ2as1.0. Theestimatedmean
+0 C 0
+µˆ andvarianceσˆ2arepluggedbackintoEq.(5)tocomputesampleweights.
+t t
+EstimatingtheGaussianparametersadaptivelyfromtheconfidencedistributionduringtrainingnot
+only improves the generalization but also better resolves the quantity-quality trade-off. We can
+verifythisbycomputingthequantityandqualityofpseudo-labelsasshowninTable1. Thederived
+quantityf(p)isboundedby[λm 2ax(1+exp( −( C1 2− σˆtµˆ 2t)2 )),λ max], indicatingSoftMatchguarantees
+atleastλ /2ofquantityduringtraining. Asthemodellearnsbetterandbecomesmoreconfident,
+max
+i.e., µˆ increases and σˆ decreases, the lower tail of the quantity becomes much tighter. While
+t t
+quantity maintains high, the quality of pseudo-labels also improves. As the tail of the Gaussian
+exponentiallygrowstighterduringtraining,theerroneouspseudo-labelswherethemodelishighly
+unconfident are assigned with lower weights, and those whose confidence are around µˆ are more
+t
+efficiently utilized. The truncated Gaussian weighting function generally behaves as a soft and
+adaptiveversionofconfidencethresholding,thuswetermtheproposedmethodasSoftMatch.
+3.2 UNIFORMALIGNMENTFORFAIRQUANTITY
+Asdifferentclassesexhibitdifferentlearningdifficulties, generatedpseudo-labelscanhavepoten-
+tially imbalanced distribution, which may limit the generalization of the PMF assumption (Oliver
+etal.,2018;Zhangetal.,2021). Toovercomethisproblem,weproposeUniformAlignment(UA),
+encouragingmoreuniformpseudo-labelsofdifferentclasses.Specifically,wedefinethedistribution
+inpseudo-labelsastheexpectationofthemodelpredictionsonunlabeleddata:E [p(yxu)].Dur-
+ingtraining,itisestimatedasEˆ [p(yxu)]usingtheEMAofbatchpredictionsD oU nunla| beleddata.
+We use the ratio between a uniB foU rm dis| tribution u(C) RC and Eˆ [p(yxu)] to normalize the
+∈
+BU
+|
+eachpredictionponunlabeleddataandusethenormalizedprobabilitytocalculatetheper-sample
+lossweight. WeformulatetheUAoperationas:
+(cid:32) (cid:33)
+u(C)
+UA(p)=Normalize p , (8)
+· Eˆ [p]
+BU
+(cid:80)
+where the Normalize() = ()/ (), ensuring the normalized probability sums to 1.0. With UA
+· · ·
+pluggedin,thefinalsampleweightingfunctioninSoftMatchbecomes:
+(cid:40)
+λ
+exp(cid:16) (max(UA(p))−µˆt)2(cid:17)
+, if max(UA(p))<µˆ ,
+λ(p)= max − 2σˆ t2 t (9)
+λ , otherwise.
+max
+Whencomputingthesampleweights,UAencourageslargerweightstobeassignedtoless-predicted
+pseudo-labelsandsmallerweightstomore-predictedpseudo-labels,alleviatingtheimbalanceissue.
+5
+PublishedasaconferencepaperatICLR2023
+Table2: Top-1errorrate(%)onCIFAR-10,CIFAR-100,STL-10,andSVHNof3differentrandom
+seeds. Numberswith aretakenfromtheoriginalpapers. Thebestnumberisinbold.
+∗
+Dataset CIFAR-10 CIFAR-100 SVHN STL-10
+#Label 40 250 4,000 400 2,500 10,000 40 1,000 40 1,000
+PseudoLabel 74.61±0.26 46.49±2.20 15.08±0.19 87.45±0.85 57.74±0.28 36.55±0.24 64.61±5.60 9.40±0.32 74.68±0.99 32.64±0.71
+MeanTeacher 70.09±1.60 37.46±3.30 8.10±0.21 81.11±1.44 45.17±1.06 31.75±0.23 36.09±3.98 3.27±0.05 71.72±1.45 33.90±1.37
+MixMatch 36.19±6.48 13.63±0.59 6.66±0.26 67.59±0.66 39.76±0.48 27.78±0.29 30.60±8.39 3.69±0.37 54.93±0.96 21.70±0.68
+ReMixMatch 9.88±1.03 6.30±0.05 4.84±0.01 42.75±1.05 26.03±0.35 20.02±0.27 24.04±9.13 5.16±0.31 32.12±6.24 6.74±0.14
+UDA 10.62±3.75 5.16±0.06 4.29±0.07 46.39±1.59 27.73±0.21 22.49±0.23 5.12±4.27 1.89±0.01 37.42±8.44 6.64±0.17
+FixMatch 7.47±0.28 4.86±0.05 4.21±0.08 46.42±0.82 28.03±0.16 22.20±0.12 3.81±1.18 1.96±0.03 35.97±4.14 6.25±0.33
+Influence - 5.05±0.12∗ 4.35±0.06∗ - - - 2.63±0.23∗ 2.34±0.15∗ - -
+FlexMatch 4.97±0.06 4.98±0.09 4.19±0.01 39.94±1.62 26.49±0.20 21.90±0.15 8.19±3.20 6.72±0.30 29.15±4.16 5.77±0.18
+SoftMatch 4.91±0.12 4.82±0.09 4.04±0.02 37.10±0.77 26.66±0.25 22.03±0.03 2.33±0.25 2.01±0.01 21.42±3.48 5.73±0.24
+AnessentialdifferencebetweenUAandDistributionAlignment(DA)(Berthelotetal.,2019a)pro-
+posedearlierliesinthecomputationofunsupervisedloss. Thenormalizationoperationmakesthe
+predicted probability biased towards the less-predicted classes. In DA, this might not be an issue,
+asthenormalizedpredictionisusedassofttargetinthecross-entropyloss. However,withpseudo-
+labeling, more erroneous pseudo-labels are probably created after normalization, which damages
+the quality. UA avoids this issue by exploiting original predictions to compute pseudo-labels and
+normalized predictions to compute sample weights, maintaining both the quantity and quality of
+pseudo-labelsinSoftMatch. ThecompletetrainingalgorithmisshowninAppendixA.2.
+4 EXPERIMENTS
+WhilemostSSLliteratureperformsevaluationonimagetasks,weextensivelyevaluateSoftMatch
+onvariousdatasetsincludingimageandtextdatasetswithclassicandlong-tailedsettings.Moreover,
+WeprovideablationstudyandqualitativecomparisontoanalyzetheeffectivenessofSoftMatch. 1
+4.1 CLASSICIMAGECLASSIFICATION
+Setup.Fortheclassicimageclassificationsetting,weevaluateonCIFAR-10/100(Krizhevskyetal.,
+2009),SVHN(Netzeretal.,2011),STL-10(Coatesetal.,2011)andImageNet(Dengetal.,2009),
+withvariousnumbersoflabeleddata,whereclassdistributionofthelabeleddataisbalanced.Weuse
+theWRN-28-2(Zagoruyko&Komodakis,2016)forCIFAR-10andSVHN,WRN-28-8forCIFAR-
+100,WRN-37-2(Zhouetal.,2020)forSTL-10,andResNet-50(Heetal.,2016)forImageNet. For
+allexperiments,weuseSGDoptimizerwithamomentumof0.9,wheretheinitiallearningrateη
+0
+issetto0.03. Weadoptthecosinelearningrateannealingschemetoadjustthelearningratewith
+atotaltrainingstepof220. ThelabeledbatchsizeB issetto64andtheunlabeledbatchsizeB
+L U
+issetto7timesofB foralldatasets. Wesetmto0.999anddividetheestimatedvarianceσˆ by
+L t
+4for2σ oftheGaussianfunction. WerecordtheEMAofmodelparametersforevaluationwitha
+momentum of 0.999. Each experiment is run with three random seeds on labeled data, where we
+reportthetop-1errorrate. Moredetailsonthehyper-parametersareshowninAppendixA.3.1.
+Results. SoftMatchobtainsthestate-of-the-artresultsonalmostallsettingsinTable2andTable3,
+exceptCIFAR-100with2,500and10,000labelsandSVHNwith1,000labels,wheretheresultsof
+SoftMatch are comparable to previous methods. Notably, FlexMatch exhibits a performance drop
+compared to FixMatch on SVHN, since it enrolls too many erroneous pseudo-labels at the begin-
+ningofthetrainingthatprohibitslearningafterward. Incontrast,SoftMatchsurpassesFixMatchby
+1.48% on SVHN with 40 labels, demonstrating its superiority for better utilization of the pseudo-
+labels.Onmorerealisticdatasets,CIFAR-100with400labels,STL-10with40labels,andImageNet
+with10%labels,SoftMatchexceedsFlexMatchbyamarginof7.73%,2.84%,and1.33%,respec-
+tively. SoftMatchshowsthecomparableresultstoFlexMatchonCIFAR-100with2,500and10,000
+labels,whereasReMixMatch(Berthelotetal.,2019a)demonstratesthebestresultsduetotheMixup
+(Zhangetal.,2017)andRotationloss.
+1
+AllexperimentsinSection4.1,Section4.2,andSection4.5areconductedwithTorchSSL(Zhangetal.,2021)andSection4.3are
+conductedwithUSB(Wangetal.,2022b)sinceitonlysupportsNLPtasksbackthen.MorerecentresultsofSoftMatchareincludedinUSB
+alongitsupdates,referhttps://github.com/Hhhhhhao/SoftMatchfordetails.
+6
+PublishedasaconferencepaperatICLR2023
+Table 3: Top1 error rate Table4: Top1errorrate(%)onCIFAR-10-LTandCIFAR-100-LTof
+(%) on ImageNet. The 5differentrandomseeds. Thebestnumberisinbold.
+bestnumberisinbold.
+Dataset CIFAR-10-LT CIFAR-100-LT
+#Label 100k 400k Imbalanceγ 50 100 150 20 50 100
+FixMatch 43.66 32.28 FixMatch 18.46±0.30 25.11±1.20 29.62±0.88 50.42±0.78 57.89±0.33 62.40±0.48
+FlexMatch 41.85 31.31 FlexMatch 18.13±0.19 25.51±0.92 29.80±0.36 49.11±0.60 57.20±0.39 62.70±0.47
+SoftMatch 40.52 29.49 SoftMatch 16.55±0.29 22.93±0.37 27.40±0.46 48.09±0.55 56.24±0.51 61.08±0.81
+Table5: Top1errorrate(%)ontextdatasetsof3differentrandomseeds. Bestnumbersareinbold.
+Datasets AGNews DBpedia IMDb Amazon-5 Yelp-5
+#Labels 40 200 70 280 100 1000 1000
+UDA 16.83±1.68 14.34±1.9 4.11±1.44 6.93±3.85 18.33±0.61 50.29±4.6 47.49±6.83
+FixMatch 17.10±3.13 11.24±1.43 2.18±0.92 1.42±0.18 7.59±0.28 42.70±0.53 39.56±0.7
+FlexMatch 15.49±1.97 10.95±0.56 2.69±0.34 1.69±0.02 7.80±0.23 42.34±0.62 39.01±0.17
+SoftMatch 12.68±0.23 10.41±0.13 1.68±0.34 1.27±0.1 7.48±0.12 42.14±0.92 39.31±0.45
+4.2 LONG-TAILEDIMAGECLASSIFICATION
+Setup. WeevaluateSoftMatchonamorerealisticandchallengingsettingofimbalancedSSL(Kim
+et al., 2020; Wei et al., 2021; Lee et al., 2021; Fan et al., 2022), where both the labeled and the
+unlabeleddataexhibitlong-taileddistributions. Following(Fanetal.,2022),theimbalanceratioγ
+rangesfrom50to150and20to100forCIFAR-10-LTandCIFAR-100-LT,respectively. Here,γ is
+usedtoexponentiallydecreasethenumberofsamplesfromclass0toclassC (Fanetal.,2022). We
+compareSoftMatchwithtwostrongbaselines: FixMatch(Sohnetal.,2020)andFlexMatch(Zhang
+et al., 2021). All experiments use the same WRN-28-2 (Zagoruyko & Komodakis, 2016) as the
+backbone and the same set of common hyper-parameters. Each experiment is repeated five times
+withdifferentdatasplits,andwereporttheaveragetestaccuracyandthestandarddeviation. More
+detailsareinAppendixA.3.2.
+Results. As is shown in Table 4, SoftMatch achieves the best test error rate across all long-tailed
+settings. Theperformanceimprovementoverthepreviousstate-of-the-artisstillsignificantevenat
+largeimbalanceratios. Forexample, SoftMatchoutperformsthesecond-bestby2.4%atγ = 150
+onCIFAR-10-LT,whichsuggeststhesuperiorrobustnessofourmethodagainstdataimbalance.
+Discussion. Here we study the design choice of uniform alignment as it plays a key role in Soft-
+Match’s performance on imbalanced SSL. We conduct experiments with different target distribu-
+tions for alignment. Specifically, the default uniform target distribution u(C) can be replaced by
+ground-truthclassdistributionortheempiricalclassdistributionestimatedbyseenlabeleddatadur-
+ingtraining. TheresultsinFig.3(a)showaclearadvantageofusinguniformdistribution. Uniform
+targetdistributionenforcestheclassmarginaltobecomeuniform,whichhasastrongregularization
+effectofbalancingtheheadandtailclassesinimbalancedclassificationsettings.
+4.3 TEXTCLASSIFICATION
+Setup. In addition to image classification tasks, we further evaluate SoftMatch on text topic clas-
+sification tasks of AG News and DBpedia, and sentiment tasks of IMDb, Amazon-5, and Yelp-5
+(Maasetal.,2011;Zhangetal.,2015). Wesplitavalidationsetfromthetrainingdatatoevaluate
+thealgorithms. ForAmazon-5andYelp-5,werandomlysample50,000samplesperclassfromthe
+training data to reduce the training time. We fine-tune the pre-trained BERT-Base (Devlin et al.,
+2018)modelforalldatasetsusingUDA(Xieetal.,2020),FixMatch(Sohnetal.,2020),FlexMatch
+(Zhangetal.,2021),andSoftMatch. WeuseAdamW(Kingma&Ba,2014;Loshchilov&Hutter,
+2017)optimizerwithaninitiallearningrateof1e 5andthesamecosineschedulerasimageclassi-
+ficationtasks. Allalgorithmsaretrainedforatota− literationof218. Thefine-tunedmodelisdirectly
+used for evaluation rather than the EMA version. To reduce the GPU memory usage, we set both
+B andB to16. Otheralgorithmichyper-parametersstaythesameasimageclassificationtasks.
+L U
+Detailsofthedatasplittingandthehyper-parameterusedareinAppendixA.3.3.
+Results.TheresultsontextdatasetsareshowninTable5.SoftMatchconsistentlyoutperformsother
+methods,especiallyonthetopicclassificationstasks. Forinstance,SoftMatchachievesanerrorrate
+7
+PublishedasaconferencepaperatICLR2023
+FixMatch 1.0 1.0 1.0 0.8 FlexMatch
+SoftMatch 0.8 0.8 0.8
+0.6
+0.6 0.6 Fix.BestCls.
+0.6
+0.4 0.4 0.4 F Sole ftx .. BB ee ss tt CC ll ss ..
+0.2 0.2 F Fi lx exM Ma atc th ch 0.4 F Fi lx exM Ma atc th ch 0.2 F Fi lx ex. .W Wo ors rt stC Cls l. s.
+SoftMatch SoftMatch Soft.WorstCls.
+0.00k 50k 100k 150k 0.00k 50k 100k 150k 0.20k 50k 100k 150k 0.00k 50k 100k 150k
+Iter. Iter. Iter. Iter.
+(a) Eval.Error (b) Quantity (c) Quality (d) Cls.Quality
+Figure2: QualitativeanalysisofFixMatch, FlexMatch, andSoftMatchonCIFAR-10with250la-
+bels. (a)Evaluationerror;(b)QuantityofPseudo-Labels;(c)QualityofPseudo-Labels;(d)Quality
+ofPseudo-Labelsfromthebestandworstlearnedclass. Qualityiscomputedaccordingtotheun-
+derlyinggroundtruthlabels. SoftMatchachievessignificantlybetterperformance.
+of12.68%onAGnewswithonly40labelsand1.68%onDBpediawith70labels, surpassingthe
+secondbestbyamarginof2.81%and0.5%respectively. Onsentimenttasks,SoftMatchalsoshows
+thebestresultsonAmazon-5andIMDb,andcomparableresultstoitscounterpartonYelp-5.
+4.4 QUALITATIVEANALYSIS
+In this section, we provide a qualitative comparison on CIFAR-10 with 250 labels of FixMatch
+(Sohnetal.,2020),FlexMatch(Zhangetal.,2021),andSoftMatchfromdifferentaspects,asshown
+in Fig. 2. We compute the error rate, the quantity, and the quality of pseudo-labels to analyze the
+proposedmethod,usingthegroundtruthofunlabeleddatathatisunseenduringtraining.
+SoftMatch utilizes the unlabeled data better. From Fig. 2(b) and Fig. 2(c), one can observe
+that SoftMatch obtains highest quantity and quality of pseudo-labels across the training. Larger
+error with more fluctuation is present in quality of FixMatch and FlexMatch due to the nature of
+confidence thresholding, where significantly more wrong pseudo-labels are enrolled into training,
+leading to larger variance in quality and thus unstable training. While attaining a high quality,
+SoftMatchalsosubstantiallyimprovestheunlabeleddatautilizationratio,i.e.,thequantity,asshown
+in Fig. 2(b), demonstrating the design of truncated Gaussian function could address the quantity-
+quality trade-off of the pseudo-labels. We also present the quality of the best and worst learned
+classes,asshowninFig.2(d),wherebothretainthehighestalongtraininginSoftMatch. Thewell-
+solvedquantity-qualitytrade-offallowsSoftMatchachievesbetterperformanceonconvergence
+anderrorrate,especiallyforthefirst50kiterations,asinFig.2(a).
+4.5 ABLATIONSTUDY
+SampleWeightingFunctions. Wevalidatedifferentinstantiationsofλ(p)toverifytheeffective-
+¯
+nessofthetruncatedGaussianassumptiononPMFλ(p),asshowninFig.3(b).Bothlinearfunction
+andQuadraticfunctionfailtogeneralizeandpresentlargeperformancegapbetweenGaussiandue
+tothenaiveassumptiononPMFasdiscussedbefore. TruncatedLaplacianassumptionalsoworks
+wellondifferentsettings,buttruncatedGaussiandemonstratesthemostrobustperformance.
+GaussianParameterEstimation. SoftMatchestimatestheGaussianparametersµandσ2 directly
+fromtheconfidencegeneratedfromallunlabeleddataalongthetraining. Herewecompareit(All-
+Class) with two alternatives: (1) Fixed: which uses pre-defined µ and σ2 of 0.95 and 0.01. (2)
+Per-Class: where a Gaussian for each class instead of a global Gaussian weighting function. As
+shown in Fig. 3(c), the inferior performance of Fixed justifies the importance of adaptive weight
+adjustment in SoftMatch. Moreover, Per-Class achieves comparable performance with SoftMatch
+at250labels,butsignificantlyhighererrorrateat40labels. Thisisbecauseanaccurateparameter
+estimationrequiresmanypredictionsforeachclass,whichisnotavailableforPer-Class.
+Uniform Alignment on Gaussian. To verify the impact of UA, we compare the performance of
+SoftMatchwithandwithoutUA,denotedasall-classwithUAandall-classwithoutUAinFig.3(d).
+Sincetheper-classestimationstandalonecanalsobeviewedasawaytoachievefairclassutilization
+(Zhangetal.,2021),wealsoincludeitincomparison. RemovingUAfromSoftMatchhasaslight
+performancedrop. Besides,per-classestimationproducessignificantlyinferiorresultsonSVHN.
+8
+etaRrorrE
+slebaL-oduesPfoytitnauQ slebaL-oduesPfoytilauQ slebaL-oduesPfoytitnauQ
+PublishedasaconferencepaperatICLR2023
+20 10 10
+0.8 pˆL(y) Linear Fixed Per-Classw/oUA
+pL(y) 16 Quadratic 8 Per-Class 8 Per-Classw/UA
+u(C) Turn.Laplacian All-Class All-Classw/oUA
+0.6 12 Turn.Gaussian 6 6 All-Classw/UA
+8 4 4
+0.4
+4 2 2
+0.20k 50k 100k 150k 200k 0 CIFAR-1040CIFAR-10250 SVHN40 0CIFAR-1040 CIFAR-10250 SVHN40 0CIFAR-1040CIFAR-10250 SVHN40
+Iter. Dataset Dataset Dataset
+(a) L.T.UA (b) Weight.Func. (c) Gau.Param. (d) UA
+Figure 3: Ablation study of SoftMatch. (a) Target distributions for Uniform Alignment (UA) on
+long-tailedsetting;(b)Errorrateofdifferentsamplefunctions;(c)ErrorrateofdifferentGaussian
+parameterestimation,withUAenabled;(d)AblationonUAwithGaussianparameterestimation;
+Wefurtherincludethedetailedablationofsamplefunctionsandseveraladditionalablationstudyin
+AppendixA.5duetospacelimit. ThesestudiesdemonstratethatSoftMatchstaysrobusttodifferent
+EMAmomentum,variancerange,andUAtargetdistributionsonbalanceddistributionsettings.
+5 RELATED WORK
+Pseudo-labeling(Leeetal.,2013)generatesartificiallabelsforunlabeleddataandtrainsthemodel
+inaself-trainingmanner. Consistencyregularization(Samuli&Timo,2017)isproposedtoachieve
+the goal of producing consistent predictions for similar data points. A variety of works focus on
+improving the pseudo-labeling and consistency regularization from different aspects, such as loss
+weighting(Samuli&Timo,2017;Tarvainen&Valpola,2017;Iscenetal.,2019;Renetal.,2020),
+dataaugmentation(Grandvaletetal.,2005;Sajjadietal.,2016;Miyatoetal.,2018;Berthelotetal.,
+2019b;a;Xieetal.,2020;Cubuketal.,2020;Sajjadietal.,2016),labelallocation(Taietal.,2021),
+featureconsistency(Lietal.,2021;Zhengetal.,2022;Fanetal.,2021),andconfidencethresholding
+(Sohnetal.,2020;Zhangetal.,2021;Xuetal.,2021b).
+Loss weight ramp-up strategy is proposed to balance the learning on labeled and unlabeled data.
+(Samuli & Timo, 2017; Tarvainen & Valpola, 2017; Berthelot et al., 2019b;a). By progressively
+increasing the loss weight for the unlabeled data, which prevents the model involving too much
+ambiguousunlabeleddataattheearlystageoftraining,themodelthereforelearnsinacurriculum
+fashion.Per-samplelossweightisutilizedtobetterexploittheunlabeleddata(Iscenetal.,2019;Ren
+etal.,2020). Thepreviouswork“Influence”sharesasimilargoalwithus,whichaimstocalculate
+the loss weight for each sample but for the motivation that not all unlabeled data are equal (Ren
+et al., 2020). SAW (Lai et al., 2022) utilizes effective weights (Cui et al., 2019) to overcome the
+class-imbalancedissuesinSSL.Modelingoflossweighthasalsobeenexploredinsemi-supervised
+segmentation(Huetal.,2021). De-biasedself-training(Chenetal.,2022;Wangetal.,2022a)study
+the data bias and training bias brought by involving pseudo-labels into training, which is similar
+explorationofquantityandqualityinSoftMatch. Kimetal.(2022)proposedtouseasmallnetwork
+topredictthelossweight,whichisorthogonaltoourwork.
+Confidencethresholdingmethods(Sohnetal.,2020;Xieetal.,2020;Zhangetal.,2021;Xuetal.,
+2021b) adopt a threshold to enroll the unlabeled samples with high confidence into training. Fix-
+Match (Sohn et al., 2020) uses a fixed threshold to select pseudo-labels with high quality, which
+limitsthedatautilizationratioandleadstoimbalancedpseudo-labeldistribution. Dash(Xuetal.,
+2021b)graduallyincreasesthethresholdduringtrainingtoimprovetheutilizationofunlabeleddata.
+FlexMatch(Zhangetal.,2021)designsclass-wisethresholdsandlowersthethresholdsforclasses
+thataremoredifficulttolearn,whichalleviatesclassimbalance.
+6 CONCLUSION
+Inthispaper,werevisitthequantity-qualitytrade-offofpseudo-labelingandidentifythecorerea-
+son behind this trade-off from a unified sample weighting. We propose SoftMatch with truncated
+Gaussian weighting function and Uniform Alignment that overcomes the trade-off, yielding both
+highquantityandqualityofpseudo-labelsduringtraining. Extensiveexperimentsdemonstratethe
+effectivenessofourmethodonvarioustasks. Wehopemoreworkscanbeinspiredinthisdirection,
+suchasdesigningbetterweightingfunctionsthatcandiscriminatecorrectpseudo-labelsbetter.
+9
+etaRrorrE
+)%(etaRrorrE )%(etaRrorrE )%(etaRrorrE
+PublishedasaconferencepaperatICLR2023
+REFERENCES
+EricArazo,DiegoOrtego,PaulAlbert,NoelEO’Connor,andKevinMcGuinness. Pseudo-labeling
+andconfirmationbiasindeepsemi-supervisedlearning. In2020InternationalJointConference
+onNeuralNetworks(IJCNN),pp.1–8.IEEE,2020.
+David Berthelot, Nicholas Carlini, Ekin D Cubuk, Alex Kurakin, Kihyuk Sohn, Han Zhang, and
+ColinRaffel. Remixmatch: Semi-supervisedlearningwithdistributionmatchingandaugmenta-
+tionanchoring. InInternationalConferenceonLearningRepresentations,2019a.
+David Berthelot, Nicholas Carlini, Ian Goodfellow, Nicolas Papernot, Avital Oliver, and Colin A
+Raffel. Mixmatch: Aholisticapproachtosemi-supervisedlearning. AdvancesinNeuralInfor-
+mationProcessingSystems,32,2019b.
+DavidBerthelot, RebeccaRoelofs, KihyukSohn,NicholasCarlini,andAlexKurakin. Adamatch:
+Aunifiedapproachtosemi-supervisedlearninganddomainadaptation. ICLR,2021.
+OlivierChapelle,BernhardScho¨lkopf,andAlexanderZien(eds.). Semi-SupervisedLearning. The
+MITPress,2006.
+BaixuChen,JunguangJiang,XimeiWang,JianminWang,andMingshengLong. Debiasedpseudo
+labelinginself-training. arXivpreprintarXiv:2202.07136,2022.
+XiaokangChen,YuhuiYuan,GangZeng,andJingdongWang. Semi-supervisedsemanticsegmen-
+tationwithcrosspseudosupervision. InProceedingsoftheIEEE/CVFConferenceonComputer
+VisionandPatternRecognition,pp.2613–2622,2021.
+AdamCoates,AndrewNg,andHonglakLee. Ananalysisofsingle-layernetworksinunsupervised
+feature learning. In Proceedings of the fourteenth international conference on artificial intelli-
+genceandstatistics,pp.215–223.JMLRWorkshopandConferenceProceedings,2011.
+EkinDCubuk,BarretZoph,JonathonShlens,andQuocVLe. Randaugment: Practicalautomated
+dataaugmentationwithareducedsearchspace. InProceedingsoftheIEEE/CVFConferenceon
+ComputerVisionandPatternRecognitionWorkshops,pp.702–703,2020.
+Yin Cui, Menglin Jia, Tsung-Yi Lin, Yang Song, and Serge Belongie. Class-balanced loss based
+oneffectivenumberofsamples. InProceedingsoftheIEEE/CVFconferenceoncomputervision
+andpatternrecognition,2019.
+JiaDeng,WeiDong,RichardSocher,Li-JiaLi,KaiLi,andLiFei-Fei. Imagenet: Alarge-scalehi-
+erarchicalimagedatabase. In2009IEEEconferenceoncomputervisionandpatternrecognition,
+pp.248–255.Ieee,2009.
+Jacob Devlin, Ming-Wei Chang, Kenton Lee, and Kristina Toutanova. Bert: Pre-training of deep
+bidirectionaltransformersforlanguageunderstanding. arXivpreprintarXiv:1810.04805,2018.
+Yue Fan, Anna Kukleva, and Bernt Schiele. Revisiting consistency regularization for semi-
+supervisedlearning. InDAGMGermanConferenceonPatternRecognition,pp.63–78.Springer,
+2021.
+Yue Fan, Dengxin Dai, and Bernt Schiele. Cossl: Co-learning of representation and classifier for
+imbalancedsemi-supervisedlearning. InProceedingsoftheIEEE/CVFConferenceonComputer
+VisionandPatternRecognition,2022.
+YvesGrandvalet,YoshuaBengio,etal. Semi-supervisedlearningbyentropyminimization. volume
+367,pp.281–296,2005.
+Chuan Guo, Geoff Pleiss, Yu Sun, and Kilian Q Weinberger. On calibration of modern neural
+networks. InInternationalConferenceonMachineLearning,pp.1321–1330.PMLR,2017.
+KaimingHe,XiangyuZhang,ShaoqingRen,andJianSun. Deepresiduallearningforimagerecog-
+nition. In Proceedings of the IEEE conference on computer vision and pattern recognition, pp.
+770–778,2016.
+10
+PublishedasaconferencepaperatICLR2023
+HanzheHu,FangyunWei,HanHu,QiweiYe,JinshiCui,andLiweiWang.Semi-supervisedseman-
+ticsegmentationviaadaptiveequalizationlearning. AdvancesinNeuralInformationProcessing
+Systems,34:22106–22118,2021.
+AhmetIscen,GiorgosTolias,YannisAvrithis,andOndrejChum. Labelpropagationfordeepsemi-
+supervisedlearning. InCVPR,2019.
+JaehyungKim, YoungbumHur, SejunPark, EunhoYang, SungJuHwang, andJinwooShin. Dis-
+tributionaligningrefineryofpseudo-labelforimbalancedsemi-supervisedlearning. Advancesin
+NeuralInformationProcessingSystems,33:14567–14579,2020.
+Jiwon Kim, Youngjo Min, Daehwan Kim, Gyuseong Lee, Junyoung Seo, Kwangrok Ryoo, and
+SeungryongKim. Conmatch: Semi-supervisedlearningwithconfidence-guidedconsistencyreg-
+ularization. InEuropeanConferenceonComputerVision,2022.
+Diederik P Kingma and Jimmy Ba. Adam: A method for stochastic optimization. arXiv preprint
+arXiv:1412.6980,2014.
+AlexKrizhevskyetal. Learningmultiplelayersoffeaturesfromtinyimages. 2009.
+Zhengfeng Lai, Chao Wang, Henrry Gunawan, Sen-Ching S Cheung, and Chen-Nee Chuah.
+Smoothed adaptive weighting for imbalanced semi-supervised learning: Improve reliability
+againstunknowndistributiondata.InInternationalConferenceonMachineLearning,pp.11828–
+11843.PMLR,2022.
+Dong-HyunLeeetal. Pseudo-label: Thesimpleandefficientsemi-supervisedlearningmethodfor
+deep neural networks. In Workshop on challenges in representation learning, ICML, volume 3,
+pp.896,2013.
+Hyuck Lee, Seungjae Shin, and Heeyoung Kim. Abc: Auxiliary balanced classifier for class-
+imbalancedsemi-supervisedlearning. AdvancesinNeuralInformationProcessingSystems, 34,
+2021.
+Junnan Li, Caiming Xiong, and Steven CH Hoi. Comatch: Semi-supervised learning with con-
+trastivegraphregularization. InProceedingsoftheIEEE/CVFInternationalConferenceonCom-
+puterVision,pp.9475–9484,2021.
+Ilya Loshchilov and Frank Hutter. Decoupled weight decay regularization. arXiv preprint
+arXiv:1711.05101,2017.
+AndrewMaas,RaymondEDaly,PeterTPham,DanHuang,AndrewYNg,andChristopherPotts.
+Learningwordvectorsforsentimentanalysis. InProceedingsofthe49thannualmeetingofthe
+associationforcomputationallinguistics: Humanlanguagetechnologies,pp.142–150,2011.
+TakeruMiyato,Shin-ichiMaeda,MasanoriKoyama,andShinIshii. Virtualadversarialtraining: a
+regularizationmethodforsupervisedandsemi-supervisedlearning. IEEEtransactionsonpattern
+analysisandmachineintelligence,41(8):1979–1993,2018.
+YuvalNetzer,TaoWang,AdamCoates,AlessandroBissacco,BoWu,andAndrewYNg. Reading
+digitsinnaturalimageswithunsupervisedfeaturelearning. 2011.
+Avital Oliver, Augustus Odena, Colin A Raffel, Ekin Dogus Cubuk, and Ian Goodfellow. Real-
+istic evaluation of deep semi-supervised learning algorithms. Advances in neural information
+processingsystems,31,2018.
+Myle Ott, Sergey Edunov, Alexei Baevski, Angela Fan, Sam Gross, Nathan Ng, David Grangier,
+and Michael Auli. fairseq: A fast, extensible toolkit for sequence modeling. In Proceedings of
+NAACL-HLT2019: Demonstrations,2019.
+Hieu Pham, Zihang Dai, Qizhe Xie, and Quoc V Le. Meta pseudo labels. In Proceedings of the
+IEEE/CVFConferenceonComputerVisionandPatternRecognition,pp.11557–11568,2021.
+ZhongzhengRen,RaymondA.Yeh,andAlexanderG.Schwing. Notallunlabeleddataareequal:
+Learningtoweightdatainsemi-supervisedlearning. InNeuralInformationProcessingSystems
+(NeurIPS),2020.
+11
+PublishedasaconferencepaperatICLR2023
+Mehdi Sajjadi, Mehran Javanmardi, and Tolga Tasdizen. Regularization with stochastic transfor-
+mations and perturbations for deep semi-supervised learning. Advances in neural information
+processingsystems,29:1163–1171,2016.
+LaineSamuliandAilaTimo. Temporalensemblingforsemi-supervisedlearning. InInternational
+ConferenceonLearningRepresentations(ICLR),volume4,pp. 6,2017.
+Kihyuk Sohn, David Berthelot, Nicholas Carlini, Zizhao Zhang, Han Zhang, Colin A Raffel,
+EkinDogusCubuk,AlexeyKurakin,andChun-LiangLi.Fixmatch:Simplifyingsemi-supervised
+learningwithconsistencyandconfidence. AdvancesinNeuralInformationProcessingSystems,
+33,2020.
+KaiShengTai,PeterBailis,andGregoryValiant. Sinkhornlabelallocation: Semi-supervisedclas-
+sificationviaannealedself-training,2021.
+AnttiTarvainenandHarriValpola. Meanteachersarebetterrolemodels: Weight-averagedconsis-
+tencytargetsimprovesemi-superviseddeeplearningresults. InProceedingsofthe31stInterna-
+tionalConferenceonNeuralInformationProcessingSystems,pp.1195–1204,2017.
+Xudong Wang, Zhirong Wu, Long Lian, and Stella X Yu. Debiased learning from naturally im-
+balanced pseudo-labels. In Proceedings of the IEEE/CVF Conference on Computer Vision and
+PatternRecognition,pp.14647–14657,2022a.
+Yidong Wang, Hao Chen, Yue Fan, Wang Sun, Ran Tao, Wenxin Hou, Renjie Wang, Linyi Yang,
+Zhi Zhou, Lan-Zhe Guo, Heli Qi, Zhen Wu, Yu-Feng Li, Satoshi Nakamura, Wei Ye, Marios
+Savvides, Bhiksha Raj, Takahiro Shinozaki, Bernt Schiele, Jindong Wang, Xing Xie, and Yue
+Zhang. Usb: Aunifiedsemi-supervisedlearningbenchmark. InNeuralInformationProcessing
+Systems(NeurIPS),2022b.
+Chen Wei, Kihyuk Sohn, Clayton Mellina, Alan Yuille, and Fan Yang. Crest: A class-
+rebalancing self-training framework for imbalanced semi-supervised learning. In Proceedings
+of the IEEE/CVF Conference on Computer Vision and Pattern Recognition, pp. 10857–10866,
+2021.
+QizheXie,ZihangDai,EduardHovy,ThangLuong,andQuocLe.Unsuperviseddataaugmentation
+forconsistencytraining. AdvancesinNeuralInformationProcessingSystems,33,2020.
+Mengde Xu, Zheng Zhang, Han Hu, Jianfeng Wang, Lijuan Wang, Fangyun Wei, Xiang Bai, and
+Zicheng Liu. End-to-end semi-supervised object detection with soft teacher. In Proceedings of
+theIEEE/CVFInternationalConferenceonComputerVision,pp.3060–3069,2021a.
+Yi Xu, Lei Shang, Jinxing Ye, Qi Qian, Yu-Feng Li, Baigui Sun, Hao Li, and Rong Jin. Dash:
+Semi-supervised learning with dynamic thresholding. In International Conference on Machine
+Learning,pp.11525–11536.PMLR,2021b.
+Sergey Zagoruyko and Nikos Komodakis. Wide residual networks. In British Machine Vision
+Conference2016.BritishMachineVisionAssociation,2016.
+Bowen Zhang, Yidong Wang, Wenxin Hou, Hao Wu, Jindong Wang, Manabu Okumura, and
+TakahiroShinozaki. Flexmatch: Boostingsemi-supervisedlearningwithcurriculumpseudola-
+beling. AdvancesinNeuralInformationProcessingSystems,34,2021.
+HongyiZhang,MoustaphaCisse,YannNDauphin,andDavidLopez-Paz.mixup:Beyondempirical
+riskminimization. arXivpreprintarXiv:1710.09412,2017.
+XiangZhang,JunboZhao,andYannLeCun. Character-levelconvolutionalnetworksfortextclas-
+sification. Advancesinneuralinformationprocessingsystems,28:649–657,2015.
+MingkaiZheng,ShanYou,LangHuang,FeiWang,ChenQian,andChangXu. Simmatch: Semi-
+supervisedlearningwithsimilaritymatching. arXivpreprintarXiv:2203.06915,2022.
+TianyiZhou,ShengjieWang,andJeffBilmes.Time-consistentself-supervisionforsemi-supervised
+learning. InInternationalConferenceonMachineLearning,pp.11523–11533.PMLR,2020.
+12
+PublishedasaconferencepaperatICLR2023
+A APPENDIX
+A.1 QUANTITY-QUALITYTRADE-OFF
+In this section, we present the detailed definition and derivation of the quantity and quality for-
+mulation. Importantly, we identify that the sampling weighting function λ(p) [0,λ ] is di-
+max
+∈
+rectly related to the (implicit) assumption of probability mass function (PMF) over p for p
+p(yxu);xu , i.e., thedistributionofp. Fromtheunifiedsampleweightingfunctionpe∈ r-
+U
+{ | ∈ D }
+spective,weshowtheanalysisofquantityandqualityoftherelatedmethodsandSoftMatch.
+A.1.1 QUANTITYANDQUALITY
+DerivationDefinition2.1
+Thedefinitionandderivationofquantityf(p)ofpseudo-labelsisratherstraightforward. Wedefine
+thequantityasthepercentage/ratioofunlabeleddataenrolledintheweightedunsupervisedloss. In
+otherwords,thequantityistheaveragesampleweightsonunlabeleddata:
+f(p)=(cid:88)NU
+λ(p i)
+=E [λ(p )], (10)
+N DU i
+U
+i
+whereeachunlabeleddataisuniformlysampledfrom andf(p) [0,λ ].
+U max
+D ∈
+DerivationDefinition2.2
+Wedefinethequalityg(p)ofpseudo-labelsasthepercentage/ratioofcorrectpseudo-labelsenrolled
+intheweightedunsupervisedloss,assumingthegroundtruthlabelyu ofunlabeleddataisknown.
+Withthe0/1correctindicatorfunctionγ(p)beingdefinedas:
+γ(p)=1(pˆ =yu) 0,1 , (11)
+∈{ }
+wherepˆistheone-hotvectorofpseudo-labelargmax(p). Wecanformulatequalityas:
+g(p)=(cid:88)NU
+γ(p )
+λ(p i)
+i (cid:80)NU
+λ(p )
+i j j
+=(cid:88)NU
+γ(p )λ¯(p ) (12)
+i i
+i
+=E λ¯(p)[γ(p)]
+=E λ¯(p)[1(pˆ =yu)] ∈[0,1].
+Wedenoteλ¯(p)astheprobabilitymassfunction(PMF)ofp,withλ¯(p) 0and(cid:80) λ¯(p)=1.0.
+≥
+Thisindicatesthat,onceλ(p)issettoafunction,theassumptiononthePMFofpismade. Inmost
+of the previous methods (Tarvainen & Valpola, 2017; Berthelot et al., 2019b;a; Sohn et al., 2020;
+Zhang et al., 2021; Xu et al., 2021b), although they do not explicitly set λ(p), the introduction of
+lossweightschemesimplicitlyrelatestothePMFofp. Whilethegroundtruthlabelpisactually
+unknowninpractice,wecanstilluseitfortheoreticalanalysis.
+In the following sections, we explicitly derive the sampling weighting function λ(p), probability
+massfunctionλ¯(p),quantityf(p),andqualityg(p)foreachrelevantmethod.
+13
+PublishedasaconferencepaperatICLR2023
+A.1.2 NAIVEPSEUDO-LABELING
+Innaivepseudo-labeling(Leeetal.,2013), thepseudo-labelsaredirectlyusedtothemodelitself.
+Thisisequivalenttosetλ(p)toafixedvalueλ ,whichisahyper-parameter. Wecanwrite:
+max
+λ(p)=λ , (13)
+max
+λ 1
+λ¯(p)= max = , (14)
+N λ N
+U max U
+f(p)=(cid:88)NU
+λ
+max =λ , (15)
+N max
+U
+i
+g(p)=(cid:88)NU 1(pˆ
+i
+=y iu)
+. (16)
+N
+U
+i
+We can observe that the naive self-training maximizes the quantity of the pseudo-labels by fully
+enrolling them into training. However, full enrollment results in pseudo-labels of low quality. At
+beginningoftraining,alargeportionofthepseudo-labelswouldbewrong,i.e.,γ(p)=0,sincethe
+modelisnotwell-learned. Thewrongpseudo-labelsusuallyleadstoconfirmationbias(Guoetal.,
+2017; Arazo et al., 2020) as training progresses, where the model memorizes the wrong pseudo-
+labelsandbecomesveryconfidentonthem. Wecanalsonoticethat,bysettingλ(p)toafixedvalue
+λ ,weimplicitlyassumethePMFofthemodel’spredictionpisuniform,whichisfarawayfrom
+max
+therealisticdistribution.
+A.1.3 LOSSWEIGHTRAMPUP
+In the earlier attempts of semi-supervised learning, a bunch of work (Tarvainen & Valpola, 2017;
+Berthelot et al., 2019b;a) exploit the loss weight ramp up technique to avoid involving too much
+erroneouspseudo-labelsintheearlytrainingandletthemodelfocusonlearningfromlabeleddata
+first. Inthiscase,thesampleweightingfunctionisformulatedasafunctionoftrainingiterationt,
+which is linearly increased during training and reaches its maximum λ after T warm-up itera-
+max
+tions. Thuswehave:
+t
+λ(p)=λ min( ,1), (17)
+max T
+λ min(t,1) 1
+λ¯(p)= max T = , (18)
+N λ min(t,1) N
+U max T U
+t
+f(p)=λ min( ,1), (19)
+max T
+g(p)=(cid:88)NU 1(pˆ
+i
+=y iu)
+, (20)
+N
+U
+i
+whichdemonstratesthesameuniformassumptionofPMFandsamequalityfunctionasnaiveself-
+training.Italsoindicatesthat,aslongassamesampleweightisusedforallunlabeleddata,auniform
+assumptionofPDFoverpismade.
+A.1.4 FIXEDCONFIDENCETHRESHOLDING
+Confidencethresholdingintroducesafilteringmechanism,wheretheunlabeleddatawhosepredic-
+tion confidence max(p) is above the pre-defined threshold τ is fully enrolled during training, and
+othersbeingignored(Xieetal.,2020;Sohnetal.,2020). Theconfidencethresholdingmechanism
+canbeformulatedbysettingλ(p)asastepfunction-whentheconfidenceisabovethreshold,the
+14
+PublishedasaconferencepaperatICLR2023
+sampleweightissettoλ ,andotherwise0. Wecanderive:
+max
+(cid:26)
+λ , if max(p) τ,
+λ(p)= max ≥ (21)
+0.0, otherwise.
+(cid:40)
+1(max(p) τ) 1 , if max(p) τ,
+λ¯(p)= (cid:80)NU 1(max(p≥ ) τ) = 0Nˆ .U 0, otherwise. ≥ (22)
+i i ≥
+f(p)=(cid:88)NU 1(max(p i) ≥τ)λ
+max =λ
+Nˆ
+U, (23)
+N maxN
+U U
+i
+g(p)=(cid:88)Nˆ
+U 1(pˆ
+i
+=y iu)
+, (24)
+Nˆ
+i U
+(25)
+where we set Nˆ = (cid:80)NU 1(max(p ) τ), i.e., number of unlabeled samples whose prediction
+U i i ≥
+confidencemax(p)areabovethresholdτ.
+Interestingly,onecanfindthatconfidencethresholdingdirectlymodelingthePMFoverthepredic-
+tionconfidencemax(p). Althoughitstillmakestheuniformassumption, asshowninEq. (22), it
+constrainstheprobabilitymasstoconcentrateintherangeof[τ,1]. Asthemodelismoreconfident
+aboutthepseudo-labels,andtheunconfidentonesareexcludedfromtraining,itismorelikelythat
+pˆ would be close to yu, thus ensuring the quality of the pseudo-labels to a high value if a high
+threshold is exploited. However, a higher threshold corresponds to smaller Nˆ , directly reducing
+U
+the quantity of pseudo-labels. We can clearly observe a trade-off between quantity and quality of
+usingfixedconfidencethresholding. Inaddition,assumingthePMFofmax(p)asauniformwithin
+arange[τ,1]stilldoesnotreflecttheactuallydistributionoverconfidenceduringtraining.
+A.1.5 SOFTMATCH
+In this paper, we propose SoftMatch to overcome the trade-off between quantity and quality of
+pseudo-labels.Differentfrompreviousmethods,whichimplicitlymakeover-simplifiedassumptions
+onthedistributionofp,wedirectlymodellingthePMFofmax(p),fromwhichwederivethesample
+weightingfunctionλ(p)usedinSoftMatch.
+Weassumetheconfidenceofmodelpredictionsmax(p)generallyfollowstheGaussiandistribution
+(max(p);µˆ ,σˆ )whenmax(p)<µ andtheuniformdistributionwhenmax(p) µ .Notethat
+t t t t
+N ≥
+µ andσ ischangingalongtrainingasthemodellearnsbetter. Onecanseethattheuniformpartof
+t t
+thePMFissimilartothatofconfidencethresholding,anditistheGaussianpartmakesSoftMatch
+distinct from previous methods. In SoftMatch, we directly estimate the Gaussian parameters on
+max(p)usingMaximumLikelihoodEstimation(MLE),ratherthansetthemtofixedvalues,which
+ismoreconsistenttotheactualdistributionofpredictionconfidence. UsingthedefinitionofPMF
+λ¯(p),wecandirectlywritethesamplingweightingfunctionλ(p)ofSoftMatchas:
+(cid:26) λ √2πσ φ(max(p;µ ,σ )), max(p)<µ
+λ(p)= max t t t t , (26)
+λ , max(p) µ
+max t
+≥
+where φ(x;µ,σ) = √ 21
+πσ
+exp( −(x 2− σµ 2)2 ). Without loss of generality, we can assume max(p i) <
+µ tfori ∈[0,N 2U],asµ
+t
+= N1
+U
+(cid:80)N
+i
+U max(p i)(showninEq.(6))andthus P(max(p)<µ t)=0.5.
+15
+PublishedasaconferencepaperatICLR2023
+(cid:80)
+Therefore, λ(p)iscomputedasfollows:
+(cid:88)NU
+λ(p )
+i
+i
+(cid:88)N 2U (cid:88)NU
+= λ(p )+ λ(p )
+i j
+i=1 j=NU+1
+2
+(27)
+(cid:88)N 2U (cid:88)NU
+= λ √2πσ φ(max(p );µ ,σ ))+ λ
+max t i t t max
+i j=NU+1
+2
+ NU 
+=λ
+maxN
+2U
++(cid:88)2
+exp(
+−(max(p 2σi) 2−µ t)2
+)
+i t
+Further,
+1
+(cid:88)NU
+f(p)= λ(p )
+N i
+U
+i
+ 
+1
+(cid:88)N 2U (cid:88)NU
+=  λ(p )+ λ(p )
+N  i j 
+U
+i=1 j=NU+1
+2 (28)
+ NU 
+=
+λ
+max
+N
+U
++(cid:88)2
+exp(
+(max(p j) −µ t)2
+)
+N 2 − 2σ2
+U j t
+NU
+=
+λ
+max +
+λ
+max
+(cid:88)2
+exp(
+(max(p j) −µ t)2
+)
+2 N − 2σ2
+U j t
+Sincemax(p i)<µ tfori ∈[0,N 2U],
+(1 µ )2 (max(p ) µ )2
+exp( C − t )<=exp( i − t )<1
+− 2σ2 − 2σ2
+t t
+NU
+N
+U exp(
+( C1 −µ t)2 )<=(cid:88)2
+exp(
+(max(p i) −µ t)2
+)<
+N
+U
+2 − 2σ2 − 2σ2 2
+t i t
+λ λ (1 µ )2
+max < max(1+exp( C − t ))<=f(p)<λ
+2 2 − 2σ2 max
+t
+Therefore, SoftMatch can guarantee at least half of the possible contribution to the final loss, im-
+provingtheutilizationofunlabeleddata. Besides, asσ isalsoestimatedfrommax(p), thelower
+t
+boundoff(p)wouldbecometighterduringtrainingwithabetterandmoreconfidentmodel.
+Withthederived(cid:80) λ(p),WecanwritethePDFλ¯(p)inSoftMatchas:
+ √
+2πσtφ(max(p);µt,σt) , max(p)<µ
+λ¯(p)= N 2U+(cid:80) iN 2U √ 2πσtφ(max(p);µt,σt) t , (29)
+ N 2U+(cid:80) iN 2U √ 2πσ1 tφ(max(p);µt,σt), max(p) ≥µ t
+16
+PublishedasaconferencepaperatICLR2023
+andfurtherderivethequalityofpseudo-labelsinSoftMatchas:
+g(p)=(cid:88)NU
+1(pˆ =yu)λ¯(p)
+i
+i
+1
+(cid:88)NU
+= γ(p )λ(p )
+(cid:80)NU
+λ(p )
+i i
+k k i
+ 
+NU NU
+1 (cid:88)2 (cid:88)2
+=  γ(p )λ(p )+ γ(p )λ(p )
+(cid:80)NU
+λ(p
+) i i j j  (30)
+k k i j=NU+1
+2
+NU NU
+=(cid:88)2
+γ(p
+)λ max√2πσ tφ(max(p i);µ t,σ t) +(cid:88)2
+γ(p )
+λ
+max
+i (cid:80)NU
+λ(p )
+j (cid:80)NU
+λ(p )
+i k k j k k
+=NU(cid:88)−Nˆ U 1(pˆ i =y iu)exp( −(max(p σi t2)−µt)2 ) +(cid:88)Nˆ U 1(pˆ j =y ju)
+2(N Nˆ ) 2Nˆ
+i U − U j U
+whereNˆ =(cid:80)NU 1(max(p ) µ ). Fromtheaboveequation,wecanseethatforpseudo-labels
+U i i ≥ t
+whose confidence is above µ , the quality is as high as in confidence thresholding; for pseudo-
+t
+labelswhoseconfidenceislower,thusmorepossibletobeerroneous,thequalityisweightedbythe
+deviationfromµ .
+t
+Atthebeginningoftraining,wherethemodelisunconfidentaboutmostofthepseudo-labels,Soft-
+Matchguaranteesthequantityforatleast λmax andhighqualityforatleast(cid:80)Nˆ U 1(pˆj=y ju) . Asthe
+2 j 2Nˆ
+U
+modellearnsbetterandbecomesmoreconfident,i.e.,µ increasesandσ decreases,thelowerbound
+t t
+of quantity becomes tighter. The increase in Nˆ leads to better quality with pseudo-labels whose
+U
+confidence below µ are further down-weighted. Therefore, SoftMatch overcomes the quantity-
+t
+qualitytrade-off.
+A.2 ALGORITHM
+We present the pseudo algorithms of SoftMatch in this section. SoftMatch adopts the truncated
+GaussianfunctionwithparametersestimatedfromtheEMAoftheconfidencedistributionateach
+trainingstep,whichintroducetrivialcomputations.
+Algorithm1SoftMatchalgorithm.
+1: Input: Number of classes C, labeled batch {x i,y i }i∈[BL], unlabeled batch {u i }i∈[BU], and
+EMAmomentumm.
+2: Define: p i =p(yω(u i))
+3: Ls = B1
+L
+(cid:80)B i=L 1H| (y i,p(y |ω(x i))) (cid:46)Compute Lsonlabeledbatch
+4: µˆ b = B1
+U
+(cid:80)B i=U 1max(p i) (cid:46)Computethemeanofconfidence
+5: σˆ2 = B1
+U
+(cid:80)B i=U 1(max(p i) −µˆ b)2 (cid:46)Computethevarianceofconfidence
+6: µˆ t =mµˆ t−1+(1 m)µˆ b (cid:46)UpdateEMAofmean
+−
+7: σˆ2 =mσˆ2 +(1 m) BU σˆ2 (cid:46)UpdateEMAofvariance
+t t−1 − BU−1 b
+8: fori=1toB U do
+(cid:40) exp(cid:16) (max(UA(pi))−µˆt)2(cid:17)
+, if max(UA(p ))<µˆ ,
+9: λ(p i)= − 2σˆ t2 i t (cid:46)Computelossweight
+1.0, otherwise.
+10: endfor
+11: Lu = B1
+U
+(cid:80)B i=U 1λ(p i) H(pˆ i,p(y |Ω(u i))) (cid:46)Compute Luonunlabeledbatch
+12: Return: s+ u
+L L
+17
+PublishedasaconferencepaperatICLR2023
+A.3 EXPERIMENTDETAILS
+A.3.1 CLASSICIMAGECLASSIFICATION
+Wepresentthedetailedhyper-parametersusedfortheclassicimageclassificationsettinginTable6
+for reproduction. We use NVIDIA V100 for training of classic image classification. The training
+time for CIFAR-10 and SVHN on a single GPU is around 3 days, whereas the training time for
+CIFAR-100andSTL-10isaround7days.
+Table6: Hyper-parametersofclassicimageclassificationtasks.
+Dataset CIFAR-10 CIFAR-100 STL-10 SVHN ImageNet
+Model WRN-28-2 WRN-28-8 WRN-37-2 WRN-28-2 ResNet-50
+WeightDecay 5e-4 1e-3 5e-4 5e-4 3e-4
+LabeledBatchsize 64 128
+UnlabeledBatchsize 448 128
+LearningRate 0.03
+Scheduler η=η cos(7πk)
+0 16K
+SGDMomentum 0.9
+ModelEMAMomentum 0.999
+PredictionEMAMomentum 0.999
+WeakAugmentation RandomCrop,RandomHorizontalFlip
+StrongAugmentation RandAugment(Cubuketal.,2020)
+A.3.2 LONG-TAILEDIMAGECLASSIFICATION
+The hyper-parameters for long-tailed image classification evaluation is shown in Table 7. We use
+Adamoptimizerinstead.Forfastertraining,WRN-28-2isusedforbothCIFAR-10andCIFAR-100.
+NVIDIAV100isusedtotrainlong-tailedimageclassfication,andthetrainingtimeisaround1day.
+Table7: Hyper-parametersoflong-tailedimageclassificationtasks.
+Dataset CIFAR-10 CIFAR-100
+Model WRN-28-2
+WeightDecay 4e-5
+LabeledBatchsize 64
+UnlabeledBatchsize 128
+LearningRate 0.002
+Scheduler η=η cos(7πk)
+0 16K
+Optimizer Adam
+ModelEMAMomentum 0.999
+PredictionEMAMomentum 0.999
+WeakAugmentation RandomCrop,RandomHorizontalFlip
+StrongAugmentation RandAugment(Cubuketal.,2020)
+A.3.3 TEXTCLASSIFICATION
+For text classification tasks, we random split a validation set from the training set of each dataset
+used.ForIMDbandAGNews,werandomlysample1,000dataand2,500dataper-classrespectively
+as validation set, and other data is used as training set. For Amazon-5 and Yelp-5, we randomly
+sample 5,000 data and 50,000 data per-class as validation set and training set respectively. For
+DBpedia,thevalidationsetandtrainingsetconsistof1,000and10,000samplesper-class.
+18
+PublishedasaconferencepaperatICLR2023
+ThetrainingparametersusedareshowninTable8. Notethatforstrongaugmentation,weuseback-
+translationsimilarto(Xieetal.,2020). Weconductback-translationofflinebeforetraining, using
+EN-DE and EN-RU with models provided in fairseq (Ott et al., 2019). We use NVIDIA V100 to
+trainalltextclassificationmodels,thetotaltrainingtimeisaround20hours.
+Table8: Hyper-parametersoftextclassificationtasks.
+Dataset AGNews DBpedia IMDb Amazom-5 Yelp-5
+Model Bert-Base
+WeightDecay 1e-4
+LabeledBatchsize 16
+UnlabeledBatchsize 16
+LearningRate 1e-5
+Scheduler η=η cos(7πk)
+0 16K
+ModelEMAMomentum 0.0
+PredictionEMAMomentum 0.999
+WeakAugmentation None
+StrongAugmentation Back-Translation(Xieetal.,2020)
+A.4 EXTENDEXPERIMENTRESULTS
+In this section, we provide detailed experiments on the implementation of the sample weighting
+function in unlabeled loss, as shown in Table 9. One can observe most fixed functions works sur-
+prisinglywellonCIFAR-10with250labels,yetGaussianfunctiondemonstratethebestresultson
+CIFAR-10with40labels. OntheSVHNwith40labels,LinearandQuadraticfunctionfailstolearn
+whileLaplacianandGaussianfunctionshowsbetterperformance. Estimatingthefunctionparam-
+eters from the confidence and making the function truncated allow the model learn more flexibly
+andyieldsbetterperformanceforbothLaplacianandGaussianfunction. Wevisualizethefunctions
+studied in Fig. 4, where one can observe the truncated Gaussian function is most reasonable by
+assigningdiverseweightsforsampleswhoseconfidenceiswithinitsstandarddeviation.
+Table9: DetailedresultsofdifferentinstantiationofλponCIFAR-10with40and250labels,and
+SVHN-10with40labels.
+Method λ(p) Learnable CIFAR-1040 CIFAR-10250 SVHN-1040
+Linear max(p) - 11.38±3.92 5.41±0.19 15.27±28.92
+Quadratic −(max(p)−1)2+1 - 12.44±5.67 5.94±0.22 84.11±1.84
+(cid:16) (cid:17)
+Laplacian exp −|max( bp)−µ| ,µ=1.0,b=0.3 - 13.29±3.33 5.24±0.16 12.77±10.33
+Gaussian
+exp(cid:16)
+−(max 2(p σ)
+2−µ)2(cid:17)
+,µ=1.0,σ=0.3 - 7.73±1.44 4.98±0.02 12.95±8.79
+(cid:40) (cid:16) (cid:17)
+exp −|max(p)−µ| , ifmax(p)<µ,
+Trun.Laplacian b µ,b 5.30±0.09 5.14±0.20 3.12±0.30
+1.0, otherwise.
+(cid:40) exp(cid:16) −(max(p)−µ)2(cid:17)
+, ifmax(p)<µ,
+Trun.Gaussian 2σ2 µ,σ 4.91±0.12 4.82±0.09 2.33±0.25
+1.0, otherwise.
+A.5 EXTENDEDABLATIONSTUDY
+WeprovidetheadditionalablationstudyofothercomponentsofSoftMatch,includingtheEMAmo-
+mentumparameterm,thevariancerangeoftruncatedGaussianfunction,andthetargetdistribution
+ofUniformAlignment(UA),onCIFAR-10with250labels.
+EMA momentum. We compare SoftMatch with momentum 0.99, 0.999, and 0.9999 and present
+theresultsinTable10. Amomentumof0.999showsthebestresults. Whiledifferentmomentum
+doesnotaffectthefinalperformancemuch,theyhavelargerimpactonconvergencespeed,wherea
+smallermomentumvalueresultsinfasterconvergenceyetloweraccuracyandalargermomentum
+slowsdowntheconvergence.
+19
+PublishedasaconferencepaperatICLR2023
+1.0
+Linear
+Quad.
+0.8 Lap.
+Gau.
+Turn.Lap.
+0.6
+Turn.Gau.
+0.4
+0.2
+0.0
+0.0 0.2 0.4 0.6 0.8 1.0
+max(p)
+i
+Figure4: Sampleweightingfunctionvisualization
+Table 10: Ablation of EMA Table 11: Ablation of vari- Table 12: Ablation of target
+momentum m on CIFAR-10 ance range in Gaussian func- distributionofUAonCIFAR-
+with250labels. tion on CIFAR-10 with 250 10with250labels.
+labels.
+Momentum ErrorRate TargetDist. ErrorRate
+VarianceRange ErrorRate
+0.99 4.92±0.11 p L(y) 4.83±0.12
+0.999 4.82±0.09 σ 4.97±0.13 pˆ L(y) 4.90±0.23
+0.9999 4.86±0.12 2σ 4.82±0.09 u(C) 4.82±0.09
+3σ 4.84±0.15
+Variancerange. WestudythevariancerangeofGaussianfunction. Inallexperimentsofthemain
+paper,weusethe2σrange,i.e.,dividetheestimatedvarianceσˆ by4inpractice.Thevariancerange
+t
+directlyaffectsthedegreeofsoftnessofthetruncatedGaussianfunction. WeshowinTable11that
+usingσdirectlyresultsinaslightperformancedrop,while2σand3σproducessimilarresults.
+UAtargetdistribution. Inthemainpaper,wevalidatethetargetdistributionofUAonlong-tailed
+setting. WealsoincludetheeffectofthetargetdistributionofUAonbalancedsetting. Asshownin
+Table12,usinguniformdistributionu(c)ortheground-truthmarginaldistributionp (y)produces
+L
+thesameresults,whereasusingtheestimatedpˆ (y)(Berthelotetal.,2021)hasaperformancedrop.
+L
+A.6 EXTENDANALYSISONTRUNCATEDGAUSSIAN
+Inthissection,weprovidefurthervisualizationabouttheconfidencedistributionofpseudo-labels,
+and the weighting function, similar to Fig. 1(a) but on CIFAR-10. More specifically, we plot the
+histogramofconfidenceofpseudo-labelsandofwrongpseudo-labels,fromepoch1to6. Weselect
+the first 5 epochs because the difference is more significant. Along with the histogram, we also
+plotthecurrentweightingfunctionoverconfidence, asavisualizationhowthepseudo-labelsover
+differentconfidenceintervalareusedindifferentmethods.
+Fig.5summarizesthevisualization. Interestingly,althoughFixMatchadoptsquiteahighthreshold,
+thequalityofpseudo-labelsisverylow,i.e.,therearemorewrongpseudo-labelsineachconfidence
+interval. Thisreflectstheimportantofinvolvingmorepseudo-labelsintotrainingatthebeginning,
+asinSoftMatch,toletthemodellearnmorebalancedoneachclasstoimprovequalityofpseudo-
+labels.
+A.7 EXTENDANALYSISONUNIFORMALIGNMENT
+Inthissection,weprovidemoreexplanationregardingthemechanismofUniformAlignment(UA).
+UA is proposed to make the model learn more equally on each classes to reduce the pseudo-label
+imbalance/bias. To do so, we align the expected prediction probability to a uniform distribution
+20
+)p(λ
+i
+PublishedasaconferencepaperatICLR2023
+Epoch1,Acc:16.5% Epoch2,Acc:20.4% Epoch3,Acc:37.8% Epoch4,Acc:45.7% Epoch5,Acc:57.3% Epoch6,Acc:59.1%
+All 1.00.5 All 1.0 0.6 All 1.0 All 1.00.8 All 1.00.8 All 1.0
+0.6 W λ(r po )ng 0.80.4 W λ(r po )ng 0.80.5 W λ(r po )ng 0.80.6 W λ(r po )ng 0.80.6 W λ(r po )ng 0.8
+0.6
+W λ(r po )ng 0.8
+0.4 00 .. 46 00 .. 23 00 .. 46 00 .. 34 00 .. 460.4 00 .. 46 0.4 00 .. 46 0.4 00 .. 46
+0.2 0.20.1 0.2 00 .. 12 0.20.2 0.20.2 0.20.2 0.2
+0.00.0 0.2 0.4 0.6 0.8 1.00.00.00.0 0.2 0.4 0.6 0.8 1.00.00.00.0 0.2 0.4 0.6 0.8 1.00.00.00.5 0.6 0.7 0.8 0.9 1.00.00.00.5 0.6 0.7 0.8 0.9 1.00.00.00.5 0.6 0.7 0.8 0.9 1.00.0
+Confidence Confidence Confidence Confidence Confidence Confidence
+(a) FixMatch
+Epoch1,Acc:34.6% Epoch2,Acc:59.3% Epoch3,Acc:68.1% Epoch4,Acc:71.6% Epoch5,Acc:78.5% Epoch6,Acc:82.7%
+All 1.00.6 All 1.0 All 1.0 All 1.0 All 1.00.8 All 1.0
+0.3 W λ(r po )ng 0.8 00 .. 45 W λ(r po )ng 0.80.6 W λ(r po )ng 0.80.6 W λ(r po )ng 0.80.6 W λ(r po )ng 0.80.6 W λ(r po )ng 0.8
+0.2
+0.6
+0.3
+0.60.4 0.60.4 0.6
+0.4
+0.6
+0.4
+0.6
+0.4 0.4 0.4 0.4 0.4 0.4
+0.1 0.20.2 0.20.2 0.20.2 0.20.2 0.20.2 0.2
+0.1
+0.00.0 0.2 0.4 0.6 0.8 1.00.00.00.0 0.2 0.4 0.6 0.8 1.00.00.00.0 0.2 0.4 0.6 0.8 1.00.00.00.5 0.6 0.7 0.8 0.9 1.00.00.00.5 0.6 0.7 0.8 0.9 1.00.00.00.5 0.6 0.7 0.8 0.9 1.00.0
+Confidence Confidence Confidence Confidence Confidence Confidence
+(b) FlexMatch
+Epoch1,Acc:28.1% Epoch2,Acc:58.3% Epoch3,Acc:73.1% Epoch4,Acc:78.8% Epoch5,Acc:81.7% Epoch6,Acc:84.9%
+All 1.00.6 All 1.0 All 1.0 All 1.00.8 All 1.00.8 All 1.0
+0.3 W λ(r po )ng 0.80.5 W λ(r po )ng 0.80.6 W λ(r po )ng 0.80.6 W λ(r po )ng 0.80.6 W λ(r po )ng 0.8
+0.6
+W λ(r po )ng 0.8
+0.60.4 0.6 0.6 0.6 0.6 0.6
+0.2 0.3 0.4 0.4 0.4 0.4
+0.4 0.4 0.4 0.4 0.4 0.4
+0.2
+0.1 0.2 0.20.2 0.20.2 0.20.2 0.20.2 0.2
+0.1
+0.00.0 0.2 0.4 0.6 0.8 1.00.00.00.0 0.2 0.4 0.6 0.8 1.00.00.00.0 0.2 0.4 0.6 0.8 1.00.00.00.5 0.6 0.7 0.8 0.9 1.00.00.00.5 0.6 0.7 0.8 0.9 1.00.00.00.5 0.6 0.7 0.8 0.9 1.00.0
+Confidence Confidence Confidence Confidence Confidence Confidence
+(c) SoftMatch
+Figure 5: Histogram of confidence of pseudo-labels, learned by (a) FixMatch; (b) Flexmatch; (c)
+SoftMatch,forfirst6epochsonCIFAR-10.Theweightingfunctionoverconfidenceofeachmethod
+isshownasthebluecurve. ForFlexMatch,weplottheaveragethreshold. SoftMatchpresentsbetter
+accuracybyutilizingpseudo-labelsinamoreefficientway.
+BeforeUA AfterUA Difference
+1.0 1.0
+mean=0.86,std=0.05 mean=0.87,std=0.03
+0.04
+0.9 0.9
+0.02
+0.8 0.8
+0.00
+0.7 0.7
+0.02
+−
+0.6 0.6
+0.04
+−
+0.5 0.5
+1 5 10 1 5 10 1 5 10
+ClassIndex ClassIndex ClassIndex
+Figure6: Averageweightforeachclassaccordingtopseudo-label,for(a)beforeUA;and(b)after
+UA.Wealsoincludethedifferenceofthemin(c). UAhelpstobalancetheaverageweightofeach
+class.
+whencomputingthesampleweights. AdifferenceofUAandDAisthatUAisonlyusedinweight
+computing, and not used in consistency loss. To visualize this, we plot the average class weight
+according to pseudo-labels of SoftMatch before UA and after UA at the beginning of training, as
+shown in Fig. 6. UA facilitates more balanced class-wise sample weight, which would help the
+modellearnmoreequallyoneachclass.
+21
+selpmaSfoegatnecreP
+selpmaSfoegatnecreP
+selpmaSfoegatnecreP
+thgieW thgieW thgieW

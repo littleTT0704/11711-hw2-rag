@@ -1,0 +1,1032 @@
+Show Me More Details:
+Discovering Hierarchies of Procedures from Semi-structured Web Data
+ShuyanZhou♠,∗ LiZhang♣∗, YueYang♣, QingLyu♣,
+PengchengYin♠, ChrisCallison-Burch♣, GrahamNeubig♠
+♠CarnegieMellonUniversity ♣UniversityofPennsylvania
+{shuyanzh,pcyin,gneubig}@cs.cmu.edu
+{zharry,yueyang1,lyuqing,ccb}@seas.upenn.edu
+Abstract ofNLP.Someworkperformedashallowone-level
+decompositionandoftenrequiredcostlyresources
+Procedures are inherently hierarchical. To
+suchashumanexperttask-specificannotation(Chu
+makevideos,onemayneedtopurchaseacam-
+et al., 2017; Zhang et al., 2020a, 2021). More at-
+era, which in turn may require one to set a
+budget. While such hierarchical knowledge tentionhasbeenpaidinfieldsadjacenttoNLP.For
+is critical for reasoning about complex proce- example,Lagosetal.(2017)andParetietal.(2014)
+dures, most existing work has treated proce- bothcreatehierarchicalstructuresinhow-todocu-
+dures as shallow structures without modeling mentsbylinkingactionphrasesinoneprocedure
+the parent-child relation. In this work, we at-
+to another procedure or by linking steps in how-
+tempt to construct an open-domain hierarchi-
+toarticlestoresourceslikeDBPedia(Aueretal.,
+calknowledge-base(KB)ofproceduresbased
+2007). Thiskindoflinkingishelpfulforexplain-
+on wikiHow, a website containing more than
+ingcomplexstepstoreaderswhodonothaveprior
+110k instructional articles, each documenting
+the steps to carry out a complex procedure. knowledgeofthetopicbeingexplained.
+To this end, we develop a simple and effi- In this paper, we revisit this important but un-
+cient method that links steps (e.g., purchase derstudied task to develop a simple and effective
+a camera) in an article to other articles with algorithm (Figure 1) to construct a hierarchical
+similar goals (e.g., how to choose a camera),
+knowledge-base(KB)forover110k complexpro-
+recursively constructing the KB. Our method
+ceduresspanningawiderangeoftopicsfromwiki-
+significantly outperforms several strong base-
+How,alarge-scalehow-towebsitethathasrecently
+lines according to automatic evaluation, hu-
+manjudgment,andapplicationtodownstream becomeawidely-usedresourceinNLP(Zhouetal.,
+taskssuchasinstructionalvideoretrieval.1 2019;Zellersetal.,2019;Zhangetal.,2020d,c).2
+FromeachwikiHowarticlewhichrepresentsapro-
+cedure,wefollowZhangetal.(2020d)andextract
+1 Introduction
+the title as the goal (e.g., g in Figure 1), and the
+1
+Aprocedureincludessomestepsneededtoachieve paragraphheadlinesassteps(e.g.,s ...s ). Next,
+1 n
+a particular goal (Momouchi, 1980). Procedures wedecomposethestepsbylinkingthemtoarticles
+areinherentlyhierarchical: ahigh-levelprocedure withthesameorasimilargoal(e.g.,s tog ). The
+1 2
+iscomposedofmanylower-levelprocedures. For steps of the linked article are treated as the finer-
+example, a procedure with the goal make videos grainedsteps(s tos )ofthelinkedstep(s1). In
+i j
+consists of steps like purchase a camera, set up thisway,theproceduralhierarchiesgofromshal-
+lighting,editthevideo,andsoon,whereeachstep low(B1)todeep(B4).
+itself is a procedure as well. Such hierarchical To link steps and article goals, we employ a
+relations between procedures are recursive: the retrieve-then-rerankapproach, awell-established
+lower-levelprocedurescanbefurtherdecomposed paradigminrelatedtasks(Wuetal.,2019;Humeau
+intoevenmorefine-grainedsteps: onemayneedto etal.,2019). Ourhierarchydiscoverymodel(§3)
+arrangethefootageinordertoeditthevideo. firstindependentlyencodeseachstepandgoalin
+Relativelylittleattentionhasbeenpaidtohierar- wikiHowandsearchestheknearestgoalsofsimilar
+chicalrelationsincomplexproceduresinthefield meaning for each step (B2). Then, it applies a
+∗Equalcontribution. dedicatedjointencodertocalculatethesimilarity
+1Ademowithpartialdatacanbefoundat score between the step and each candidate goal,
+https://wikihow-hierarchy.github.io/.Thecodeandthedata
+areathttps://github.com/shuyanzhou/wikihow_hierarchy. 2www.wikihow.com
+2202
+raM
+71
+]LC.sc[
+2v46270.3022:viXra
+B1: Input B3: Reranking (§3.2) B5: Application 1 (§4&5)
+g: Make videos Enrich wikiHow
+1
+cat(s 1,g 2) sim(s 1,g i)=0.3 step-goal hyperlinks
+as 1 c: aP mur ec rh aase
+g
+es :2 q C: u S hip oe mt
+o
+u sep en t
+a
+cts h a3: e
+m
+R v ee i rdc aeo ord e vs 4 id d: i etP i onra sgc yti oc ue r c ca at t( (s s1 1, ,g gi j)
+)
+ℳc s si im m( (s s1 1, ,g g2 j)) == 00 .. 16
+2
+s: Set a budget … s: Consider use case B4: Output The suggested
+i j !" link is helpful
+Make videos
+B2: Candidate retrieval (§3.1)
+G: goal collection g Purchase a camera …Set up equipment
+Make videos j g B6: Application 2 (§6)
+Cho Eo ds ite … va id c ea om sera ℳb s 1 g i g 2 g S bue dt ga e t gC uso en s ci ad se er … …n s j Stain cabV ii nd ee to retrieval
+S: step collection
+P Su er tc h ua ps ee q a u ic pa mm ee nr ta §3.1 g 3 s s′ s g …s i s … (retrieved)
+Consider use case
+g
+4
+gk
+…
+Figure1: Theoverviewofourproposedmethod. Theinput(Block1)andoutput(B4)ofthehierarchydiscovery
+model(B2,B3)andtheapplications(B5,B6)ofthehierarchicalknowledgebase.
+thus reranking the goals (B3). This pipeline can ure1,eacharticlecomprisesagoal(g),andaseries
+efficientlysearchoveralargecandidatepoolwhile of steps (Ch(g)). Therefore, each article forms a
+accuratelymeasuringthesimilaritybetweensteps proceduretreeofdepthone.
+andgoals. Witheachsteplinkedtoanarticlegoal, Wedenotethecollectionofallgoalsandstepsin
+ahierarchicalKBofproceduresisthusconstructed. wikiHowasGandS respectively. Ourhierarchy
+We evaluate our KB both intrinsically and ex- discoveryalgorithmaimstolinkasteps ∈ S to
+i
+trinsically. Intrinsically, the discovered links can a goal g ∈ G such that g has the same meaning
+bedirectlyusedtocompletemissingstep-goalhy- as s . It then treats Ch(g) as Ch(s ). Given that
+i i
+perlinks in wikiHow, which have been manually g and s are both represented by textual descrip-
+i
+curated (B5). Our proposed method outperforms tions, the discovery process can be framed as a
+strongbaselines(e.g.,Lagosetal.(2017))accord- paraphrasedetectiontask. Thisdiscoveryprocess
+ing to both automatic and human evaluation, in canbeappliedrecursivelyontheleafnodesuntil
+termsofrecallandusefulnessrespectively(§4,§5). the resulting leaf nodes reach the desired granu-
+Extrinsically, we consider the task of retrieving larity,effectivelygrowingahierarchicalprocedure
+instructionalvideosgiventextualqueries. Weob- tree(B4ofFigure1).
+serve that queries that encode deeper hierarchies
+arebetterthanthosethatdonot(§6). Thisprovides 3 HierarchyDiscoveryModel
+evidence that our KB can bridge the high-level
+For each of the 1.5 million steps in the wikiHow
+instructionsandthelow-levelexecutionsofproce-
+corpus,weaimtoselectonegoalthatexpressesthe
+dures,whichisimportantforapplicationssuchas
+sameprocedureasthestepfromover110k goals.
+roboticplanning.
+Weproposeasimpleandefficientmethodtodeal
+2 ProblemFormulation withsuchalargesearchspacethroughatwo-stage
+process. First,weperformretrieval,encodingeach
+Werepresentaprocedureasatreewheretheroot stepandgoalseparatelyinanunsupervisedfashion
+node n represents a goal and its children nodes and select the k most similar goals for each step
+Ch(n)representthestepsofn. Weformulatethe s. Thisprocessisfastattheexpenseofaccuracy.
+hierarchy discovery task as identifying the steps Second,weperformreranking,jointlyencodinga
+among Ch(n) that can themselves be a goal of stepwitheachofitscandidategoalsinasupervised
+someotherfiner-grainedsteps(sub-steps),which fashiontoallowformoreexpressivecontextualized
+areinsertedintothetree. embeddings. Thisprocessismoreaccurateatthe
+Whilethisformulationcouldpotentiallybeused expenseofspeed,sincecalculatingeachsimilarity
+onanylargecollectionofprocedures,wespecifi- scorerequiresaforwardpassintheneuralnetwork.
+cally focus on wikiHow. As shown in B1 of Fig- The goal with the highest similarity score is se-
+lectedandthestepisexpandedaccordingly,asin Thehiddenstateofthe[CLS]tokenistakenasthe
+B4ofFigure1. finalcontextualizedembedding. Thesecond-stage
+similarityscoreiscalculatedasfollows:
+3.1 Retrieval
+sim (s,g )=proj(M (s,g ))+λsim (s,g ) (1)
+In the first stage, we independently encode each 2 i c i 1 i
+step s ∈ S and goal g ∈ G with a model M ,
+b where proj(·) takes an d-dimension vector and
+resultinginembeddingse s1,e s2,...,e sn ande g1, turnsittoascalarwithweightmatrixW ∈ Rd×1,
+e , ..., e . The similarity score between s and
+g2 gm and λ is the weight for the first-stage similarity
+g is calculated as the cosine similarity between
+score. BothW andλareoptimizedthroughback-
+e and e . We denote this first-stage similarity
+s g propagation(seemoreaboutlabeleddatain§4.1).
+scoreassim (s,g). Usingthisscore,wecanobtain
+1 With labeled data, we finetune M to mini-
+c
+the top-k most similar candidate goals for each
+mizethenegativelog-likelihoodofthecorrectgoal
+step s, and we denote this candidate goal list as
+amongthetop-k candidategoallist,wherethelog-
+C(s) = [g ,...,g ]. To perform this top-k search,
+1 k likelihoodiscalculatedas:
+weuseefficientsimilaritysearchlibrariessuchas
+(cid:32) (cid:32) (cid:33)(cid:33)
+FA WIS eS in(J so tah nn tis ao tn eMeta bl. w,2 it0 h1 t7 w) o.
+learning-basedpara-
+ll(s,g i)=−log softmax (cid:80) gj∈s Cim (s2 )( ss im,g 2i ()
+s,g j)
+(2)
+phrase encoding models. The first is the SP
+model(Wietingetal.,2019,2021),whichencodes Comparedtotherandomlysampledin-batchneg-
+asentenceastheaverageofthesub-wordunitem- ativeexamples,thetop-k candidategoalsarepre-
+beddings generated by SentencePiece (Kudo and sumably harder negative examples (Karpukhin
+Richardson,2018). ThesecondisSBERT(Reimers etal.,2020)andthusthemodelmustworkharder
+andGurevych,2019),whichencodesapairofsen- todistinguishbetweenthem. Wewillexplainthe
+tenceswithasiameseBERTmodelthatisfinetuned extraction of the labeled step-goal pairs used to
+on paraphrase corpus. For comparison, we addi- trainthismodelin§4.1.
+tionally experiment with search engines as M b, Concretely,weexperimentwithtwopretrained
+specificallyElasticsearchwiththestandardBM25 models as M , specifically BERT-base (Devlin
+c
+weightingmetric(RobertsonandZaragoza,2009). etal.,2018)and DEBERTA-largefinetunedonthe
+Weindexeacharticlewithitstitleonlyorwithits MNLIdataset(Heetal.,2020). Wepickthemdue
+fullarticle. WealsoexperimentwithBingSearch totheirhighperformanceonvarioustasks(Zhang
+APIwherewelimitthesearchtowikiHowwebsite etal.,2019). 4
+only3. The BM25 with the former setting resem- Inaddition,weconsiderincludingdifferentctx
+blesthemethodproposedbyLagosetal.(2017). in the reranking input. For each step, we exper-
+iment with including no context, the goal of the
+3.2 Reranking
+step,andthesurroundingstepsofthestepwithina
+Whileefficient,encodingstepsandgoalsindepen-
+window-sizen(n=1).
+dentlyislikelysub-optimalasinformationinthe
+stepscannotbeusedtoencodethegoalsandvice- 3.3 UnlinkableSteps
+versa. Therefore,weconcatenateastepwitheach SomestepsinwikiHowcouldnotbematchedwith
+ofitstop-k candidategoalsinC(s)andfeedthem anygoal. Suchstepsareunlinkablebecauseofsev-
+toamodelM c thatjointlyencodeseachstep-goal eralreasons. First,thestepitselfmightbesofine-
+pair. Concretely,wefollowtheformulationofWu grained that further instructions are unnecessary
+etal.(2019)toconstructtheinputofeachstep-goal (e.g. Go to a store). Second, although wikiHow
+pairas: spansawiderangeofcomplexprocedures,itisfar
+[CLS]ctx[ST]step[ED]goal[SEP] from comprehensive. Some goals simply do not
+existinwikiHow.
+where [ST] and [ED] are two reserved tokens
+Hence, we design a mechanism to predict
+in the vocabulary of a pretrained model, which
+whetherastepislinkableornotexplicitly. More
+markthelocationofthestepofinterest. ctxisthe
+specifically,weaddaspecialtokenunlinkable,
+context for a step (e.g., its surrounding steps or
+itsgoal)thatcouldprovideadditionalinformation. 4 https://cutt.ly/oTx5gMM. BERTScoremeasuresthe
+semantic similarity between a pair of texts, similar to the
+3www.bing.com objectiveofourreranking.
+takenfromthereservedvocabularyofapretrained Model R@1 R@10 R@30
+model,asaplaceholder“goal”tothetop-k candi-
+SP 35.8 64.4 72.5
+dategoallistC(s),andthisplaceholderistreated SBERT 30.6 53.3 63.4
+BM25(goalonly) 30.5 51.6 61.1
+as the gold-standard answer if the step is deter-
+BM25(article) 9.3 35.3 49.2
+mined to be unlinkable. The similarity score be- BingSearch 28.0 47.9 -
+tween a step and this placeholder goal follows
+BERT 50.7 69.4 -
+Equation 1 and sim (s,unlinkable) is set to
+1 DEBERTA 55.4 71.9 -
+the lowest first-stage similarity score among the −surr 54.3 71.6 -
+−goal 55.0 71.5 -
+candidategoalsretrievedbythefirst-stagemodel.
+−both 52.4 71.0 -
+Accuratelylabelingastepasunlinkableisnon-
++unlinkable 50.4 71.6 -
+trivial–itrequiresexaminingwhetherthestepcan +λ=0 51.9 71.4 -
+be linked to any goal in G. Instead, we train the
+Table1: Therecall@nfordifferentmodelsonthetest
+model to perform this classification by assigning
+set. Thetophalfarewithparaphraseretrievalonlyand
+unlinkable to steps that have a ground-truth
+the bottom half are with taking the top-30 candidate
+goalbutthisgoaldoesnotappearinthetop-k can-
+goalsgeneratedbythebestmodel(SP)andaddingthe
+didategoallist. ThelossfollowsEquation2. rerankingmodel. Thebestperformancerecallisbold.
+“surr”denotesthesurroundingstepsofthequerystep.5
+4 AutomaticStepPredictionEvaluation
+To train our models and evaluate how well our Reranking Weselectthetop-30candidategoals
+hierarchydiscoverymodelcanlinkstepstogoals, predicted by the SP model as the input to the
+weleverageexistingannotatedstep-goallinks. reranking stage. The recall@30 of the SP model
+is 72.5%, which bounds the performance of any
+4.1 LabeledStep-goalConstruction
+reranker.6 As seen in the bottom half of Ta-
+InwikiHow,therearearound21kstepsthatalready ble 1, reranking is highly effective, as the best
+haveahyperlinkredirectingittoanotherwikiHow configuration brings a 19.6% improvement on
+article, populated by editors. We treat the title recall@1, and the recall@10 almost reaches the
+of the linked article as the ground-truth goal for upperboundofthisstage. Wefindthatunderthe
+the step. For example, as in B5 of Figure 1, the sameconfiguration,DEBERTA-largefinetunedon
+ground-truth goal of the step Create a channel is MNLI(Heetal.,2020)outperformsBERTby1.7%
+Make a Youtube Channel. We build the training, on recall@1, matching the reported trends from
+developmentandtestsetwitha7:2:1ratio. BERTScore.5
+To qualitatively understand the benefit of the
+4.2 Results
+reranker,wefurtherinspectrandomlysampledpre-
+Table1liststherecallofdifferentmodelswithout dictions of SP and DEBERTA. We find that the
+orwiththereranking. Precisionisimmaterialhere reranker largely resolves partial matching prob-
+sinceeachstephasonlyonelinkedarticle. lemsobservedin SP.AsshowninC1ofTable2,
+CandidateRetrieval TheSPmodelachievesthe SP tends to only consider the action (e.g., learn)
+bestrecallofallmodels,outperformingSBERTby ortheobject(e.g.,bike)andmistakenlyrankthose
+a significant margin. Models basedon searchen- partiallymatchedgoalsthehighest. Incontrast,the
+gines with various configurations, including the reranker makes fewer mistakes. In addition, we
+commercialBingSearch,arelesseffective. Inad- observedthatthererankerperformedbetteronrare
+dition,BM25(goalonly),whichdoesnotconsider words or expressions. For example, as shown in
+anyarticlecontent,notablyoutperformsBM25(ar- the last column of C1, the reranker predicts that
+ticle)andBingSearch,implyingthatthefullarti- “vinyl records” is closely related to “LP records”
+cles may contain undesirable noise that hurts the andoutputsthecorrectgoalwhile SP couldnot.
+searchperformance. Thisinterestingobservation Second,weobservethatthesurroundingcontext
+suggeststhatwhilecommercialsearchenginesare andthegoalofthequerysteparehelpfulingeneral.
+powerful,theymaynotbethebestoptionforspe- Incorporatingbothcontextsbringsa3%improve-
+cificdocumentretrievaltaskssuchasours. ment in recall@1. While steps are informative,
+5Weareunabletogetthetop-30resultsfromBingsearch 6WeonlyexperimentwithSPbecauseitisthebestretrieval
+becausethewebqueriesonlyreturntop-10searchresults. model,providingalargerimprovementheadroom.
+Step RetrievalPrediction RerankingPrediction(GT) Context
+Learntochopproperly LearnEditing ChopFoodLikeaPro UseaKnife
+C1
+Acquireabike GetonaBike BuyaBicycle CommuteByBicycle
+Getsomevinylrecords CutVinylRecords BuyUsedLPRecords BuyaTurntable
+ReadUTM FindYourCoordinates FindtheEndPortal
+Openyourcoordinates
+Coordinates inMinecraft inMinecraft
+C2
+ShapeEyebrows(g)
+Fillinsparsespots RemoveSetinStains FillinEyebrows Trimyourbrows(surr)
+Useacleargeltoset(surr)
+Table 2: The main failure modes of the candidate retrieval model (SP) that could be recovered by the reranking
+model.Step:thequerystep;RetrievalPrediction:thetop-1predictionofthebestretrievalmodelSP;Reranking
+Prediction:thetop-1predictionofthebestrerankingmodelDeBERTa,itisalsotheground-truthgoal. Bydefault,
+theContextreferstothegoalofthequerystep. Thelastcaselistsbothgoal(g)andthesurroundingsteps(surr).
+they could be highly dependent on the contexts.
+linkable unlinkable
+Forexample,somestepsareunder-specified,using 400 DeBERTa-UL
+pronounstorefertopreviouslyoccurringcontents 350 D SPeBERTa
+orsimplyomittingthem. Theadditionalinforma- 300
+tionintroducedbythecontexthelpsresolvethese
+250
+uncertainties. InthefirstexampleofC2,thecon-
+200
+text “minecraft” is absent in the query step but
+150
+present in the goal of that step. Similarly, in the
+100
+secondexample,thecontext“eyebrows”isabsent
+50
+inthequerystepbutpresentinboththegoaland
+0
+the Fs inu arr lo lyu ,nd ai dn dg inst gep us n.
+linkable prediction harms
+exact helpful related nhelpful exact helpful related nhelpful
+u u
+the recall@1 due to its over-prediction of
+Figure2:Crowdworkers’ratingsofstep-goallinkspre-
+unlinkableforstepswhoseground-truthgoal dictedbyourmodels.Theleftgraphshowsstepslinked
+exists in the top-k candidate list. We also experi- to some goals by the DEBERTA-UL model, while the
+ment with setting a threshold tuned on the devel- rightshowsstepsthosepredictedasunlinkable.
+opment set to decide which steps are unlinkable,
+goal predicted by one of our models. For each
+inwhichcasetherecall@1degradesfrom55.4%
+example, we ask three MTurk workers to judge
+to 41.9%. Therefore, this explicit learnable pre-
+whether the steps in the article of the linked goal
+dictionyieldsmorebalancebetweenthetrade-offs.
+are exact, helpful, related, or unhelpful with re-
+In§5,wewilldemonstratethatthisexplicitunlink-
+gard to accomplishing the queried step. Details
+ablepredictionisoverallinformativetodistinguish
+about the task design, task requirements, worker
+stepsofthetwotypesthroughcrowdsourcinganno-
+pay,examplesampling,etc. areinA.
+tations. Weempiricallyfindthatsettingtheweight
+ofsim (s,g)(λ)to0isbeneficialintheunlinkable
+WeselectSP,DEBERTA,andDEBERTAwith
+1
+predictionsetting.
+unlinkablepredictionandλ = 0(DEBERTA-UL)
+forcomparison. Weattempttoanswerthefollow-
+5 ManualStepPredictionEvaluation ing questions. First, does the performance trend
+showninautomaticevaluationholdinhumanevalu-
+The automatic evaluation strongly indicates the ation? Second,cantheunlinkablepredictionshelp
+effectiveness of our proposed hierarchy discov- avoidprovidinguserswithmisleadinginformation
+ery model. However, it is not comprehensive (Rajpurkaretal.,2018)?
+because the annotated hyperlinks are not exhaus- Forthepurposeofthesecondquestion,wesep-
+tive. We complement our evaluation with crowd- aratetheexamplesintotwogroups. Onecontains
+sourcedhumanjudgmentsviaAmazonMechanical linkableexamples. Namely,thosewhosetop-1pre-
+Turk(MTurk). diction is not predicted as unlinkable by the
+Eachexampleofannotatingisatupleofastep, DEBERTA-ULmodel. Ideally,thelinkedarticles
+itsoriginalgoalfromwikiHow,andthetop-ranked fromtheseexamplesshouldbehelpful. Theother
+group contains unlinkable examples. For these, Query R/P@1 R/P@10 R/P@25 R/P@50 MR
+weevaluatethesecond-highestrankedprediction L0 2.2/89.2 19.2/78.1 39.9/66.0 56.6/48.2 79.49
+of the DEBERTA-UL model. Ideally, the linked L F1
+IL-L1
+2 2. .2 2/ /88 98 .. 90 1 29 0. .2 2/ /7 88 1. .0
+7
+44 30 .. 11 // 76 16 .. 24 5 68 3. .1 2/ /4 59 3. .6
+8
+7 65 6. .7 39
+2
+articlesfromtheseexamplesshouldbeunhelpful. FIL-L2 2.2/89.4 20.3/82.7 43.9/72.3 65.0/55.2 63.38
+Thecorrespondingcrowdjudgmentisshownin L0 12.1/81.7 59.8/42.8 71.9/20.8 77.9/11.3 41.60
+Figure2. Comparingthemodels,the DEBERTA L1 11.8/79.7 61.2/43.9 74.1/21.4 80.5/11.6 36.70
+FIL-L1 12.4/83.7 66.0/47.3 77.4/22.4 82.9/12.0 33.35
+modelandtheDEBERTA-ULmodelhavesimilar FIL-L2 12.5/84.4 66.1/47.7 78.0/22.5 83.3/12.0 32.30
+performance,whilegreatlyoutperformingtheSP L0 11.4/82.6 59.2/45.2 71.8/22.1 77.8/12.0 43.11
+model. This shows that our proposed model de- L1 11.2/81.3 60.4/46.2 73.8/22.7 79.9/12.3 38.19
+FIL-L1 11.7/85.1 64.8/49.5 77.2/23.8 82.2/12.7 34.76
+composesmuchmorehelpfulfiner-grainedstepsto FIL-L2 11.6/84.5 65.5/50.0 77.9/24.0 82.7/12.7 34.13
+assistuserswithtasks,similartothetrendobserved
+Table 3: The Recall/Precision@N (%, ↑) and mean
+in our automatic evaluation. Comparing the two
+rank (MR, ↓) with different queries on the relevant
+graphs, it is apparent that when the DEBERTA-
+video retrieval task on the training (top), development
+UL model predicts unlinkable for a step, the (middle) and the test set (bottom). The best perfor-
+suggesteddecompositionsofallmodelsaremore manceoneachsetisbold.
+likely to be unhelpful. This implies the high pre-
+cisionoftheunlinkableprediction,effectively eachgoalg,werandomlysplititsrelevantvideos
+avoiding misleading predictions. Note that our v g intothreesub-setsv gtr,v gdevandv gtestwitharatio
+studydoesnotexplicitlyrequiresubjectstocarry of7.5:1.25:1.25,asthetraining,development,and
+outthetask,butonlyannotateswhethertheyfind
+testingsets.8
+theinstructionshelpful.
+6.2 Setup
+6 ApplicationtoVideoRetrieval Since our KB is fully textual, we also represent
+eachvideotextuallywithitsautomaticallygener-
+Inadditiontointrinsicevaluation,wetakeafurther
+atedcaptions. Forthesearchengine,weuseElastic-
+step to study the usefulness of our open-domain
+searchwiththestandardBM25metric(Robertson
+hierarchical KB to downstream tasks. We select
+and Zaragoza, 2009).9 We denote the relevance
+video retrieval as the extrinsic evaluation task,
+scorecalculatedbyBM25betweenthequeryqand
+which aims at retrieving relevant how-to videos
+atextuallyrepresentedvideov asRel(q,v).
+for a textual goal to visually aid users. More for-
+We experiment with four different methods,
+mally,givenatextualgoalg,thetaskistoretrieve
+whichdifferinhowtheyconstructthequeryq:
+its relevant videos v from the set of all videos,
+g L0: Goal only. The query is the goal g itself.
+withatextualqueryq. Intuitively,ourKBcanbe
+Thisistheminimalquerywithoutanyadditional
+usefulbecausevideosusuallycontainfiner-grained
+hierarchical information. The relevance score is
+stepsandverbaldescriptionstoaccomplishatask.
+simplyRel(q,v) = Rel(g,v).
+Therefore, the extra information presented in de-
+L1:Goal+Children. Thequeryisaconcatena-
+composed steps could benefit retrieving relevant
+tionofthegoalg anditsimmediatechildrensteps
+videos.
+Ch(g). This query encodes hierarchical knowl-
+6.1 DatasetConstruction edge that already exists in wikiHow. The rele-
+vance score is then defined as a weighted sum,
+WeuseHowto100M(Miechetal.,2019)foreval- (cid:80)
+Rel(q,v) = w Rel(g,v)+w Rel(s,v).
+uation. It is a dataset of millions of instruc- g s s∈Ch(g)
+Theweightsw andw aretunedonadevelopment
+tional videos corresponding to over 23k goals. g s
+setandsetto1.0and0.1respectively.
+We construct our video retrieval corpus by ran-
+domlysampling1,000goals(e.g.,recordavideo)
+FIL-L1: Goal + Filtered children. The query
+is a concatenation of the goal g and a filtered
+with their relevant videos. The relevant videos
+sequence of its children Ch(g). Intuitively, de-
+v = {v ,v ,...,v }ofeachgoalg inthedataset
+g 1 2 n
+composing a goal introduces richer information
+areobtainedbyselectingthetop150videosamong
+the search results of the goal on YouTube.7 For rankedvideoslikelydemonstratethequeriedgoal.
+8Weexplainmoreabouttheappropriatenessofthedown-
+7Although the relevance between a goal and a video is streamvideoretrievaltasksetupinB.1.
+notexplicitlyannotatedintheHowto100Mdataset,weargue 9Wefindtheperformanceofaneuralmodel(BERTfine-
+thatwiththesophisticatedengineeringoftheYouTubevideo tunedonquery/videocaptionpairs)significantlylowerthan
+searchAPIandhundredsofthousandsuserclicks,thehighly BM25andtherefore,weonlyreporttheresultswithBM25.
+Goal StainCabinet 6.3 Results
+FIL-L1 Purchasesomestaincolorstotest Wereporttheprecision@N,recall@N andmean
+FIL-L1+ rank (MR) following existing work on video re-
+Buyclothwithwhichtoapplythestain
+FIL-L2 Unscrewthecabinetfromthewall trieval(Luoetal.,2021)(see§B.2formetricdef-
+Cleanyourworkspace initions). Table 3 lists the results. First, queries
+Removethedoors that encode hierarchies of goals (L1, FIL-L1 and
+Sandingthefront
+KM Topcoat FIL-L2)aregenerallymorebeneficialthanqueries
+Finishedlook thatdonot(L0). Thestepsofgoalsenrichaquery
+Goal MakeAvocadoFries andassisttheretrieval. Second,video-orientedfil-
+Baketheavocadofriesuntiltheyaregolden teringyieldssignificantimprovementovertheun-
+FIL-L1 D ani dp tt hh ee nav tho eca bd reo aw dce rd ug mes bsintotheegg filtered L1 queriessinceitproducesasetofmore
+generalizablestepsthataresharedamongmultiple
+FIL-L1+
+Preheattheoven videos. Although steps in wikiHow articles are
+FIL-L2 P Ce ue tl ya on ud rp ai vt ot ch ae da ov io nca hd ao lfs
+andremovethestone
+human-written,theyarenotgroundedtoreal-world
+Letrise executions of that goal. Many steps do not have
+Finished,coolandenjoy correspondingexecutionsinthevideosandbecome
+2largeavocados... noisy steps in the L1 queries. More interestingly,
+pinchofsalt,pinchofpepper
+KM twoeggs,beaten... we observe that queries using deeper hierarchies
+bakeat425F20minuntilgoldenbros... (FIL-L2) outperform the shallower ones (FIL-L1)
+Table 4: The queries and the key moments (KM) for inmostcases. Thisisprobablyduetothefactthat
+two goals. “...” represents the omission of steps how-tovideosusuallycontaindetailed(verbal)in-
+that describe the ingredients to save space. The first structionsofaprocedure,whicharebetteraligned
+selected video is h9k0T25_NxA and the second is
+withmorefine-grainedstepsfoundin FIL-L2.
+o7uVUmPph6I.
+In our qualitative study, we investigate how
+FIL-L2 queries with deeper hierarchies help re-
+butalsointroducesnoise,sincecertainstepsmay
+trieval. Table4list FIL-L1 and FIL-L2 queriesfor
+not visually appear at all (e.g., enjoy yourself).
+twogoals. WefindthattheFIL-L2queriesaremore
+Therefore, we perform filtering and only retain
+informativeandcovermoreaspects. Forexample,
+the most informative steps, denoted by Ch(cid:48)(g).
+the FIL-L2 queriesforstaincabinetandmakeav-
+Specifically, to construct Ch(cid:48)(g) for a goal g, we
+ocado fries consist of the preparation, actual op-
+use a hill-climbing algorithm to check each step
+erations,andthepost-processingsteps,whilethe
+s from Ch(g), and include s into the query only
+FIL-L1 query only contains the first one. In addi-
+if it yields better ranking results for the ground-
+tion, we search the goals on Google and list the
+truth videos in the training set vtrain.10 The rele-
+g keymomentsofsomerandomlysampledvideos.11
+vancescoreisdefinedasRel(q,v) = w Rel(g,v)+
+g Thesekeymomentstextuallydescribetheimpor-
+(cid:80)
+w Rel(s,v),wherew issetto1.0and
+s s∈Ch(cid:48)(g) g tant clips of the videos, and therefore they pre-
+w issetto0.5aftersimilartuning.
+s sumablyalsoserveasthequeryforthegoal. We
+FIL-L2: Goal + Filtered children + Filtered find that the FIL-L2 query of make avocado fries
+grand-children. Thequeryistheconcatenation explainsafewnecessarystepstoaccomplishthis
+of the goal g and a filtered sequence of its im- goal, while the key moment is mostly composed
+mediate children Ch(g) and grandchildren Ch(s) of the ingredients of this dish. This comparison
+(s ∈ Ch(g)). These filtered steps are denoted suggests the potential integration of our induced
+by Ch(cid:48)(g + Ch(g)). This two-level decomposi- hierarchicalknowledgetoidentifykeymomentsin
+tion uses the knowledge from our KB, therefore videosinthefuture.
+including lower-level information about the exe-
+7 DecompositionAnalysis
+cutionofthegoal. Weperformthesamefiltering
+algorithmasin FIL-L1,andwedefineRel(q,v) =
+Inthissection,westudythepropertiesofthehier-
+(cid:80)
+w Rel(g,v)+w Rel(s,v). w is
+g s s∈Ch(cid:48)(g+Ch(g)) g archies. First, what kind of steps are likely to be
+setto1.0andw issetto0.5.
+s linked to another goal and are thus decomposed?
+11Key moments are either identified manually or are ex-
+10SeeAlgorithm1inAppendixformoredetails. tractedautomaticallybyYouTube.https://cutt.ly/qTcxSi6
+(1)aretrieval-then-rerankmethodsignificantlyin-
+creaseslinkingrecall;(2)morecomprehensiveex-
+periments with the manual and the downstream 200
+evaluation that showcases the quality and useful-
+100 ness of the linked data and (3) experiments and
+data with broader coverage over all of WikiHow,
+0 notjusttheComputerdomain.
+Procedural Knowledge Procedural knowledge
+100 can be seen as a subset of knowledge pertaining
+to scripts (Abelson and Schank, 1977; Rudinger
+200 etal.,2015),schemata(Rumelhart,1975)orevents.
+Asmallbodyofpreviouswork(MujtabaandMa-
+hapatra, 2019) on procedural events includes ex-
+Figure3: Theverbswithlargestrankdifferenceintwo
+clusters. The blue bars are words becoming less fre- tractingthemfrominstructionaltexts(Parisetal.,
+quent in cluster 2 (decomposed steps) and the orange 2002;DelpechandSaint-Dizier,2008;Zhangetal.,
+barsarewordsbecomingmorefrequent. 2012)andvideos(Alayracetal.,2016;Yangetal.,
+2021a),reasoningaboutthem(Takechietal.,2003;
+Tandon et al., 2019; Rajagopal et al., 2020), or
+Second,whatdothedecomposedstepslooklike?
+showing their downstream applications (Pareti,
+Wegroupstepsintotwoclusters. Thefirstcon-
+2018; Zhang et al., 2020d; Yang et al., 2021b;
+tains the immediate steps of a goal (s ∈ Ch(g))
+Zhang et al., 2020b; Lyu et al., 2021), specifi-
+whose prediction is not unlinkable. The sec-
+cally on intent reasoning (Sap et al., 2019; Dalvi
+ondcontainsthedecomposedstepsofthestepsin
+etal.,2019;Zhangetal.,2020c). Mostprocedural
+thefirstcluster(s(cid:48) ∈ Ch(s)). WeusespaCy(Hon-
+datasetsarecollectedbycrowdsourcingthenman-
+nibaletal.,2020)toextractandlemmatizetheverb
+ually cleaned (Singh et al., 2002; Regneri et al.,
+ineachstepandranktheverbsbytheirfrequencyin
+2010;Lietal.,2012;Wanzareetal.,2016;Rashkin
+eachcluster. Next,thetop-100mostfrequentverbs
+etal.,2018)andarehencesmall. Existingworkhas
+in each cluster are selected and we measure the
+alsoleveragedwikiHowforlarge-scaleknowledge-
+rankdifferenceoftheseverbsinthetwoclusters.
+base construction (Jung et al., 2010; Chu et al.,
+Figure3plotstheverbswithlargestrankdifference
+2017; Park and Motahari Nezhad, 2018), but our
+andthefullfigureisinFigure4. Weobservethat
+work is the first to provide a comprehensive in-
+verbsthatconveycomplexactionsandintuitively
+trinsic and extrinsic evaluation of the resulting
+consistofmanyotheractionsbecomelessfrequent
+knowledge-base.
+after the decomposition (e.g., decorate). On the
+otherhand,verbsthatdescribetheactionitselfgain
+9 Conclusion
+in frequency after the decomposition (e.g., push,
+hold,press). Thisobservationfollowsourassump- We propose a search-then-rerank algorithm to ef-
+tion that the decomposition would lead to more fectivelyconstructahierarchicalknowledge-base
+fine-grained realizations of a complex procedure. of procedures based on wikiHow. Our hierar-
+Some other more abstract actions such as “learn” chies are shown to help users accomplish tasks
+and “decide” also increase in frequency, as some by accurately providing decomposition of a step
+low-levelgoalsareexplainedwithmorecomplex andimprovetheperformanceofdownstreamtasks
+steps. suchasretrievinginstructionalvideos. Oneinter-
+esting extension is to further study and improve
+8 RelatedWork
+the robustness of our two-stage method to tackle
+more complex linguistic structures of steps and
+Linking Procedural Events To the best of our
+goals(e.g.,negation,conjunction). Anotherdirec-
+knowledge, two other pieces of work Pareti et al.
+tion is to enrich the resulting knowledge-base by
+(2014); Lagos et al. (2017) tackled the task of
+applyingourmethodtootherwebresources,12 or
+linking steps in procedures to other procedures.
+toothermodalities(e.g.,videoclips). Futurework
+Bothofthemalsodrewtheproceduresfromwik-
+iHow. Whilewesharethesametaskformulation,
+12e.g.,https://www.instructables.com/,https://www.diynet
+our work makes several additional contributions: work.com/how-to
+knar
+2 retsulc
+-
+knar
+1 retsulc
+tlem dliub wes gid remmis tniap taeb nosaes
+daenk
+etaroced
+hsup
+eunitnoc
+nrael ediced
+taeper diova hsinif
+evom
+tiaw
+drocca
+couldalsoexploreotherusagessuchascomparing BhavanaDalvi,NiketTandon,AntoineBosselut,Wen-
+andclusteringproceduresbasedontheirdeephier- tau Yih, and Peter Clark. 2019. Everything hap-
+pens for a reason: Discovering the purpose of ac-
+archies;orapplyingtheproceduralknowledgeto
+tions in procedural text. In Proceedings of the
+controlrobotsinthesituatedenvironments.
+2019 Conference on Empirical Methods in Natu-
+ral Language Processing and the 9th International
+Acknowledgments Joint Conference on Natural Language Processing
+(EMNLP-IJCNLP), pages 4496–4505, Hong Kong,
+This research is based upon work supported in China.AssociationforComputationalLinguistics.
+part by the DARPA KAIROS Program (contract EstelleDelpechandPatrickSaint-Dizier.2008. Inves-
+FA8750-19-2-1004),theDARPALwLLProgram tigatingthestructureofproceduraltextsforanswer-
+(contract FA8750-19-2-0201), the IARPA BET- inghow-toquestions. InProceedingsoftheSixthIn-
+ternationalConferenceonLanguageResourcesand
+TERProgram(contract2019-19051600004),and
+Evaluation(LREC’08), Marrakech, Morocco.Euro-
+theAmazonAlexaPrizeTaskBotCompetition. Ap-
+peanLanguageResourcesAssociation(ELRA).
+provedforPublicRelease,DistributionUnlimited.
+Jacob Devlin, Ming-Wei Chang, Kenton Lee, and
+The U.S. Government is authorized to reproduce
+KristinaToutanova.2018. Bert:Pre-trainingofdeep
+anddistributereprintsforGovernmentalpurposes
+bidirectional transformers for language understand-
+notwithstanding any copyright notation thereon. ing. arXivpreprintarXiv:1810.04805.
+The views and conclusions contained herein are
+Pengcheng He, Xiaodong Liu, Jianfeng Gao, and
+thoseoftheauthorsandshouldnotbeinterpreted Weizhu Chen. 2020. Deberta: Decoding-enhanced
+asnecessarilyrepresentingtheofficialpolicies,ei- bert with disentangled attention. arXiv preprint
+ther expressed or implied, of Amazon, DARPA, arXiv:2006.03654.
+IARPA,ortheU.S.Government. Matthew Honnibal, Ines Montani, Sofie Van Lan-
+WethankZiyangLiandRicardoGonzalezfor deghem, and Adriane Boyd. 2020. spaCy:
+Industrial-strength Natural Language Processing in
+developing the web demo, John Wieting for sup-
+Python.
+portonimplementation,andtheanonymouscrowd
+workersfortheirannotations. Samuel Humeau, Kurt Shuster, Marie-Anne Lachaux,
+and Jason Weston. 2019. Poly-encoders: Trans-
+former architectures and pre-training strategies for
+fast and accurate multi-sentence scoring. arXiv
+References preprintarXiv:1905.01969.
+Robert Abelson and Roger C Schank. 1977. Scripts, Jeff Johnson, Matthijs Douze, and Hervé Jégou. 2017.
+plans, goalsandunderstanding. Aninquiryintohu- Billion-scale similarity search with gpus. arXiv
+manknowledgestructuresNewJersey,10. preprintarXiv:1702.08734.
+Yuchul Jung, Jihee Ryu, Kyung-min Kim, and Sung-
+Jean-Baptiste Alayrac, Piotr Bojanowski, Nishant
+Hyon Myaeng. 2010. Automatic construction of a
+Agrawal, Josef Sivic, Ivan Laptev, and Simon
+large-scale situation ontology by mining how-to in-
+Lacoste-Julien. 2016. Unsupervised learning from
+structions from the web. Web Semantics: Science,
+narrated instruction videos. In Proceedings of the
+Services and Agents on the World Wide Web, 8(2-
+IEEE Conference on Computer Vision and Pattern
+3):110–124.
+Recognition,pages4575–4583.
+VladimirKarpukhin,BarlasOg˘uz,SewonMin,Patrick
+Sören Auer, Christian Bizer, Georgi Kobilarov, Jens Lewis,LedellWu,SergeyEdunov,DanqiChen,and
+Lehmann, Richard Cyganiak, and Zachary Ives. Wen-tau Yih. 2020. Dense passage retrieval for
+2007. Dbpedia: A nucleus for a web of open data. open-domain question answering. arXiv preprint
+InThesemanticweb,pages722–735.Springer. arXiv:2004.04906.
+TakuKudoandJohnRichardson.2018. SentencePiece:
+Fabian Caba Heilbron, Victor Escorcia, Bernard
+A simple and language independent subword tok-
+Ghanem, and Juan Carlos Niebles. 2015. Activi-
+enizeranddetokenizerforneuraltextprocessing. In
+tynet: Alarge-scalevideobenchmarkforhumanac-
+Proceedings of the 2018 Conference on Empirical
+tivityunderstanding. InProceedingsoftheieeecon-
+Methods in Natural Language Processing: System
+ferenceoncomputervisionandpatternrecognition,
+Demonstrations, pages 66–71, Brussels, Belgium.
+pages961–970.
+AssociationforComputationalLinguistics.
+CuongXuanChu,NiketTandon,andGerhardWeikum. Nikolaos Lagos, Matthias Gallé, Alexandr Chernov,
+2017. Distilling task knowledge from how-to com- and Ágnes Sándor. 2017. Enriching how-to guides
+munities. In Proceedings of the 26th International withactionablephrasesandlinkeddata. InWebIn-
+ConferenceonWorldWideWeb,pages805–814. telligence,volume15,pages189–203.IOSPress.
+BoyangLi,StephenLee-Urban,DarrenScottAppling, Pranav Rajpurkar, Robin Jia, and Percy Liang. 2018.
+and Mark O Riedl. 2012. Crowdsourcing narrative Know what you don’t know: Unanswerable ques-
+intelligence. AdvancesinCognitivesystems,2(1). tions for SQuAD. In Proceedings of the 56th An-
+nual Meeting of the Association for Computational
+Huaishao Luo, Lei Ji, Ming Zhong, Yang Chen, Wen Linguistics (Volume 2: Short Papers), pages 784–
+Lei, Nan Duan, and Tianrui Li. 2021. CLIP4Clip: 789, Melbourne, Australia. Association for Compu-
+Anempiricalstudyofclipforendtoendvideoclip tationalLinguistics.
+retrieval. arXivpreprintarXiv:2104.08860.
+Hannah Rashkin, Maarten Sap, Emily Allaway,
+NoahA.Smith,andYejinChoi.2018. Event2Mind:
+Qing Lyu, Li Zhang, and Chris Callison-Burch. 2021.
+Commonsenseinferenceonevents,intents,andreac-
+Goal-orientedscriptconstruction. InProceedingsof
+tions. InProceedingsofthe56thAnnualMeetingof
+the 14th International Conference on Natural Lan-
+the Association for Computational Linguistics (Vol-
+guageGeneration,Aberdeen,UnitedKingdom.As-
+ume 1: Long Papers), pages 463–473, Melbourne,
+sociationforComputationalLinguistics.
+Australia. Association for Computational Linguis-
+tics.
+AntoineMiech,DimitriZhukov,Jean-BaptisteAlayrac,
+Makarand Tapaswi, Ivan Laptev, and Josef Sivic. Michaela Regneri, Alexander Koller, and Manfred
+2019. Howto100m: Learning a text-video embed- Pinkal. 2010. Learning script knowledge with web
+ding by watching hundred million narrated video experiments. In Proceedings of the 48th Annual
+clips. In Proceedings of the IEEE/CVF Interna- Meeting of the Association for Computational Lin-
+tionalConferenceonComputerVision,pages2630– guistics,pages979–988.
+2640.
+Nils Reimers and Iryna Gurevych. 2019. Sentence-
+Yoshio Momouchi. 1980. Control structures for ac- BERT:SentenceembeddingsusingSiameseBERT-
+tionsinproceduraltextsandPT-chart. InCOLING networks. InProceedingsofthe2019Conferenceon
+1980Volume1:The8thInternationalConferenceon EmpiricalMethodsinNaturalLanguageProcessing
+ComputationalLinguistics. andthe9thInternationalJointConferenceonNatu-
+ralLanguageProcessing(EMNLP-IJCNLP),pages
+Dena Mujtaba and Nihar Mahapatra. 2019. Recent 3982–3992, Hong Kong, China. Association for
+trends in natural language understanding for proce- ComputationalLinguistics.
+duralknowledge. In2019InternationalConference
+Stephen Robertson and Hugo Zaragoza. 2009. The
+onComputationalScienceandComputationalIntel-
+probabilistic relevance framework: Bm25 and be-
+ligence(CSCI),pages420–424.
+yond. Found.TrendsInf.Retr.,3(4):333–389.
+Paolo Pareti. 2018. Representation and execution of Rachel Rudinger, Vera Demberg, Ashutosh Modi,
+humanknow-howontheWeb. Ph.D.thesis. Benjamin Van Durme, and Manfred Pinkal. 2015.
+Learning to predict script events from domain-
+PaoloPareti,BenoitTestu,RyutaroIchise,EwanKlein, specific text. In Proceedings of the Fourth Joint
+andAdamBarker.2014. Integratingknow-howinto Conference on Lexical and Computational Seman-
+the linked data cloud. In International Conference tics,pages205–210.
+onKnowledgeEngineeringandKnowledgeManage-
+ment,pages385–396.Springer. DavidERumelhart.1975. Notesonaschemaforsto-
+ries. In Representation and understanding, pages
+211–236.Elsevier.
+Cécile Paris, Keith Vander Linden, and Shijian Lu.
+2002. Automatedknowledgeacquisitionforinstruc-
+Maarten Sap, Ronan Le Bras, Emily Allaway, Chan-
+tional text generation. In Proceedings of the 20th
+draBhagavatula,NicholasLourie,HannahRashkin,
+AnnualInternationalConferenceonComputerDoc-
+BrendanRoof,NoahA.Smith,andYejinChoi.2019.
+umentation,SIGDOC’02,page142–151,NewYork,
+ATOMIC: an atlas of machine commonsense for
+NY,USA.AssociationforComputingMachinery.
+if-then reasoning. In The Thirty-Third AAAI Con-
+ference on Artificial Intelligence, AAAI 2019, The
+Hogun Park and Hamid Reza Motahari Nezhad. 2018.
+Thirty-First Innovative Applications of Artificial In-
+Learning procedures from text: Codifying how-to
+telligence Conference, IAAI 2019, The Ninth AAAI
+proceduresindeepneuralnetworks. InCompanion
+Symposium on Educational Advances in Artificial
+ProceedingsoftheTheWebConference2018,pages
+Intelligence, EAAI 2019, Honolulu, Hawaii, USA,
+351–358.
+January 27 - February 1, 2019, pages 3027–3035.
+AAAIPress.
+Dheeraj Rajagopal, Niket Tandon, Peter Clark, Bha-
+vana Dalvi, and Eduard Hovy. 2020. What-if I ask Push Singh, Thomas Lin, Erik T Mueller, Grace Lim,
+you to explain: Explaining the effects of perturba- TravellPerkins,andWanLiZhu.2002. Openmind
+tions in procedural text. In Findings of the Associ- common sense: Knowledge acquisition from the
+ationforComputationalLinguistics: EMNLP2020, generalpublic. InOTMConfederatedInternational
+pages3345–3355,Online.AssociationforComputa- Conferences" On the Move to Meaningful Internet
+tionalLinguistics. Systems",pages1223–1237.Springer.
+MinekiTakechi,TakenobuTokunaga,YujiMatsumoto, Yue Yang, Joongwon Kim, Artemis Panagopoulou,
+andHozumiTanaka.2003. Featureselectionincat- MarkYatskar,andChrisCallison-Burch.2021a. In-
+egorizing procedural expressions. In Proceedings duce,edit,retrieve: Languagegroundedmultimodal
+oftheSixthInternationalWorkshoponInformation schema for instructional video retrieval. arXiv
+Retrieval with Asian Languages, pages 49–56, Sap- preprintarXiv:2111.09276.
+poro,Japan.AssociationforComputationalLinguis-
+tics. YueYang,ArtemisPanagopoulou,QingLyu,LiZhang,
+MarkYatskar,andChrisCallison-Burch.2021b. Vi-
+NiketTandon,BhavanaDalvi,KeisukeSakaguchi,Pe- sualgoal-stepinferenceusingwikihow. InProceed-
+ter Clark, and Antoine Bosselut. 2019. WIQA: A ings of the 2021 Conference on Empirical Methods
+dataset for “what if...” reasoning over procedural in Natural Language Processing, Punta Cana, Do-
+text. In Proceedings of the 2019 Conference on minican Republic. Association for Computational
+EmpiricalMethodsinNaturalLanguageProcessing Linguistics.
+andthe9thInternationalJointConferenceonNatu-
+ralLanguageProcessing(EMNLP-IJCNLP),pages Rowan Zellers, Ari Holtzman, Yonatan Bisk, Ali
+6076–6085, Hong Kong, China. Association for Farhadi, and Yejin Choi. 2019. HellaSwag: Can
+ComputationalLinguistics. a machine really finish your sentence? In Pro-
+ceedings of the 57th Annual Meeting of the Asso-
+YansongTang,DajunDing,YongmingRao,YuZheng, ciation for Computational Linguistics, pages 4791–
+DanyangZhang,LiliZhao,JiwenLu,andJieZhou. 4800,Florence,Italy.AssociationforComputational
+2019. Coin: A large-scale dataset for comprehen- Linguistics.
+siveinstructionalvideoanalysis. InProceedingsof
+Hongming Zhang, Muhao Chen, Haoyu Wang,
+theIEEE/CVFConferenceonComputerVisionand
+Yangqiu Song, and Dan Roth. 2020a. Analogous
+PatternRecognition,pages1207–1216.
+process structure induction for sub-event sequence
+prediction. arXivpreprintarXiv:2010.08525.
+Ji Wan, Dayong Wang, Steven Chu Hong Hoi,
+Pengcheng Wu, Jianke Zhu, Yongdong Zhang, and
+Hongming Zhang, Muhao Chen, Haoyu Wang,
+JintaoLi.2014. Deeplearningforcontent-basedim-
+Yangqiu Song, and Dan Roth. 2020b. Analogous
+age retrieval: A comprehensive study. In Proceed-
+process structure induction for sub-event sequence
+ings of the 22nd ACM international conference on
+prediction. In Proceedings of the 2020 Conference
+Multimedia,pages157–166.
+onEmpiricalMethodsinNaturalLanguageProcess-
+ing (EMNLP), pages 1541–1550, Online. Associa-
+LilianDAWanzare,AlessandraZarcone,StefanThater,
+tionforComputationalLinguistics.
+and Manfred Pinkal. 2016. A crowdsourced
+database of event sequence descriptions for the
+LiZhang,QingLyu,andChrisCallison-Burch.2020c.
+acquisition of high-quality script knowledge. In
+Intent detection with WikiHow. In Proceedings of
+Proceedings of the tenth international conference
+the1stConferenceoftheAsia-PacificChapterofthe
+on language resources and evaluation (LREC’16),
+Association for Computational Linguistics and the
+pages3494–3501.
+10thInternationalJointConferenceonNaturalLan-
+guage Processing, pages 328–333, Suzhou, China.
+JohnWieting,KevinGimpel,GrahamNeubig,andTay-
+AssociationforComputationalLinguistics.
+lor Berg-Kirkpatrick. 2019. Simple and effective
+paraphrasticsimilarityfromparalleltranslations. In
+LiZhang,QingLyu,andChrisCallison-Burch.2020d.
+Proceedings of the Association for Computational
+Reasoningaboutgoals,steps,andtemporalordering
+Linguistics.
+with WikiHow. In Proceedings of the 2020 Con-
+ferenceonEmpiricalMethodsinNaturalLanguage
+JohnWieting,KevinGimpel,GrahamNeubig,andTay-
+Processing(EMNLP),pages4630–4639,Online.As-
+lorBerg-Kirkpatrick.2021. Paraphrasticrepresenta-
+sociationforComputationalLinguistics.
+tionsatscale. arXivpreprintarXiv:2104.15114.
+Tianyi Zhang, Varsha Kishore, Felix Wu, Kilian Q
+ThomasWolf,JulienChaumond,LysandreDebut,Vic- Weinberger,andYoavArtzi.2019. Bertscore: Eval-
+tor Sanh, Clement Delangue, Anthony Moi, Pier- uating text generation with bert. arXiv preprint
+ric Cistac, Morgan Funtowicz, Joe Davison, Sam arXiv:1904.09675.
+Shleifer, et al. 2020. Transformers: State-of-the-
+art natural language processing. In Proceedings of Yi Zhang, Sujay Kumar Jauhar, Julia Kiseleva, Ryen
+the 2020 Conference on Empirical Methods in Nat- White,andDanRoth.2021. Learningtodecompose
+uralLanguageProcessing: SystemDemonstrations, and organize complex tasks. In Proceedings of the
+pages38–45. 2021ConferenceoftheNorthAmericanChapterof
+the Association for Computational Linguistics: Hu-
+Ledell Wu, Fabio Petroni, Martin Josifoski, Sebas- manLanguageTechnologies,pages2726–2735.
+tian Riedel, and Luke Zettlemoyer. 2019. Zero-
+shot entity linking with dense entity retrieval. Ziqi Zhang, Philip Webster, Victoria Uren, Andrea
+corr abs/1911.03814 (2019). arXiv preprint Varga, and Fabio Ciravegna. 2012. Automatically
+arxiv:1911.03814. extracting procedural knowledge from instructional
+textsusingnaturallanguageprocessing. InProceed-
+ingsoftheEighthInternationalConferenceonLan-
+guageResourcesandEvaluation(LREC’12),pages
+520–527, Istanbul, Turkey. European Language Re-
+sourcesAssociation(ELRA).
+Yilun Zhou, Julie Shah, and Steven Schockaert. 2019.
+LearninghouseholdtaskknowledgefromWikiHow
+descriptions. InProceedingsofthe5thWorkshopon
+SemanticDeepLearning(SemDeep-5),pages50–56,
+Macau, China. Association for Computational Lin-
+guistics.
+A CrowdsourcingDetails
+Algorithm1:Video-basedfiltering
+Asdiscussedinsection5,weuseAmazonMechan-
+Data:goalg,costfunctionf,candidatesteps
+p=[p ,...,p ],relevantvideosvtr
+icalTurk(mTurk)tocollecthumanjudgementsof 1 n g
+Result:best_query
+linked wikiHow articles. Our mTurk task design k←15;
+best_query←[g];
+HTMLisattachedinthesupplementarymaterials.
+min_cost←f(best_query,vtr);
+Each task includes an overview, examples of rat- g
+r←min(n,k);
+ings,and11questionsincluding1controlquestion. whiler≥0do
+in_cost←1e10;
+Eachquestionhasthefollowingprompt:
+forpinpdo
+ifpnotinbest_statethen
+Imagineyou’rereadinganarticleabout
+query←[best_query,p];
+thegoalc_goal,whichincludesastep cost←f(query,vtr);
+g
+step. Then, you’re presented with a ifcost<in_costthen
+in_cost←cost;
+new article r_goal. Does this new
+in_query←query;
+article help explain how to do the step end
+step? end
+end
+wherec_goalistheoriginalcorrespondinggoal ifin_cost<min_costthen
+of the step, and r_goal is the retrieved goal min_cost←in_cost;
+best_query←in_query;
+by the model. Both c_goal and r_goal have
+else
+hyperlinkstothewikiHowarticle. Theoptionsof break
+r=r−1;
+ratingare:
+end
+1. Thearticleexplainsexactlyhowtodothestep.
+2. Thearticleishelpful,butiteitherdoesn’thave
+DEBERTA-UL,DEBERTA,andtheSPmodel. If
+enoughinformationorhastoomuchunrelated
+DEBERTA-ULpredictsasteptobeunlinkable
+information.
+byrankingtheplaceholdertokenfirst,thesecond
+3. Thearticleexplainssomethingrelated,butI
+rankedgoalisinsteadconsidered. Afterremoving
+don’tthinkIcandothestepwiththeinstruc-
+duplicatesofpredictedstep-goalpairs,weareleft
+tions.
+with1448examples.
+4. Thearticleisunhelpful/unrelated. When performing analyses, we only consider
+theresponsesfromcrowdworkersthatpassmore
+5. Idon’tknowwhichoptiontochoose,because:
+controlquestionsthantheyfail.
+[textentrybox]
+Thecontrolquestioncontainseitherastepand B VideoRetrievalSetup
+r_goal with the exact same texts once lower-
+B.1 DatasetConstruction
+cased(inwhichcasetheexpectedanswerisalways
+#1),orastepandarandomlyselectedunrelated Existingworksalsopracticesimilardatasplitsthat
+r_goal (in which case the expected answer is sharethelabelsofvideos/imagesacrossthetrain-
+always#4). Weestimatethatansweringeachques- ing, development and the test set. For example,
+tionwouldtake30seconds,withapayof$0.83per image retrieval tasks use the same objects labels
+taskwhichequatestoanhourlyrateof$9.05. We fortrainingandevaluations(Wanetal.,2014);Ac-
+require workers to be English-speaking, with the tivityNet(CabaHeilbronetal.,2015), apopular
+mTurkMasterqualificationandalifetimeapproval benchmarkforhumanactivityunderstanding,uses
+rateofover90%. thesame203activitiesacrossdifferentsplits;Yang
+To sample examples to annotate, we first ob- etal.(2021b)trainsastepinferencemodelwitha
+tain all the steps corresponding to the same trainingsetthatsharesthesamegoalswiththetest
+1000 goals as we did in subsection 6.1. To set.
+evaluate the DEBERTA-UL’s ability to predict This data split is meaningful on its own. We
+unlinkable,werandomlysample500stepspre- canviewtheoriginalqueriesasinitialschemasfor
+dictedasunlinkableandanother500predicted complexprocedures. Thenweinducemoregener-
+as otherwise. Then, for these 1000 steps, we ob- alizableschemasbymatchingthemwithschema
+tain linked goal predictions of our three models: instantiations(inourcase,thevideosthatdisplay
+200
+100
+0
+100
+200
+Figure4: ThefullversionofFigure3
+the procedures). We evaluate the quality of the C ExperimentReproducibility
+induced schemas by matching them with unseen
+CandidateGoalRetrieval Thedetailedparam-
+instantiations. The large-scale DARPA KAIROS
+eter information of SP can be found in S5.1
+project13adoptedasimilarsetup,whichwebelieve
+in (Wieting et al., 2021). Encoding all steps and
+indicatesitsgreatinteresttothecommunity.
+goals in wikiHow took around two hours on a
+In terms of the scale of the video retrieval
+2080Ti (12GB) GPU. For SBERT, the encoding
+dataset, though we only select 1000 goals from
+tookaroundanhouronav100GPU(32GB).
+23k goalsfromHowto1M,therearealready 150k
+Reranking We used the transformers li-
+videos in total while widely-used video datasets
+brary (Wolf et al., 2020) for re-ranking. The two
+like COIN (Tang et al., 2019) only contain 180
+re-rankingmodelsweusedare“bert-base-uncased”
+goalsand 10k videos. Inaddition,exitingworks
+and “deberta-v2-large-mnli”. We finetuned each
+like(Yangetal.,2021b)alsoexperimentedwitha
+model on our training set for five epochs and se-
+sampleddatasetofsimilarscale.
+lected the best model on the validation set. Fine-
+B.2 EvaluationMetrics tuningtookaroundtwohoursona2080Ti(12GB)
+GPU for BERT and eight hours on a v100 GPU
+We report precision@N, recall@N and mean
+(32GB)for DEBERTA. Weusedthedefaulthyper-
+rank (MR) following existing works on video re-
+parameters provided by the transformers li-
+trieval(Luoetal.,2021)
+brary.
+(cid:80)
+M 1(r(v )<=N)
+recall@N= 1 (cid:88) vj∈vgi j D Risks
+M |v |
+i=1
+gi
+M (cid:80) 1(r(v )<=N) Ourresultinghierarchycontainseventsfromwik-
+precision@N=
+1 (cid:88) vj∈vgi j
+iHow,whichmaycontainunsafecontentthatslip
+M N
+i=1 throughitseditorialprocess,althoughthisisrela-
+(cid:80)
+M r(v )
+MR= 1 (cid:88) vj∈vgi j tivelyunlikely.
+M |v |
+i=1
+gi
+(3) E LicenseofUsedAssets
+where M is the number of goals in total, v is a ThewikiHowtextsusedinthisworkarelicensed
+gi
+setofgroundtruthvideosofgoalg istherankof underCCBY-NC-SA3.0.
+i
+videov and1istheindicatorfunction. FAISSislicensedunderMITLicense.
+BERTislicensedunderApacheLicense2.0.
+13https://www.darpa.mil/program/knowledge-directed-art
+ificial-intelligence-reasoning-over-schemas DeBERTaislicensedunderMITLicense.
+knar 2 retsulc - knar
+1 retsulc tup etaerc ekab gnirb tuc esoohc yal llif taeh eruces tcennoc ekat esnir epiw yrd ylppa tset esahcrup kaos ward xim wolla naelc hsaw kooc eraperp parw mirt nigeb nur eit niard llor daer gnah leep erots pohc laes ecils ees ecalper hcatta
+worg liob llatsni
+taeherp tnalp
+tlem dliub
+wes gid remmis
+tniap taeb nosaes
+daenk
+etaroced
+hsup
+eunitnoc
+nrael ediced
+taeper diova
+hsinif
+evom tiaw drocca dloh kool sserp hcaer wonk
+looc
+enimreted
+og raew dnif krow kram od tsujda tceles kcip tnaw erusaem llup peek edils nesool tel rits kcehc yub evael evah deen tes revoc nrut etacol teg trats evres dlof redisnoc rehtag ruop niamer ecalp yrt ekam nepo erised
+The SP model is licensed under BSD 3-Clause
+"New" or "Revised" License ElasticSearch is
+licensedunderApacheLicense2.0.
+HowTo100MislicensedunderApacheLicense2.0.

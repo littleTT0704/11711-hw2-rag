@@ -1,0 +1,268 @@
+: Interactive Toolbox Supporting Precise Data Annotation
+for Robust Vision Learning
+ChonghanChen*1 HaohanWang*12 LeyangHu3 YuhaoZhang4 ShuguangLyu5 JingchengWu1
+XinnuoLi6 LinjingSun3 EricP.Xing17
+Abstract topicssuchasthestudyofcross-domainrobustnessinclud-
+ingdomainadaptation(Ben-Davidetal.,2007;2010),do-
+We introduce the initial release of our software maingeneralization(Muandetetal.,2013),andtherecent
+Robustar,whichaimstoimprovetherobustness advancesbeyondthesettings(Yeetal.,2021;Huangetal.,
+of vision classification machine learning mod- 2022),aswellasthestudyofrobustnessagainstpredefined
+els through a data-driven perspective. Building perturbationssuchasadversarialrobustness(Szegedyetal.,
+upon the recent understanding that the lack of 2014;Goodfellowetal.,2015).
+machine learning model’s robustness is the ten-
+While there is a diverse set of topics regarding machine
+dencyofthemodel’slearningofspuriousfeatures,
+learning robustness over different directions, recently lit-
+weaimtosolvethisproblemfromitsrootatthe
+erature suggests that a central theme of these challenges
+data perspective by removing the spurious fea-
+istheexistenceofspuriousfeaturesthatarenotsemantics
+turesfromthedatabeforetraining. Inparticular,
+butassociatedwiththelabels(Wangetal.,2020). Corre-
+we introduce a software that helps the users to
+spondingly,aproliferationofmachinelearningrobustness
+better prepare the data for training image clas-
+methodsaredesignedbyexplicitlyorimplicitlycountering
+sificationmodelsbyallowingtheuserstoanno-
+themodel’stendencyinlearningspuriousfeatures(Wang
+tatethespuriousfeaturesatthepixellevelofim-
+etal.,2021).
+ages. Tofacilitatethisprocess,oursoftwarealso
+leveragesrecentadvancestohelpidentifypoten- Whilethecentralthemeofcounteringthelearningofspuri-
+tialimagesandpixelsworthyofattentionandto ousfeaturescanpotentiallyguidethedevelopmentofmany
+continuethetrainingwithnewlyannotateddata. robustmachinelearningmethods(Wangetal.,2021),we
+OursoftwareishostedattheGitHubRepository nonethelessconsidertherepeatedcase-by-casedesignand
+https://github.com/HaohanWang/Robustar. implementationofmachinelearningmethodsoverdifferent
+applicationsmightbeinconvenientatcertainscenarios.
+Therefore,inthisproject,weaimtosolvethisproblemin
+1.Introduction
+thescopeofimageclassificationwithamodel-freemanner,
+byfocusingonthedataperspectiveattheimagepixellevel.
+Machinelearninghasachievedremarkableperformances
+over i.i.d benchmarks in recent years, which has greatly We introduce a software that allow the users or domain
+expertstoannotatethepixelsthatareassociatedwiththe
+encouragedthecommunitytotestthemethodsinothersce-
+narios beyond the i.i.d settings, leading to multiple other labelinthespuriousmanner. Theannotationwillallowthe
+systemtocontinuetotrainthemodelwithestablishedrobust
+*Equalcontribution 1SchoolofComputerScience,Carnegie learningmethodsofdataaugmentationstrategies.
+Mellon University 2School of Information Science, University
+of Illinois Urbana-Champaign 3School of Computer Science, Insummary,weintroducethesoftwareRobustarwiththe
+University of Nottingham Ningbo China 4School of Computer followingfunctions:
+Science, University of Nottingham 5Bren School of Informa-
+tion and Computer Sciences University of California, Irvine
+6College of Literature, Science and the Arts, University of • CoreFunction: toallowusersinteractwiththetrain-
+Michigan 7Mohamed bin Zayed University of Artificial In- ingsamples,annotatingfeaturesthatareuselessused
+telligence. Correspondence to: Robustar Github Repository potentiallyusedbythemodelstohelptrainarobust
+<https://github.com/HaohanWang/Robustar>. modeltotherequestofthedomainexpert.
+DataPerfWorkshop@39thInternationalConferenceonMachine • SupportingFunctions:
+Learning,Baltimore,Maryland,USA,2022.Copyright2022by
+theauthor(s). – We use influence function to help identify the
+2202
+luJ
+81
+]VC.sc[
+1v44980.7022:viXra
+Robustar:InteractiveToolboxforRobustVisionClassification
+samplesthatneedattention.
+– Weusesaliency-mapstyleinterpretationtohelp
+theuseridentifythefeaturesneedattention.
+– Weusesegmentationmodelstohelptheuserse-
+lectcertainpixelsmoreefficiently.
+– Weusedataaugmentationandregularizationsto
+helptrainmodelsinvarianttotheidentifiedpixels.
+Theremainderofthismanuscriptwillbestructuredasfol-
+lows. Wewillfirstofferanoverviewofoursystemandthe
+main pipeline of the use case in Section 2. Then in Sec-
+tion3,wewillintroducethecorefunctionspresentedinour
+software. Finally,wewilloffersomediscussionsbeforewe
+Figure1. ThemajorworkingflowofRobustar.
+concludeinSection5.
+2.SystemOverview agewillhelpthedomainexpertstoannotatethespurious
+pixelsinimageclassification.
+Figure 1 shows the overview of the software Robustar
+pipeline,whichconsistsoffivemajorsteps. ImageBrowsing Oursystemallowstheuserstoexamine
+everysamplesinthetrainingsetthroughtheimagebrowsing
+1. Themodelcanbetrainedelsewhereandthenfedinto interface(Figure2,(upper)).
+thesoftware.
+Throughtheinterface,theuserscandirectlyviewtheeach
+2. Withnewtestsamples,themodelcanhelpidentifythe imagefromeitherthetrainingorthetestingset. Iftheuser
+samplesthatareresponsibleforthepredictionthrough click one image, the sidebar on the right-hand-side will
+influencefunction. displaymultiplerelevantstatisticsoftheimageofinterest.
+For example, the prediction summary will indicate what
+3. Thesoftwareofferssaliencymaptohelptheuserknow
+the model believes the current image to be, offering the
+whichpartofthefeaturesthemodelarepayingneces-
+userstheinformationofwhetherthepredictionalignwith
+saryattention.
+theuser’spperceptionoftheimageswell. Theremaining
+statisticsatthesidebarwillbediscussedlater.
+4. Theuserscanusethedrawingtoolstobrushoutthe
+spuriouspixels. Thisinterfaceallowstheusertocheckeveryimageinthe
+trainingsampleandidentifytheoneswithspuriousfeatures
+5. Newannotationoftheseimageswillserveastherole
+forfurtherannotation.
+asaugmentedimagesforcontinuedtraining.
+Automatic Identifying Misleading Samples Ideally, to
+Thesoftwarecanworkwithmodelstrainedelsewhere,as
+achievearobustlearningsystem,thedomainexpertswill
+longasthesearestandardvisionmodelsandhavethestan-
+scrutinizethetrainingsamplesannotateanyspuriouspixel
+dardpytorchcheckpointsavailable.Iftheinfluencefunction
+features. However,thisexaminationprocessmightpoten-
+resultsarealsocalculated,thesoftwarecanguidetheusers
+tiallyrequireanunrealisticamountofworkingload,despite
+to the samples that are believed to be responsible for the
+itpotentiallysignificantlyamountofrobustnessgain. Thus,
+incorrectclassificationoftheimages. Further,oursoftware
+to suit the need for some users’ concerns in devoting the
+will also guide the user’s attention of the features by the
+effortsofexaminingeverysamples,weallowthesystemto
+saliency-styleinterpretationofthemodels. Thentheusers
+proposethesuspiciouslymisleadingsamples(sampleswith
+canusercanvastooltoannotatethespuriouspixelsofthe
+spuriousfeatureslearnedbythemodel)first.
+images. Finally,withthenewlyannotatedspuriousfeatures,
+wecancontinuetoupdatethemodelwithdataaugmenta- Thecentralassumptionthatenablestheautomaticproposal
+tionandconsistencyregularizationtohelpusdiscardthese ofmisleadingsamplesisthatthespuriousfeaturesarenot
+spuriousfeatures. sharedbetweentrainingsamplesandtestingsamples,sothat
+whenatestsampleismisclassified,itismostlyduetothe
+3.MajorFunctions factthatthemodellearnsabiasedsignalthataccountsfor
+themisclassification. Thisallowsustoidentifythesamples
+Inthissection,wewillintroducethefunctionsoursoftware withspuriousfeatures. Influencefunction(Koh&Liang,
+offerfollowingthenaturalorderofthepipelineofourpack- 2017)convenientlyallowsustoidentifythesamplesthat
+Robustar:InteractiveToolboxforRobustVisionClassification
+Figure2.ScreenshotsofmainfunctionsofRobustar:above:theimagelisttoviewtrainingimagesandtheirroleinthemodel;below:the
+canvastoannotatethedetailsofoneimage.
+account for the misclassification: for every test samples, InterpretModel’sDecision Whileitwillbebettertoask
+we calculate the most relevant training samples from the theusertoidentifyallthepixelsinthebackground,itmight
+trainingset,andthesesamplesareproposedtotheusersto notberequiredforallthebackgroundpixelstobeannotated
+payparticularattentionespeciallywhenthetestsamplesare forcontinuedtraining: onlythepixelsthatarelearnedby
+misclassified. themachinelearningmodelasspuriousfeaturesneedtobe
+annotatedandlatercounteredthroughthecontinuedtraining
+process. Therefore, tofurtherreducetheusers’effortsin
+Annotation of Spurious Pixel Features The user can
+annotation, the system to show where the current model
+choosetoentertheannotationpage(Figure2(bottomright))
+focusesontheimages(Figure2).
+byclickingonanyimagesofinterest.Intheannotationpage,
+theusercanchoosetousepenciltobrushoutthepixelsthat For the visualization of the model’s decision, we simply
+areconsideredspurious. usesthepioneeringmodel-interpretationmethods,activation
+maximization(Erhanetal.,2009),andwenoticethatthe
+In addition, to reduce the efforts for user to identify and
+methodcanfulfillourneedwellenough,especiallywhenthe
+brushingout,thesystemofferstwootheralternativeways
+modelisalreadytrainedtobeinvarianttohigh-frequency
+of annotating the images, as shown in (Figure 2 (bottom
+signalsoftheimages.
+left)):theuserscanchoosetodirectlyfilteroutallthepixels
+withcertainranges,wealsoofferapretrainedsegmentation
+ContinuedTrainingwithRandomizedPixels Withan-
+model(Heetal.,2017)thatcanautomaticallyfilteroutthe
+notation of spurious features all misleading samples, the
+backgroundpixels. Inourexperiments,wenoticethatthe
+users can directly use our system to update the model to
+segmentationmodelcansavesignificanteffortsinnatural
+improveitsrobustnessagainstitstendencyinlearningthe
+images,althoughnotperfect. However,wealsonoticethat,
+spuriousfeaturesthroughourtaskcenter(Figure3).
+inmedicalimagessuchasX-ray,thesegmentationmodelis
+notalwaysabletoreduceasignificantamountofefforts. In particular, to sufficiently force the model to drop the
+Robustar:InteractiveToolboxforRobustVisionClassification
+Figure3. Taskcenterandpairedtraining Figure4. GUIconsole
+learningofspuriousfeatures,weleveragetherecenttrain-
+SetupandRun WithDockerinstalled,theuserscanrun
+ingparadigmwithdataaugmentationandconsistencyregu-
+Robustarwithasingle-linecommand,iftheuserhaspulled
+larization(Wangetal.,2022): totrainthemodelwiththe
+the relevant docker images with another command line,
+original image and an augmented image whose spurious
+whichisonlyrequiredbeforethefirstrun.
+pixelfeaturesarereplacedbyrandomnoisesandaregular-
+izationforcingthemodel’slogits(pre-softmaxembedding) Torunthesystem,theusersneedtofeedinseveralpathfor
+tobethesamefrombothsetofimages. theDockertomount,includingthefoldersofthedata(with
+PyTorchImageFolderstructure),folderofinfluenceimages
+Werefertothistrainingparadigmaspairedtraining. Wang
+(precomputedoremptyfolderpath),folderofcheckpoints,
+et al. (2022) showed that this generic training paradigm
+andaconfigurationfilewithinformationsuchasnumberof
+can efficiently improve the robustness of models empiri-
+classesandmodelconfiguration. Detailsoftheseinforma-
+callybetterthanmodelsspecificallydesignedforthetested
+tioncanbefoundattheRobustarGitHubRepository.
+applications,withsignificantlylesscomputingcosts.
+Thissoftwarepaperomitsthedemonstrationofthemachine
+learningperformancesthroughthesetechniques,butonecan GUIConsole Forusersnotcomfortableusingcommand
+referto(Wangetal.,2022)forthesuperiorperformances line,wealsoofferaGUIconsolefortheuserstosetupthe
+ledbydataaugmentationandalignmentregularization. above the configurations and monitor the running of the
+system(Figure4).
+4.UsageInstructions
+5.DiscussionandConclusion
+Preparation Asthegoalofthissystemistocounterthe
+model’stendencyinlearningspuriousfeatures,werecom- We aim to improve machine learning robustness from its
+mendtheuserstostartwithamodelwithreasonablysmall rootatthedataperspectivebyallowingtheuserstotraina
+training and testing errors. Users can either upload such modelwithspuriousfeaturesannotated. Forthispurpose,
+amodeltothesystemorusethefunctionsofferedbythe weofferasoftwarefortheuserstoinspectthetrainingdata
+systemtostartfromscratchandtrainanewmodel. Ineither andannotatethespuriousimagefeatures. Oursoftwarecan
+case,thewholetrainingdatasetisexpectedtobeavailable befoundashttps://github.com/HaohanWang/Robustar.
+fortheannotation.
+Inadditiontothefacilitatemachinelearningrobustness,we
+Totakethemostadvantageofthesystem,werecommend believeoursystemcanalsoservemultiplepurposesinthe
+the user to use out-of-domain test samples (i.e., test sam- machinelearningcommunityfromthedataperspective. For
+plesfromanindependentdatacollectioninsteadoffroma example,weexpectoursystemtoalsohelpthecommunity
+cross-validatedsplit),becausethetestdatafromthesame toinspectthepropertiesofthedatatounderstandhowto
+collection(distribution)withtrainingdatatendtosharethe annotateandpreparethedatabetteratthepixellevel,and
+samespuriousfeatureswithtrainingdata,thusmaybein- oursoftwarehasthepotentialtogeneratemassiveamount
+adequatetohelpidentifythespuriousfeatures. Aslongas of data along the interactive process between human and
+thetestsamplescanrepresentawiderrangeofdistributions, themodel,leadingtoanotherpossibilitytoautomatically
+wedonotneedalargenumberoftestsamples. understandthepropertiesofthedata.
+Robustar:InteractiveToolboxforRobustVisionClassification
+Acknowledgements Wang, H., Huang, Z., Zhang, H., and Xing, E. To-
+wardlearninghuman-alignedcross-domainrobustmod-
+TheprojectteamwouldliketothankDonglinChenforhis
+els by countering misaligned features. arXiv preprint
+contributionattheearly-stageofthedevelopment.
+arXiv:2111.03740,2021.
+References Wang,H.,Huang,Z.,Wu,X.,andXing,E.P. Towardlearn-
+ingrobustandinvariantrepresentationswithalignment
+Ben-David, S., Blitzer, J., Crammer, K., Pereira, F., etal. regularization and data augmentation. arXiv preprint
+Analysisofrepresentationsfordomainadaptation. Ad- arXiv:2206.01909,2022.
+vancesinneuralinformationprocessingsystems,19:137,
+2007. Ye,N.,Li,K.,Hong,L.,Bai,H.,Chen,Y.,Zhou,F.,andLi,
+Z. Ood-bench: Benchmarkingandunderstandingout-of-
+Ben-David, S., Blitzer, J., Crammer, K., Kulesza, A., distributiongeneralizationdatasetsandalgorithms. arXiv
+Pereira,F.,andVaughan,J.W. Atheoryoflearningfrom preprintarXiv:2106.03721,2021.
+differentdomains. Machinelearning,79(1-2):151–175,
+2010.
+Erhan,D.,Bengio,Y.,Courville,A.,andVincent,P. Visual-
+izinghigher-layerfeaturesofadeepnetwork. University
+ofMontreal,1341(3):1,2009.
+Goodfellow,I.J.,Shlens,J.,andSzegedy,C. Explaining
+andharnessingadversarialexamples. InBengio,Y.and
+LeCun,Y.(eds.),3rdInternationalConferenceonLearn-
+ingRepresentations, ICLR2015, SanDiego, CA,USA,
+May7-9,2015,ConferenceTrackProceedings,2015.
+He,K.,Gkioxari,G.,Dolla´r,P.,andGirshick,R. Maskr-
+cnn. InProceedingsoftheIEEEinternationalconference
+oncomputervision,pp.2961–2969,2017.
+Huang, Z., Wang, H., Huang, D., Lee, Y. J., and Xing,
+E.P. Thetwodimensionsofworst-casetrainingandthe
+integratedeffectforout-of-domaingeneralization. arXiv
+preprintarXiv:2204.04384,2022.
+Koh,P.W.andLiang,P. Understandingblack-boxpredic-
+tionsviainfluencefunctions. InInternationalconference
+onmachinelearning,pp.1885–1894.PMLR,2017.
+Muandet, K., Balduzzi, D., and Scho¨lkopf, B. Domain
+generalization via invariant feature representation. In
+InternationalConferenceonMachineLearning,pp.10–
+18,2013.
+Szegedy,C.,Zaremba,W.,Sutskever,I.,Bruna,J.,Erhan,
+D.,Goodfellow,I.J.,andFergus,R. Intriguingproperties
+ofneuralnetworks. InBengio,Y.andLeCun,Y.(eds.),
+2ndInternationalConferenceonLearningRepresenta-
+tions,ICLR2014,Banff,AB,Canada,April14-16,2014,
+ConferenceTrackProceedings,2014.
+Wang, H., Wu, X., Huang, Z., and Xing, E. P. High-
+frequency component helps explain the generalization
+ofconvolutionalneuralnetworks. InProceedingsofthe
+IEEE/CVFConferenceonComputerVisionandPattern
+Recognition,pp.8684–8694,2020.

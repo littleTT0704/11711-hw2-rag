@@ -1,0 +1,1267 @@
+USB: A Unified Semi-supervised Learning
+Benchmark for Classification
+YidongWang1,2,3∗,HaoChen4∗,YueFan5∗,WangSun6,RanTao4,WenxinHou7,
+RenjieWang8,LinyiYang2,ZhiZhou8,Lan-ZheGuo8,HeliQi9,ZhenWu8,Yu-FengLi8,
+SatoshiNakamura9,WeiYe10,MariosSavvides4,BhikshaRaj4,TakahiroShinozaki3,
+BerntSchiele5,JindongWang1†,XingXie1,YueZhang2†
+1MicrosoftResearchAsia,2WestlakeUniversity,3TokyoInstituteofTechnology,
+4CarnegieMellonUniversity,5Max-Planck-InstitutfürInformatik,6TsinghuaUniversity,
+7MicrosoftSTCA,8NanjingUniversity,9NaraInstituteofScienceandTechnology,10PekingUniversity
+Abstract
+Semi-supervised learning (SSL) improves model generalization by leveraging
+massiveunlabeleddatatoaugmentlimitedlabeledsamples. However,currently,
+popularSSLevaluationprotocolsareoftenconstrainedtocomputervision(CV)
+tasks.Inaddition,previousworktypicallytrainsdeepneuralnetworksfromscratch,
+whichistime-consumingandenvironmentallyunfriendly. Toaddresstheabove
+issues,weconstructaUnifiedSSLBenchmark(USB)forclassificationbyselect-
+ing15diverse,challenging,andcomprehensivetasksfromCV,naturallanguage
+processing(NLP),andaudioprocessing(Audio),onwhichwesystematicallyeval-
+uatethedominantSSLmethods,andalsoopen-sourceamodularandextensible
+codebaseforfairevaluationoftheseSSLmethods. Wefurtherprovidethepre-
+trainedversionsofthestate-of-the-artneuralmodelsforCVtaskstomakethecost
+affordableforfurthertuning. USBenablestheevaluationofasingleSSLalgorithm
+onmoretasksfrommultipledomainsbutwithlesscost. Specifically,onasingle
+NVIDIA V100, only 39 GPU days are required to evaluate FixMatch on 15
+tasksinUSBwhile335GPUdays(279GPUdayson4CVdatasetsexceptfor
+ImageNet)areneededon5CVtaskswithTorchSSL.
+1 Introduction
+Neuralmodelsgivecompetitiveresultswhentrainedusingsupervisedlearningonsufficienthigh-
+qualitylabeleddata[1,2,3,4,5,6,7]. However,itcanbelaboriousandexpensivetoobtainabundant
+annotationsformodeltraining[8,9].Toaddressthisissue,semi-supervisedlearning(SSL)emerges
+as an effective paradigm to improve model generalization with limited labeled data and massive
+unlabeleddata[10,11,12,13,14,15].
+SSLhasmaderemarkableprogressinrecentyears[16,17,18,19,20,21],yettherearestillsev-
+eral limitations with the popular evaluation protocol in the literature [22, 20, 21]. First, existing
+benchmarksaremostlyconstrainedtoplaincomputervision(CV)tasks(i.e.,CIFAR-10/100,SVHN,
+STL-10,andImageNetclassification[22,23,20,24,21],assummarizedinTorchSSL[21]),pre-
+cludingconsistentanddiverseevaluationovertasksinnaturallanguageprocessing(NLP),audio
+processing(Audio),etc.,wherethelackoflabeleddataisageneralissueandSSLhasgainedincreas-
+ingresearchattentionrecently[25,26,27]. Second,theexistingprotocol(e.g.,TorchSSL[21])can
+bemainlytime-consumingandenvironmentallyunfriendlybecauseittypicallytrainsdeepneural
+∗Equalcontribution.YidongWangdidthisworkduringhisinternshipatMSRAandWestlakeUniversity.
+†Correspondenceto:jindong.wang@microsoft.com,zhangyue@westlake.edu.cn.
+36thConferenceonNeuralInformationProcessingSystems(NeurIPS2022)TrackonDatasetsandBenchmarks.
+2202
+tcO
+41
+]GL.sc[
+2v40270.8022:viXra
+Table1:Asummaryofdatasetsandtrainingcostusedin(a)theexistingpopularprotocoland(b)USB.
+USBlargelyreducesthetrainingcostwhileprovidingadiverse,challenging,andcomprehensive
+benchmark covering a wide range of datasets from various domains. Training cost is estimated
+byusingFixMatch[20]onasingleNVIDIAV100GPUfromMicrosoftAzureMachineLearning
+platform,exceptforImageNetwhere4V100sareused. Experimentsin(a)followthesettingsin
+[21]. Moreresultswithdifferentpre-trainedbackbonesareavailableinAppendixD.
+(a)TorchSSL[21]
+Domain&Backbone Dataset ClassificationTask Hours×Settings×Seeds TotalGPUHours TotalGPUHoursw/oImageNet
+CIFAR-10 NaturalImage 110×3×3
+CIFAR-100 NaturalImage 300×3×3
+8031GPUHours
+CV,ResNets SVNH Digital 108×3×3 6687GPUHours
+(335GPUDays)
+STL-10 NaturalImage 225×3×3 (279GPUDays)
+ImageNet NaturalImage 336hours×4GPUs
+(b)USB
+Domain&Backbone Dataset ClassificationTask Hours×Settings×Seeds TotalGPUHours
+CIFAR-100 NaturalImage 11×2×3
+STL-10 NaturalImage 18×2×3
+CV,ViTs EuroSAT SatelliteImage 10×2×3
+TissueMNIST MedicalImage 8×2×3
+Semi-Aves Fine-grained,Long-tailedNaturalImage 13×1×3
+IMDB MovieReviewSentiment 8×2×3
+AGNews NewsTopic 6×2×3 924GPUHours
+NLP,Bert AmazonReview ProductReviewSentiment 8×2×3 (39GPUDays)
+Yahoo!Answer QATopic 7×2×3
+YelpReview RestaurantReviewSentiment 8×2×3
+GTZAN MusicGenre 12×2×3
+UrtraSound8k UrbanSoundEvent 15×2×3
+Audio,Wave2Vec2.0
+FSDnoisy18k SoundEvent 17×1×3
+andHuBert
+KeywordSpotting Keyword 10×2×3
+ESC-50 EnvironmentalSoundEvent 18×2×3
+modelsfromscratch[28,23,29,20,24,21]. Specifically,asshowninTable1a,ittakesabout335
+GPUdays(279GPUdayswithoutImageNet)toevaluateFixMatch[20]withTorchSSL[21]. Such
+ahighcostcanmakeitunaffordableforresearchlabs(particularlyinacademia)toconductSSL
+research. Recently,thepre-trainingandfine-tuningparadigm[30,31,32,33]achievespromising
+results. Comparedwithtrainingfromscratch,pre-traininghasmuchreducedcostinSSL.However,
+therearerelativelyfewbenchmarksthatofferafairtestbedforSSLwiththepre-trainedversionsof
+neuralmodels.
+ToaddresstheaboveissuesandfacilitategeneralSSLresearch,weproposeUSB:aUnifiedSSL
+Benchmarkforclassification3. USBoffersadiverseandchallengingbenchmarkacrossfiveCV
+datasets,fiveNLPdatasets,andfiveAudiodatasets(Table1b),enablingconsistentevaluationover
+multipletasksfromdifferentdomains. Moreover,USBprovidescomprehensiveevaluationsofSSL
+algorithmswithevenfewerlabeleddatacomparedwithTorchSSL,astheperformancegapbetween
+SSLalgorithmsdiminisheswhentheamountoflabeledsamplesbecomeslarge. Benefitingfromthe
+rapidlydevelopedneuralarchitectures,weintroducepre-trainedTransformers[4]intoSSLinsteadof
+trainingResNets[1]fromscratchtoreducethetrainingcostforCVtasks. Specifically,wefindthat
+usingpre-trainedVisionTransformers(ViT)[34]canlargelyreducethenumberoftrainingiterations
+(e.g.,by80%from1,000kto200konCVtasks)withouthurtingtheperformance,andmostSSL
+algorithmsachieveevenbetterperformancewithlesstrainingiterations.
+AsillustratedinTable1b,usingUSB,wespendonly39GPUdaystoevaluatetheperformanceof
+anSSLalgorithm(i.e., FixMatch)onasingleNVIDIAV100overthese15datasets, incontrast
+toTorchSSL,whichcostsabout335GPUdaysononly5CVdatasets(279GPUdayson4CV
+datasetsexceptforImageNet). TofurtherfacilitateSSLresearch,weopen-sourcethecodebaseand
+pre-trained models 4 for unified and consistent evaluation of SSL methods. In addition, we also
+provideconfigfilesthatcontainallthehyper-parameterstoeasilyreproduceourresultsreportedin
+3Theword‘unified’meanstheunificationofdifferentalgorithmsonvariousapplicationdomains.
+4https://github.com/microsoft/Semi-supervised-learning. Wealsoprovidethetraininglogs
+oftheexperimentsinthispaper.Notethattheresultsandtraininglogswillbecontinuouslyupdated/providedif
+wereorganizethecodesforbetteruseoraddmorealgorithmsanddatasets.MicrosoftResearchAsia(MSRA)
+willprovideboththesupportandresourcesforfutureupdates.
+2
+Table2: ThecomparisonbetweenUSBandotherrelatedbenchmarks.
+Benchmark #SSLalgorithms Domian #Tasks Pre-trained TraininghoursusingFixMatch
+RealisticSSLevaluation[22] 4 CV 3 (cid:37) -
+TorchSSL[21] 9 CV 5 (cid:37) 6687
+USB 14 CV,NLP,Audio 15 (cid:33) 924
+thiswork. Weobtainsomeinterestingfindingsbyevaluating14SSLalgorithms(Section5.4): (1)
+introducingdiversetasksfromdiversedomainscanbebeneficialtocomprehensiveevaluationofan
+SSLalgorithm;(2)pre-trainingismoreefficientandcanimprovethegeneralization;(3)unlabeled
+datadonotconsistentlyimprovetheperformanceespeciallywhenlabeleddataisscarce.
+Toconclude,ourcontributionsarethree-fold:
+• WeproposeUSB:aunifiedandchallengingsemi-supervisedlearningbenchmarkforclassi-
+ficationwith15tasksonCV,NLP,andAudioforfairandconsistentevaluations. Toour
+humbleknowledge,wearethefirsttodiscusswhethercurrentSSLmethodsthatworkwell
+onCVtasksgeneralizetoNLPandAudiotasks.
+• Weprovideanenvironmentallyfriendlyandlow-costevaluationprotocolwithpre-training
+&fine-tuningparadigm,reducingthecostofSSLexperiments. TheadvantagesofUSBas
+comparedtootherrelatedbenchmarksareshowninTable2.
+• Weimplement14SSLalgorithmsandopen-sourceamodularcodebaseandconfigfiles
+for easy reproduction of the reported results in this work. we also provide documents
+and tutorials for easy modification. Our codebase is extensible and open for continued
+developmentthroughcommunityeffort,whereweexpectnewalgorithms,models,config
+filesandresultsareconstantlyadded.
+2 RelatedWork
+Deep semi-supervised learning originates from Π model [35], where it solves the task of image
+classificationbyusingconsistencyregularizationthatforcesthemodeltooutputsimilarpredictions
+whenfedtwoaugmentedversionsofthesameunlabeleddata. Subsequentmethodscanbeclassified
+asthevariantsofΠmodel,wherethedifferenceliesinenforcingtheconsistencybetweenmodel
+perturbation[36],dataperturbation[37,29],andexploitingunlabeleddata[20,21]. Sincethebest
+resultsinbothCVandNLParegivenbysuchalgorithms,wechoosethemastypicalrepresentative
+methodsinUSB.WhilemostSSLmethodshaveseentheiruseinCVtasks, NLPhaswitnessed
+recentgrowthinSSLsolutions[29,25]. However,onlysomeofthepopularmethods[29]inCVhave
+beenusedintheNLPliterature,probablybecauseothermethodsgivelowerresultsorhavenotbeen
+investigated. ThisgivesusmotivationforevaluationofSSLmethodsonvariousdomainsinUSB.
+AsshowninTable2,relatedbenchmarksincludeRealisticSSLevaluation[22]andTorchSSL[21].
+RealisticSSLevaluation[22]has4SSLalgorithmsand3CVclassificationtasksandTorchSSLhas
+9SSLalgorithmsand5CVclassificationtasks. Bothofthemarenolongermaintained/updated.
+ThusitisofsignificancetobuildanSSLcommunitythatcancontinuouslyupdateSSLalgorithms
+andneuralmodelstoboostthedevelopmentofSSL.Besides,previousbenchmarksmainlytrainthe
+modelsfromscratch,whichiscomputationexpensiveandtimeconsuming,sinceSSLalgorithmsare
+knowntobedifficulttoconverge[38]. InUSB,weconsiderusingpre-trainedmodelstoboostthe
+performancewhilebeingmoreefficientandfriendlytoresearchers.
+Inthefollowing,wewillfirstintroducethetasks,datasets,algorithms,andbenchmarkresultsofUSB.
+Then,thecodebasestructureofUSBwillbepresentedinSection6.
+3 TasksandDatasets
+USBconsistsof15datasetsfromCV,NLP,andAudiodomains. EverydatasetinUSBisundera
+permissivelicensethatallowsusageforresearchpurposes. Thedatasetsarechosenbasedonthe
+followingconsiderations: (1)thetasksshouldbediverseandcovermultipledomains;(2)thetasks
+shouldbechallenging,leavingroomforimprovement;(3)thetrainingisreasonablyenvironmentally
+friendlyandaffordabletoresearchlabs(inboththeindustryandacademia).
+3
+Table3: DetailsofthedatasetsinUSB.Two#Labelperclasssettingsarechosenforeachdataset
+except Semi-Aves and FSDnoisy18k, which have long-tailed distributed data. Labeled data are
+sampledfromthetrainingdataforeachdatasetexceptSTL-10,Semi-Aves,andFSDNoisy18k,where
+thesplitoflabeledandunlabeleddataispre-defined(e.g. 5,959labeledimagesand26,640unlabeled
+imagesinSemi-Aves). Following[20,21],validationdataarenotprovidedforCVdatasets. The
+NLPvalidationdataaresampledfromtheoriginaltrainingdatasets. Alltestsetsarekeptunchanged.
+Domain Dataset #Labelperclass #Trainingdata #Validationdata #Testdata #Class
+CIFAR-100 2/4 50,000 - 10,000 100
+STL-10 4/10 5,000/100,000 - 8,000 10
+CV EuroSat 2/4 16,200 - 5,400 10
+TissueMNIST 10/50 165,466 - 47,280 8
+Semi-Aves 15-53 5,959/26,640 - 4,000 200
+IMDB 10/50 23,000 2,000 25,000 2
+AmazonReview 50/200 250,000 25,000 65,000 5
+NLP YelpReview 50/200 250,000 25,000 50,000 5
+AGNews 10/50 100,000 10,000 7,600 4
+Yahoo!Answer 50/200 500,000 50,000 60,000 10
+KeywordSpotting 5/20 18,538 2,577 2,567 10
+ESC-50 5/10 1,200 400 400 50
+Audio UrbanSound8k 10/40 7,079 816 837 10
+FSDnoisy18k 52-171 1,772/15,813 - 947 20
+GTZAN 10/40 7,000 1,500 1,500 10
+3.1 CVTasks
+ThedetailsoftheCVdatasetsareshowninTable3. WeincludeCIFAR-100[39]andSTL-10[40]
+fromTorchSSLsincetheyarestillchallenging. TheTissueMNIST[41,42],EuroSAT[43,44],and
+Semi-Aves[45]aredatasetsinthedomainsofmedicalimages,satelliteimages,andfine-grained
+naturalimages. CIFAR-10[39]andSVHN[46]inTorchSSLarenotincludedinUSBbecausethe
+state-of-the-artSSLalgorithms[29,20,24]haveachievedsimilarperformanceonthesedatasetsto
+fully-supervisedtrainingwithabundantfullylabeledtrainingdata5. SSLalgorithmshavearelatively
+largeroomforimprovementonallchosenCVdatasetsinUSB.MoredetailsoftheseCVdatasetsin
+USBcanbefoundinAppendixE.1.
+3.2 NLPTasks
+ThedetaileddatasetstatisticsofNLPtasksinUSBaredescribedinTable3. Wemostlyfollowed
+previousworkintheNLPliterature,andthustheexistingdatasetsinUSBcovermosttestsetsused
+intheexistingwork[25,48,29]. WeincludewidelyusedIMDB[49],AGNews[50],andYahoo!
+Answer[51]fromthepreviousprotocol[25,48,29],whicharestillchallengingforSSL.SinceIMDB
+isabinarysentimentclassificationtask,wefurtheraddAmazonReview[52]andYelpReview[53]
+toevaluateSSLalgorithmsonmorefine-grainedsentimentclassificationtasks. DBpediaisremoved
+from the previous protocol [25, 48, 29] because we find that the state-of-the-art SSL algorithms
+have achieved similar performance on it when compared with fully-supervised training. For all
+tasksinNLP,weobtainthelabeleddatasets,unlabeleddatasets,andvalidationsetsbyrandomly
+samplingfromtheiroriginaltrainingdatasetswhilekeepingtheoriginaltestdatasetsunchanged,
+mainlyfollowingpreviouswork[25,48]. MoredetailsareinAppendixE.2.
+3.3 AudioTasks
+USBincludesfiveaudioclassificationdatasetsasshowninTable3. Wechoosethetaskstocover
+differentdomainssuchasurbansound(UrbanSound8k[54],ESC-50[55],andFSDNoisy18k[56]),
+humansound(KeywordSpotting[57]),andmusic(GTZAN)[58].Allchosendatasetsarechallenging
+evenforstate-of-the-artSSLalgorithms. Forexample,FSDNoisy18kisarealisticdatasetcontaining
+a small labeled set and a large unlabeled set. To the best of our knowledge, we are the first to
+systematicallyevaluateSSLalgorithmsonAudiotasks. Althoughthereisaconcurrentwork [27],
+ourstudyincludesmorealgorithmsandmoredatasetsthan [27]. MoredetailsareinAppendixE.3.
+5WehighlyrecommendreportingImageNet[8]resultssinceitisareasonabledatasetforhill-climbing[20,
+47,21].WealsoreportanddiscussImageNetresultsinAppendixC.
+4
+Table4: Essentialcomponentsusedin14SSLalgorithmssupportedinUSB.PL,CR,Dist. Align.,
+andW-SAug.,MSE,CEaretheabbreviationsforPseudoLabeling,ConsistencyRegularization,
+Distribution Alignment, Weak-Strong Augmentation, Mean Squared Error, and Cross-Entropy,
+respectively. PLdenoteshard‘one-hot’labelsadoptedinCRLoss.
+Algorithm PL CRLoss Thresholding Dist.Align. Self-supervised Mixup W-SAug.
+Π-Model MSE
+PseudoLabeling (cid:88) CE
+MeanTeacher MSE
+VAT CE
+MixMatch MSE (cid:88)
+ReMixMatch CE (cid:88) Rotation (cid:88) (cid:88)
+UDA CE (cid:88) (cid:88)
+FixMatch (cid:88) CE (cid:88) (cid:88)
+Dash (cid:88) CE (cid:88) (cid:88)
+CoMatch (cid:88) CE (cid:88) (cid:88) Contrastive (cid:88)
+CRMatch (cid:88) CE (cid:88) Rotation (cid:88)
+FlexMatch (cid:88) CE (cid:88) (cid:88)
+AdaMatch (cid:88) CE (cid:88) (cid:88) (cid:88)
+SimMatch (cid:88) CE (cid:88) (cid:88) Contrastive (cid:88)
+4 SSLAlgorithms
+Weimplement14SSLalgorithmsinthecodebaseforUSB,includingΠmodel[35],PseudoLabel-
+ing[59],MeanTeacher[36],VAT[37],MixMatch[28],ReMixMatch[23],UDA[29],FixMatch[20],
+Dash [24], CoMatch [60], CRMatch [61], FlexMatch [21], AdaMatch [62], and SimMatch [47],
+all of which exploit unlabeled data by encouraging invariant predictions to input perturbations
+[13,14,63,64,65,66,67]. Suchconsistencyregularizationmethodsgivethestrongestperformance
+in SSL sincethe model is robust to differentperturbed versionsof unlabeled data, satisfying the
+smoothnessandlow-densityassumptionsinSSL[68].
+The above SSL algorithms use Cross-Entropy (CE) loss on labeled data but differ in the way on
+unlabeleddata. AsshowninTable4,PseudoLabeling[59]turnsthepredictionsoftheunlabeled
+data into hard ‘one-hot’ labels and treats the ‘one-hot’ pseudo-labels as the supervision signals.
+Thresholdingreducesthenoisypseudolabelsbymaskingouttheunlabeledsampleswhosemaximum
+probabilitiesaresmallerthanthepre-definedthreshold. DistributionAlignmentaimstocorrectthe
+outputdistributiontomakeitmoreinlinewiththetargetdistribution(e.g.,uniformdistribution).
+Self-supervisedlearning,Mixup,andStrongeraugmentationstechniquesalsocanhelplearnbetter
+representation. MoredetailsofthesealgorithmscanbefoundinAppendixF.Wesummarizethekey
+componentsexploitedintheimplementedconsistencyregularizationbasedalgorithmsinTable4.
+5 BenchmarkResults
+ForCVtasks,wefollow[21]toreportthebestnumberofallcheckpointstoavoidunfaircomparisons
+causedbydifferentconvergencespeeds. ForNLPandAudiotasks,wechoosethebestmodelusing
+thevalidationdatasetsandthenevaluateitonthetestdatasets. Inadditiontomeanerrorrateoverthe
+tasks,weuseFriedmanrank[69,70]tofairlycomparetheperformanceofdifferentalgorithmsin
+varioussettings:
+m
+1 (cid:88)
+rank = rank ,
+F m i
+i=1
+where m isthe number ofevaluation settings(i.e., howmanyexperimental settingswe use, e.g.,
+m = 9inTable5), andrank istherankofanSSLalgorithminthei-thsetting. Were-rankall
+i
+algorithmstogivefinalranksbasedontheirFriedmanrankings. Notethatallranksareinascending
+orderbecausethelowererrorratecorrespondstoabetterperformance. Theexperimentalsetupis
+detailedinAppendixG.Notethat‘supervised’denotestrainingwiththepartiallychosenlabeleddata
+while‘fully-supervised’referstotrainingusingalldatawithfullannotationsinourreportedresults.
+Theresultsforthe14SSLalgorithmsonthedatasetsfromCV,NLP,andAudioareshowninTable5,
+Table6,andTable7,respectively. Weadoptthepre-trainedVisionTransformers(ViT)[4,34,30,71]
+insteadoftrainingResNets[1]fromscratchforCVtasks. ForNLP,weadoptBert[30]. Wav2Vec
+2.0[71]andHuBert[32]areusedforAudio.
+5
+Table5: Errorrate(%)andRankwithCVtasksinUSB.ForSemi-AvesandSTL10,astheyhave
+unlabeledsets,wedonotreportthefully-supervisedresults. Wefollow [20,21,29]toshowerror
+ratesasdefault.
+Dataset CIFAR-100 STL-10 Euro-SAT TissueMNIST Semi-Aves Friedman Final Mean
+#Label 200 400 20 40 20 40 80 400 5,959 rank rank errorrate
+Fully-Supervised 8.44±0.07 8.44±0.07 - - 0.94±0.07 0.89±0.05 29.15±0.13 29.10±0.02 - - - -
+Supervised 35.63±0.36 26.08±0.50 47.02±1.48 26.02±0.72 27.12±1.26 16.90±1.48 59.91±2.93 54.10±1.52 41.55±0.29 - - -
+Π-model 36.24±0.27 26.49±0.64 44.38±1.59 25.76±2.37 24.51±1.02 11.58±1.32 56.79±5.91 47.50±1.71 39.23±0.36 10.11 11 34.72
+Pseudo-Labeling 33.16±1.20 25.29±0.67 45.13±4.08 26.20±1.53 23.64±0.90 15.61±2.51 56.22±4.01 50.36±1.62 40.13±0.09 9.89 10 35.08
+MeanTeacher 35.61±0.38 25.97±0.37 39.94±1.99 20.16±1.25 26.51±1.15 17.05±2.07 61.40±2.48 55.22±2.06 38.52±0.27 10.89 14 35.60
+VAT 31.61±1.37 21.29±0.32 52.03±0.48 23.10±0.72 24.77±1.94 9.30±1.23 58.50±6.41 51.31±1.66 39.00±0.30 10.11 12 34.55
+MixMatch 37.43±0.58 26.17±0.24 48.98±1.41 25.56±3.00 29.86±2.89 16.39±3.17 55.73±2.29 49.08±1.06 37.22±0.15 10.11 12 36.27
+ReMixMatch 20.85±1.42 16.80±0.59 30.61±3.47 18.33±1.98 4.53±1.60 4.10±0.37 59.29±5.16 52.92±3.93 30.40±0.33 4.00 1 26.43
+UDA 30.75±1.03 19.94±0.32 39.22±2.87 23.59±2.97 11.15±1.20 5.99±0.75 55.88±3.26 51.42±2.05 32.55±0.26 6.89 7 30.05
+FixMatch 30.45±0.65 19.48±0.93 42.06±3.94 24.05±1.79 12.48±2.57 6.41±1.64 55.95±4.06 50.93±1.23 31.74±0.33 6.56 6 30.39
+Dash 30.19±1.34 18.90±0.42 43.34±1.46 25.90±0.35 9.44±0.75 7.00±1.39 57.00±2.81 50.93±1.54 32.56±0.39 7.44 9 30.58
+CoMatch 35.68±0.54 26.10±0.09 29.70±1.17 21.46±1.34 5.25±0.49 4.89±0.86 57.15±3.46 51.83±0.71 41.39±0.16 7.22 8 30.38
+CRMatch 29.43±1.11 18.50±0.26 30.55±2.01 17.43±1.96 14.52±1.34 7.00±0.69 54.84±3.05 51.10±1.59 31.97±0.10 4.67 2 28.37
+FlexMatch 27.08±0.90 17.67±0.66 37.58±2.97 23.40±1.50 7.07±2.32 5.58±0.57 57.23±2.50 52.06±1.78 33.09±0.16 6.44 5 28.97
+AdaMatch 21.27±1.04 17.01±0.55 36.25±1.89 23.30±0.73 5.70±0.37 4.92±0.87 57.87±4.47 52.28±0.79 31.54±0.10 5.22 3 27.79
+SimMatch 23.26±1.25 16.82±0.40 34.12±1.63 22.97±2.04 6.88±1.77 5.86±1.07 57.91±4.60 51.14±1.83 34.14±0.30 5.44 4 28.12
+Table6: Errorrate(%)andRankwithNLPtasksinUSB.
+Dataset IMDB AGNews AmazonReview Yahoo!Answer YelpReview Friedman Final Mean
+#Label 20 100 40 200 250 1000 500 2000 250 1000 rank rank errorrate
+Fully-Supervised 5.87±0.01 5.84±0.12 5.74±0.30 5.64±0.05 36.81±0.05 36.88±0.19 26.25±1.07 25.55±0.43 31.74±0.23 32.70±0.58 - - -
+Supervised 20.63±3.13 13.47±0.55 15.01±1.21 13.00±1.00 51.74±0.63 47.34±0.66 37.10±1.22 33.56±0.08 50.27±0.51 46.96±0.42 - - -
+Π-Model 49.02±1.37 27.57±15.85 46.84±6.20 13.44±0.76 73.53±6.92 48.27±0.48 41.37±2.15 32.96±0.16 73.35±2.31 52.02±1.48 11.80 12 45.84
+Pseudo-Labeling 26.38±4.04 21.38±1.34 23.86±7.63 12.29±0.40 53.00±1.48 46.49±0.45 38.60±1.09 33.44±0.24 55.70±0.95 47.72±0.37 10.60 11 35.89
+MeanTeacher 21.27±3.72 14.11±1.77 14.98±1.10 13.23±1.12 51.67±0.45 47.51±0.24 36.97±1.02 33.43±0.22 51.07±1.44 46.61±0.34 9.30 10 33.09
+VAT 32.59±4.69 14.42±2.53 15.00±1.12 11.59±0.94 50.38±0.83 46.04±0.28 35.16±0.74 31.53±0.41 52.76±0.87 45.53±0.13 8.40 8 33.50
+UDA 9.36±1.26 8.33±0.61 18.73±2.68 12.34±1.90 52.48±1.20 45.51±0.61 35.31±0.43 32.01±0.68 58.22±0.40 42.18±0.68 8.70 9 31.45
+FixMatch 8.20±0.29 7.36±0.07 22.80±5.18 11.43±0.65 47.85±1.22 43.73±0.45 34.15±0.94 30.76±0.53 50.34±0.40 41.99±0.58 5.60 7 29.86
+Dash 8.93±1.27 7.97±0.53 19.30±6.73 11.20±1.12 47.79±1.03 43.52±0.07 35.10±1.36 30.51±0.47 47.99±1.05 41.59±0.61 5.10 6 29.39
+CoMatch 7.36±0.26 7.41±0.20 13.25±1.31 11.61±0.42 48.98±1.20 44.37±0.25 33.48±0.67 30.19±0.22 46.49±1.42 41.11±0.53 3.80 3 28.43
+CRMatch 7.88±0.24 7.68±0.35 13.35±1.06 11.36±1.04 46.23±0.85 43.69±0.48 33.07±0.68 30.62±0.47 46.61±1.02 41.80±0.77 3.70 2 28.23
+FlexMatch 7.35±0.10 7.80±0.24 16.90±6.76 11.43±0.91 45.75±1.21 43.14±0.82 35.81±1.09 31.42±0.41 46.37±0.74 40.86±0.74 4.10 5 28.68
+AdaMatch 9.62±1.26 7.81±0.46 12.92±1.53 11.03±0.62 46.75±1.23 43.50±0.67 32.97±0.43 30.82±0.29 48.16±0.80 41.71±1.08 4.00 4 28.53
+SimMatch 7.24±0.02 7.44±0.20 14.80±0.57 11.12±0.15 47.27±1.73 43.09±0.50 34.15±0.91 30.64±0.42 46.40±1.71 41.24±0.17 2.90 1 28.34
+5.1 CVResults
+TheresultsareillustratedinTable5. Thankstothegoodinitializationofrepresentationonunlabeled
+datagivenbythepre-trainedViT,SSLalgorithms,evenwithoutusingthresholdingtechniques,often
+achievemuchbetterperformancethanthepreviousperformanceshowninTorchSSL[21]. Among
+alltheSSLalgorithms,ReMixMatch[23]ranksatthefirstandoutperformsotherSSLalgorithms,
+duetotheusageofMixup,DistributionAlignment,androtationself-supervisedloss. Itssuperiority
+isespeciallydemonstratedintheevaluationofSemi-Aves,along-tailedandfine-grainedCVdataset
+thatismorerealistic. NoticethatSSLalgorithmswithself-supervisedfeaturelossgenerallyperform
+well than other SSL algorithms, e.g., CRMatch [61] and SimMatch [47] rank second and fourth
+respectively. Adaptivethresholdingalgorithmsalsodemonstratetheireffectiveness,e.g.,AdaMatch
+[62]andFlexMatch[21]rankatthirdandfifthrespectively. Whilebetterresultsoftheevaluated
+SSLalgorithmsareobtainedonCIFAR-100,Euro-SAT,andSemi-Aves,wealsoobservethatthe
+performanceisrelativelyloweronSTL-10andTissueMNIST.Thereasonforlowerperformance
+onSTL-10mightresultfromtheusageoftheself-supervisedpre-trainedmodel[33],ratherthan
+thesupervisedpre-trainedmodelisusedinothersettings. SinceTissueMNISTisamedial-related
+dataset,thebiasedpseudo-labelsmightproduceadestructiveeffectthatimpedestrainingandleads
+tobadperformance. Thede-biasingofpseudo-labelsandsafesemi-supervisedlearningwouldbe
+interestingtopicsinfuturework,especiallyformedicalapplicationsofSSLalgorithms.
+5.2 NLPResults
+TheresultsofNLPtasksaredemonstratedinTable6. TheoverallrankingofSSLalgorithmsin
+NLPissimilartothatinCV.However,theSSLalgorithmthatworkswellinNLPdoesnotalways
+guaranteegoodperformanceinCV,whichshowsthattheperformanceofSSLalgorithmswillbe
+affectedlargelybydatadomains. Forexample,SimMatchwhichranksfirstinNLPdoesnothave
+thebestperformanceinCVtasks(ranksfourth). TherankingofCoMatchisalsoincreasedinNLP,
+comparedtothatinCV.Apossiblereasonisthedifferentpre-traininginbackbones. ForBERT,a
+maskedlanguagemodelingobjectiveisusedduringpre-training[30],thustheself-supervisedfeature
+6
+Table7: Errorrate(%)andRankwithAudiotasksinUSB.Fully-supervisedresultisnotreportedfor
+FSDNoisy18kduetotheunknownlabelsofitsunlabeledset.
+Dataset GTZAN UrbanSound8k KeywordSpotting ESC-50 FSDnoisy Friedman Final Mean
+#Label 100 400 100 400 50 100 250 500 1,772 rank rank errorrate
+Fully-Supervised 5.98±0.32 5.98±0.32 16.65±1.71 16.61±1.71 2.12±0.11 2.25±0.02 26.00±2.13 26.00±2.13 - - - -
+Supervised 52.16±1.83 31.53±0.52 40.42±1.00 28.55±1.90 6.80±1.16 5.25±0.56 51.58±1.12 35.67±0.42 35.20±1.50 - - -
+Π-Model 74.07±0.62 33.18±3.64 54.24±6.01 25.89±1.51 64.39±4.10 25.48±4.94 47.25±1.14 36.00±1.62 35.73±0.87 10.67 12 44.03
+Pseudo-Labeling 57.29±2.80 33.93±0.69 42.09±2.41 27.00±1.34 7.82±1.64 5.16±0.14 49.33±2.52 35.58±1.05 35.34±1.60 10.00 10 32.62
+MeanTeacher 51.40±3.48 31.60±1.46 41.70±3.39 28.91±0.93 5.95±0.44 5.39±0.42 50.25±1.95 37.33±1.20 35.83±1.22 10.33 11 32.04
+VAT 79.51±1.99 35.38±7.80 49.62±2.42 27.68±1.39 2.18±0.08 2.23±0.08 46.42±1.90 36.92±2.25 32.07±1.05 8.33 9 34.67
+UDA 46.56±8.69 23.62±0.63 37.28±3.17 20.27±1.58 2.52±0.15 2.62±0.10 42.75±0.89 33.50±1.95 30.80±0.47 6.33 7 26.66
+FixMatch 36.04±4.57 22.09±0.65 36.12±4.26 21.43±2.88 4.84±3.57 2.38±0.03 37.75±3.19 30.67±1.05 30.31±1.08 4.00 3 24.63
+Dash 47.00±3.65 23.42±0.83 42.02±5.02 22.26±0.89 5.70±4.40 2.52±0.16 48.17±1.16 32.75±2.27 33.19±0.95 7.56 8 28.56
+CoMatch 36.93±1.23 22.20±1.39 30.59±2.45 21.35±1.49 11.39±0.85 9.44±1.52 40.17±2.08 29.83±1.31 27.63±1.35 5.11 6 25.50
+CRMatch 40.58±3.97 22.64±1.22 39.47±4.66 20.11±2.63 2.40±0.13 2.49±0.08 42.67±0.51 33.58±1.93 30.45±1.52 5.00 5 26.04
+FlexMatch 34.60±4.07 21.82±1.17 40.18±2.73 22.82±3.10 2.42±0.08 2.57±0.25 39.58±0.59 29.92±1.85 26.36±0.55 4.11 4 24.47
+AdaMatch 31.38±0.41 20.73±0.67 35.76±6.39 21.15±1.22 2.49±0.08 2.49±0.10 39.17±1.74 31.33±1.23 27.95±0.74 2.89 1 23.61
+SimMatch 32.42±2.18 20.80±0.77 31.70±6.05 19.55±1.89 2.57±0.08 2.53±0.22 39.92±2.35 32.83±1.43 28.16±0.87 3.67 2 23.39
+lossmightfurtherimprovetherepresentationduringfine-tuningwithSSLalgorithms. Weobserve
+thatadaptivethresholdingmethods,suchasFlexMatchandAdaMatch,consistentlyachievegood
+performanceonbothCVandNLP,evenwithoutself-supervisedloss. Notethatwedonotevaluate
+MixMatchandReMixMatchonNLPandAudiotasksbecausewefindthatmixingsentenceswith
+differentlengthsharmsthemodel’sperformance.
+5.3 AudioResults
+TheresultsofAudiotasksareshowninTable7. AdaMatchoutperformsotheralgorithmsinAudio
+tasks,whileSimMatchdemonstratesasimilarperformancetoAdaMatch. Aninterestingfindingis
+thatCRMatchperformswellonCVandNLPtasks,butbadlyinAudiotasks. Wehypothesizethat
+thisispartiallyduetothenoisynatureoftherawdatainaudiotasks. ExceptforKeywordSpotting,
+thegapbetweentheperformanceoffully-supervisedlearningandthatofSSLalgorithmsinAudio
+tasksislargerthaninCVandNLPtasks. Thereasonbehindthisisprobablythatweexploitmodels
+thattakewaveformasinput,ratherthanMelspectrogram. Rawwaveformmightcontainmorenoisy
+informationthatwouldbeharmfultosemi-supervisedtraining. Weidentifyexploringaudiomodels
+basedonMelspectrogramasoneofthefuturedirectionsofUSB.
+5.4 Discussion
+TheevaluationresultsofSSLalgorithmsusingUSBaregenerallyconsistentwiththeresultsreported
+by previous work [22, 28, 23, 29, 20, 21]. However, using USB, we still provide some distinct
+quantitative and qualitative analysis to inspire the community. This section aims to answer the
+followingquestions: (1)WhyshouldweevaluateanSSLalgorithmondiversetasksacrossdomains?
+(2)WhichoptionisbetterintheSSLscenario,trainingfromscratchorusingpre-training? (3)Does
+SSL consistently guarantee the performance improvement when using the state-of-the-art neural
+modelsasthebackbones?
+Performance Comparisons Table 8 shows the performance comparison of SSL algorithms in
+CV,NLPandAudiotasks. AlthoughtherankingofeachSSLalgorithmineachdomainisroughly
+close,thedifferencesbetweenranksofSSLalgorithmsindifferentdomainscannotbeignored. For
+example,FixMatch,CoMatchandCrMatchshowlargedifference(Rank −Rank ≥4)on
+max min
+theranksacrossdomains,whichindicatesthatNLPandAudiotasksmayhavedifferentcharacteristics
+comparedwithCVtasksthataremoreamenabletocertaintypesofSSLalgorithmscomparedwith
+others. Fromthetaskperspective, itisimportanttoconsidersuchcharacteristicsforguidingthe
+choiceofSSLmethods. Fromthebenchmarkingperspective,itisusefultointroducediversetasks
+frommultipledomainswhenevaluatinganSSLalgorithm.
+Effectiveness of Pre-training As shown in Figure 1a and Figure 1b, benefiting from the pre-
+trainedViT,thetrainingbecomesmoreefficient,andmostSSLalgorithmsachievehigheroptimal
+performance. Note that Pseudo Labeling, Mean Teacher, Π model, VAT, and MixMatch barely
+convergeiftrainingWRN-28-8fromscratch. Apossiblereasonisthatthescarcelabeleddatacannot
+provideenoughsupervisionforunlabeleddatatoformcorrectclusters. However, thesemethods
+canachievesufficientlyreasonableresultswhenusingpre-trainedViT.AsillustratedinFigure2,
+7
+0.8 Pseudo Labeling 0.8 Pseudo Labeling
+Mean Teacher Mean Teacher
+Pi Model Pi Model
+0.6 VAT 0.6 VAT
+MixMatch MixMatch
+ReMixMatch ReMixMatch
+0.4 UDA 0.4 UDA
+FixMatch FixMatch
+Dash Dash
+0.2 C Co RM Ma at tc ch h 0.2 C Co RM Ma at tc ch h
+FlexMatch FlexMatch
+SimMatch SimMatch
+0.0 25k 50k 75k 100k 0.0 25k 50k 75k 100k
+Iter. Iter.
+(a)WRN-28-8fromscratch. (b)Pre-trainedViT-S-P2-32.
+Figure1:ComparisonoftestaccuracyofSSLalgorithmsonCIFAR-100with400labels. (a)Existing
+protocolwhichtrainsWRN-28-8fromscratch; (b)USBCVprotocolwhichtrainsImageNet-1K
+pre-trainedViT-S-P2-32,whereSdenotessmall,Pdenotespatchsize,and32isinputimagesize.
+0.8 0.8
+0.6 0.6
+WRN-28-8 WRN-28-8
+w/o Pretrain w/o Pretrain
+WRN-28-8 WRN-28-8
+0.4 ViT-S-P16-224 0.4 ViT-S-P16-224
+ViT-S-P2-32 ViT-S-P2-32
+w/o Pretrain w/o Pretrain
+0.2 ViT-S-P2-32 0.2 ViT-S-P2-32
+0.0 0.0
+0k 25k 50k 75k 100k 0k 25k 50k 75k 100k
+Iter. Iter.
+(a)Testaccuracy. (b)Pseudo-labelaccuracy.
+Figure2: Pre-trainingablationonCIFAR-400with400labels. Testandpseudo-labelaccuracyare
+comparedwithWRN-28-8withoutpre-training,pre-trainedWRN-28-8,pre-trainedViT-S-P16-224,
+ViT-S-P2-32withoutpre-training,andpre-trainedViT-S-P2-32.
+Table8: FinalranksofSSLalgorithms. NotethattherankforCVtaskshereisdifferentfromthe
+onesinTable5becauseweignoreMixMatchandReMixMatchheretoremovetheeffectsoftheir
+missingranksinNLPandAudio.
+Π-Model Pseudo-Labeling MeanTeacher VAT UDA FixMatch Dash CoMatch CRMatch FlexMatch AdaMatch SimMatch
+CV 10 9 12 11 6 5 8 7 1 4 2 3
+NLP 12 11 10 8 9 7 6 3 2 5 4 1
+Audio 12 10 11 9 7 3 8 6 5 4 1 2
+Rankmax−Rankmin 2 2 2 3 3 4 2 4 4 1 3 2
+Table9: ThistableshowshowmanytimesanSSLalgorithmisworsethansupervisedtraining,where
+thenumbersoftotalsettingsare9,10,and9forCV,NLP,andAudiorespectively.
+Π-Model Pseudo-Labeling MeanTeacher VAT MixMatch ReMixMatch UDA FixMatch Dash CoMatch CRMatch FlexMatch AdaMatch SimMatch
+CV 2 1 3 1 4 0 0 0 0 2 0 0 0 0
+NLP 9 7 5 3 - - 2 1 1 0 0 1 0 0
+Audio 7 5 6 4 - - 0 0 1 2 0 0 0 0
+usingViTwithoutpre-trainingperformstheworstamongdifferentbackbones. Thereasoncanbe
+thatViTisdatahungryiftrainedfromscratch[34,72,73]. However,afterappropriatepre-training,
+ViTperformsthebestamongallthebackbones. Inaddition,weprovidetheT-SNEvisualizationof
+thefeaturesinFigure3,wherethepretrainedViTmodeldemonstratesthemostseparablefeature
+spaceaftertraining. Inaword,pre-trainedViTmakesthetrainingmoreefficientandimprovesthe
+generalizationperformanceofSSLalgorithms. ForNLPtasks,weobservesimilarresults,yetthe
+improvementcanberelativelylesssignificantsincepre-trainingisthede-factofashioninthefield.
+Robustness SSL sometimes hurts the generalization performance due to the large differences
+betweenthenumberoflabeleddataandthenumberofunlabeleddataasshowninTable9. Werefer
+toanSSLalgorithmasarobustSSLalgorithmifitisconsistentlybetterthanthesupervisedtraining
+setting. SSLalgorithmscannotalwaysoutperformsupervisedtrainingespeciallywhenlabeleddata
+isscarce. WefindthatCRMatch,AdaMatchandSimMatcharerelativelyrobustSSLalgorithmsin
+USB.AlthoughpreviousworkhasdonesomeresearchtowardsrobustSSLwhenusingsupportvector
+8
+.ccA
+.ccA
+tseT
+.ccA
+.ccA
+lebaL
+oduesP
+(a)WRN-28-8fromscratch. (b)Pre-trainedWRN-28-8. (c)Pre-trainedViT-S-P2-32.
+(d)WRN-28-8fromscratch. (e)Pre-trainedWRN-28-8. (f)Pre-trainedViT-S-P2-32.
+Figure 3: T-SNE visualization of FixMatch features on training data (first row) and testing data
+(secondrow)ofCIFAR-100(400labels). Differentcolorsrefertolabeleddatawithdifferentclasses
+whileunlabeleddataisindicatedbygraycolor.
+machine[74,75],wehopethatourfindingcanserveasthemotivationtodelveintodeeplearning
+basedrobustSSLmethods.
+6 CodebaseStructureofUSB
+Inthissection,weprovideanoverviewofthecodebasestructureofUSB,wherefourabstractlayers
+areadopted. Thelayersincludethecorelayer,algorithmlayer,extensionlayer,andAPIlayerinthe
+bottomupdirectionasshowninFig.4.
+CoreLayer. Inthecorelayer,weimplementthecommonlyusedcorefunctionsfortrainingSSL
+algorithms. Besides, the code regarding datasets, data loaders, and models used in USB is also
+providedinthecorelayer. Forflexibletraining,weimplementcommontraininghookssimilarto
+MMCV[76],whichcanbemodifiedandextendedintheupperlayers.
+Algorithm Layer. In the algorithm layer, we first implement the base class for SSL algorithms,
+whereweinitializethedatasets,dataloaders,andmodelsfromthecorelayer.Insteadofimplementing
+SSLalgorithmsindependentlyasinTorchSSL[21],wefurtherabstracttheSSLalgorithms,enabling
+better code reuse and making it easier to implement new algorithms. Except for the standalone
+implementationoflossfunctionsusedinSSLalgorithmsandalgorithm-specificconfigurations,we
+furtherprovidealgorithmhooksaccordingtothealgorithmcomponentssummarizedinTable4. The
+algorithmhooksnotonlyhighlightthecommonpartofdifferentalgorithmsbutalsoallowsforavery
+easyandflexiblecombinationofdifferentcomponentstoresembleanewalgorithmorconductan
+ablationstudy. Basedonthis,wesupport14coreSSLalgorithmsinUSB,withtwoextrasupervised
+learningvariants. MorealgorithmsareexpectedtobeaddedthroughcontinuedextensionofUSB.
+ExtensionLayer.TheextensionlayeriswherewefurtherextendthecoreSSLalgorithmstodifferent
+applications. ContinutedeffortaremadeontheextensionofcoreSSLalgorithmstoimbalanced
+SSLalgorithms[77,78,79,80,81,82,83,84]andopen-setSSLalgorithms[85,86,87,88,89].
+Systematicablationstudycanalsobeconductedintheextensionlayerbyinheritingeitherthecore
+componentsandalgorithmsfromthecorelayerorthealgorithmlayer.
+APILayer. WewrapthecorefunctionsandalgorithmsinUSBintheAPIlayerasapublicpython
+packageSEMILEARN. SEMILEARNisfriendlyforusersfromdifferentbackgroundswhowantto
+employSSLalgorithmsinnewapplications. Trainingandinferencecanbedoneinonlyafewlines
+ofcodewithSEMILEARN. Inaddition,weprovidetheconfigurationfilesofallalgorithmssupported
+inUSBwithdetailedparametersettings,whichallowsforreproductionoftheresultspresentinUSB.
+9
+USB: Unified SSL Benchmark
+API
+Semilearn Configs Train Evaluation Scripts
+Extension
+Imbalance Algorithms Open-set Algorithms Ablation Experiments
+and more…
+Algorithm
+Alg. Base Utility Alg.Hook SSL Algorithms
+• Pi-Model • UDA • CoMatch
+• Config • CE Loss • Distribution Align. • Mean-Teacher • FixMatch • SimMatch
+• Dataset • SSL Loss • Pseudo-Label • FlexMatch • Supervised
+• Data Loader • Mixup • Pseudo Labeling • VAT • Dash • Fully-Supervised
+• Model • Distributed Utils • MixMatch • AdaMatch
+• Optimizer • SSL Configs • Thresholding • ReMixMatch • CRMatch
+Core Dataset Data Loader Model TrainingUtil. TrainingHook
+• 15 datasets • WRN,WRN-VAR • EMAModule
+• Custom Sampler • ResNet • TensorBoard • EMA Update • Timer
+• Label Split • ViT • BNController • Param. Update• Logging
+• NLP/AudioCollator • BERT • Distributed Setup • • C Evh ae lc uk ap tio oi nnt
+• Imb. Ratio • Wave2vec-v2 • LR Layer Decay
+Figure4: StructureofUSBCodebase,consistingof4layers. Thecorelayerprovidesthecommon
+functions, datasets, andmodelsforSSLalgorithms. Thealgorithmlayermainlyimplementsthe
+relatedSSLalgorithms,withahighabstractlevelofalgorithmcomponents. Uponthealgorithm
+layer,weuseanextensionlayerforeasyandflexibleextensionofcoreSSLalgorithms. ThetopAPI
+layersupportsapublicpythonpackageSEMILEARN: pip install semilearn.
+7 Limitation
+Ourprimaryfocusisonsemi-supervisedclassificationinthispaper. However,thereareotherSSL
+tasksthattheSSLcommunityshouldnotignore. USBcurrentlydoesnotincludeSSLtaskssuchas
+imbalancedsemi-supervisedlearning[77,79,80,81,82,83,84],open-setsemi-supervisedlearn-
+ing[85,86,87,88,89],semi-supervisedsequencemodeling[90,91,92,93,26,94],semi-supervised
+textgeneration[95,96,97], semi-supervisedregression[98,99,100,101,102], semi-supervised
+object detection [103, 104, 105, 106, 107, 108], semi-supervised clustering [109, 110, 111, 112],
+etc. In addition, we do not implement generative adversarial networks based SSL algo-
+rithms[113,64,114,65]andgraphneuralnetworkbasedSSLalgorithms[7,115,116,117,118]
+in USB, which are also important to the SSL community. Moreover, it is of great importance to
+extendcurrentSSLtodistributionalshiftsettings,suchasdomainadaptation[119,120]andout-
+of-distribution generalization [121], as well as time series anaysis [122]. We plan to evolve the
+benchmarkinthefutureiterationsovertimebyextendingwithmoretasks.
+8 Conclusion
+We constructed USB, a unified SSL benchmark for classification that aims to enable consistent
+evaluationovermultipledatasetsfrommultipledomainsandreducethetrainingcosttomakethe
+evaluationofSSLmoreaffordable. WithUSB,weevaluate14SSLalgorithmson15tasksacross
+domains. We find that (1) although the performance of SSL algorithms is roughly close across
+domains, introducing diverse tasks from multiple domains is still necessary in the SSL scenario
+becausetheperformanceofSSLalgorithmsarenotexactlysteadyacrossdomains;(2)pre-training
+techniquescanbehelpfulintheSSLscenariobecauseitcannotonlyacceleratethetrainingbut
+alsoimprovethegeneralizationperformance;(3)unlabeleddatasometimeshurtstheperformance
+especiallywhenlabeleddataisextremelyscarce. USBisaprojectforopenextensionandweplanto
+extendUSBwithmorechallengingtasksotherthanclassificationandintroducenewalgorithms.
+10
+Acknowledgments
+Wewouldliketothanktheanonymousreviewersfortheirinsightfulcommentsandsuggestionsto
+helpimprovethepaper. ThecomputingresourcesofthisstudyweremainlysupportedbyMicrosoft
+AsiaandpartiallysupportedbyHigh-FlyerAI.
+References
+[1] KaimingHe,XiangyuZhang,ShaoqingRen,andJianSun. Deepresiduallearningforimage
+recognition.InProceedingsoftheIEEEconferenceoncomputervisionandpatternrecognition,
+pages770–778,2016.
+[2] Joseph Redmon, Santosh Divvala, Ross Girshick, and Ali Farhadi. You only look once:
+Unified,real-timeobjectdetection. InProceedingsoftheIEEEconferenceoncomputervision
+andpatternrecognition,pages779–788,2016.
+[3] SeppHochreiterandJürgenSchmidhuber. Longshort-termmemory. Neuralcomputation,
+9(8):1735–1780,1997.
+[4] AshishVaswani,NoamShazeer,NikiParmar,JakobUszkoreit,LlionJones,AidanNGomez,
+ŁukaszKaiser,andIlliaPolosukhin. Attentionisallyouneed. Advancesinneuralinformation
+processingsystems,30,2017.
+[5] DongYuandLiDeng. Automaticspeechrecognition,volume1. Springer,2016.
+[6] AnmolGulati,JamesQin,Chung-ChengChiu,NikiParmar,YuZhang,JiahuiYu,WeiHan,
+Shibo Wang, Zhengdong Zhang, Yonghui Wu, et al. Conformer: Convolution-augmented
+transformerforspeechrecognition. InterSpeech,2020.
+[7] VikasVerma,MengQu,KenjiKawaguchi,AlexLamb,YoshuaBengio,JuhoKannala,and
+JianTang. Graphmix: Improvedtrainingofgnnsforsemi-supervisedlearning. InProceedings
+oftheAAAIConferenceonArtificialIntelligence,volume35,pages10024–10032,2021.
+[8] OlgaRussakovsky,JiaDeng,HaoSu,JonathanKrause,SanjeevSatheesh,SeanMa,Zhiheng
+Huang,AndrejKarpathy,AdityaKhosla,MichaelBernstein,AlexanderC.Berg,andLiFei-
+Fei. ImageNetLargeScaleVisualRecognitionChallenge. InternationalJournalofComputer
+Vision(IJCV),115(3):211–252,2015.
+[9] AlexWang,AmanpreetSingh,JulianMichael,FelixHill,OmerLevy,andSamuelRBowman.
+Glue: Amulti-taskbenchmarkandanalysisplatformfornaturallanguageunderstanding. In
+7thInternationalConferenceonLearningRepresentations,ICLR2019,2019.
+[10] YCAPReddy,PViswanath,andBEswaraReddy. Semi-supervisedlearning: Abriefreview.
+Int.J.Eng.Technol,7(1.8):81,2018.
+[11] XiaojinZhu. Semi-supervisedlearningliteraturesurvey. world,10:10,2005.
+[12] XiaojinZhuandAndrewBGoldberg. Introductiontosemi-supervisedlearning. Synthesis
+lecturesonartificialintelligenceandmachinelearning,3(1):1–130,2009.
+[13] JesperEVanEngelenandHolgerHHoos. Asurveyonsemi-supervisedlearning. Machine
+Learning,109(2):373–440,2020.
+[14] Yassine Ouali, Céline Hudelot, and Myriam Tami. An overview of deep semi-supervised
+learning. arXivpreprintarXiv:2006.05278,2020.
+[15] Guo-JunQiandJieboLuo. Smalldatachallengesinbigdataera: Asurveyofrecentprogress
+onunsupervisedandsemi-supervisedmethods. IEEETransactionsonPatternAnalysisand
+MachineIntelligence,2020.
+[16] XiaohuaZhai,AvitalOliver,AlexanderKolesnikov,andLucasBeyer. S4l: Self-supervised
+semi-supervised learning. In Proceedings of the IEEE/CVF International Conference on
+ComputerVision,pages1476–1485,2019.
+[17] JunnanLi,RichardSocher,andStevenCHHoi. Dividemix: Learningwithnoisylabelsas
+semi-supervisedlearning. arXivpreprintarXiv:2002.07394,2020.
+[18] TingChen,SimonKornblith,KevinSwersky,MohammadNorouzi,andGeoffreyEHinton.Big
+self-supervisedmodelsarestrongsemi-supervisedlearners. Advancesinneuralinformation
+processingsystems,33:22243–22255,2020.
+11
+[19] HieuPham,ZihangDai,QizheXie,andQuocVLe. Metapseudolabels. InProceedingsof
+theIEEE/CVFConferenceonComputerVisionandPatternRecognition,pages11557–11568,
+2021.
+[20] KihyukSohn,DavidBerthelot,NicholasCarlini,ZizhaoZhang,HanZhang,ColinARaffel,
+Ekin Dogus Cubuk, Alexey Kurakin, and Chun-Liang Li. Fixmatch: Simplifying semi-
+supervisedlearningwithconsistencyandconfidence. AdvancesinNeuralInformationPro-
+cessingSystems,33:596–608,2020.
+[21] BowenZhang,YidongWang,WenxinHou,HaoWu,JindongWang,ManabuOkumura,and
+TakahiroShinozaki. Flexmatch: Boostingsemi-supervisedlearningwithcurriculumpseudo
+labeling. AdvancesinNeuralInformationProcessingSystems,34,2021.
+[22] AvitalOliver,AugustusOdena,ColinARaffel,EkinDogusCubuk,andIanGoodfellow. Real-
+isticevaluationofdeepsemi-supervisedlearningalgorithms. Advancesinneuralinformation
+processingsystems,31,2018.
+[23] DavidBerthelot,NicholasCarlini,EkinDCubuk,AlexKurakin,KihyukSohn,HanZhang,
+andColinRaffel. Remixmatch: Semi-supervisedlearningwithdistributionalignmentand
+augmentationanchoring. arXivpreprintarXiv:1911.09785,2019.
+[24] YiXu,LeiShang,JinxingYe,QiQian,Yu-FengLi,BaiguiSun,HaoLi,andRongJin. Dash:
+Semi-supervisedlearningwithdynamicthresholding. InInternationalConferenceonMachine
+Learning,pages11525–11536.PMLR,2021.
+[25] JiaaoChen,ZichaoYang,andDiyiYang. Mixtext: Linguistically-informedinterpolationof
+hiddenspaceforsemi-supervisedtextclassification. InACL,2020.
+[26] MuraliKarthickBaskar,ShinjiWatanabe,RamonAstudillo,TakaakiHori,LukášBurget,and
+Jan Cˇernocky`. Semi-supervised sequence-to-sequence asr using unpaired speech and text.
+arXivpreprintarXiv:1905.01152,2019.
+[27] LéoCances,EtienneLabbé,andThomasPellegrini. Comparisonofsemi-superviseddeep
+learningalgorithmsforaudioclassification. EURASIPJournalonAudio,Speech,andMusic
+Processing,2022(1):1–16,2022.
+[28] David Berthelot, Nicholas Carlini, Ian Goodfellow, Nicolas Papernot, Avital Oliver, and
+ColinARaffel. Mixmatch: Aholisticapproachtosemi-supervisedlearning. Advancesin
+NeuralInformationProcessingSystems,32,2019.
+[29] Qizhe Xie, Zihang Dai, Eduard Hovy, Thang Luong, and Quoc Le. Unsupervised data
+augmentationforconsistencytraining. AdvancesinNeuralInformationProcessingSystems,
+33:6256–6268,2020.
+[30] JacobDevlin,Ming-WeiChang,KentonLee,andKristinaN.Toutanova. Bert: Pre-trainingof
+deepbidirectionaltransformersforlanguageunderstanding. 2018.
+[31] YinhanLiu, MyleOtt, NamanGoyal, JingfeiDu, MandarJoshi, DanqiChen, OmerLevy,
+MikeLewis,LukeZettlemoyer,andVeselinStoyanov. Roberta: Arobustlyoptimizedbert
+pretrainingapproach. arXivpreprintarXiv:1907.11692,2019.
+[32] Wei-NingHsu,BenjaminBolte,Yao-HungHubertTsai,KushalLakhotia,RuslanSalakhutdi-
+nov,andAbdelrahmanMohamed. Hubert: Self-supervisedspeechrepresentationlearningby
+maskedpredictionofhiddenunits. IEEE/ACMTransactionsonAudio,Speech,andLanguage
+Processing,29:3451–3460,2021.
+[33] KaimingHe,XinleiChen,SainingXie,YanghaoLi,PiotrDollár,andRossGirshick. Masked
+autoencodersarescalablevisionlearners. arXivpreprintarXiv:2111.06377,2021.
+[34] AlexeyDosovitskiy,LucasBeyer,AlexanderKolesnikov,DirkWeissenborn,XiaohuaZhai,
+ThomasUnterthiner,MostafaDehghani,MatthiasMinderer,GeorgHeigold,SylvainGelly,
+et al. An image is worth 16x16 words: Transformers for image recognition at scale. In
+InternationalConferenceonLearningRepresentations,2020.
+[35] AnttiRasmus,MathiasBerglund,MikkoHonkala,HarriValpola,andTapaniRaiko. Semi-
+supervisedlearningwithladdernetworks.AdvancesinNeuralInformationProcessingSystems,
+28:3546–3554,2015.
+[36] AnttiTarvainenandHarriValpola.Meanteachersarebetterrolemodels:Weight-averagedcon-
+sistencytargetsimprovesemi-superviseddeeplearningresults.Advancesinneuralinformation
+processingsystems,30,2017.
+12
+[37] TakeruMiyato,Shin-ichiMaeda,MasanoriKoyama,andShinIshii.Virtualadversarialtraining:
+aregularizationmethodforsupervisedandsemi-supervisedlearning. IEEEtransactionson
+patternanalysisandmachineintelligence,41(8):1979–1993,2018.
+[38] Ben Athiwaratkun, Marc Finzi, Pavel Izmailov, and Andrew Gordon Wilson. There are
+manyconsistentexplanationsofunlabeleddata: Whyyoushouldaverage. InInternational
+ConferenceonLearningRepresentations,2019.
+[39] AlexKrizhevskyetal. Learningmultiplelayersoffeaturesfromtinyimages. 2009.
+[40] Adam Coates, Andrew Ng, and Honglak Lee. An analysis of single-layer networks in
+unsupervised feature learning. In Proceedings of the fourteenth international conference
+on artificial intelligence and statistics, pages 215–223. JMLR Workshop and Conference
+Proceedings,2011.
+[41] JianchengYang,RuiShi,andBingbingNi. Medmnistclassificationdecathlon: Alightweight
+automlbenchmarkformedicalimageanalysis. InIEEE18thInternationalSymposiumon
+BiomedicalImaging(ISBI),pages191–195,2021.
+[42] JianchengYang,RuiShi,DonglaiWei,ZequanLiu,LinZhao,BilianKe,HanspeterPfister,
+andBingbingNi.Medmnistv2:Alarge-scalelightweightbenchmarkfor2dand3dbiomedical
+imageclassification. arXivpreprintarXiv:2110.14795,2021.
+[43] PatrickHelber,BenjaminBischke,AndreasDengel,andDamianBorth. Eurosat: Anovel
+datasetanddeeplearningbenchmarkforlanduseandlandcoverclassification. IEEEJournal
+ofSelectedTopicsinAppliedEarthObservationsandRemoteSensing,2019.
+[44] PatrickHelber,BenjaminBischke,AndreasDengel,andDamianBorth. Introducingeurosat:
+Anoveldatasetanddeeplearningbenchmarkforlanduseandlandcoverclassification. In
+IGARSS2018-2018IEEEInternationalGeoscienceandRemoteSensingSymposium,pages
+204–207.IEEE,2018.
+[45] Jong-ChyiSuandSubhransuMaji. Thesemi-supervisedinaturalist-aveschallengeatfgvc7
+workshop. arXivpreprintarXiv:2103.06937,2021.
+[46] Yuval Netzer, Tao Wang, Adam Coates, Alessandro Bissacco, Bo Wu, and Andrew Y Ng.
+Readingdigitsinnaturalimageswithunsupervisedfeaturelearning. 2011.
+[47] MingkaiZheng,ShanYou,LangHuang,FeiWang,ChenQian,andChangXu. Simmatch:
+Semi-supervisedlearningwithsimilaritymatching. arXivpreprintarXiv:2203.06915,2022.
+[48] Changchun Li, Ximing Li, and Jihong Ouyang. Semi-supervised text classification with
+balanceddeeprepresentationdistributions. InProceedingsofthe59thAnnualMeetingofthe
+AssociationforComputationalLinguisticsandthe11thInternationalJointConferenceon
+NaturalLanguageProcessing(Volume1: LongPapers),pages5044–5053,2021.
+[49] AndrewMaas,RaymondEDaly,PeterTPham,DanHuang,AndrewYNg,andChristopher
+Potts. Learning word vectors for sentiment analysis. In Proceedings of the 49th annual
+meetingoftheassociationforcomputationallinguistics: Humanlanguagetechnologies,pages
+142–150,2011.
+[50] XiangZhang,JunboZhao,andYannLeCun. Character-levelconvolutionalnetworksfortext
+classification. Advancesinneuralinformationprocessingsystems,28,2015.
+[51] Ming-WeiChang,Lev-ArieRatinov,DanRoth,andVivekSrikumar. Importanceofsemantic
+representation: Datalessclassification. InAaai,volume2,pages830–835,2008.
+[52] JulianMcAuleyandJureLeskovec. Hiddenfactorsandhiddentopics: understandingrating
+dimensionswithreviewtext. InProceedingsofthe7thACMconferenceonRecommender
+systems,pages165–172,2013.
+[53] Yelpdataset: http://www.yelp.com/dataset_challenge.
+[54] JustinSalamon,ChristopherJacoby,andJuanPabloBello. Adatasetandtaxonomyforurban
+soundresearch. InProceedingsofthe22ndACMinternationalconferenceonMultimedia,
+pages1041–1044,2014.
+[55] KarolJ.Piczak. ESC:DatasetforEnvironmentalSoundClassification. InProceedingsofthe
+23rdAnnualACMConferenceonMultimedia,pages1015–1018.ACMPress.
+13
+[56] EduardoFonseca,ManojPlakal,DanielPWEllis,FredericFont,XavierFavory,andXavier
+Serra. Learningsoundeventclassifiersfromwebaudiowithnoisylabels. InICASSP2019-
+2019IEEEInternationalConferenceonAcoustics,SpeechandSignalProcessing(ICASSP),
+pages21–25.IEEE,2019.
+[57] Shu-wenYang,Po-HanChi,Yung-SungChuang,Cheng-IJeffLai,KushalLakhotia,YistY
+Lin,AndyTLiu,JiatongShi,XuankaiChang,Guan-TingLin,etal.Superb:Speechprocessing
+universalperformancebenchmark. arXivpreprintarXiv:2105.01051,2021.
+[58] Gtzandataset-musicgenreclassification.
+[59] Dong-HyunLeeetal. Pseudo-label:Thesimpleandefficientsemi-supervisedlearningmethod
+for deep neural networks. In Workshop on challenges in representation learning, ICML,
+volume3,page896,2013.
+[60] JunnanLi,CaimingXiong,andStevenCHHoi. Comatch: Semi-supervisedlearningwith
+contrastivegraphregularization. InProceedingsoftheIEEE/CVFInternationalConference
+onComputerVision,pages9475–9484,2021.
+[61] YueFan,AnnaKukleva,andBerntSchiele. Revisitingconsistencyregularizationforsemi-
+supervised learning. In DAGM German Conference on Pattern Recognition, pages 63–78.
+Springer,2021.
+[62] David Berthelot, Rebecca Roelofs, Kihyuk Sohn, Nicholas Carlini, and Alex Kurakin.
+Adamatch: Aunifiedapproachtosemi-supervisedlearninganddomainadaptation. arXiv
+preprintarXiv:2106.04732,2021.
+[63] XiangliYang,ZixingSong,IrwinKing,andZenglinXu. Asurveyondeepsemi-supervised
+learning. arXivpreprintarXiv:2103.00550,2021.
+[64] JostTobiasSpringenberg. Unsupervisedandsemi-supervisedlearningwithcategoricalgenera-
+tiveadversarialnetworks. arXivpreprintarXiv:1511.06390,2015.
+[65] EmilyDenton,SamGross,andRobFergus.Semi-supervisedlearningwithcontext-conditional
+generativeadversarialnetworks. arXivpreprintarXiv:1611.06430,2016.
+[66] ZihangDai, ZhilinYang, FanYang, WilliamWCohen, andRussRSalakhutdinov. Good
+semi-supervisedlearningthatrequiresabadgan. Advancesinneuralinformationprocessing
+systems,30,2017.
+[67] AbhishekKumar,PrasannaSattigeri,andTomFletcher. Semi-supervisedlearningwithgans:
+Manifoldinvariancewithimprovedinference. Advancesinneuralinformationprocessing
+systems,30,2017.
+[68] Olivier Chapelle, Bernhard Scholkopf, and Alexander Zien. Semi-supervised learning
+(chapelle, o. et al., eds.; 2006)[book reviews]. IEEE Transactions on Neural Networks,
+20(3):542–542,2009.
+[69] MiltonFriedman.Theuseofrankstoavoidtheassumptionofnormalityimplicitintheanalysis
+ofvariance. Journaloftheamericanstatisticalassociation,32(200):675–701,1937.
+[70] Milton Friedman. A comparison of alternative tests of significance for the problem of m
+rankings. TheAnnalsofMathematicalStatistics,11(1):86–92,1940.
+[71] Alexei Baevski, Yuhao Zhou, Abdelrahman Mohamed, and Michael Auli. wav2vec 2.0:
+A framework for self-supervised learning of speech representations. Advances in Neural
+InformationProcessingSystems,33:12449–12460,2020.
+[72] KaiHan,YunheWang,HantingChen,XinghaoChen,JianyuanGuo,ZhenhuaLiu,YehuiTang,
+AnXiao,ChunjingXu,YixingXu,etal. Asurveyonvisiontransformer. IEEEtransactions
+onpatternanalysisandmachineintelligence,2022.
+[73] HugoTouvron,MatthieuCord,MatthijsDouze,FranciscoMassa,AlexandreSablayrolles,and
+HervéJégou. Trainingdata-efficientimagetransformers&distillationthroughattention. In
+InternationalConferenceonMachineLearning,pages10347–10357.PMLR,2021.
+[74] Yu-FengLiandZhi-HuaZhou. Towardsmakingunlabeleddataneverhurt. IEEETransactions
+onPatternAnalysisandMachineIntelligence,37(1):175–188,2015.
+[75] WilliamSNoble.Whatisasupportvectormachine? Naturebiotechnology,24(12):1565–1567,
+2006.
+14
+[76] MMCVContributors. MMCV:OpenMMLabcomputervisionfoundation. https://github.
+com/open-mmlab/mmcv,2018.
+[77] Jaehyung Kim, Youngbum Hur, Sejun Park, Eunho Yang, Sung Ju Hwang, and Jinwoo
+Shin. Distributionaligningrefineryofpseudo-labelforimbalancedsemi-supervisedlearning.
+AdvancesinNeuralInformationProcessingSystems,33:14567–14579,2020.
+[78] YidongWang,BowenZhang,WenxinHou,ZhenWu,JindongWang,andTakahiroShinozaki.
+Margincalibrationforlong-tailedvisualrecognition.InThe14thAsianConferenceonMachine
+Learning.
+[79] ShoushanLi,ZhongqingWang,GuodongZhou,andSophiaYatMeiLee. Semi-supervised
+learningforimbalancedsentimentclassification. InTwenty-SecondInternationalJointConfer-
+enceonArtificialIntelligence,2011.
+[80] MinsungHyun,JisooJeong,andNojunKwak. Class-imbalancedsemi-supervisedlearning.
+arXivpreprintarXiv:2002.06815,2020.
+[81] Chen Wei, Kihyuk Sohn, Clayton Mellina, Alan Yuille, and Fan Yang. Crest: A class-
+rebalancingself-trainingframeworkforimbalancedsemi-supervisedlearning. InProceedings
+of the IEEE/CVF Conference on Computer Vision and Pattern Recognition, pages 10857–
+10866,2021.
+[82] Yuzhe Yang and Zhi Xu. Rethinking the value of labels for improving class-imbalanced
+learning. AdvancesinNeuralInformationProcessingSystems,33:19290–19301,2020.
+[83] YueFan,DengxinDai,andBerntSchiele. Cossl: Co-learningofrepresentationandclassifier
+forimbalancedsemi-supervisedlearning. arXivpreprintarXiv:2112.04564,2021.
+[84] Youngtaek Oh, Dong-Jin Kim, and In So Kweon. Distribution-aware semantics-oriented
+pseudo-label for imbalanced semi-supervised learning. arXiv preprint arXiv:2106.05682,
+2021.
+[85] Kuniaki Saito, Donghyun Kim, and Kate Saenko. Openmatch: Open-set consistency reg-
+ularization for semi-supervised learning with outliers. arXiv preprint arXiv:2105.14148,
+2021.
+[86] Lan-ZheGuo,Zhen-YuZhang,YuanJiang,Yu-FengLi,andZhi-HuaZhou. Safedeepsemi-
+supervisedlearningforunseen-classunlabeleddata. InInternationalConferenceonMachine
+Learning,pages3897–3906.PMLR,2020.
+[87] Qing Yu, Daiki Ikami, Go Irie, and Kiyoharu Aizawa. Multi-task curriculum framework
+foropen-setsemi-supervisedlearning. InEuropeanConferenceonComputerVision,pages
+438–454.Springer,2020.
+[88] HuixiangLuo,HaoCheng,YutingGao,KeLi,MengdanZhang,FanxuMeng,XiaoweiGuo,
+Feiyue Huang, and Xing Sun. On the consistency training for open-set semi-supervised
+learning. arXivpreprintarXiv:2101.08237,3(6),2021.
+[89] Zhuo Huang, Chao Xue, Bo Han, Jian Yang, and Chen Gong. Universal semi-supervised
+learning. AdvancesinNeuralInformationProcessingSystems,34,2021.
+[90] KevinClark,Minh-ThangLuong,ChristopherDManning,andQuocLe. Semi-supervised
+sequence modeling with cross-view training. In Proceedings of the 2018 Conference on
+EmpiricalMethodsinNaturalLanguageProcessing,pages1914–1925,2018.
+[91] LuoxinChen,WeitongRuan,XinyueLiu,andJianhuaLu. Seqvat: Virtualadversarialtraining
+for semi-supervised sequence labeling. In Proceedings of the 58th Annual Meeting of the
+AssociationforComputationalLinguistics,pages8801–8811,2020.
+[92] Wei Li and Andrew McCallum. Semi-supervised sequence modeling with syntactic topic
+models. InAAAI,volume5,pages813–818,2005.
+[93] Andrew M Dai and Quoc V Le. Semi-supervised sequence learning. Advances in neural
+informationprocessingsystems,28,2015.
+[94] YidongWang,HaoWu,AoLiu,WenxinHou,ZhenWu,JindongWang,TakahiroShinozaki,
+Manabu Okumura, and Yue Zhang. Exploiting unlabeled data for target-oriented opinion
+words extraction. In Proceedings of the 29th International Conference on Computational
+Linguistics,2022.
+15
+[95] Ao Liu, An Wang, and Naoaki Okazaki. Semi-supervised formality style transfer with
+consistency training. In Proceedings of the 60th Annual Meeting of the Association for
+ComputationalLinguistics(Volume1: LongPapers),pages4689–4701,2022.
+[96] JunxianHe,JiataoGu,JiajunShen,andMarc’AurelioRanzato. Revisitingself-trainingfor
+neuralsequencegeneration. InInternationalConferenceonLearningRepresentations,2019.
+[97] Jiaao Chen and Diyi Yang. Simple conversational data augmentation for semi-supervised
+abstractivedialoguesummarization. InProceedingsofthe2021ConferenceonEmpirical
+MethodsinNaturalLanguageProcessing,pages6605–6616,2021.
+[98] LarryWassermanandJohnLafferty. Statisticalanalysisofsemi-supervisedregression. Ad-
+vancesinNeuralInformationProcessingSystems,20,2007.
+[99] Neal Jean, Sang Michael Xie, and Stefano Ermon. Semi-supervised deep kernel learning:
+Regression with unlabeled data by minimizing predictive variance. Advances in Neural
+InformationProcessingSystems,31,2018.
+[100] Georgios Kostopoulos, Stamatis Karlos, Sotiris Kotsiantis, and Omiros Ragos. Semi-
+supervisedregression: Arecentreview. JournalofIntelligent&FuzzySystems,35(2):1483–
+1500,2018.
+[101] Zhi-HuaZhou,MingLi,etal.Semi-supervisedregressionwithco-training.InIJCAI,volume5,
+pages908–913,2005.
+[102] Yu-FengLi,Han-WenZha,andZhi-HuaZhou. Learningsafepredictionforsemi-supervised
+regression. InProceedingsoftheAAAIConferenceonArtificialIntelligence,volume31,2017.
+[103] YuxingTang,JosiahWang,BoyangGao,EmmanuelDellandréa,RobertGaizauskas,andLim-
+ingChen. Largescalesemi-supervisedobjectdetectionusingvisualandsemanticknowledge
+transfer. InProceedingsoftheIEEEconferenceoncomputervisionandpatternrecognition,
+pages2119–2128,2016.
+[104] PengTang,ChetanRamaiah,YanWang,RanXu,andCaimingXiong. Proposallearningfor
+semi-supervisedobjectdetection. InProceedingsoftheIEEE/CVFWinterConferenceon
+ApplicationsofComputerVision,pages2291–2301,2021.
+[105] Mengde Xu, Zheng Zhang, Han Hu, Jianfeng Wang, Lijuan Wang, Fangyun Wei, Xiang
+Bai, and Zicheng Liu. End-to-end semi-supervised object detection with soft teacher. In
+ProceedingsoftheIEEE/CVFInternationalConferenceonComputerVision,pages3060–3069,
+2021.
+[106] Yihe Tang, Weifeng Chen, Yijun Luo, and Yuting Zhang. Humble teachers teach better
+studentsforsemi-supervisedobjectdetection. InProceedingsoftheIEEE/CVFConferenceon
+ComputerVisionandPatternRecognition,pages3132–3141,2021.
+[107] Jiyang Gao, Jiang Wang, Shengyang Dai, Li-Jia Li, and Ram Nevatia. Note-rcnn: Noise
+tolerantensemblercnnforsemi-supervisedobjectdetection. InProceedingsoftheIEEE/CVF
+internationalconferenceoncomputervision,pages9508–9517,2019.
+[108] Yen-ChengLiu,Chih-YaoMa,ZijianHe,Chia-WenKuo,KanChen,PeizhaoZhang,Bichen
+Wu,ZsoltKira,andPeterVajda. Unbiasedteacherforsemi-supervisedobjectdetection. In
+InternationalConferenceonLearningRepresentations,2020.
+[109] Sugato Basu, Arindam Banerjee, and Raymond Mooney. Semi-supervised clustering by
+seeding. InInProceedingsof19thInternationalConferenceonMachineLearning(ICML-
+2002.Citeseer,2002.
+[110] EricBair. Semi-supervisedclusteringmethods. WileyInterdisciplinaryReviews: Computa-
+tionalStatistics,5(5):349–361,2013.
+[111] Nizar Grira, Michel Crucianu, and Nozha Boujemaa. Unsupervised and semi-supervised
+clustering: abriefsurvey. Areviewofmachinelearningtechniquesforprocessingmultimedia
+content,1:9–16,2004.
+[112] SugatoBasu,MikhailBilenko,andRaymondJMooney. Aprobabilisticframeworkforsemi-
+supervisedclustering. InProceedingsofthetenthACMSIGKDDinternationalconferenceon
+Knowledgediscoveryanddatamining,pages59–68,2004.
+[113] Durk P Kingma, Shakir Mohamed, Danilo Jimenez Rezende, and Max Welling. Semi-
+supervisedlearningwithdeepgenerativemodels. Advancesinneuralinformationprocessing
+systems,27,2014.
+16
+[114] Augustus Odena. Semi-supervised learning with generative adversarial networks. arXiv
+preprintarXiv:1606.01583,2016.
+[115] Wenzheng Feng, Jie Zhang, Yuxiao Dong, Yu Han, Huanbo Luan, Qian Xu, Qiang Yang,
+EvgenyKharlamov,andJieTang. Graphrandomneuralnetworksforsemi-supervisedlearning
+ongraphs. Advancesinneuralinformationprocessingsystems,33:22092–22103,2020.
+[116] AravindSankar,XinyangZhang,andKevinChen-ChuanChang. Meta-gnn: Metagraphneural
+networkforsemi-supervisedlearninginattributedheterogeneousinformationnetworks. In
+Proceedingsofthe2019IEEE/ACMInternationalConferenceonAdvancesinSocialNetworks
+AnalysisandMining,pages137–144,2019.
+[117] MaoguoGong,HuiZhou,AKQin,WenfengLiu,andZhongyingZhao. Self-pacedco-training
+of graph neural networks for semi-supervised node classification. IEEE Transactions on
+NeuralNetworksandLearningSystems,2022.
+[118] XujiangZhao, FengChen, ShuHu, andJin-HeeCho. Uncertaintyawaresemi-supervised
+learningongraphdata. AdvancesinNeuralInformationProcessingSystems,33:12827–12836,
+2020.
+[119] JindongWang,WenjieFeng,YiqiangChen,HanYu,MeiyuHuang,andPhilipSYu. Visual
+domainadaptationwithmanifoldembeddeddistributionalignment. InProceedingsofthe26th
+ACMinternationalconferenceonMultimedia,pages402–410,2018.
+[120] JindongWang,YiqiangChen,ShujiHao,WenjieFeng,andZhiqiShen. Balanceddistribution
+adaptation for transfer learning. In 2017 IEEE international conference on data mining
+(ICDM),pages1129–1134.IEEE,2017.
+[121] JindongWang,CuilingLan,ChangLiu,YidongOuyang,TaoQin,WangLu,YiqiangChen,
+WenjunZeng,andPhilipYu. Generalizingtounseendomains: Asurveyondomaingeneral-
+ization. IEEETransactionsonKnowledgeandDataEngineering,2022.
+[122] YuntaoDu,JindongWang,WenjieFeng,SinnoPan,TaoQin,RenjunXu,andChongjunWang.
+Adarnn: Adaptivelearningandforecastingoftimeseries. InProceedingsofthe30thACM
+InternationalConferenceonInformation&KnowledgeManagement,pages402–411,2021.
+[123] ZeLiu,YutongLin,YueCao,HanHu,YixuanWei,ZhengZhang,StephenLin,andBaining
+Guo.Swintransformer:Hierarchicalvisiontransformerusingshiftedwindows.InProceedings
+oftheIEEE/CVFInternationalConferenceonComputerVision(ICCV),2021.
+[124] Xiaohua Zhai, Joan Puigcerver, Alexander Kolesnikov, Pierre Ruyssen, Carlos Riquelme,
+MarioLucic,JosipDjolonga,AndreSusanoPinto,MaximNeumann,AlexeyDosovitskiy,
+etal. Alarge-scalestudyofrepresentationlearningwiththevisualtaskadaptationbenchmark.
+arXivpreprintarXiv:1910.04867,2019.
+[125] HongyiZhang,MoustaphaCisse,YannNDauphin,andDavidLopez-Paz. mixup: Beyond
+empiricalriskminimization. InInternationalConferenceonLearningRepresentations,2018.
+[126] Ekin D Cubuk, Barret Zoph, Jonathon Shlens, and Quoc V Le. Randaugment: Practical
+automateddataaugmentationwithareducedsearchspace. InProceedingsoftheIEEE/CVF
+ConferenceonComputerVisionandPatternRecognitionWorkshops,pages702–703,2020.
+[127] YizhouWang,ShixiangTang,FengZhu,LeiBai,RuiZhao,DonglianQi,andWanliOuyang.
+Revisitingthetransferabilityofsupervisedpretraining: anmlpperspective. arXivpreprint
+arXiv:2112.00496,2021.
+[128] SangdooYun,DongyoonHan,SeongJoonOh,SanghyukChun,JunsukChoe,andYoungjoon
+Yoo. Cutmix: Regularizationstrategytotrainstrongclassifierswithlocalizablefeatures. In
+ProceedingsoftheIEEE/CVFinternationalconferenceoncomputervision,pages6023–6032,
+2019.
+17
+A DetailsofDatasetsandinTorchSSL
+WeprovidethedetailsofdatasetsofTorchSSLinTable10.
+Table 10: Details of CV datasets and #labels used in TorchSSL. #Label per class represents the
+numberofchosenlabeleddataperclassfromthetrainingdata. Thetestdataiskeptunchangedexcept
+forImageNetwhereweusethevalidationdatasetasthetestdataset.
+Dataset #Labelperclass #Trainingdata #Testdata #Class
+CIFAR-10 4/25/100 50,000 10,000 10
+CIFAR-100 4/25/100 50,000 10,000 100
+SVHN 4/25/100 604,388 26,032 10
+STL-10 4/25/100 100,000 10,000 10
+ImageNet 100 1,281,167 50,000 1,000
+B CorrelationbetweenTorchSSLandUSB
+HereweshowthecorrelationbetweenthemeanerrorratesonTorchSSLandUSBCVtasks. We
+takethe14algorithmsconsideredinthemainpaperandshowtheirmeanperformanceonTorchSSL
+versusthatonUSBCVtasksinFigure5. DespitethefactthatthePearsoncorrelationcoefficientis
+0.87,thefinalrankSSLalgorithmsisnotconsistent,whichshowsdifferentadaptabilityofdifferent
+methodswhenusingpre-trainedViTs. Forexample,FlexMatchshowsthebestmeanperformanceon
+USBwhileAdaMatchhasthebestmeanperformanceonTorchSSL.PleaserefertoTable8formore
+detailedrankingsonCV,NLP,andAudio.
+Pearson-Correlation between USB and TorchSSL
+50 Pi Pseudo
+VAT
+40 MT
+30
+Mix
+20
+ReMix CR
+UDAFixDash
+Ada Flex Co
+10 Sim
+26 28 30 32 34 36
+mean error rates on USB
+Figure5: CorrelationbetweenTorchSSLandUSB.
+C PerformanceResultsonImageNet
+AlthoughwehaveexcludedImageNetfromUSB,weprovideanevaluationonImageNetofMAE
+pre-trainedViT-B,usingUDA[29],FixMatch[20],FlexMatch[21],CoMatch[60],andSimMatch
+[47]. We train these algorithms using 10 labels per class and 100 labels per-class, i.e., a total of
+10,000labelsand100,000labelsrespectively,correspondingtoroughly1%and10%ofthetotal
+labeleddatainImageNet. Forlearningrateandweightdecay,wefollowthefine-tuningprotocolin
+MAE[33],whereweuseAdamWwithalearningrateof1e-3andweightdecayof0.05. Weuse16
+A100totraineachalgorithmandsetthebatchsizeto256forbothlabeledandunlabeleddata. Other
+algorithmichyper-parametersstaythesameastheiroriginalimplementations.
+WepresenttheresultsonImageNetinTable11. UDAandFixmatcharenearthebottom,similarto
+USB.SimMatchisstillmarkedasoneofthetops. Surprisingly,CoMatchdoessowellonImageNet
+whenitrankedonly9thontheUSBbenchmark. Also,whileFlexMatchisthebestonUSB,it’spretty
+firmlybehindCoMatchandSimMatchonImageNet.
+18
+LSShcroT
+no
+setar
+rorre
+naem
+Table11: ImageNetaccuracyresults. WeuseMAEpre-trainedViT-B.
+Method 1wLabels 10wLabels Rank
+UDA 38.62 62.37 5
+FixMatch 37.93 62.88 4
+FlexMatch 39.13 63.09 3
+CoMatch 44.32 65.80 2
+SimMatch 46.48 67.61 1
+Table12: Swin-TransformerresultsonEuroSATandSemi-AVES.
+Dataset EuroSAT Semi-Aves
+#Label 20 40 5,959
+Supervised 44.32±1.10 34.40±1.44 38.76±0.21
+Fully-Supervised 1.86±0.10 -
+Π-Model 42.49±3.21 30.54±1.37 38.74±0.60
+Pseudo-Labeling 42.49±3.21 30.54±1.37 38.74±0.60
+MeanTeacher 35.85±1.95 19.62±3.28 33.37±0.06
+VAT 40.63±2.68 29.94±1.87 35.84±0.36
+UDA 18.15±5.70 12.09±1.26 29.28±0.20
+FixMatch 17.19±3.46 12.57±1.28 28.88±0.22
+Dash 18.04±1.21 12.98±1.27 28.69±0.39
+CoMatch 13.65±1.42 10.17±0.68 37.71±0.31
+CRMatch 30.28±1.64 22.39±1.41 29.22±0.21
+FlexMatch 10.46±1.20 9.06±1.80 30.19±0.51
+SimMatch 11.19±1.01 10.65±1.64 28.55±0.13
+D ResultswithDifferentPre-trainedBackbones
+Inthissection,weverifyUSBwithdifferentpre-trainedbackbones. Differentpre-trainedbackbones
+doaffecttheperformanceofSSLalgorithms,whichmakesitimportanttoreportresultswithmultiple
+backbones. Wewillcontinuouslyupdateresultswithdifferentbackbonesathttps://github.com/
+microsoft/Semi-supervised-learning. HerewereportseveralresultsinTable12,Table13,
+and Table 14. Across the tasks, there is a pretty clear distinction between the performance of
+algorithmsinthefirsthalfoftherankinglistandthesecondhalfoftherankinglist. Whileswitching
+outbackbonesdoesnotchangethemembershipofthesetwohalves,itdoesseemliketherelative
+orderingswithinthetophalfcanindeedvaryabit.
+To compare different backbones on CV tasks, we fine-tune pre-trained public Swin-Transformer
+[123] with USB. We keep all hyper-parameters the same as in Table 15, and mainly evaluate on
+EuroSAT(32)andSemi-Aves(224). ForEuroSAT,wechangetheinputimagesizeofthepre-trained
+Swin-Sfrom224to32,andthewindowsizefrom7to4toaccommodatetheadaptedinputimage
+size. ForSemi-Aves,weadopttheoriginalSwin-S.FromtheresultsinTable12,onecanobserve,
+thatonEuroSAT(32),asweadopt224pre-trainedSwin-Sandchangeitsinputandwindowsize,
+theresultsareinferiortoViT-32reportedinthepaper,whereasonSemi-Aves(224),theresultsare
+better than ViT-S. An interesting finding is that CoMatch performs relatively better with Swin-S
+whileCrMatchperformsworse. Thisalsoshowstheimportanceofconstantlyupdatingthebackbone
+inthefuturedevelopmentofUSB.
+ForNLPtasks,weadditionallyexperimentwithRoBERTa[31]. WetrainRoBERTausingthesame
+hyper-parametersreportedinTable16. RoBertagenerallyperformsbetterthanBertasexpected. The
+performancedifferenceisbothveryclosewhenusingRoBertaorBert.
+Due to the fact that the audio tasks setting in the current version of USB being built upon raw
+waveforms,therearenotmanypre-trainedmodelsavailabletouse. WereporttheresultsofHuBert
+[32]andWave2Vecv2.0[71]foraudiotaskstocomparedifferentbackbones. Thedifferencebetween
+thesetwobackbonesselectedmainlyliesinpre-trainingdata. Wave2Vecv2.0ispre-trainedusing
+raw human voice data and HuBert is an improved model with a discrete clustering target. Thus
+wecanobservefromtheresults,thatonhumanvoicetasksSuperb-KS,Wave2Vecv2.0hasbetter
+performance,whereas,onothertasks,HuBertismorerobustandoutperformsWave2Vecv2.0.
+19
+Table13: RoBERTaresultsonYelp.
+Dataset Yelp
+#Labels 250 1000
+Supervised 42.56±1.15 39.00±0.16
+Fully-Supervised 29.15±0.12
+Pseudo-Label 48.26±0.02 40.56±0.16
+MeanTeacher 49.41±0.03 44.36±1.04
+Π-Model 49.16±2.04 42.93±0.88
+VAT 43.04±0.02 39.24±0.06
+AdaMatch 38.24±0.02 35.64±0.06
+UDA 40.13±0.15 38.98±0.03
+FixMatch 39.82±0.95 37.42±0.30
+FlexMatch 39.11±0.02 36.84±0.01
+Dash 39.86±1.01 36.23±0.21
+CRMatch 40.08±1.28 35.85±0.38
+CoMatch 39.95±0.86 36.89±0.22
+SimMatch 38.76±0.68 36.39±0.34
+Table14: HuBertresultsonkeywordSpottingandWave2Vec2.0resultsonFSDnoisy.
+Dataset keywordSpotting FSDnoisy
+#Label 50 400 1,772
+Supervised 8.95±1.62 6.31±0.46 33.54±1.65
+Fully-Supervised 2.41±0.15 -
+Π-Model 87.86±2.88 72.89±3.23 35.97±0.84
+Pseudo-Labeling 25.59±2.88 13.02±2.47 35.23±0.78
+MeanTeacher 89.79±0.30 90.01±0.02 40.13±1.70
+VAT 2.27±0.07 2.43±0.02 34.21±0.31
+UDA 11.76±0.06 2.23±0.16 33.09±1.03
+FixMatch 11.63±0.24 8.93±2.04 33.09±0.64
+Dash 11.88±0.15 8.25±4.22 33.02±1.39
+CoMatch 15.96±1.02 10.34±1.52 30.24±0.55
+CRMatch 5.85±1.19 3.66±0.33 30.48±0.65
+FlexMatch 10.22±1.10 5.10±3.70 32.66±4.09
+SimMatch 9.43±0.63 5.47±2.72 29.57±0.52
+E DetailsofDatasetsinUSB
+E.1 CVTasks
+CIFAR-100 TheCIFAR-100[39]datasetisanaturalimage(32×32pixels)recognitiondataset
+consisting100classes. Thereare500trainingsamplesand100testsamplesperclass.
+STL-10 The STL-10 [40] dataset is a natural color image (96×96 pixels) recognition dataset
+consisting10classes. Particularly,eachclasshas500trainingsamplesand800testsamples. Apart
+fromthelabeledsamples,STL-10alsoprovides100,000unlabeledsamples. Notethattheunlabeled
+samplescontainotherclassesinadditiontotheonesinthelabeleddata.
+EuroSat EuroSAT [43, 44] dataset is based on Sentinel-2 satellite images covering 13 spectral
+bandsandconsistingof10classeswith27,000labeledandgeo-referencedsamples. Following[124],
+weusethedatasetwiththeopticalR,G,Bfrequencybands,thuseachimageisofsize64×64×3.
+Wetakethefirst60%imagesfromeachclassastrainingset;thenext20%asvalset,andthelast20%
+astestset.
+TissueMNIST TissueMNIST[41,42]isamedicaldatasetofhumankidneycortexcells,segmented
+from3referencetissuespecimensandorganizedinto8categories. Thetotal236,386trainingsamples
+aresplitwitharatioof7: 1: 2intotraining(165,466images),validation(23,640images)andtest
+set(47,280images). Eachgray-scaleimageis28×28pixels.
+20
+Semi-Aves Semi-Aves[45]isadatasetofAves(birds)classification,where5,959imagesof200
+birdspeciesarelabeledand26,640imagesareunlabeled. Asclassdistributionmismatchhurtsthe
+performance [85], we do not use out-of-class unlabeled data. This dataset is challenging as it is
+naturallyimbalanced. Thevalidationandtestsetcontain10and20imagesrespectivelyforeachof
+the200categoriesinthelabeledset.
+E.2 NLPTasks
+IMDB TheIMDB[49]datasetisabinarysentimentclassificationdataset.Thereare25,000reviews
+for training and 25,000 for test. IMDB is class balanced which means the positive and negative
+reviewshavethesamenumberbothfortrainingandtest. ForUSB,wedraw12,500samplesand
+1,000samplesperclassfromtrainingsamplestoformthetrainingdatasetandvalidationdataset
+respectively. Thetestdatasetisunchanged.
+AmazonReview TheAmazonReview[52]datasetisasentimentclassificationdataset. Thereare
+5classes(scores). Eachclass(score)contains600,000trainingsamplesand130,000testsamples.
+ForUSB,wedraw50,000samplesand5,000samplesperclassfromtrainingsamplestoformthe
+trainingdatasetandvalidationdatasetrespectively. Thetestdatasetisunchanged.
+YelpReview TheYelpReview[53]sentimentclassificationdatasethas5classes(scores). Each
+class(score)contains130,000trainingsamplesand10,000testsamples. ForUSB,wedraw50,000
+samplesand5,000samplesperclassfromtrainingsamplestoformthetrainingdatasetandvalidation
+datasetrespectively. Thetestdatasetisunchanged.
+AGNews TheAGNews[50]datasetisanewstopicclassificationdatasetcontaining4classes.
+Each class contains 30,000 training samples and 1,900 test samples. For USB, we draw 25,000
+samplesand2,500samplesperclassfromtrainingsamplestoformthetrainingdatasetandvalidation
+datasetrespectively. Thetestdatasetisunchanged.
+Yahoo! Answer TheYahoo! Answer[51]topicclassificationdatasethas10categories. Eachclass
+contains140,000trainingsamplesand6,000testsamples. ForUSB,wedraw50,000samplesand
+5,000samplesperclassfromtrainingsamplestoformthetrainingdatasetandvalidationdataset
+respectively. Thetestdatasetisunchanged.
+E.3 AudioTasks
+GTZAN The GTZAN dataset is collected for music genre classification of 10 classes and 100
+audiorecordingsforeachclass. Themaximumlengthoftherecordingsis30secondsandtheoriginal
+samplingrateis22,100Hz. Wesplit7,000samplesfortraining,1,500forvalidation,and1,500for
+testing. Allrecordingsarere-sampledat16,000Hz.
+UrbanSound8k The UrbanSound8k dataset [54] contains 8,732 labeled sound events of urban
+soundsof10classes,withthemaximumlengthof4seconds. Theoriginalsamplingrateoftheaudio
+recordingsis44,100andwere-sampleitto16,000. Itisoriginallydividedinto10folds,wherewe
+usethefirst8foldsof7,079samplesastrainingset,andthelasttwofoldsasvalidationsetofsize
+816andtestingsetofsize837respectively.
+FSDNoisy18k The FSDNoisy18 dataset [56] is a sound event classification dataset across 20
+classes. Itconsistsofasmallamountofmanuallylabeleddata-1,772andalargeamountofnoisy
+data-15,813whichistreatedasunlabeleddatainourpaper. Theoriginalsamplerateis44,100
+Hz,andthelengthoftherecordingsliesbetween3secondsand30seconds. Weusethetestingset
+providedforevaluation,whichcontains947samples.
+KeywordSpotting(Superb-KS) TheKeywordspottingdatasetisoneofthetasksinSuperb[57]
+forclassifyingthekeywords. Itcontainsspeechutterancesofamaximumlengthof1secondand
+thesamplingrateof16,000. Thetraining,validation,andtestingsetcontain18,538;2,577;2,567
+recordings,respectively. Forpre-processing,weremovethesilenceandunknownlabelsfromthe
+dataset.
+21
+ESC-50 The ESC-50 [55] is a dataset containing 2,000 environmental audio recordings for 50
+soundclasses. Themaximumlengthoftherecordingsis5secondsandtheoriginalsamplingrateis
+44,100. Wesplit1,200samplesastrainingdata,400asvalidationdata,and400astestingdata. We
+alsore-sampletheaudiorecordingsto16,000Hzduringpre-processing.
+F DetailsofImplementedSSLalgorithmsinUSB
+Πmodel[35]isasimpleSSLalgorithmthatforcestheoutputprobabilityofperturbedversionsof
+unlabeleddatabethesame. ΠmodelusesMeanSquaredError(MSE)foroptimization.
+PseudoLabeling[59]turnstheoutputprobabilityofunlabeleddataintothe’one-hot’hardoneand
+makesthesameunlabeleddatatolearnthepseudo’one-hot’label. UnlikeΠmodel,PseudoLabeling
+usesCEforoptimization.
+MeanTeacher[36]takestheexponentialmovingaverage(EMA)oftheneuralmodelastheteacher
+model. WithMeanTeacher,theneuralmodelforcesitselftooutputasimilarprobabilitytotheEMA
+teacher. ThoughthelaterSSLalgorithmswillnotalwayschoosetheEMAmodelastheteacher,they
+oftenusetheEMAmodelforvalidation/testcauseitdecreasestheriskofneuralmodelsfallinginto
+thelocaloptima.
+VAT[37]enhancestherobustnessoftheconditionalpredictedlabeldistributionaroundeachunlabeled
+dataagainstanadversarialperturbation. Inotherwords,VATforcestheneuralmodeltogivesimilar
+predictionsonunlabeleddataevenfacingastrongadversarialperturbation.
+MixMatch[28]firstintroducesMixup[125]intoSSLbytakingtheinputasthemixtureoflabeled
+andunlabeleddataandtheoutputasthemixtureoflabelsandmodelpredictionsonunlabeleddata.
+NotethatMixMatchalsoutilizesMSEastheunsupervisedloss.
+ReMixMatch [23] can be seen as the upgraded version of MixMatch. ReMixMatch improves
+MixMatch by (1) proposing stronger augmentation (i.e., Control Theory Augmentation (CTAug-
+ment) [23]) for unlabeled data; (2) using Augmentation Anchoring to force the model to output
+similar predictions to weakly augmented unlabeled data when fed strongly augmented data; (3)
+utilizingDistributionAlignmenttoencouragethemarginaldistributionofpredictionsonunlabeled
+datatobesimilartothemarginaldistributionoflabeleddata.
+UDA[29]alsointroducesstrongaugmentation(i.e.,RandAugment[126])forunlabeleddata. The
+coreideaofUDAissimilartoAugmentationAnchoring[23],whichforcesthepredictionsofneural
+modelsonthestrongly-augmentedunlabeleddatatobeclosetothoseofweakly-augmentedunlabeled
+data. Insteadofturningpredictionsintohard’one-hot’pseudo-labels,UDAsharpenstheprediction
+onunlabeleddata. Thresholdingtechniqueisusedtomaskoutunconfidentunlabeledsamplesthat
+areconsiderednoisehere.
+FixMatch [20] is the upgraded version of Pseudo Labeling. FixMatch turns the predictions on
+weakly-augmentedunlabeleddataintohard’one-hot’pseudo-labelsandthenfurtherusesthemasthe
+learningsignalofstrongly-augmentedunlabeleddata. FixMatchfindsthatusingahighthreshold
+(e.g.,0.95)tofilternoisyunlabeledpredictionsandtaketherestasthepseudo-labelcanachievevery
+goodperformance.
+Dash[24]improvestheFixMatchbyusingagraduallyincreasedthresholdinsteadofafixedthreshold,
+whichallowsmoreunlabeleddatatoparticipateinthetrainingattheearlystage. Moreover,Dash
+theoreticallyestablishestheconvergenceratefromtheviewofnon-convexoptimization.
+CoMatch[60]firstlyintroducescontrastivelearningintoSSL.Exceptforconsistencyregularizing
+ontheclassprobabilities,itisalsoexploitedongraph-basedfeaturerepresentations,whichimpose
+smoothconstraintsonpseudo-labelsgenerated.
+CRMatch[61]proposedanimprovedconsistencyregularizationframeworkwhichimposeconsis-
+tencyandequivarianceontheclassificationprobabilityandthefeaturelevel.
+FlexMatch[21]firstlyintroducestheclass-specificthresholdsintoSSLbyconsideringthedifferent
+learningdifficultiesofdifferentclasses. Specifically, thehard-to-learnclassesshouldhavealow
+thresholdtospeedupconvergencewhiletheeasy-to-learnclassesshouldhaveahighthresholdto
+avoidconfirmationbias.
+22
+AdaMatch[62]isproposedmainlyfordomainadaption,butcanalsoadaptedtoSSL.Itischaracter-
+izedbyRelativeThresholdandDistributionAlignment,wheretherelativethresholdisadaptively
+estimatedfromEMAoftheconfidenceonlabeleddata.
+SimMatch[47]extendsCoMatch[60]byconsideringsemantic-levelandinstance-levelconsistency
+regularization. Similarsimilarityrelationshipofdifferentaugmentedversionsonthesamedatawith
+respecttootherinstancesisencouragedduringtraining. Inaddition,amemorybufferconsistingof
+predictionsonlabeleddataisadoptedtoconnectthetwo-levelregularization.
+G ExperimentDetailsinUSB
+G.1 SetupforCVTasksinUSB
+Table15: Hyper-parametersofCVtasksinUSB.
+Dataset CIFAR-100 STL-10 Euro-SAT TissueMNIST Semi-Aves
+ImageSize 32 96 32 32 224
+Model ViT-S-P4-32 ViT-B-P16-96 ViT-S-P4-32 ViT-T-P4-32 ViT-S-P16-224
+WeightDecay 5e-4
+LabeledBatchsize 16
+UnlabeledBatchsize 16
+LearningRate 5e-4 1e-4 5e-5 5e-5 1e-3
+LayerDecayRate 0.5 0.95 1.0 0.95 0.65
+Scheduler η=η0cos( 17 6π Kk)
+ModelEMAMomentum 0.0
+PredictionEMAMomentum 0.999
+WeakAugmentation RandomCrop,RandomHorizontalFlip
+StrongAugmentation RandAugment[126]
+ForCVtasksinUSB,weuseViTmodels[34]. WefindthatdirectlyusingreleasedViTmodelsleads
+tooverfittingandoneneedstofixtheimageresolutionasthepre-trainedresolution,asdemonstrated
+in Paragraph 5.4. Instead, we pre-train our own ViT models on ImageNet-1K [8]. To match the
+number of parameters as the CNN models used in the classic setting, we use ViT-Tiny and ViT-
+Small with a patch size of 2 and image size of 32 for TissueMNIST, CIFAR-100 and EuraSAT,
+respectively; ViT-Smallwithapatchsizeof16andimagesizeof224forSemi-Aves. Forbetter
+transferperformance,weadoptanMLPbeforethefinalclassifierduringpre-training,asin[127].
+Forsupervisedpre-trainingonImageNet-1K,weuseLamboptimizerwithalearningrateof0.05,
+and a weight decay of 0.03 for ViT-Tiny and a weight decay of 0.05 for ViT-Small. We adopt a
+largebatchsizeof4096andtrainthenetworksfor300epochs,withalinearlearningratewarmup
+forthefirst20epochs. Afterthewarmup,cosineschedulerisutilized. Foraugmentation,weuse
+RandAugment[126],alongwithMixup[125]andCutMix[128]. Wealsouselabelsmoothingof0.1
+duringpre-training. SinceSTL10isasubsetofImageNet,weadoptunsupervisedpre-trainingMAE
+[33]ofViT-Smallwithimagesizeof96toavoidcheating.
+ForUSBCVtasks,weadoptlayer-wiselearningratedecayasin[123]. Wetunethelearningrate
+andlayerdecayrateondifferentdatasetsusingFixMatch,andusethebestconfigurationtotrainall
+SSLalgorithms6. Thecosineannealingschedulerissimilartotheclassicsettingbutwithtotalsteps
+of204,800andawarm-upof5,120steps. Thelabeledandunlabeledbatchsizeisbothsetto16.
+Otheralgorithm-relatedhyper-parametersstaythesameasintheoriginalpapers.
+G.2 SetupforNLPTasksinUSB
+Weusepre-trainedBERT-Base[30]forallNLPtasksinUSB.Wesetthebatchsizeoflabeleddata
+andunlabeleddatato4forreducingthetrainingtimeandGPUmemoryrequirement. Tofine-tune
+theBERT-BaseunderUSB,weadoptAdamWoptimizerwithweightdecayof1e−4. Similarly,we
+conductagridsearchofthelearningrateandlayerdecayondifferentdatasetsusingFixMatchand
+pickthebestconfigurationtofine-tuneotherSSLalgorithms. Weutilizethesamecosinelearningrate
+6Wepresentthefulltuningresultsin:https://github.com/microsoft/Semi-supervised-learning.
+23
+schedulerasintheclassicsettingwiththetotaltrainingstepsof102,400andawarm-upof5,120
+steps. Weusethefine-tunedmodelwithoutparametermomentumtoconductevaluations. Forall
+datasets,wecutthelongsentencetosatisfytheinputlengthrequirementofBERT-Base. Fordata
+augmentation,weadoptback-translationasthestrongaugmentation[29,25]. Specifically,weuse
+De-EnandRu-EntranslationwithWMT19.
+Table16: Hyper-parametersofNLPtasksinUSB.
+Dataset AGNews Yahoo!Answer IMDb Amazom-5 Yelp-5
+MaxLength 512
+Model Bert-Base
+WeightDecay 1e-4
+LabeledBatchsize 4
+UnlabeledBatchsize 4
+LearningRate 5e-5 1e-4 5e-5 1e-5 5e-5
+LayerDecayRate 0.65 0.65 0.75 0.75 0.75
+Scheduler η=η cos(7πk)
+0 16K
+ModelEMAMomentum 0.0
+PredictionEMAMomentum 0.999
+WeakAugmentation None
+StrongAugmentation Back-Translation[29]
+G.3 SetupforAudioTasksinUSB
+ForAudiotasks,weadoptWav2Vec2.0[71]andHuBert[32]asthepre-trainedmodel. Thebatch
+sizeoflabeleddataandunlabeleddataissetto8. Wekeepthesamplingrateofaudiosas16,000. We
+adoptAdamWoptimizerwithaweightdecayof5e−4,andsearchthelearningrateandlayerdecay
+asbefore. Otherhyper-parametersettingsarethesameasNLPtasks. MimickingRandAugment,for
+strongaugmentationinaudiotasks,werandomsample2augmentationsfromtheaugmentationpool
+andrandomsettheaugmentationmagnitudeduringtraining.
+Table17: Hyper-parametersofAudiotasksinUSB.
+Dataset GTZAN KeywordSpotting UrbanSound8k FSDNoisy ESC-50
+SamplingRate 16,000
+MaxLength 3.0 1.0 4.0 5.0 5.0
+Model Wav2Vecv2-Base HuBERT-Base
+WeightDecay 5e-4
+LabeledBatchsize 8
+UnlabeledBatchsize 8
+LearningRate 2e-5 5e-5 5e-5 5e-4 1e-4
+LayerDecayRate 1.0 0.75 0.75 0.75 0.85
+Scheduler η=η0cos( 17 6π Kk)
+ModelEMAMomentum 0.0
+PredictionEMAMomentum 0.999
+WeakAugmentation RandomSub-sample
+StrongAugmentation RandomSub-sample,RandomGain,RandomPitch,RandomSpeed
+24

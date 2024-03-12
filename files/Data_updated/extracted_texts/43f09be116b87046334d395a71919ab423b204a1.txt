@@ -1,0 +1,948 @@
+Annotating Mentions Alone Enables Efficient Domain Adaptation for
+Coreference Resolution
+NupoorGandhi,AnjalieField,EmmaStrubell
+CarnegieMellonUniversity
+{nmgandhi, anjalief, estrubel}@cs.cmu.edu
+Abstract
+Althoughrecentneuralmodelsforcoreference
+resolutionhaveledtosubstantialimprovements
+onbenchmarkdatasets,transferringthesemod-
+els to new target domains containing out-of-
+vocabularyspansandrequiringdifferinganno-
+tation schemes remains challenging. Typical
+approachesinvolvecontinuedtrainingonanno-
+tatedtarget-domaindata,butobtainingannota-
+tionsiscostlyandtime-consuming. Weshow
+thatannotatingmentionsaloneisnearlytwice
+as fast as annotating full coreference chains.
+Accordingly, we propose a method for effi-
+ciently adapting coreference models, which
+includes a high-precision mention detection Figure1:Modelcoreferenceperformance(avgF1)asafunc-
+objective and requires annotating only men- tionofcontinuedtrainingonlimitedtargetdomaindatarequir-
+tions in the target domain. Extensive evalua- ingvaryingamountsofannotatortime.Thesourcedomainis
+news/conversation(OntoNotes)andthetargetdomainismedi-
+tionacrossthreeEnglishcoreferencedatasets:
+calnotes(i2b2/VA).Usingourmethodtoadaptcoreference
+CoNLL-2012 (news/conversation), i2b2/VA
+modelsusingonlymentionsinthetargetdomain,weachieve
+(medicalnotes),andpreviouslyunstudiedchild strongcoreferenceperformancewithlessannotatortime.
+welfarenotes,revealsthatourapproachfacil-
+itatesannotation-efficienttransferandresults
+ina7-14%improvementinaverageF1without ersneedtoquicklyobtaininformationfromlarge
+increasingannotatortime1.
+volumesoftext(Uzuneretal.,2012;Saxenaetal.,
+2020). However,successesovercurateddatasets
+1 Introduction
+havenotfullytranslatedtotextcontainingtechnical
+Neural coreference models have made substan- vocabulary,frequenttypos,orinconsistentsyntax.
+tialstridesinperformanceonstandardbenchmark Coreferencemodelsstruggletoproducemeaning-
+datasets such as the CoNLL-2012 shared task, fulrepresentationsfornewdomain-specificspans
+where average F1 has improved by 20% since andmayrequiremanyexamplestoadapt(Uppunda
+2016(DurrettandKlein,2013;Dobrovolskii,2021; etal.,2021;LuandNg,2020;Zhuetal.,2021).
+Kirstain et al., 2021). Modern coreference archi- Further,coreferencemodelstrainedonstandard
+tectures typically consist of an encoder, mention benchmarksarenotrobusttodifferencesinanno-
+detector,andantecedentlinker. Allofthesecom- tation schemes for new domains (Bamman et al.,
+ponents are optimized end-to-end, using only an 2020). Forexample,OntoNotesdoesnotannotate
+antecedentlinkingobjective,soexpensivecorefer- singletonmentions,thosethatdonotcoreferwith
+ence chain annotations are necessary for training anyothermention. AsystemtrainedonOntoNotes
+(AralikatteandSøgaard,2020;Lietal.,2020a). would implicitly learn to detect only entities that
+Theseresultshaveencouragedinterestindeploy- appearmorethanonce,eventhoughsingletonre-
+ingmodelsindomainslikemedicineandchildpro- trieval is often desired in other domains (Zeldes,
+tectiveservices,whereasmallnumberofpractition- 2022). Also,practitionersmayonlybeinterested
+inretrievingasubsetofdomain-specificentities.
+1Code is available at https://github.com/
+nupoorgandhi/data-eff-coref Continuedtrainingontargetdomaindataisan
+3202
+yaM
+03
+]LC.sc[
+2v20670.0122:viXra
+effectiveapproach(XiaandVanDurme,2021),but 7-14%improvementsinF1across3domains,we
+itrequirescostlyandtime-consumingcoreference find that our approach for adaptation using men-
+chainannotationsinthenewdomain(Sachanetal., tionannotationsaloneisanefficientapproachfor
+2015). Annotatingdatainhigh-stakesdomainslike practical,real-worlddatasets.
+medicine and child protective services is particu-
+2 BackgroundandTaskDefinition
+larlydifficult,whereprivacyneedstobepreserved,
+anddomainexpertshavelimitedtime.
+2.1 NeuralCoreferenceModels
+Our work demonstrates that annotating only
+Wefocusourexaminationonthepopularandsuc-
+mentions is more efficient than annotating full
+cessfulneuralapproachtocoreferenceintroduced
+coreferencechainsforadaptingcoreferencemodels
+in Lee et al. (2017). This model includes three
+tonewdomainswithalimitedannotationbudget.
+components: anencodertoproducespanrepresen-
+First,throughtimedexperimentsusingthei2b2/VA
+tations, a mention detector that outputs mention
+medical notes corpus (Uzuner et al., 2012), we
+scoresforcandidatementions,andalinkerthatout-
+show that most documents can be annotated for
+putscandidateantecedentscoresforagivenmen-
+mentiondetectiontwiceasfastasforcoreference T(T−1)
+tion. ForadocumentoflengthT,thereare
+resolution (§3). Then, we propose how to train a 2
+possiblementions(setsofcontiguouswords).
+coreferencemodelwithmentionannotationsbyin-
+For the set of candidate mentions, the system
+troducinganauxiliarymentiondetectionobjective
+assignsapairwisescorebetweeneachmentionand
+toboostmentionprecision(§4).
+eachcandidateantecedent. Thesetofcandidatean-
+With this auxiliary objective, we observe that tecedentsisallpreviouscandidatementionsinthe
+fewerantecedentcandidatesyieldsstrongerlinker documentandadummyantecedent(representing
+performance. Continuity with previous feature- thecasewherethereisnoantecedent). Forapairof
+basedapproaches(MoosaviandStrube,2016a;Re- spansi,j,thepairwisescoreiscomposedofmen-
+casens et al., 2013; Wu and Gardner, 2021) sug- tion scores s (i),s (j) denoting the likelihood
+m m
+geststhisrelationshipbetweenhigh-precisionmen- thatspansiandj arementionsandanantecedent
+tiondetectionandstrongcoreferenceperformance scores (i,j)representingthelikelihoodthatspan
+a
+inlow-resourcesettingsextendsbeyondthearchi- j istheantecedentofspani.
+tecturewefocuson(Leeetal.,2018).
+s(i,j) = s (i)+s (j)+s (i,j)
+WeevaluateourmethodsusingEnglishtextdata m m a
+from three domains: OntoNotes (Pradhan et al.,
+This architecture results in model complexity
+2012),i2b2/VAmedicalnotes(Uzuneretal.,2012), of O(T4), so it is necessary to prune the set of
+a new (unreleased) corpus of child welfare notes
+mentions. Lee et al. (2018) introduce coarse-to-
+obtained from a county-level Department of Hu-
+fine(c2f)pruning: ofT possiblespans,c2fprunes
+manServices(DHS).Weexperimentwithstandard
+the set down to M spans based on span mention
+benchmarksforreproducibility, butwefocuspri-
+scoress (i). Thenforeachspani,weconsideran-
+m
+marilyonreal-worldsettingswherethereisinterest
+tecedentjbasedonthesumoftheirmentionscores
+indeployingNLPsystemsandlimitedcapacityfor
+s (i),s (j) and a coarse but efficient pairwise
+m m
+in-domain annotations (Uzuner et al., 2012; Sax-
+scoringfunctionasdefinedinLeeetal.(2018).
+enaetal.,2020). Forafixedamountofannotator
+time, our method consistently out-performs con- 2.2 DomainAdaptationTaskSetup
+tinuedtrainingwithtargetdomaincoreferencean- Inthisworkweinvestigatethefollowingpragmatic
+notationswhentransferringbothwithinoracross domainadaptationsetting: Givenatextcorpusan-
+annotationstylesandvocabulary. notatedforcoreferencefromsourcedomainS,an
+Ourprimarycontributionsinclude: Timingex- un-annotatedcorpusfromtargetdomainT,anda
+perimentsshowingtheefficiencyofmentionanno- limitedannotationbudget,ourgoalistomaximize
+tations (§3), and methodology to easily integrate coreferenceF1performanceinthetargetdomain
+mentionannotations(§4)intoacommoncorefer- underthegivenannotationbudget. Wedefinethis
+encearchitecture(Leeetal.,2018). Furthermore, budgetastheamountofannotationtime.
+tothebestofourknowledge,thisisthefirstwork Themoststraightforwardapproachtothistaskis
+toexaminecoreferenceresolutioninchildprotec- toannotatedocumentswithfullcoreferencechains
+tivesettings. Withempiricalresultsdemonstrating inthetargetdomainuntiltheannotationbudgetis
+exhausted. Given an existing coreference model 3 TimedAnnotationExperiments
+trained on the source domain, we can continue
+In§2weestablishedthatadaptingjustthemention
+training on the annotated subset of the target do-
+detectioncomponentofacoreferencemodeltoa
+main. With a budget large enough to annotate at
+new domain can be as effective as adapting both
+least100documents,thishasbeenshowntowork
+mentiondetectionandantecedentlinking. Inthis
+wellforsomedomains(XiaandVanDurme,2021).
+sectionwedemonstratethatannotatingmentions
+2.3 EffectofIn-DomainTrainingonMention is approximately twice as fast as annotating full
+DetectionandAntecedentLinking coreference chains. While coreference has been
+established asa time-consumingtask to annotate
+Giventhatout-of-domainvocabularyisacommon
+fordomainexperts(AralikatteandSøgaard,2020;
+aspectofdomainshiftincoreferencemodels(Up-
+Li et al., 2020a), no prior work measures the rel-
+pundaetal.,2021;LuandNg,2020),wehypoth-
+ativespeedofmentionversusfullcoreferencean-
+esizethatmentiondetectiontransferplaysanim-
+notation. Our results suggest, assuming a fixed
+portantroleinoverallcoreferencetransferacross
+annotationbudget,coreferencemodelscapableof
+domains. To test this hypothesis, we conduct a
+adaptingtoanewdomainusingonlymentionan-
+preliminaryexperiment,examininghowfreezing
+notationscanleverageacorpusofapproximately
+the antecedent linker affects overall performance
+twiceasmanyannotateddocumentscomparedto
+inthecontinuedtrainingdomain-adaptationsetting
+modelsthatrequirefullcoreferenceannotations.
+describedabove. Wetrainac2fmodelwithaSpan-
+Werecruited7in-houseannotatorswithaback-
+BERTencoder(Joshietal.,2020)onOntoNotes,
+ground in NLP to annotate two tasks for the
+a standard coreference benchmark, and evaluate
+i2b2/VAdataset. Forthefirstmention-onlyannota-
+performance over the i2b2/VA corpus, a domain-
+tiontask,annotatorswereaskedtohighlightspans
+specificcoreferencedatasetconsistingofmedical
+correspondingtomentionsdefinedinthei2b2/VA
+notes(see§5.2fordetails). Weadditionallyusethe
+annotation guidelines. For the second full coref-
+training set of i2b2/VA for continued in-domain
+erence task, annotators were asked to both high-
+training,andweisolatetheimpactofmentionde-
+light spans and additionally draw links between
+tection by training with and without freezing the
+mentionpairsifcoreferent. AllannotatorsusedIN-
+antecedentlinker.
+CEpTION(Klieetal.,2018)andunderwenta45
+ResultsaregiveninTable1. Continuedtraining
+minutetrainingsessiontolearnandpracticeusing
+ofjusttheencoderandmentiondetectorresultsina
+theinterfacebeforebeginningtimedexperiments.2
+largeimprovementof17pointsoverthesourcedo-
+In order to measure the effect of document
+mainbaseline,whereasunfreezingtheantecedent
+length, we sampled short (~200 words), medium
+linkerdoesnotfurthersignificantlyimproveperfor-
+(~500),andlong(~800)documents. Eachannota-
+mance. Thisresultimpliesthatmentiondetection
+torannotatedfourdocumentsforcoreferencereso-
+can be disproportionately responsible for perfor-
+lutionandfourdocumentsformentionidentifica-
+manceimprovementsfromcontinuedtraining. If
+tion(oneshort,onemedium,andtwolong,asmost
+adapting only theencoder and mention detection
+i2b2/VAdocumentsarelong). Eachdocumentwas
+portions of the model yields strong performance
+annotated by one annotator for coreference, and
+gains,thissuggeststhatmention-onlyannotations,
+one for mention detection. This annotation con-
+asopposedtofullcoreferenceannotations,maybe
+figuration maximizes the number of documents
+sufficientforadaptingcoreferencemodelstonew
+annotated(asopposedtothenumberofannotators
+domains.
+perdocument),whichisnecessaryduetothehigh
+Model Recall Precision F1 varianceinstyleandtechnicaljargoninthemedical
+SpanBERT+c2f 31.94 50.75 39.10 corpus. Intotal28documentswereannotated.
++tuneEnc,MDonly 60.40 56.21 56.42 Table3reportstheaveragetimetakentoanno-
++tuneEnc,AL,MD 60.51 57.33 56.71
+tate each document. On average it takes 1.85X
+Table1:Whenconductingcontinuedtrainingofac2fmodel
+moretimetoannotatecoreferencethanmentionde-
+ontargetdomaini2b2/VA,tuningtheantecedentlinker(AL)
+doesnotresultinasignificantimprovementoverjusttuning tection,andthedisparityismorepronounced(2X)
+thementiondetector(MD)andencoder(Enc).Alldifferences for longer documents. In Table 6 (Appendix A)
+betweentunedmodelsandSpanBERT+c2fwerestatistically
+significant(p<.05)
+2Annotatorswerecompensated$15/hrandappliedforand
+receivedpermissiontoaccesstheprotectedi2b2/VAdata.
+AverageTaskAnnotationTime(s) 4.2 MentionPruningModification
+DocumentPartition Coreference Mention Speed-up
+Asdescribedin§2,c2fpruningreducesthespace
+short(~200words) 287.3 186.1 1.54
+of possible spans; however, there is still high re-
+medium(~500words) 582.5 408.8 1.42
+call in the candidate mentions. For example, our
+long(~800words) 1306.1 649.5 2.01
+all 881.2 475.9 1.85 SpanBERTc2fmodeltrainedandevaluatedover
+Table2: Timedexperimentsofmentionannotationascom- OntoNotesachieves95%recalland23%precision
+paredtofullcoreferenceannotations.Mentionannotation2X
+for mention detection. In state-of-the-art corefer-
+fasteroverlongerdocuments.
+encesystems,highrecallwithc2fpruningworks
+wellandmakesitpossiblefortheantecedentlinker
+we additionally report inter-annotator agreement. tocorrectlyidentifyantecedents. Aggressiveprun-
+Agreementisslightlyhigherformentiondetection, ingcandropgoldmentions.
+albeitdifferencesinagreementforthetwotasksare Here,wehypothesizethatindomainadaptation
+notsignificantduetothesmallsizeoftheexperi- settings with a fixed number of in-domain data
+ment,agreementishigherformentiondetection. points for continued training, high-recall in men-
+Although results may vary for different inter- tiondetectionisnoteffective. Morespecifically,it
+faces,weshowempiricallythatmentionannotation isevidentthatthebenefitsofhighrecallmention
+isfasterthancoreferenceannotation. taggingareonlyaccessibletohighlydiscerningan-
+tecedentlinkers. WuandGardner(2021)showthat
+4 Model
+antecedentlinkingishardertolearnthanmention
+Giventheevidencethatalargebenefitofcontinued identification,sogivenafixednumberofin-domain
+training for domainadaptation is concentrated in examplesforcontinuedtraining,theperformance
+thementiondetectorcomponentofthecoreference improvement from mention detection would sur-
+system (§2.3), and that mention annotations are pass that of the antecedent linker. In this case, it
+muchfasterthancoreferenceannotations(§3),in would be more helpful to the flailing antecedent
+thissection,weintroducemethodologyfortraining linkerifthementiondetectorwereprecise.
+a neuralcoreference modelwith mentionannota- Based on this hypothesis, we propose high-
+tions. Ourapproachincludestwocorecomponents precision c2f pruning to enable adaptation using
+focusedonmentiondetection: modificationtomen- mention annotations alone. We impose a thresh-
+tionpruning(§4.2)andauxiliarymentiondetection oldq onthementionscores m(i)sothatonlythe
+training (§4.3). We also incorporate an auxiliary highestscoringmentionsarepreserved.
+maskingobjective(§4.4)targetingtheencoder.
+4.3 AuxiliaryMentionDetectionTask
+4.1 Baseline
+We further introduce an additional cross-entropy
+In our baseline model architecture (Lee et al.,
+loss to train only the parameters of the mention
+2018),modelcomponentsaretrainedusingacoref-
+detector,wherex denotesthespanrepresentation
+i
+erence loss, where Y(i) is the cluster containing
+forthei’thspanproducedbytheencoder:
+span i predicted by the system, and GOLD(i) is
+theGOLDclustercontainingspani:
+N
+(cid:88)
+MD = − g(x )log(s (x ))
+i m i
+N
+(cid:89) (cid:88) i=1
+CL = log P(yˆ)
++(1−g(x ))log(1−s (x ))
+i m i
+i=1yˆ∈Y(i)∩GOLD(i)
+Of the set of N candidate spans, for each span i Thelossisintendedtomaximizethelikelihoodof
+wewanttomaximizethelikelihoodthatthecorrect correctlyidentifyingmentionswheretheindicator
+antecedentsetY(i)∩GOLD(i)islinkedwiththe functiong(x i) = 1iffx i isaGOLDmention. The
+current span. The distribution over all possible distribution over the set of mention candidates is
+antecedentsforagivenspaniisdefinedusingthe definedusingthementionscores m. Themention
+scoringfunctionsdescribedin§2: detectorislearnedusingafeed-forwardneuralnet-
+work that takes the span representation produced
+es(i,y) bytheencoderasinput. Thementionidentification
+P(y) =
+(cid:80) es(i,y′) lossrequiresonlymentionlabelstooptimize.
+y′∈Y
+4.4 AuxiliaryMaskingTask vices(DHS).3 Thesenotes,writtenbycaseworkers
+andserviceproviders,logcontactwithfamiliesin-
+We additionally use a masked language model-
+volvedinchildprotectiveservices. Becauseofthe
+ingobjective(MLM)asdescribedinDevlinetal.
+extremelysensitivenatureofthisdata,thisdataset
+(2019). We randomly sample 15% of the Word-
+has not been publicly released. However, we re-
+Piecetokenstomaskandpredicttheoriginaltoken
+port results in this setting, as it reflects a direct,
+usingcross-entropyloss. Thisauxiliaryobjective
+real-wordapplicationofcoreferenceresolutionand
+is intended to train the encoder to produce better
+this work. Despite interest in using NLP to help
+spanrepresentations. Sincecontinuedtrainingwith
+practitionersmanageinformationacrossthousands
+anMLMobjectiveiscommonfordomainadapta-
+of notes (Saxena et al., 2020), notes also contain
+tionGururanganetal.(2020),wealsoincludeitto
+domain-specific terminology and acronyms, and
+verifythatoptimizingtheMDlossisnotimplicitly
+no prior work has annotated coreference data in
+capturingthevalueoftheMLMloss.
+thissetting. Whileexperiencedresearchersorprac-
+titionerscanannotateasmallsubset,collectinga
+5 Experiments
+largein-domaindatasetisnotfeasible,giventhe
+needtopreservefamilies’privacyandforannota-
+We evaluate our model on transferring between
+torstohavedomainexpertise.
+data domains and annotation styles. To facilitate
+reproducibilityandforcomparisonwithpriorwork, Outofaninitialdatasetof3.19millioncontact
+weconductexperimentsontwoexistingpublicdata notes,weannotatedasampleof200notesusingthe
+sets. Weadditionallyreportresultsonanew(un- sameannotationschemeasi2b2,basedonconver-
+released)dataset,whichreflectsadirectpractical sationswithDHSemployeesaboutwhatinforma-
+applicationofourtasksetupandapproach. tionwouldbeusefulforthemtoobtainfromnotes.
+Weadaptthesetofentitytypesdefinedinthei2b2
+5.1 Datasets annotationschemetothechildprotectivesettingby
+modifying the definitions (Appendix A, Table 8).
+OntoNotes(ON)(English)isalargewidely-used
+To estimate agreement, 20 notes were annotated
+dataset(Pradhanetal.,2012)withstandardtrain-
+bybothannotators,achievingaKrippendorf’sref-
+dev-test splits. Unlike the following datasets we
+erentialalphaof70.5andKrippendorf’smention
+use,theannotationstyleexcludessingletonclusters.
+detectionalphaof61.5(AppendixA,Table7).
+OntoNotes is partitioned into genres: newswire
+Onaverage,documentsare320wordswith13.5
+(nw),Sinoramamagazinearticles(mz),broadcast
+coreferencechainswithaveragelengthof4.7. We
+news(bn),broadcastconversations(bc),webdata
+also replicated the timed annotation experiments
+(wb),telephonecalls(tc),theNewTestament(pt).
+described in §3 over a sample of 10 case notes,
+i2b2/VAShared-Task(i2b2)Ourfirsttargetcor-
+similarly finding that it takes 1.95X more time
+pus is a medical notes dataset, released as a part
+to annotate coreference than mention detection.
+ofthei2b2/VAShared-TaskandWorkshopin2011
+Wecreatedtrain/dev/testsplitsof100/10/90docu-
+(Uzuneretal.,2012). Adaptingcoreferencereso-
+ments,allocatingasmalldevsetfollowingXiaand
+lutionsystemstoclinicaltextwouldallowforthe
+VanDurme(2021).
+useofelectronichealthrecordsinclinicaldecision
+Weexperimentwithdifferentsourceandtarget
+support or general clinical research for example
+domain configurations to capture common chal-
+(Wangetal.,2018). Thedatasetcontains251train
+lengeswithadaptingcoreferencesystems(Table3).
+documents,51ofwhichwehaverandomlyselected
+Wealsoselecttheseconfigurationstoaccountfor
+fordevelopmentand173testdocuments. Theaver-
+theinfluenceofsingletonsonperformancemetrics.
+agelengthofthesedocumentsis962.6tokenswith
+average coreference chain containing 4.48 spans.
+5.2 ExperimentalSetup
+Theannotationschemaofthei2b2datasetdiffers
+Baseline: c2f(CL ,CL ) Forourbaseline,we
+fromOntoNotes,inthatannotatorsmarksingletons S T
+assumeaccesstocoreferenceannotationsintarget
+andonlymentionsspecifictothemedicaldomain
+domain. We use pre-trained SpanBERT for our
+(PROBLEM, TEST,TREATMENT,andPERSON).
+encoder. Ineachexperiment,wetrainonthesource
+ChildWelfareCaseNotes(CN)Oursecondtar-
+get domain is a new data set of contact notes
+3Upontherequestofthedepartment,wedonotreportthe
+from a county-level Department of Human Ser- nameofthecountyinordertopreserveanonymity.
+SourceS TargetT OOVRate Anno.StyleMatch seedsbasedonthesubsamplesize(AppendixB).
+i2b2 CN 32.3% ✓
+ON i2b2 20.8% 5.3 AugmentedSilverMentions
+ONGenrei ONGenrej (8.1%,47.9%) ✓
+Tofurtherreduceannotationburden,weaugment
+Table3:Summaryofsource-targetconfigurationsinourex-
+periments. We experiment with transfer between domains the set of annotated mentions over the target do-
+withcommonordifferingannotationstyle,whereannotation
+main. Wetrainamentiondetectoroverasubsetof
+stylecandictatewhetherornottherearesingletonsannotated
+goldannotatedtarget-domain. Then, weuseitto
+ordomain-specificmentionstoannotateforexample.
+tagsilvermentionsovertheremainingunlabeled
+documents,andusethesesilvermentionlabelsin
+domain with coreference annotations optimizing
+computingMD .
+T
+onlythecoreferencelossCL . Then,wecontinue
+S
+trainingwithCL ontargetdomainexamples. 5.4 CoreferenceEvaluationConfiguration
+T
+We additionally experiment with an alterna-
+Inadditiontothemostcommoncoreferencemet-
+tivebaseline(high-prec. c2fCL S,CL T,MD T)in rics MUC,B3,CEAF , we average across link-
+whichcoreferenceannotationsarereusedtoopti-
+ϕ4
+based metric LEA in our score. We also evalu-
+mizeourMDoverthetargetdomain. Thisallows
+ateeachmodelwithandwithoutsingletons,since
+forfullutilizationthetargetdomainannotations.
+including singletons in the system output can ar-
+tificially inflate coreference metrics (Kübler and
+Proposed: high-prec. c2f(CL ,MD ,MLM )
+S T T
+Zhekova,2011). Whenevaluatingwithsingletons,
+Weusethesamemodelarchitectureandpre-trained
+we keep singletons (if they exist) in both the sys-
+encoder as the baseline, but also incorporate the
+temandGOLDclusters. Whenevaluatingwithout
+joint training objective CL+MD. We optimize
+singletons,wedropsingletonsfromboth.
+CL with coreference examples from the source
+domain (CL ), and MD with examples from the
+S 6 ResultsandAnalysis
+target domain (MD ). We report results only
+T
+withMD pairedwithhigh-prec. c2fpruning(i.e. Table 4 reports results when transfering models
+T
+thresholdq = .5imposedonthementionscores m) trainedonONtoi2b2andmodelstrainedoni2b2
+as described in §4. Without the threshold, MD toCNwithsingletonsincluded(forcompleteness
+T
+has almost no effect on overall coreference per- Appendix A, Table 5 reports results without sin-
+formance, likely because the space of candidate gletons). Forbothi2b2→CNandON→i2b2,our
+antecedentsforanygivenmentiondoesnotshrink. model performs better with mention annotations
+Our model uses only mentions without target thanthecontinuedtrainingbaselinewithhalfthe
+domaincoreferencelinks,whileourbaselineuses coreferenceannotations(e.g. equivalentannotator
+coreferenceannotations. Accordingly,wecompare time,sincetheaveragelengthofi2b2documents
+resultsforsettingswherethereis(1)anequivalent is 963 words; and timed experiments in CN sug-
+numberofannotateddocumentsand(2)anequiv- gested mention annotations are ~2X faster than
+alent amount of annotator time spent, estimated coreference,§5.1). CombiningMLM withMD
+T T
+basedonthetimedannotationexperimentsin§3. results in our best performing model, but intro-
+Foreachtransfersetting,weassumethesource ducing MD T with high-precision c2f pruning is
+domain has coreference examples allowing us to enoughtosurpassthebaseline. Theresultssuggest
+optimize CL . In the target domain, however, in-domain mention annotation are more efficient
+S
+we are interested in a few different settings: (1) foradaptationthancoreferenceannotations.
+100% of annotation budget is spent on corefer-
+6.1 TransferAcrossAnnotationStyles
+ence, (2) 100% of annotation budget is spent on
+mentions, (3) the annotation budget is split be- ONandi2b2havedifferentannotationstyles(§5.2),
+tween mention detection and coreference. In the allowing us to examine how effectively mention-
+firstandthirdsettingswecanoptimizeanysubset onlyannotationsfacilitatetransfernotjustacross
+of{CL T,MD T,MLM T}overthetargetdomain, domains,butalsoacrossannotationstyles. Trans-
+whereasCL
+T
+cannotbeoptimizedforthesecond. ferringON→i2b2(Table4),averageF-1improves
+We train the model with several different sam- by 6 points (0.57 to 0.63), when comparing the
+plesofthedata,wheresamplesareselectedusing baselinemodelwith50%coreferenceannotations
+a random seed. We select the number of random withourmodel(i.e. equivalentannotatortime).
+TargetAnno. ON→i2b2 i2b2→CN
+Model(Leeetal.(2018)+SpanBERT)
+CLT MDT LEA MUC B3 CEAFϕ Avg. LEA MUC B3 CEAFϕ Avg.
++c2f(CLS,CLT) 0% 0% 0.47 0.61 0.33 0.21 0.41 0.46 0.68 0.41 0.15 0.43
++c2f(CLS,CLT)† 25% 0% 0.65 0.75 0.44 0.29 0.53 0.49 0.70 0.42 0.16 0.44
+∗ ∗ ∗ ∗ ∗ ∗ ∗ ∗ ∗ ∗
++high-prec.c2f(CLS,MDT)+Silver 0% 50% 0.49 0.63 0.74 0.61 0.63 0.42 0.70 0.47 0.22 0.45
++c2f(CLS,CLT)† 50% 0% 0.70 0.79 0.46 0.32 0.57 0.47 0.69 0.42 0.16 0.43
++high-prec.c2f(CLS,CLT,MDT)† 50% 0% 0.69 0.79 0.45 0.29 0.56 0.52 0.72 0.47 0.21 0.48
+∗ ∗ ∗ ∗ ∗ ∗
++c2f(CLS,MDT) 0% 100% 0.42 0.56 0.43 0.32 0.43 0.54 0.77 0.47 0.21 0.49
+∗ ∗ ∗ ∗ ∗ ∗
++high-prec.c2f(CLS,MDT) 0% 100% 0.50 0.63 0.74 0.65 0.63 0.50 0.77 0.52 0.35 0.53
+∗ ∗ ∗ ∗ ∗ ∗ ∗ ∗
++high-prec.c2f(CLS,MDT,MLMT) 0% 100% 0.50 0.63 0.77 0.68 0.64 0.57 0.76 0.58 0.38 0.57
++c2f(CLS,CLT) 100% 0% 0.71 0.80 0.48 0.33 0.58 0.77 0.86 0.63 0.29 0.64
+Table4: WereportF1fordifferentmodelswithsingletonsincludedinsystemoutput,varyingthetypeandamountoftarget
+domainannotations.Eachshadeofgrayrepresentsafixedamountofannotatortime(e.g.50%Coreferenceand100%Mention
+annotationstakesanequivalentamountoftimetoproduce). Withalimitedannotationbudget,forboththeON→i2b2and
+i2b2→CNexperiments,mentionannotationsareamoreefficientuseoftime,yieldingperformancegainsoverthebaselinewith
+∗
+equivalentannotatortime(i.e.indicatedwith†). denotesstatisticalsignificancewithp-value<.05
+In Figure 2 (top), we experiment with varying provesby10points,AppendixA,Table5). When
+theamountoftrainingdataandannotatortimein we vary the number of mentions (Figure 2), the
+this setting. With more mentions, our model per- marginalbenefitofCNmentionannotationsdete-
+formancesteadilyimproves,flatteningoutslightly rioratesfor> 104,butnotasrapidlyaswhenwe
+after 1000 mentions. The baseline model contin- transferbetweenannotationstyleintheON→i2b2
+ues to improve with more coreference examples. case. WhilementionsinCNsharethesamerolesas
+Wherethereisscarcetrainingdata(100-1000men- thoseini2b2,sometypesofmentions,(e.g. PROB-
+tions),mentionannotationsaremoreeffectivethan LEM),aremoredifficulttoidentify. Unlikesettings
+coreference ones. This effect persists when we wherewetransferbetweenannotationstyles,when
+evaluatewithoutsingletons(Figure5). annotation style remains fixed, the performance
+Thebaselinelikelyonlyidentifiesmentionsthat improvementfromourmodelincreaseswithmore
+fitintothesourcedomainstyle(e.g. PEOPLE). Be- targetdomaindata. Thissuggeststhatadaptingthe
+causethebaselinemodelassignsnopositiveweight mentiondetectorisespeciallyusefulwhentransfer-
+in the coreference loss for identifying singletons, ringwithinanannotationstyle.
+ini2b2,entitiesthatoftenappearassingletonsare Given coreference annotations, we find that
+missedopportunitiestoimprovethebaselinemen- reusing the annotations to optimize MD with
+T
+tiondetector. Withenoughexamplesandmoreenti- high-prec. c2fpruningboostsperformanceslightly
+tiesappearinginthetargetdomainasnon-singleton, whentransferringwithinanannotationstyle. This
+however,thepenaltyofthesemissedexamplesis is evident in the i2b2→CN case regardless of
+smaller, causing the baselinemodel performance whethersingletonsareincludedintheoutput.
+toapproachthatofourmodel. Figure 3 reports results for the genre-to-genre
+experimentswithinON.Forequivalentannotator
+6.2 SilverMentionsImprovePerformance
+time our model achieves large performance im-
+FromFigure2,approximately250goldmentions provementsacrossmostgenres. Sinceourmodel
+arenecessaryforsufficientmentiondetectionper- resultsinsignificantimprovementsinlow-resource
+formance for silver mentions to be useful to our settingswhentherearenosingletonsinthesystem
+model. Forfewermentions,thementiondetector orgoldclusters,itisclearthatperformancegains
+islikelyproducingsilvermentionannotationsthat arenotdependentsolelyonsingletonsinthesys-
+are too noisy. The benefit of access to additional tem output. Figure 4 shows varying the number
+datastartstodwindlearound3000mentions. ofmentionsandannotatortimeinsettingswhere
+ourmodelperformedworse(bn → nw)andbetter
+6.3 FixedAnnotationStyleTransfer
+(bn → pt)thanthebaseline. Regardlessoftransfer
+We additionally compare effects when transfer- settingorwhethersingletonsareexcludedfromthe
+ring between domains, but keeping the annota- systemoutput,ourmodelout-performsthebaseline
+tion style the same. When we transfer from i2b2 withfewmentions.
+to CN, for equivalent annotator time, our model
+6.4 ImpactofSingletons
+MD +MLM improves over baseline CL by
+T T T
+14points(.43to.57)inTable4. (Whensingletons Underthewith-singletonevaluationscheme,inthe
+aredropped,thiseffectpersists—averageF1im- ON→i2b2 case, the baseline trained with strictly
+Figure2:Eachsubplotshowscoreferenceperformance(sin-
+gletonsincluded)withvariedamountsofannotatedtargetdo- Figure4:Eachsubplotshowscoreferenceperformancewith
+maindatawrtthenumberofmentions(left)andtheamountof variedamountsofannotatedtargetdata. Wereportperfor-
+annotatortime(right).Notethatfor(CL ,MD ,CL ),we mancewithsingletonsincludedinsystemoutput(left)and
+S T T
+varyonlytheamountofcoreferenceannotations–themodel singletonsexcludedfromsystemoutput(right)fortwodiffer-
+accesses100%ofmentionannotations.ForON→i2b2(bot- entgenre-to-genreexperiments:bn→pt(top)andbn→nw
+tom),ourmodel(CL ,MD )hasthelargestimprovement (bottom).Regardlessofwhethersingletonsareincluded,anno-
+S T
+overthebaseline(CL ,CL )withlimitedannotations/time. tatingmentionsismoreefficientforalllow-resourcesettings.
+S T
+Forthei2b2→CN(top),however,thedisparityincreaseswith
+moreannotations.
+singletonevaluationscheme(Figure4,bottom)the
+artificialinflationgapbetweenourmodelandthe
+baselinedisappearswithenoughtargetexamples,
+betterreflectingourintuitionthatmoredatashould
+yield better performance. But with fewer exam-
+ples, our model still out-performs the baseline in
+thewithout-singletonevaluationscheme.
+Inpracticalapplications,suchasidentifyingsup-
+port for families involved in child protective ser-
+vices, retrieving singletons is often desired. Fur-
+ther,excludingsingletonsinthesystemoutputin-
+centivizeshigh-recallmentiondetection,sincethe
+modelisnotpenalizedforalargespaceofcandi-
+date mentions in which valid mentions make up
+Figure 3: Heatmap represents performance improvements
+a small fraction. A larger space of possible an-
+fromourmodelwheresingletonsareexcluded. Ourmodel
+SpanBERT+high-precc2f(CL ,MD )accesses100%men- tecedents requires more coreference examples to
+S T
+tion annotations from the target domain, and the baseline
+adaptantecedentlinkerstonewdomains.
+SpanBERT+c2f(CL ,CL )accesses50%ofcoreference
+S T
+examples.Annotatingmentionsforanequivalentamountof
+timeismuchmoreefficientformostONgenres. 7 RelatedWork
+Previous work has used data-augmentation and
+moredataperformsworsethanourmodel(Table4, rule-based approaches to adapt coreference mod-
+0.58 vs. 0.64). Kübler and Zhekova (2011) de- elstonewannotationschemeswithsomesuccess
+scribehowincludingsingletonsinsystemoutput (Toshniwaletal.,2021;ZeldesandZhang,2016;
+causes artificial inflation of coreference metrics Paun et al., 2022). In many cases, adapting to
+basedontheobservationthatscoresarehigherwith new annotation schemes is not enough – perfor-
+singletonsincludedinthesystemoutput. Without mancedegradationpersistsforout-of-domaindata
+high-precisionc2fpruningwithMD ,thebaseline evenunderthesameannotationscheme(Zhuetal.,
+T
+dropssingletons. So,thegapinFigure2between 2021),andencoders(SpanBERT)canstruggleto
+thebaselineandourmodelat104 mentionscould representdomainspecificconceptswell,resulting
+beattributedtoartificialinflation. Inthewithout- inpoormentionrecall(Timmapathinietal.,2021).
+Investigation of the popular Lee et al. (2017) anaphoricreference(Yuetal.,2021)).
+architecture has found that coreference systems Wealsofocusononecommoncoreferencearchi-
+generallyrelymoreonmentionsthancontext(Lu tectureLeeetal.(2018)withencoderSpanBERT.
+andNg,2020),sotheyareespeciallysusceptible However,therehavebeenmorerecentarchitectures
+to small perturbations. Relatedly, Wu and Gard- surpassing the performance of Lee et al. (2018)
+ner (2021) find that mention detection precision overbenchmarkON(Dobrovolskii,2021;Kirstain
+hasastrongpositiveimpactonoverallcoreference etal.,2021). Ourkeyfindingthattransferringthe
+performance,whichisconsistentwithfindingson mentiondetectorcomponentcanstillbeadopted.
+pre-neural systems (Moosavi and Strube, 2016b;
+9 EthicalConcerns
+Recasensetal.,2013)andmotivatesourwork.
+Despite challenges associated with limiting
+Wedevelopacorpusofchildwelfarenotesanno-
+sourcedomainannotationschema,withenoughan-
+tatedforcoreference. Allresearchinthisdomain
+notateddata,coreferencemodelscanadapttonew
+was conducted with IRB approval and in accor-
+domains. Xia and Van Durme (2021) show that
+dance with a data-sharing agreement with DHS.
+continuedtrainingiseffectivewithatleast100tar-
+Throughout this study, the data was stored on a
+getdocumentsannotatedforcoreference. However,
+secure disk-encrypted server and access was re-
+itisunclearhowcostlyitwouldbetoannotateso
+stricted to trained members of the research team.
+manydocuments: whileXiaandVanDurme(2021)
+Thus,allannotationsofthisdatawereconducted
+focusonthebestwaytouseannotatedcoreference
+bytwoauthorsofthiswork.
+targetexamples,wefocusonthemostefficientway
+WhilethisworkisincollaborationwiththeDHS,
+tospendanannotationbudget.
+wedonotviewthedevelopedcoreferencesystem
+A related line of work uses active learning to
+as imminently deployable. Prior to considering
+select target examples and promote efficient use
+deploying,ataminimumafairnessauditonhow
+of annotator time (Zhao and Ng, 2014; Li et al.,
+our methods would reduce or exacerbate any in-
+2020b;Yuanetal.,2022;Milleretal.,2012). How-
+equitywouldberequired. Deploymentshouldalso
+ever,sincetheseannotationsrequirelinkinforma-
+involve external oversight and engagement with
+tion,thereisapersistenttrade-offinactivelearning
+stakeholders,includingaffectedfamilies.
+betweenreadingandlabeling(Yuanetal.,2022).
+Sinceourmethoddoesnotrequirelinkannotations 10 Conclusion
+foradaptation,ourannotationstrategycircumvents
+Throughtimingexperiments,newmodeltraining
+thechoicebetweenredundantlabelingorreading.
+procedures, and detailed evaluation, we demon-
+stratethatmentionannotationsareamoreefficient
+8 Limitations
+useofannotatortimethancoreferenceannotations
+Annotationspeedformentiondetectionandcoref- foradaptingcoreferencemodelstonewdomains.
+erenceisdependentonmanyvariableslikeanno- Our work has the potential to expand the practi-
+tation interface, domain expertise of annotators, calusabilityofcoreferenceresolutionsystemsand
+annotationstyle,documentlengthdistribution. So, highlights the value of model architectures with
+whileourfindingthatcoreferenceresolutionisap- componentsthatcanbeoptimizedinisolation.
+proximately 2X slower to annotate than mention
+Acknowledgements
+detectionheldfortwodomains(i2b2,CN),there
+aremanyothervariablesthatwedonotexperiment Thanks to Yulia Tsvetkov, Alex Chouldechova,
+with. AmandaCoston,DavidSteier,andtheanonymous
+We also experiment with transfer between do- DepartmentofHumanServicesforvaluablefeed-
+mainswithvaryingsemanticsimilarityandannota- backonthiswork. Thisworkissupportedbythe
+tionstylesimilarity. But,ournotionofannotation BlockCenterforTechnologyandInnovation,and
+styleisnarrowlyfocusedontypesofmentionsthat A.F.issupportedbyaGooglePhDFellowship.
+areannotated(i.e. singletons,domainapplication-
+specificmentions). However,sinceourmethodis
+focusedonmentiondetection,ourfindingsmaynot References
+holdfortransfertoannotationstyleswithdifferent
+Rahul Aralikatte and Anders Søgaard. 2020. Model-
+notionsofcoreferencelinking(i.e. split-antecedent basedannotationofcoreference. InProceedingsof
+the12thLanguageResourcesandEvaluationCon- pages5–9.AssociationforComputationalLinguis-
+ference,pages74–79,Marseille,France.European tics. EventTitle: The27thInternationalConference
+LanguageResourcesAssociation. onComputationalLinguistics(COLING2018).
+David Bamman, Olivia Lewke, and Anya Mansoor. SandraKüblerandDesislavaZhekova.2011. Single-
+2020. An annotated dataset of coreference in En- tonsandcoreferenceresolutionevaluation. InPro-
+glishliterature. InProceedingsofthe12thLanguage ceedingsoftheInternationalConferenceRecentAd-
+ResourcesandEvaluationConference,pages44–54, vancesinNaturalLanguageProcessing2011,pages
+Marseille, France. European Language Resources 261–267,Hissar,Bulgaria.AssociationforComputa-
+Association. tionalLinguistics.
+Jacob Devlin, Ming-Wei Chang, Kenton Lee, and KentonLee,LuhengHe,MikeLewis,andLukeZettle-
+Kristina Toutanova. 2019. BERT: Pre-training of moyer. 2017. End-to-end neural coreference reso-
+deepbidirectionaltransformersforlanguageunder- lution. In Proceedings of the 2017 Conference on
+standing. InProceedingsofthe2019Conferenceof EmpiricalMethodsinNaturalLanguageProcessing,
+theNorthAmericanChapteroftheAssociationfor pages188–197,Copenhagen,Denmark.Association
+ComputationalLinguistics: HumanLanguageTech- forComputationalLinguistics.
+nologies,Volume1(LongandShortPapers),pages
+4171–4186,Minneapolis,Minnesota.Associationfor KentonLee,LuhengHe,andLukeZettlemoyer.2018.
+ComputationalLinguistics. Higher-ordercoreferenceresolutionwithcoarse-to-
+fineinference. InProceedingsofthe2018Confer-
+VladimirDobrovolskii.2021. Word-levelcoreference enceoftheNorthAmericanChapteroftheAssoci-
+resolution. InProceedingsofthe2021Conference ation for Computational Linguistics: Human Lan-
+onEmpiricalMethodsinNaturalLanguageProcess- guageTechnologies,Volume2(ShortPapers),pages
+ing,pages7670–7675,OnlineandPuntaCana,Do- 687–692,NewOrleans,Louisiana.Associationfor
+minican Republic. Association for Computational ComputationalLinguistics.
+Linguistics.
+MaolinLi, HiroyaTakamura, andSophiaAnaniadou.
+GregDurrettandDanKlein.2013. Easyvictoriesand 2020a. Aneuralmodelforaggregatingcoreference
+uphillbattlesincoreferenceresolution. InProceed- annotationincrowdsourcing. InProceedingsofthe
+ingsofthe2013ConferenceonEmpiricalMethods 28thInternationalConferenceonComputationalLin-
+inNaturalLanguageProcessing,pages1971–1982, guistics, pages 5760–5773, Barcelona, Spain (On-
+Seattle,Washington,USA.AssociationforComputa- line).InternationalCommitteeonComputationalLin-
+tionalLinguistics. guistics.
+Suchin Gururangan, Ana Marasovic´, Swabha Pengshuai Li, Xinsong Zhang, Weijia Jia, and Wei
+Swayamdipta,KyleLo,IzBeltagy,DougDowney, Zhao.2020b. Activetesting: Anunbiasedevaluation
+and Noah A. Smith. 2020. Don’t stop pretraining: methodfordistantlysupervisedrelationextraction.
+Adapt language models to domains and tasks. In In Findings of the Association for Computational
+Proceedings of the 58th Annual Meeting of the Linguistics: EMNLP2020,pages204–211,Online.
+Association for Computational Linguistics, pages AssociationforComputationalLinguistics.
+8342–8360,Online.AssociationforComputational
+Linguistics. JingLuandVincentNg.2020. Conundrumsinentity
+coreferenceresolution: Makingsenseofthestateof
+MandarJoshi,DanqiChen,YinhanLiu,DanielS.Weld, theart. InProceedingsofthe2020Conferenceon
+Luke Zettlemoyer, and Omer Levy. 2020. Span- EmpiricalMethodsinNaturalLanguageProcessing
+BERT:Improvingpre-trainingbyrepresentingand (EMNLP),pages6620–6631,Online.Associationfor
+predictingspans. TransactionsoftheAssociationfor ComputationalLinguistics.
+ComputationalLinguistics,8:64–77.
+TimothyMiller,DmitriyDligach,andGuerganaSavova.
+YuvalKirstain,OriRam,andOmerLevy.2021. Coref- 2012. Active learning for coreference resolution.
+erence resolution without span representations. In In BioNLP: Proceedings of the 2012 Workshop on
+Proceedingsofthe59thAnnualMeetingoftheAsso- BiomedicalNaturalLanguageProcessing,pages73–
+ciationforComputationalLinguisticsandthe11th 81, Montréal, Canada. Association for Computa-
+InternationalJointConferenceonNaturalLanguage tionalLinguistics.
+Processing(Volume2: ShortPapers),pages14–19,
+Online.AssociationforComputationalLinguistics. Nafise Sadat Moosavi and Michael Strube. 2016a.
+Search space pruning: A simple solution for bet-
+Jan-Christoph Klie, Michael Bugert, Beto Boullosa, ter coreference resolvers. In Proceedings of the
+Richard Eckart de Castilho, and Iryna Gurevych. 2016ConferenceoftheNorthAmericanChapterof
+2018. Theinceptionplatform: Machine-assistedand theAssociationforComputationalLinguistics: Hu-
+knowledge-orientedinteractiveannotation. InPro- manLanguageTechnologies,pages1005–1011,San
+ceedings of the 27th International Conference on Diego, California. Association for Computational
+ComputationalLinguistics: SystemDemonstrations, Linguistics.
+Nafise Sadat Moosavi and Michael Strube. 2016b. LanguageTechnologies,pages4553–4559,Online.
+Whichcoreference evaluationmetricdoyou trust? AssociationforComputationalLinguistics.
+aproposalforalink-basedentityawaremetric. In
+Proceedings of the54th Annual Meeting of the As- OzlemUzuner,AndreeaBodnari,ShuyingShen,Tyler
+sociationforComputationalLinguistics(Volume1: Forbush,JohnPestian,andBrettRSouth.2012. Eval-
+LongPapers),pages632–642,Berlin,Germany.As- uatingthestateoftheartincoreferenceresolutionfor
+sociationforComputationalLinguistics. electronicmedicalrecords. JournaloftheAmerican
+MedicalInformaticsAssociation,19(5):786–791.
+SilviuPaun,JuntaoYu,NafiseSadatMoosavi,andMas-
+simoPoesio.2022. ScoringCoreferenceChainswith YanshanWang,LiweiWang,MajidRastegar-Mojarad,
+Split-AntecedentAnaphors. SungrimMoon,FeichenShen,NaveedAfzal,Sijia
+Liu,YuqunZeng,SaeedMehrabi,SunghwanSohn,
+SameerPradhan,AlessandroMoschitti,NianwenXue, et al. 2018. Clinical information extraction appli-
+OlgaUryupina,andYuchenZhang.2012. CoNLL- cations: aliteraturereview. Journalofbiomedical
+2012sharedtask:Modelingmultilingualunrestricted informatics,77:34–49.
+coreference in OntoNotes. In Joint Conference on
+EMNLPandCoNLL-SharedTask,pages1–40,Jeju ZhaofengWuandMattGardner.2021. Understanding
+Island, Korea. Association for Computational Lin- mention detector-linker interaction in neural coref-
+guistics. erence resolution. In Proceedings of the Fourth
+Workshop on Computational Models of Reference,
+Marta Recasens, Marie-Catherine de Marneffe, and Anaphora and Coreference, pages 150–157, Punta
+ChristopherPotts.2013. Thelifeanddeathofdis- Cana,DominicanRepublic.AssociationforCompu-
+courseentities: Identifyingsingletonmentions. In tationalLinguistics.
+Proceedings of the 2013 Conference of the North
+AmericanChapteroftheAssociationforComputa- PatrickXiaandBenjaminVanDurme.2021. Moving
+tionalLinguistics: HumanLanguageTechnologies, onfromOntoNotes: Coreferenceresolutionmodel
+pages 627–633, Atlanta, Georgia. Association for transfer. InProceedingsofthe2021Conferenceon
+ComputationalLinguistics. EmpiricalMethodsinNaturalLanguageProcessing,
+pages5241–5256,OnlineandPuntaCana,Domini-
+MrinmayaSachan,EduardHovy,andEricPXing.2015. can Republic. Association for Computational Lin-
+Anactivelearningapproachtocoreferenceresolution. guistics.
+InTwenty-FourthInternationalJointConferenceon
+ArtificialIntelligence. JuntaoYu,NafiseSadatMoosavi,SilviuPaun,andMas-
+simo Poesio. 2021. Stay together: A system for
+DevanshSaxena,KarlaBadillo-Urquiola,PamelaJWis- singleandsplit-antecedentanaphoraresolution. In
+niewski,andShionGuha.2020. Ahuman-centered Proceedings of the 2021 Conference of the North
+reviewofalgorithmsusedwithintheuschildwelfare AmericanChapteroftheAssociationforComputa-
+system. InProceedingsofthe2020CHIConference tionalLinguistics: HumanLanguageTechnologies,
+onHumanFactorsinComputingSystems,pages1– pages4174–4184,Online.AssociationforComputa-
+15. tionalLinguistics.
+HariprasadTimmapathini,AnmolNayak,Sarathchan- MichelleYuan,PatrickXia,ChandlerMay,Benjamin
+dra Mandadi, Siva Sangada, Vaibhav Kesri, VanDurme,andJordanBoyd-Graber.2022. Adapt-
+Karthikeyan Ponnalagu, and Vijendran Gopalan ing coreference resolution models through active
+Venkoparao. 2021. Probing the spanbert architec- learning. InProceedingsofthe60thAnnualMeet-
+ture to interpret scientific domain adaptation chal- ingoftheAssociationforComputationalLinguistics
+lengesforcoreferenceresolution. InProceedingsof (Volume1: LongPapers),pages7533–7549,Dublin,
+theWorkshoponScientificDocumentUnderstanding Ireland.AssociationforComputationalLinguistics.
+co-locatedwith35thAAAIConferenceonArtificial
+Inteligence. Amir Zeldes. 2022. Opinion Piece: Can we Fix the
+ScopeforCoreference? ProblemsandSolutionsfor
+ShubhamToshniwal,PatrickXia,SamWiseman,Karen Benchmarks beyond OntoNotes. Dialogue & Dis-
+Livescu, and Kevin Gimpel. 2021. On generaliza- course,13(1):41–62.
+tionincoreferenceresolution. InProceedingsofthe
+FourthWorkshoponComputationalModelsofRef- Amir Zeldes and Shuo Zhang. 2016. When annota-
+erence,AnaphoraandCoreference,pages111–120, tionschemeschangeruleshelp: Aconfigurableap-
+Punta Cana, Dominican Republic. Association for proachtocoreferenceresolutionbeyondOntoNotes.
+ComputationalLinguistics. InProceedingsoftheWorkshoponCoreferenceRes-
+olutionBeyondOntoNotes(CORBON2016),pages
+AnkithUppunda,SusanCochran,JacobFoster,Alina 92–101,SanDiego,California.AssociationforCom-
+Arseniev-Koehler,VickieMays,andKai-WeiChang. putationalLinguistics.
+2021. Adaptingcoreferenceresolutionforprocessing
+violentdeathnarratives. InProceedingsofthe2021 ShanhengZhaoandHweeTouNg.2014. Domainadap-
+Conference of the North American Chapter of the tationwithactivelearningforcoreferenceresolution.
+AssociationforComputationalLinguistics: Human InProceedingsofthe5thInternationalWorkshopon
+HealthTextMiningandInformationAnalysis(Louhi),
+pages21–29,Gothenburg,Sweden.Associationfor
+ComputationalLinguistics.
+Yilun Zhu, Sameer Pradhan, and Amir Zeldes. 2021.
+Anatomy of OntoGUM—Adapting GUM to the
+OntoNotesschemetoevaluaterobustnessofSOTA
+coreferencealgorithms. InProceedingsoftheFourth
+Workshop on Computational Models of Reference,
+Anaphora and Coreference, pages 141–149, Punta
+Cana,DominicanRepublic.AssociationforCompu-
+tationalLinguistics.
+A AdditionalResults
+Forcompleteness,weadditionallyincluderesults
+with singletons omitted from system output. Ta-
+ble 5 reports results for both transfer settings
+i2b2→CN and ON→i2b2. In Figure 5, we in-
+spect how performance changes with more anno-
+tated data. We also report for completeness the
+Figure5:Eachsubplotshowscoreferenceperformance(sin-
+difference in model performance using mention gletonsexcluded)whentrainedwithdifferentamountsofan-
+annotationsandfullcoreferenceannotationsinFig- notatedtargetdomaindata.Wevarytheamountofannotated
+datawithrespecttothenumberofmentions.Whentransfer-
+ure6fortransferbetweenOntoNotesgenreswith
+ringON→i2b2(bottomrow), ourmodel(CL ,MD )has
+S T
+an equivalent amount of annotated data (unequal thelargestimprovementoverthebaseline(CL ,CL )with
+S T
+amountofannotatortime). verylittletrainingdataorannotatortime.Forthei2b2→CN
+(toprow),however,theperformanceimprovementincreases
+Forourtimedannotationexperimentdescribed
+withmoreannotateddata.
+in§3,wereportmoredetailedannotatoragreement
+metricsforthetwoannotationtasksinTable6. We
+expectthatagreementscoresforbothtasksarelow,
+sincei2b2/VAdatasetishighlytechnical,andanno-
+tatorshavenodomainexpertise. Theincreasedtask
+complexityofcoreferenceresolutionmayfurther
+worsenagreementforthetaskrelativetomention
+detection. We do not use this annotated data be-
+yondtimingannotationtasks.
+B ReproducibilityDetails
+ImplementationDetails Forallmodels,webe-
+gan first with a pretrained SpanBERT (base) en-
+Figure 6: Heatmap represents performance improvements
+coder(Joshietal.,2020)andrandomlyinitialized
+fromourmodelSpanBERT+high-precc2f(CL ,MD )over
+S T
+parametersfortheremainingmentiondetectorand thebaselineSpanBERT+c2f(CL ,CL )wheresingletons
+S T
+antecedentlinking. Weuse512formaximumseg- aredroppedfromthesystemoutput.Thebaselinehasaccessto
+100%oftargetdomaincoreferenceexamples,andourmodel
+mentlengthwithbatchsizeofonedocumentsim-
+hasaccessto100%mentionannotations.
+ilar to Lee et al. (2018). We first train the model
+withacoreferenceobjectiveoverthesourcedomain
+CL ,andthenwetrainoverthetargetdomainwith domain mentions, our baseline model performed
+S
+somesubsetofourobjectivesCL ,MD ,MLM betterifweinterleavedtargetandsourceexamples.
+T T T
+Wedonotweightauxiliaryobjectives,takingthe So,weinterleavetargetandsourceexampleswith
+rawsumoverlossesastheoverallloss. Whenwe fewerthan1kmentionsfromthetargetdomain.
+trainoneobjectiveoverboththesourceandtarget Forexperimentswherethenumberofmentions
+domain(i.e. CL ,CL ),weinterleaveexamples fromthetargetdomainvaried,werandomlysam-
+S T
+from each domain. For the CL objective, initial pleddocumentsuntilthenumberofmentionsmet
+experimentsindicatedthat,forfewerthan1ktarget ourcap(truncatingthelastdocumentifnecessary).
+TargetAnno. ON→i2b2 i2b2→CN
+Model(Leeetal.(2018)+SpanBERT)
+CLT MDT LEA MUC B3 CEAFϕ Avg. LEA MUC B3 CEAFϕ Avg.
++c2f(CLS,CLT) 0% 0% 0.47 0.61 0.49 0.24 0.45 0.46 0.68 0.49 0.38 0.50
++c2f(CLS,CLT)† 25% 0% 0.65 0.75∗ 0.68∗ 0.50 0.65∗ 0.49 0.70 0.51 0.41 0.53
+∗
++high-prec.c2f(CLS,MDT)+Silver 0% 50% 0.49 0.63 0.50 0.15 0.44 0.42 0.70 0.44 0.23 0.45
++c2f(CLS,CLT)† 50% 0% 0.70 0.79 0.72 0.57 0.70 0.47 0.69 0.50 0.40 0.51
++high-prec.c2f(CLS,CLT,MDT)† 50% 0% 0.69 0.79 0.72 0.57 0.69 0.52 0.72 0.55 0.45 0.56
+∗ ∗ ∗
++c2f(CLS,MDT) 0% 100% 0.42 0.56 0.44 0.18 0.40 0.54 0.77 0.56 0.45 0.58
+∗ ∗
++high-prec.c2f(CLS,MDT) 0% 100% 0.50 0.63 0.53 0.32 0.49 0.50 0.77 0.52 0.42 0.55
+∗ ∗ ∗ ∗
++high-prec.c2f(CLS,MDT,MLMT) 0% 100% 0.50 0.63 0.51 0.22 0.47 0.57 0.76 0.60 0.49 0.61
++c2f(CLS,CLT) 100% 0% 0.71 0.80 0.74 0.61 0.71 0.77 0.86 0.78 0.71 0.78
+Table5:WereportF1fordifferentmodelswithsingletonsexcludedfromsystemoutput,varyingthetypeandamountoftarget
+domainannotations.Eachshadeofgrayrepresentsafixedamountofannotatortime(e.g.50%Coreferenceand100%Mention
+annotationstakesanequivalentamountoftimetoproduce). Whentransferringannotationstyles(ON→i2b2),coreference
+annotationsareamoreefficientuseoftime,whilewhentransferringwithinanannotationstyle(i2b2→CN),mentionannotations
+aremoreefficient,consistentwithresultswheresingletonsareincludedinthesystemoutput.Baselinesareindicatedwith†and
+∗
+denotesstatisticalsignificancewithp-value<.05
+TimedAnnotationExperimentMentionDetectionAgreement Evaluation We evaluate with coreference met-
+AgreementMetric Non-expert Domain-expert rics: MUC,B3,CEAF ϕ4,LEA for the ON→i2b2
+Annotators Annotators and i2b2→CN transfer settings and only
+Krippendorf’salpha 0.405 - MUC,B3,CEAF for ON genre transfer experi-
+ϕ4
+AveragePrecision 0.702 -
+ments,sincethesethreearestandardforOntoNotes.
+AverageRecall 0.437 -
+AverageF1 0.527 - We report results with singletons included and
+IAA 0.691 0.97 excludedfromsystemoutput. Ourevaluationscript
+canbefoundatsrc/coref/metrics.py.
+TimedAnnotationExperimentCoreferenceAgreement
+CNDatasetAdditionalDetails Table8liststhe
+AgreementMetric Non-expert Domain-expert
+Annotators Annotators specificdefinitionsforlabelsusedbyannotatorsin
+Krippendorf’salpha 0.371 - theCNdataset,ascomparedtothedescriptionsin
+AveragePrecision 0.275 - thei2b2/VAdatasetafterwhichtheyweremodeled.
+AverageRecall 0.511 -
+Table7reportsmeasuresforinter-annotatoragree-
+AverageF1 0.342 -
+IAA 0.368 0.73 ment for the CN dataset, compared to agreement
+Table 6: Annotation agreement metrics for timed experi- reportedforcoreferenceannotationsinOntoNotes.
+mentsofmentiondetectionandcoreferenceresolution.Inter-
+Annotator Agreement (IAA) refers to a metric defined in
+(Uzuneretal.,2012).Forcoreference,precision,recall,and
+F1areaveragedoverstandardmetricsdefinedin§B. CNAnnotationAgreement
+AgreementMetric Non-expertAnnotators OntoNotes
+MUC 72.0 68.4
+CEAFϕ 40.5 64.4
+For a given number of mentions m, we gener-
+C B3EAFm 6 53 7. .4
+8
+4 78 5. .0
+0
+ated models for min(max(6,15000/m),15) ran- Krippendorf’sMDalpha 60.5 61.9
+domseeds. Theseboundswereselectedbasedon Krippendorf’sref.alpha 70.5 −
+Table7: AnnotationagreementmetricsfortheCNdataset
+preliminaryexperimentsassessingdeviation.
+computedoverarandomsampleof20documents.Weachieve
+agreementonparwithOntoNotes(Pradhanetal.,2012).
+We use a learning rate of 2×10−5 for the en-
+coder and 1×10−4 for all other parameters. We
+train on the source domain for 20 epochs and on
+the target domain for 20 epochs or until corefer-
+enceperformanceoverthedevsetdegradesfortwo
+consecutiveiterations. Trainingtimeforallmodels
+rangesbetween80-120minutes,dependingonsize
+ofdataset. WeusedV100,RTX8000,andRTX600
+GPUSfortraining. Toreproducetheresultsinthis
+paper,weapproximateatleast1,500hoursofGPU
+time. Allourmodelscontain~134Mparameters,
+with110MfromSpanBERT(base).
+i2b2/VAdefinition CNdefinition
+TREATMENT phrasesthatdescribeprocedures,interventions, phrasesthatdescribeeffortsmadetoimprove
+andsubstancesgiventoapatientinaneffortto outcomeforchild(e.g. mobiletherapy,apolo-
+resolveamedicalproblem(e.g.Revasculariza- gized)
+tion,nitroglycerindrip)
+TEST phrases that describe procedures, panels, and phrasesthatdescribestepstakentodiscover,rule
+measures that are done to a patient or a body out,orfindmoreinformationaboutaproblem
+fluidorsampleinordertodiscover,ruleout,or (e.g.inquiredwhy,schoolattendance)
+findmoreinformationaboutamedicalproblem
+(e.g.exploratorylaproratomy,theekg,hisblood
+pressure)
+PROBLEM phrasesthatcontainobservationsmadebypa- phrasesthatcontainobservationsmadebyCW
+tientsorcliniciansaboutthepatient’sbodyor orclientaboutanyclient’sbodyormindthatare
+mindthatarethoughttobeabnormalorcaused thoughttobeabnormalorharmful(e.g.verbal
+byadisease(e.g.newsschestpressure,rigidity, altercation,recentbreakdown,lackofconnec-
+subdued) tion,hungry)
+Table8: InadditiontothePERSONentitytypewhichisthesameinbothdomains,wedevelopasetoftypesforthechild
+welfaredomainthatcanbealignedwiththosefromthemedicaldomaini2b2/VAasdefinedin(Uzuneretal.,2012).Whilethe
+developmentofthesetypeswereintendedtofacilitatetransferfromthemedicaldomain,theyarenotnecessarilycomprehensive
+orsufficientlygranularforthedownstreamtasksthatcoreferencesystemsmaybeusedforinchildprotectivesettings.

@@ -1,0 +1,921 @@
+Training on Foveated Images Improves Robustness to
+Adversarial Attacks
+MuhammadA.Shah&BhikshaRaj
+LanguageTechnologiesInstitute
+CarnegieMellonUniversity
+Pittsburgh,PA15213
+{mshah1, bhiksha}@cs.cmu.edu
+Abstract
+Deepneuralnetworks(DNNs)havebeenshowntobevulnerabletoadversarial
+attacks–subtle,perceptuallyindistinguishableperturbationsofinputsthatchange
+theresponseofthemodel.Inthecontextofvision,wehypothesizethatanimportant
+contributortotherobustnessofhumanvisualperceptionisconstantexposuretolow-
+fidelityvisualstimuliinourperipheralvision. Toinvestigatethishypothesis,we
+developR-Blur,animagetransformthatsimulatesthelossinfidelityofperipheral
+visionbyblurringtheimageandreducingitscolorsaturationbasedonthedistance
+from a given fixation point. We show that compared to DNNs trained on the
+originalimages,DNNstrainedonimagestransformedbyR-Bluraresubstantially
+morerobusttoadversarialattacks,aswellasother,non-adversarial,corruptions,
+achievingupto25%higheraccuracyonperturbeddata.
+1 Introduction
+DeepNeuralNetworks(DNNs)areexceptionallyadeptatmanycomputervisiontasksandhave
+emergedasoneofthebestmodelsofthebiologicalneuronsinvolvedinvisualobjectrecognition
+[Yaminsetal.,2014,Cadieuetal.,2014]. However,theirlackofrobustnesstosubtleimageperturba-
+tionsthathumansarelargelyinvariant[Szegedyetal.,2014,Geirhosetal.,2018,DodgeandKaram,
+2017]tohasraisedquestionsabouttheirreliabilityinreal-worldscenarios. Oftheseperturbations,
+perhapsthemostalarmingareadversarialattacks,whicharespeciallycrafteddistortionsthatcan
+changetheresponseofDNNswhenaddedtotheirinputs[Szegedyetal.,2014,Ilyasetal.,2019]but
+areeitherimperceptibletohumansorperceptuallyirrelevantenoughtobeignoredbythem.
+WhileseveraldefenseshavebeenproposedovertheyearstodefendDNNsagainstadversarialattacks,
+onlyafewofthemhavesoughtinspirationfrombiologicalperception,which,perhapsaxiomatically,
+isoneofthemostrobustperceptualsystemsinexistence. Instead,mostmethodsseektoteachDNNs
+toberobusttoadversarialattacksbyexposingthemtoadversariallyperturbedimages[Madryetal.,
+2018, Wong et al., 2019, Zhang et al., 2019] or random noise [Cohen et al., 2019, Fischer et al.,
+2020,Carlinietal.,2022]duringtraining. WhilethisapproachishighlyeffectiveinmakingDNNs
+robusttothetypesofperturbationsusedduringtraining,therobustnessoftendoesnotgeneralize
+toothertypesofperturbations[Joosetal.,2022,SharmaandChen,2017,Schottetal.,2018]. In
+contrast,biologically-inspireddefensesseektomakeDNNsrobustbyintegratingintothembiological
+mechanismsthatwouldbringtheirbehaviormoreinlinewithhuman/animalvision[Paitonetal.,
+2020,Baietal.,2021,Dapelloetal.,2020,Jonnalagaddaetal.,2022,Luoetal.,2015,Gantetal.,
+2021,Vuyyuruetal.,2020]. AsthesedefensesdonotrequireDNNstobetrainedonanyparticular
+typeofperturbation,theyyieldmodelsthat,likehumans,arerobusttoavarietyofperturbations
+[Dapelloetal.,2020]inadditiontoadversarialattacks. Forthisreason,andinlightoftheevidence
+indicatingapositivecorrelationbetweenbiologicalalignmentandadversarialrobustness[Dapello
+etal.,2020],webelievebiologicallyinspireddefensesaremorepromisinginthelongrun.
+Preprint.Underreview.
+3202
+guA
+1
+]VC.sc[
+1v45800.8032:viXra
+Followingthislineofinquiry,weinvestigatethecontributionoflow-fidelityvisualsensingthatoccurs
+inperipheralvisiontotherobustnessofhuman/animalvision. UnlikeDNNs,whichsensevisual
+stimuliatmaximumfidelityateverypointintheirvisualfield,humanssensemostoftheirvisualfield
+inlowfidelity,i.ewithoutfine-grainedcontrast[Stewartetal.,2020]andcolorinformation[Hansen
+etal.,2009]. Inadultswithfullydevelopedvision,onlyasmallregion(lessthan1%byarea)of
+thevisualfieldaroundthepointoffixation[Kolb,2005]canbesensedwithhighfidelity. Inthe
+remainderofthevisualfield(theperiphery),thefidelityofthesensedstimulidecreasesexponentially
+with distance from the fixation point [Dragoi and Tsuchitani, 2020]. This phenomenon is called
+“foveation”. Despite this limitation, humans can accurately categorize objects that appear in the
+visualperipheryintohigh-levelclasses[Ramezanietal.,2019]. Meanwhile,thepresenceofasmall
+amountofnoiseorblurringcandecimatetheaccuracyofanotherwiseaccurateDNN.Therefore,
+wehypothesizethattheexperienceofviewingtheworldatmultiplelevelsoffidelity,perhapseven
+atthesameinstant,causeshumanvisiontobeinvarianttolow-levelfeatures,suchastextures,and
+high-frequencypatterns,thatcanbeexploitedbyadversarialattacks.
+Inthispaper,weproposeR-Blur(shortforRetinaBlur),whichsimulatesfoveationbyblurringthe
+imageandreducingitscolorsaturationadaptivelybasedonthedistancefromagivenfixationpoint.
+Thiscausesregionsfurtherawayfromthefixationpointtoappearmoreblurryandlessvividlycolored
+thanthoseclosertoit. Althoughadaptiveblurringmethodshavebeenproposedascomputational
+approximationsoffoveation[DezaandKonkle,2021,Pramodetal.,2018,WangandCottrell,2017],
+theirimpactonrobustnesshasnotbeenevaluatedtothebestofourknowledge. Furthermore,color
+sensitivityisknowntodecreaseintheperipheryofthevisualfield[Hansenetal.,2009,Johnson,
+1986],yetmostoftheexistingtechniquesdonotaccountforthisphenomenon.
+Similartohowtheretinapreprocessesthevisualstimulibeforeitreachesthevisualcortex,weuse
+R-Blur to preprocess the input before it reaches the DNN. To measure the impact of R-Blur, we
+evaluate the object recognition capability of ResNets [He et al., 2016] trained with and without
+R-Blur on three image datasets: CIFAR-10 [Krizhevsky et al.], Ecoset [Mehrer et al., 2021] and
+Imagenet[Russakovskyetal.,2015],underdifferentlevelsofadversarialattacksandcommonimage
+corruptions[HendrycksandDietterich,2019]. WefindthatR-Blurmodelsretainmostofthehigh
+classificationaccuracyofthebaseResNetwhilebeingmorerobust. ComparedtothebaseResNet,R-
+Blurmodelsachieve12-25percentagepoints(pp)higheraccuracyonperturbedimages. Furthermore,
+therobustnessachievedbyR-Bluriscertifiableusingtheapproachfrom[Cohenetal.,2019]. We
+also compare R-Blur with two biologically inspired preprocessing defenses, namely VOneBlock
+[Dapelloetal.,2020],afixedparametermodulethatsimulatestheprimateV1,andanon-uniform
+sampling-basedfoveationtechnique[Vuyyuruetal.,2020],whichwerefertoasR-Warp. Weobserve
+thatR-Blurinducesahigherlevelofrobustness,achievingaccuracyupto33pphigherthanR-Warp
+andupto15pphigherthanVOneBlockagainstadversarialattacks. Comparedtoadversarialtraining
+(AT)[Madryetal.,2018,Wongetal.,2019]–thestate-of-the-artnon-biologicaldefense,R-Blur
+achievesupto7pphigheraccuracyonaverageagainstnon-adversarialcorruptionsofvarioustypes
+and strengths thus indicating that the robustness of R-Blur generalizes better to non-adversarial
+perturbationsthanAT.Finally,anablationstudyshowedthatbothadaptiveblurringanddesaturation
+contributetotheimprovedrobustnessofR-Blur.
+2 RetinalBlur: AnApproximationforPeripheralVision
+Tosimulatethelossincontrastandcolorsensitivityofhumanperceptionwithincreasingeccentricity,
+weproposeR-Blur,anadaptiveGaussianblurring,andcolordesaturationtechnique. Theoperations
+performedbyR-Blur,givenanimageandfixationpoint,areshowninFigure1. First,R-Bluradds
+Gaussiannoisetotheimagetosimulatestochasticfiringratesofbiologicalphotoreceptors. Itthen
+createscolorandgreyscalecopiesoftheimageandestimatestheacuityofcolorandgrayscalevision
+ateachpixellocation,usingdistributionsthatapproximatetherelationshipbetweendistancefrom
+thefixationpoint(eccentricity)andvisualacuitylevelsinhumans. R-Blur thenappliesadaptive
+GaussianblurringtobothimagecopiessuchthatthestandarddeviationoftheGaussiankernelateach
+pixelinthecolorandthegrayscaleimageisafunctionoftheestimatedcolorandgrayscaleacuityat
+thatpixel. Finally,R-Blurcombinesthetwoblurredimagesinapixel-wiseweightedcombinationin
+whichtheweightsofthecoloredandgraypixelsareafunctionoftheirrespectiveestimatedacuity
+values. Belowwedescribesomeofthemoreinvolvedoperationsindetail.
+2
+Figure1: R-BluraddsGaussiannoisetoimage(a)withthefixationpoint(reddot)toobtain(b). It
+thencreatesacoloredandagrayscaledcopyoftheimageandappliesadaptiveGaussianblurringto
+themtoobtainthelow-fidelityimages(c)and(d),wherethenumbersindicatethestandarddeviation
+oftheGaussiankernelappliedintheregionboundedbytheboxes. Theblurredcolorandgrayimages
+arecombinedinapixel-wiseweightedcombinationtoobtainthefinalimage(e),wheretheweights
+ofthecoloredandgraypixelsareafunctionoftheirrespectiveestimatedacuityvalues(see2.2).
+2.1 EccentricityComputation
+Thedistanceofapixellocationfromthefixationpoint,i.e. itseccentricity,determinesthestandard
+deviationoftheGaussiankernelappliedtoitandthecombinationweightofthecolorandgrayimages
+atthislocation. Whileeccentricityistypicallymeasuredradially,inthispaperweuseadifferent
+distance metric that produces un-rotated square level sets. This property allows us to efficiently
+extract regions having the same eccentricity by simply slicing the image tensor. Concretely, we
+computetheeccentricityofthepixelatlocation(x ,y )as
+p p
+max(|x −x |,|y −y |)
+e = p f p f , (1)
+xp,yp W
+V
+where (x ,y ) and W represent the fixation point and the width of the visual field, i.e. the
+f f V
+rectangularregionoverwhichR-Bluroperatesanddefinesthemaximumimagesizethatisexpected
+byR-Blur. WenormalizebyW tomakethee invarianttothesizeofthevisualfield.
+V xp,yp
+2.2 VisualAcuityEstimation
+Wecomputethevisualacuityateachpixellocationbasedonitseccentricity. Thebiologicalretina
+containstwotypesofphotoreceptors. Thefirsttype,calledcones,arecolorsensitiveandgiveriseto
+high-fidelityvisualperceptionatthefovea,whilethesecondtype,calledrods,aresensitivetoonly
+illuminationbutnotcolorandgiverisetolow-fidelityvisionintheperiphery. Theacuityofcolorand
+grayscalevision,arisingfromtheconesandrods,isestimatedateachpixellocation,(x,y),using
+twosamplingdistributionsD (e )andD (e ),respectively. Inthiswork,weuse:
+R x,y C x,y
+D(e;σ,α)=max[λ(e;0,σ),γ(e;0,ασ)] (2)
+D (e;σ ,α)=D(e;σ ,α) (3)
+C C C
+D (e;σ ,α,p )=p (1−D(e;σ ,α)), (4)
+R R max max R
+whereλ(.;µ,σ)andγ(.;µ,σ)arethePDFsoftheLaplaceandCauchydistributionwithlocation
+and scale parameters µ and σ, and α is a parameter used to control the width of the distribution.
+We set σ = 0.12,σ = 0.09,α = 2.5 and p = 0.12. We choose the above equations and
+C R max
+theirparameterstoapproximatethecurvesofphotopicandscotopicvisualacuityfrom[Dragoiand
+Tsuchitani,2020].TheresultingacuityestimatesareshowninFigure2b.Unfortunately,themeasured
+photopicandscotopicacuitycurvesfrom[DragoiandTsuchitani,2020]cannotbereproducedhere
+duetocopyrightreasons,however,theycanbeviewedathttps://nba.uth.tmc.edu/neuroscience/m/s2/
+chapter14.html(seeFigure14.3).
+2.3 QuantizingtheVisualAcuityEstimate
+Intheformstatedabove,wewouldneedtocreateandapplyasmanyGaussiankernelsasthedistance
+between the fixation point and the farthest vertex of the visual field. This number can be quite
+largeasthesizeoftheimageincreasesandwilldrasticallyincreasetheper-imagecomputationtime.
+Tomitigatethisissuewequantizetheestimatedacuityvalues. Asaresult,thelocationstowhich
+3
+(a)unquantized (b)quantized
+Figure3: Illustrationofincreasingtheviewingdistance(leftto
+Figure 2: Estimated visual acuity right)foragivenimageisthatmoreoftheimageisbroughtinto
+ofsharpandcolorful,photopic,and focus. Inthispaper,mostlyvd=3isusedininference.
+grayandblurry,scotopic,vision.
+thesamekernelisappliednolongerconstituteasinglepixelperimeterbutbecomeamuchwider
+region(seeFigure1(c)and(d)),whichallowsustoapplytheGaussiankernelintheseregionsvery
+efficientlyusingoptimizedimplementationsoftheconvolutionoperator.
+Tocreateaquantizedeccentricity-acuitymapping,wedothefollowing. Wefirstlistallthecolor
+andgrayacuityvaluespossibleinthevisualfieldbyassumingafixationpointat(0,0),computing
+eccentricity values e for y ∈ [0,W ] and the corresponding values of D = {D (e )|y ∈
+0,y V R R 0,y
+[0,W ]}andD ={D (e )|y ∈[0,W ]}. Wethencomputeandstorethehistograms,H and
+V C C 0,y V R
+H ,fromD andD ,respectively. Tofurtherreducethenumberofkernelsweneedtoapplyand
+C R C
+increasethesizeoftheregioneachofthemisappliedto,wemergethebinscontaininglessthanτ
+elementsineachhistogramwiththeadjacentbintotheirleft. Afterthat,givenanimagetoprocess,
+wewillcomputethecolorandgrayvisualacuityforeachpixel,determineinwhichbinitfallsinH
+R
+andH ,andassignittheaveragevalueofthatbin.
+C
+2.4 ChangingtheViewingDistance
+Increasingtheviewingdistancecanbebeneficialasitallowstheviewertogatheramoreglobalview
+ofthevisualsceneandfacilitatesobjectrecognition. Toincreasetheviewingdistancewedropthek
+lowestacuitybinsandshiftthepixelsassignedtothemkbinsaheadsuchthatthepixelsthatwerein
+bins1throughk−1arenowassignedtobin1. Figure3showsthechangeintheviewingdistance
+asthevalueofkincreasesfrom0to5. Formally,giventhequantizedD (e )andD (e ),let
+C x,y R x,y
+D =[d ,...,d ]representthevalueassignedtoeachbinandP bethepixellocationsassignedtothe
+1 n i
+ithbin,withP andP correspondingtopointswiththelowestandhighesteccentricity,respectively.
+1 n
+Toincreasetheviewingdistance,wemergebins1throughksuchthatD′ =[d ,...,d ]andthe
+1 n−k
+correspondingpixelsareP′ =[P ,...,P ]andP =P .
+1 1 k i>1 k+1
+2.5 BlurringandColorDesaturation
+Wemaptheestimatedvisualacuityateachpixellocation,(x ,y ),tothestandarddeviationofthe
+p p
+Gaussiankernelthatwillbeappliedatthatlocationasσ =βW (1−D(e )),whereβ is
+(xp,yp) V x,y
+constant to control the standard deviation and is set to β = 0.05 in this paper, and D = D for
+C
+pixelsinthecoloredimageandD =D forpixelsinthegrayscaledimage. WethenapplyGaussian
+R
+kernelsofthecorrespondingstandarddeviationtoeachpixelinthecoloredandgrayscaleimageto
+obtainanadaptivelyblurredcopyofeach,whichwecombineinapixel-wiseweightedcombination
+toobtainthefinalimage. Theweightofeachcoloredandgraypixelisgivenbythenormalizedcolor
+andgrayacuity,respectively,atthatpixel. Formally,thepixelat(x ,y )inthefinalimagehasvalue
+p p
+vc D (e ;σ ,α)+vg D (e ;σ ,α)
+vf = (xp,yp) C x,y C (xp,yp) R x,y C ,
+(xp,yp) D C(e x,y;σ C,α)+D R(e x,y;σ C,α)
+vc andvg arethepixelvalueat(x ,y )intheblurredcolorandgrayimagesrespectively.
+(xp,yp) (xp,yp) p p
+3 Evaluation
+Inthissection,wedeterminetheaccuracyandrobustnessofR-Blurbyevaluatingitoncleandataand
+datathathasbeenperturbedbyeitheradversarialattacksorcommon–non-adversarial–corruptions.
+We compare the performance of R-Blur with an unmodified ResNet, two existing biologically-
+inspireddefenses,R-Warp[Vuyyuruetal.,2020]andVOneBlock [Dapelloetal.,2020],andtwo
+4
+non-biologicaladversarialdefenses: AdversarialTraining(AT)[Madryetal.,2018]andRandomized
+Smoothing(RS)[Cohenetal.,2019]. WeshowR-Blurtobesignificantlymorerobusttoadversarial
+attacksandcommoncorruptionsthantheunmodifiedResNetandpriorbiologicallyinspiredmethods.
+Moreover,thecertifiedaccuracyofR-Blur isclosetothatofRS,andevenbetterincertaincases.
+While AT is more robust than R-Blur against adversarial attacks, R-Blur is more robust than AT
+againsthigh-intensitycommoncorruptions,thusindicatingthattherobustnessofR-Blurgeneralizes
+better to different types of perturbation than AT. We also analyze the contribution of the various
+componentsofR-Blurinimprovingrobustness.
+3.1 ExperimentalSetup
+Datasets: Weusenaturalimagedatasets,namelyCIFAR-10[Krizhevskyetal.],ImagenetILSVRC
+2012[Russakovskyetal.,2015],Ecoset[Mehreretal.,2021]anda10-classsubsetofEcoset(Ecoset-
+10). Ecosetcontainsaround1.4Mimages,mostlyobtainedfromImageNet(thedatabase[Dengetal.,
+2009]nottheILSVRCdataset),thatareorganizedinto565basicobjectclasses. TheclassesinEcoset
+correspondtocommonlyusednounsthatrefertoconcreteobjects. TocreateEcoset-10,weorder
+theclassesintheEcosetdatasetbythenumberofimagesthateachclassisassignedtoandthen
+selectthetop10classesrespectively. Thetraining/validation/testsplitsofEcoset-10andEcosetare
+48K/859/1K,and1.4M/28K/28Krespectively. FormostexperimentswithEcosetandImagenet,we
+use1130,and2000testimages,withanequalnumberofimagesperclass. Duringtraining,weuse
+randomhorizontalflippingandpadding+randomcropping,aswellasAutoAugment[Cubuketal.,
+2018]forCIFAR-10andRandAugmentforEcosetandImagenet. AllEcosetandImagenetimages
+wereresizedandcroppedto224×224.
+ModelArchitectures: ForCIFAR-10weuseaWide-Resnet[ZagoruykoandKomodakis,2016]
+modelwith 22convolutionallayersand awidening factorof 4, andfor Ecosetand Imagenetwe
+useXResNet-18fromfastai[HowardandGugger,2020]withawideningfactorof2. Resultsfor
+additionalarchitecturesarepresentedinAppendixC.
+BaselinesandExistingMethods: WecomparetheperformanceofR-Blur totwobaselines: (1)
+anunmodifiedResNettrainedoncleandata(ResNet),and(2)aResNetwhichappliesfiveaffine
+transformations1totheinputimageandaveragesthelogits(RandAffine). WealsocompareR-Blur
+withtwobiologicallyinspireddefenses:VOneBlockpre-processingproposedin[Dapelloetal.,2020],
+whichsimulatesthereceptivefieldsandactivationsoftheprimateV12,andR-Warppreprocessing
+proposedin[Vuyyuruetal.,2020],whichsimulatesfoveationbyresamplinginputimagessuchthat
+thesamplingdensityofpixelsismaximalatthepointoffixationanddecaysprogressivelyinregions
+furtherawayfromit. Finally,wecompareR-Blurwithtwonon-biologicaladversarialdefenses: fast
+adversarialtraining[Wongetal.,2019]with∥δ∥ =0.008(AT),andRandomizedSmoothing(RS)
+∞
+[Cohenetal.,2019].
+FixationSelectionforR-BlurandR-Warp: WhiletrainingmodelswithR-BlurandR-Warp,we
+spliteachbatchintosub-batchesof32images,andforeachsub-batch,werandomlysampleasingle
+fixation point that we use to apply R-Blur or R-Warp to all the images in that sub-batch. While
+trainingtheR-Blurmodel,wealsosettheviewingdistanceuniformlyatrandomusingtheprocedure
+described in 2.4. During inference, we determine a sequence of five fixation points (a scanpath)
+usingDeepGaze-III[Kümmereretal.,2022]. Givenanimage, DeepGaze-IIIpassesitthrougha
+pretrainedCNNbackbone(DenseNet-201in[Kümmereretal.,2022])andextractstheactivations
+fromseveralintermediatelayersoftheCNN.Itthenappliesasequenceofpointwiseconvolution
+andnormalizationlayerstotheactivationstoobtainaheatmapindicatingwhereahumanislikelyto
+fixate. WefoundthatitwasmoreefficienttonotusethescanpathpredictionmoduleinDeepGaze-III,
+andinsteadobtainscanpathsbykeepingtrackofthepastfixationpoints,andmaskingthepredicted
+heatmapattheselocationspriortosamplingthenextfixationpointfromit. Thisprocessisillustrated
+inFigure4. WetrainedtwoinstancesofDeepGaze-IIIusingtheResNetswetrainedwithR-Blur
+andR-WarpastheCNNbackbone. WeusethecorrespondingDeepGaze-IIImodelstopredictthe
+scanpathsforR-BlurandR-Warpmodels.
+1Weapplyrotation,translation,andshearing,withtheirparameterssampledfrom[−8.6◦,8.6◦],[−49,49]
+and[−8.6◦,8.6◦]respectively.TherangesarechosentomatchtherangesusedinRandAugment.Therandom
+seedisfixedduringevaluationtopreventinterferencewithadversarialattackgeneration.
+2Asin[Dapelloetal.,2020],weremovethefirstconv,batchnorm,ReLU,andMaxPoolfromtheResNet
+withVOneBlock.
+5
+(a)R-Blur (b)R-Warp
+Figure4: Illustrationoffixationselection. Theinitialfixationpointissettotop-left(0,0)andthe
+imageatt isprocessedwithR-Blur/R-Warptogettheimageatt . DeepGaze-IIIisusedtogenerate
+0 1
+afixationheatmapfromthisimage. Thenextfixationpointissampledfromtheheatmap,andR-Blur
+/R-Warpisapplied togettheimage att . Theregionin theheatmaparoundthe chosenfixation
+2
+pointismaskedwithaninvertedGaussiankerneltopreventspatialclusteringoffixationpoints. This
+processisrepeatedtogetasequenceoffixationpoints.
+10 80 0 80 64 10 80 0 81 71 10 80 0 10 80 0
+246 000 02 03 .3 13 25 1 0.4 25 0 00 .530 0 1.02 246 000 0 16 03 .4 5 14 .0 0 20 .046 246 000 0 1 07 .544 10 .027 0 20 .06 246 000 0 0 03 .535 10 .017 20 .02
+Perturbation Distance 2 Perturbation Distance 2 Perturbation Distance 2 Perturbation Distance 2
+1 24680 000000 56 0.6 04 0284 18 0.2 09 0477 0 0.03 0857 1 24680 000000 27 0.4 09 0281 2 0.1 00 0470 0 0.00 0844 1 24680 000000 3 0.1 02 0244 0 0.00 0426 0 0.00 086 1 24680 000000 0 0.07 0235 0 0.00 0418 0 0.00 082
+Perturbation Distance Perturbation Distance Perturbation Distance Perturbation Distance
+(a)CIFAR-10 (b)Ecoset-10 (c)Ecoset (d)Imagenet
+Figure5: Comparisonofaccuracyonvariousdatasets(a-d)underadversarialattacksofseveralℓ
+2
+(top)andℓ (bottom)normsbetweenR-Blur(green)andtwobaselinemethods: RandAffine(orange)
+∞
+andResNet(blue). Thedashedlinesindicateaccuracyoncleanimages. R-Blurmodelsconsistently
+achievehigheraccuracythanbaselinemethodsonalldatasets,andadversarialperturbationsizes.
+3.2 Results
+R-BlurImprovesRobustnesstoWhite-BoxAttacks: Weevaluaterobustnessbymeasuringthe
+accuracyofmodelsunderAuto-PGD(APGD)[CroceandHein,2020]attack,whichisastate-of-the-
+artwhite-boxadversarialattack. WerunAPGDfor25stepsoneachimage. Wefindthatincreasing
+thenumberofstepsbeyond25onlyminimallyreducesaccuracy(seeAppendixA).Wetakeanumber
+ofmeasurestoensurethatweavoidthepitfallsofgradientobfuscation[Athalyeetal.,2018a,Carlini
+etal.,2019]sothatourresultsreflectthetruerobustnessofR-Blur. Thesestepsanddetailedsettings
+usedforadversarialattacksarementionedinAppendixA.
+TodetermineifR-Blurimprovesrobustness,wecompareR-BlurwiththeunmodifiedResNetand
+RandAffineundertheAPGDattack. WeobservethatR-Blur issignificantlymorerobustthanthe
+unmodifiedResNetandRandAffinemodels,consistentlyachievinghigheraccuracythanthetwoon
+alldatasetsandagainstallperturbationtypesandsizes,whilelargelyretainingaccuracyoncleandata
+(Figure5). WhileRandAffinedoesinducesomelevelofrobustness,itsignificantlyunderperforms
+R-Blur.Onsmallerdatasets,R-Blursuffersrelativelylittlelossinaccuracyatsmalltomoderatelevels
+(∥δ∥ ≤ 0.004, ∥δ∥ ≤ 1) ofadversarialperturbations, whilethe accuracy of baseline methods
+∞ 2
+quicklydeterioratestochanceorworse. Onlargerdatasets–EcosetandImagenet,eventhesmallest
+amountofadversarialperturbation(∥δ∥ =0.002,∥δ∥ =0.5)isenoughtodrivetheaccuracyof
+∞ 2
+thebaselinesto∼10%,whileR-Blurstillisabletoachieve35-44%accuracy. Astheperturbationis
+increasedto∥δ∥ =0.004and∥δ∥ =1.0,theaccuracyofthebaselinesgoesto0%,whileR-Blur
+∞ 2
+achieves18-22%. WedoobservethattheaccuracyofR-BluroncleandatafromEcosetandImagenet
+isnoticeablylowerthanthatofthebaselinemethods.
+WealsocompareR-Blurtotwoexistingbiologicallymotivatedadversarialdefenses: VOneBlockand
+R-Warp,andfindthatR-Blurachieveshigheraccuracythanbothofthematallperturbationsizesand
+types. FromFigure6weseethatR-Blurachievesupto33pphigheraccuracythanR-Warp,andupto
+15pphigheraccuracythanVOneBlockonadversariallyperturbeddata.
+6
+ycaruccA
+ycaruccA
+ycaruccA
+ycaruccA
+ycaruccA
+ycaruccA
+ycaruccA
+ycaruccA
++33 +27 +31 +27 123 000 +8 +26 +15 +6R V- OW na e +r Bp l 5ock 12 00 +6 +24 +12 +6 +4 123 000 +7 +17 +11 +2 +2 12 00 +4 +18 +9 +2 +2
+0 0.5 1.0 2.0 0 0.002 0.004 0.008 0 0.5 1.0 2.0 0 0.002 0.004 0.008
+Perturbation Distance 2 Perturbation Distance Perturbation Distance 2 Perturbation Distance
+(a)Ecoset (b) Imagenet
+Figure6: Thedifferenceinaccuracyunderadversarialattacksofseveralℓ andℓ normsbetween
+2 ∞
+R-Blurandtwobiologicallyinspireddefenses: R-Warp(blue)andVOneBlock(orange). R-Blurcon-
+sistentlyachieveshigheraccuracyonalladversarialperturbationsizesthanR-WarpandVOneBlock.
+Ecoset Imagenet Ecoset Imagenet
+0.6
+0.6 00 .. 45 0.4 R G- -B Nl ou ir s- e5 F (I ( t=t= 0.10 2.1 52 )5)
+0.3
+0.4 0.4 0.3
+R G- -B Nl ou ir s-5 eFI 0.2 R G- -B Nl ou ir s-5 eFI 0.2
+0.2 R R- -B Bl lu ur r- -C 5FF II 0.2 R-Blur-5FI (t=0.125) 0.1 R R- -B Bl lu ur r- -C 5FF II 0.1
+0.0 (t=0.0) 0.0 G-Noise (t=0.125) 0.0 (t=0.0) 0.0
+0.0 0.1 0.2 0.3 0.4 0.5 0.0 0.1 0.2 0.3 0.4 0.5 0.0 0.2 0.4 0.6 0.8 1.0 0.0 0.2 0.4 0.6 0.8 1.0
+radius radius radius radius
+(a)MatchedSetting(σ =σ =0.125) (b)UnmatchedSetting(σ <σ =0.25)
+t c t c
+Figure7: Thecertifiedaccuracyatvariousℓ -normradiiofR-BlurandG-Noisemodels. R-Blur-CFI
+2
+uses1fixationatthecenteroftheimage,andR-Blur-5FI,averageslogitsfrom5fixation(corners+
+center). σ denotesthescaleofnoiseaddedduringtrainingandis0.125unlessspecified,whereasσ
+t c
+isthescaleofthenoiseusedtocomputethecertifiedaccuracy. G-NoiseoutperformsR-Blurinthe
+matchedscenario,whileR-Blurissuperiorintheunmatchedscenarioindicatingthattherobustness
+ofR-Blurismoregeneralizable.
+R-Blur is Certifiably Robust: To verify that the gains in robustness observed above are indeed
+reliable, weusethecertificationmethod(CERTIFY)from[Cohenetal.,2019]toprovideformal
+robustnessguaranteesforR-Blur. Thisentailsobtainingpredictionsforaninputunderaverylarge
+number(105)ofnoisesamplesdrawnfromN(0,σ ),andusingahypothesistesttodeterminethe
+c
+certified radius around the input in which the model’s prediction is stable with high probability
+(≥99.9%). Givenadataset,wecancomputethecertifiedaccuracyataradiusrastheproportionof
+datapointsforwhichthecertifiedradiusis≥randthemodel’spredictioniscorrect. Wecompute
+thecertifiedaccuracyofR-Bluron200imagessampledfromImagenetandEcoset,andcompareit
+withamodeltrainedondataperturbedwithGaussiannoise,andisknowntoachievehighcertified
+accuracy[Cohenetal.,2019]. WecallthismodelG-Noise.
+We expose both R-Blur and G-Noise to Gaussian noise of scale σ = 0.125 during training and
+t
+computetheircertifiedaccuracyatradiir ∈ {0.5,1.0}. Accordingto[Cohenetal.,2019],ifthe
+scaleofthenoiseusedinCERTIFYisσ c,thenthemaximumradiusforwhichcertifiedaccuracycan
+becomputed(with105 noisesamples)isr = 4σ . Therefore,whencomputingcertifiedaccuracy
+c
+atr ≤ 0.5CERTIFYaddsnoiseofthesamescaleaswasusedduringtraining(σ
+c
+= 0.125 = σ t),
+thuswecallthisthematchedsetting. However,tocomputecertifiedaccuracyatr ≤1.0CERTIFY
+addsnoiseofalargerscalethanwasusedduringtraining(σ = 0.25 > σ ),andthusinorderto
+c t
+achievehighcertifiedaccuracyatr ≤1.0themodelmustbeabletogeneralizetoachangeinnoise
+distribution. Wecallthistheunmatchedsetting.
+Figure7aand7bshowthecertifiedaccuracyofR-BlurandtheG-NoiseonEcosetandImagenetat
+severalℓ normradiiundermatchedandunmatchedsettings. Inbothsettings,weseethatR-Blur
+2
+achievesahighcertifiedaccuracyonbothEcosetandImagenet,withthecertifiedaccuracyatr ≈0.5
+andr ≈ 1.0beingclosetotheonesobservedinFigure5,indicatingthatourearlierresultsarea
+faithfulrepresentationofR-Blur’srobustness. Furthermore,weseethatevenifR-Blurwastrained
+withoutanynoise,itcanstillachievemorethan50%ofthecertifiedaccuracyachievedbyR-Blur
+trainedwithnoise. Thisindicatesthatadaptiveblurringanddesaturationdoinfactendowthemodel
+with a significant level of robustness. Finally, we note that while G-Noise has (slightly) higher
+certifiedaccuracythanR-Blurinthematchedsetting,R-Blurachievessignificantlyhighercertified
+accuracyintheunmatchedsetting,outstrippingG-Noisebymorethan10ppatr ≈1.0onImagenet.
+ThisshowsthattherobustnessofR-Blurgeneralizesbeyondthetrainingconditions,whileG-Noise
+overfitstothem. ThismakesR-Blurparticularlysuitedforsettingsinwhichtheexactadversarial
+attackbudgetisnotknown,andthemodelmustbeabletogeneralize.
+7
+)%(ycaruccA
+ycarucca
+)%(ycaruccA
+ycarucca
+)%(ycaruccA
+ycarucca
+)%(ycaruccA
+ycarucca
+Overall Perturbation Overall Perturbation
+Method Mean Mean Mean CC Wb Clean Mean Mean Mean CC Wb Clean
+L H L H
+Ecoset Imagenet
+ResNet 37.1 25.5 12.7 39.4 0.8 71.2 34.7 21.7 9.7 33.6 0.1 70.3
+RandAffine 35.7 27.6 11.1 35.8 3.6 67.6 33.7 23.0 8.6 30.8 2.0 68.3
+AT 49.0 50.9 35.5 38.5 47.5 61.1 46.3 48.0 30.6 34.2 43.5 61.3
+R-Warp 38.5 29.8 13.2 40.0 4.5 71.1 34.1 19.5 16.2 32.5 2.2 67.7
+VOneBlock 42.9 43.7 16.1 40.7 16.1 72.0 38.8 37.5 12.3 35.8 11.9 68.7
+R-Blur 44.2 48.7 24.2 45.6 23.8 63.3 38.9 41.0 18.2 39.0 17.2 60.5
+best,secondbest
+Table1: Accuracyoftheevaluatedmodelsonclean,andperturbeddatafromImagenet. “WB”refers
+totheaccuracyunderAPGDattacks,while“CC”referstotheaccuracyundercommonnon-adversarial
+corruption[HendrycksandDietterich,2019]. Mean andMean refertotheaverageaccuracyon
+L H
+lowintensity(∥δ∥ =0.002,∥δ∥ =0.5,severity≤3)andhighintensity(∥δ∥ ∈{0.004,0.008},
+∞ 2 ∞
+∥δ∥ ∈{1.5,2.}perturbations,severity>3).R-BlursignificantlyimprovestherobustnessofResNet,
+2
+andoutperformspriorbiologicallymotivateddefenses,whileapproachingtheperformanceofAT.
+R-BlurImprovesAccuracyonCommon(Non-Adversarial)Corruptions: Adversarialpertur-
+bationsconstituteonlyasmallsubsetofperturbationsthathumanvisionisinvariantto,therefore
+weevaluatetheR-Bluronsomeothercommontypesofimagecorruptionsthathumansarelargely
+invarianttobutDNNsarenot. Atthispoint,wealsoincludetheadversariallytrainedResNet(AT)in
+theevaluationtomeasurehowwelltherobustnessendowedbyadversarialtraininggeneralizesto
+other,non-adversarial,corruptions,andcompareitwithbiologicallymotivatedmethods. Wesampled
+2images/classfromImagenetand5images/classfromEcoset. Thenweappliedthe17ofthe193
+common(non-adversarial)corruptionsproposedin[HendrycksandDietterich,2019]at5different
+severity levels to generate 85 corrupted versions of each image leading to corrupted versions of
+ImagenetandEcosetcontaining170Kand240Kimages,respectively.
+Table1showstheaccuracyachievedbythemodelsonEcosetandImagenetunderadversarialand
+non-adversarialperturbations. Asexpected,AT achievedthehighestaccuracyonwhiteboxattacks
+byvirtueofbeingtrainedondataperturbedwithattacksverysimilartoAPGD.AfterAT,themost
+adversarially robust model is R-Blur, followed by VOneBlock. We see that R-Blur is the most
+accuratemodelonnon-adversarialcommoncorruptions,followedbyVOneBlock,whichsupportsour
+hypothesisthattherobustnessofbiologicallymotivatedmethodsingeneral,andR-Blurinparticular,
+ishighlygeneralizable. Incontrast,theaccuracyofAT oncommoncorruptionsisalmostthesameas
+thatoftheunmodifiedResNet,indicatingthattherobustnessofAT doesnotgeneralizewell.
+3.3 AblationStudy
+Having established that R-Blur indeed improves the robustness of image recognition model, we
+examine, by way of ablation, how much each component of R-Blur contributes towards this im-
+provementasshowninFigure8. Themostsignificantcontributortorobustnessistheadditionof
+noiseduringtraining,followedbyadaptiveblurring. Importantly,applyingnon-adaptiveblurring
+byconvolvingtheimagewithasingleGaussiankernelhavingσ =10.5(σ =10.9isthemaximum
+usedforadaptiveblurring)improvesrobustnessveryslightlywhiledegradingcleanaccuracy,thus,
+indicatingthesignificanceofsimulatingfoveationviaadaptiveblurring. Thenextmostsignificant
+factorisevaluatingatmultiplefixationpointswhichimprovedrobustnesssignificantlycomparedtoa
+singlefixationpointinthecenteroftheimage,whichsuggeststhat,multiplefixationsandsaccades
+areimportantwhentheimageishardtorecognizeandpresentsapromisingdirectionforfuturework.
+Furthermore,notadaptivelydesaturatingthecolorsreducestherobustnessslightly. Tosummarize,
+allthebiologically-motivatedcomponentsofR-Blurcontributetowardsimprovingtheadversarial
+robustnessofobjectrecognitionDNNsfromcloseto0%to45%(ℓ =0.008forEcoset-10)
+∞
+3WeexcludeGaussianblurandGaussiannoisesincetheyaresimilartothetransformationsdonebyR-Blur.
+8
+Figure8: Accuracy on clean and
+Everything 44 89 Everything 44 89 APGD (∥δ∥ = 0.008) perturbed
+Des aD MtFy uix un ra a la tt t im pi io o li n n ec 44 35 8 888 89 No Bn l- uA rd +a NNp ooti iiv ss ee e 3036 85 91 E coc mos pe ot- n1 e0 nti sm∞ oa fg Res -Bw luh re an rein rd ei mvi od vu ea dl
+Fixat i Bo ln us r 17 34 87 Non-Adap Bti lv ue r 5 88 ( fl oe rf mt) s, aa rn ed uw seh de (n rin go hn t)- .a Rda ep mt oiv ve int gra tn hs e-
+Noise 11 90 N Do en s- aA td ua rap tt ii ov ne 0 92 biologically-motivated components
+0 20 40 60 80 0 20 40 60 80
+Accuracy Accuracy ofR-Blurharmstherobustness
+4 RelatedWork
+Non-biologicaldefenses: Perhapsthemostsuccessfulclassofadversarialdefensesareadversarial
+training algorithms [Madry et al., 2018, Zhanget al., 2019, Rebuffiet al., 2021,Bai et al., 2021,
+Wongetal.,2019],whichtrainmodelsonadversariallyperturbeddatageneratedbybackpropagating
+gradientsfromthelosstotheinputduringeachtrainingstep. Anotherpopularclassofdefensesis
+certifieddefenses[Cohenetal.,2019,Fischeretal.,2020,KumarandGoldstein,2021,Lietal.,2019]
+whichareaccompaniedbyprovableguaranteesoftheform:withprobability1−δ,themodel’soutput
+willnotchangeifagivenimageisperturbedatmostϵ. Perhaps,mostcloselyrelatedtoourworkare
+preprocessingdefenses[Guoetal.,2017,Raffetal.,2019]thatapplyalargenumberoftransformsto
+theinputduringinference. Usually,thesedefensesrelyonnon-differentiabletransformations,anda
+highdegreeofrandomizationinthenumber,sequence,andparametersofthetransformstheyapply
+toeachimage. Therefore,thesedefensestendtoobfuscategradients[Athalyeetal.,2018a],andhave
+beenshowntobecompromisedbyattackswithahigherstepbudget. Wewouldliketopointoutthat
+R-Blurdoesnothavetheseaforementionedpitfalls–thetransformsthatR-Blurapplies(Gaussian
+bluranddesaturation)arefullydifferentiableandtotallydeterministic. Ingeneral,itisouropinion
+thatbynotbeingcognizantofthebiologicalbasisofrobustvision,currentapproachesareexcluding
+alargesetofpotentiallyeffectiveapproachesfordefendingagainstadversarialattacks.
+Biologically inspired defenses: These defenses involve integrating computational analogues of
+biologicalprocessesthatareabsentfromcommonDNNs,suchaspredictive/sparsecoding[Paiton
+etal.,2020,Baietal.,2021],biologicallyconstrainedvisualfilters,nonlinearities,andstochasticity
+[Dapello et al., 2020], foveation [Jonnalagadda et al., 2022, Luo et al., 2015, Gant et al., 2021],
+non-uniformretinalsamplingandcorticalfixations[Vuyyuruetal.,2020],intoDNNs. Theresulting
+modelsaremademorerobusttoadversariallyperturbeddata.
+RetinaModelsforRobustness:SomepriorworksstudytheimpactofsimulatingfoveationinCNNs
+ontheiradversarialrobustness,butthebodyofliteratureinthisspaceisrathersparse. Oneofthe
+earliestworks[Luoetal.,2015]implementsafoveation-baseddefensebycroppingtheinputimage
+usingvariousschemes. [Vuyyuruetal.,2020]proposedadefensethatsimulatesthenon-uniform
+samplingofthevisualstimulithatoccursintheretina. Theydothisbyresamplinginputimages
+sothatthesamplingdensityofpixelsismaximalatthepointoffixationanddecaysprogressively
+inregionsfurtherawayfromit. Morerecently,[Gantetal.,2021]proposedaneuralnetworkthat
+modifiesthetexturesintheimagesuchthatthemodifiedimageappearsidenticaltohumanobservers
+whenviewedinperipheralvision.TheyreportimprovementinadversarialrobustnesswhenDNNsare
+trainedonimagestowhichthistransformhasbeenapplied. Whilewedonotimplementandevaluate
+theirapproachinthispaper,wenotethattheyreport40%accuracyagainstperturbationofℓ norm
+∞
+0.005bya5-stepPGDattack,whileweachieveanaccuracycloseto50%atℓ norm0.008witha
+∞
+25-stepAPGDattack. Althoughtheaccuracyofthesebiologicallyinspiredapproachesishigherthan
+thatofanunmodifiedmodelunderadversarialattack,thereisstillalargegapinrobustnessbetween
+theproposedapproachesandnon-biologicaldefenses,indicatingthatthereisroomforimprovement.
+5 Limitations
+AddingR-Blurreducesaccuracyoncleandata,however,itispossibletosignificantlyimprovethe
+accuracyofR-Blurbydevelopingbettermethodsforselectingthefixationpoint.Furtherexperimental
+resultspresentedinAppendixBshowthatiftheoptimalfixationpointwaschosenbyanoraclethe
+cleanaccuracyofR-Blurcanbeimprovedtowithin2%oftheaccuracyoftheunmodifiedResNet.
+9
+6 Conclusion
+Since the existence of adversarial attacks presents a divergence between DNNs and humans, we
+askifsomeaspectofhumanvisionisfundamentaltoitsrobustnessthatisnotmodeledbyDNNs.
+Tothis end, we propose R-Blur, a foveationtechnique that blurs theinput image and reducesits
+colorsaturationadaptivelybasedonthedistancefromagivenfixationpoint. WeevaluateR-Blur
+and other baseline models against APGD attacks on two datasets containing real-world images.
+R-Blur outperforms other biologically inspired defenses. Furthermore, R-Blur also significantly
+improvesrobustnesstocommon, non-adversarialcorruptionsandachievesaccuracygreaterthan
+that of adversarial training. The robustness achieved by R-Blur is certifiable using the approach
+from[Cohenetal.,2019]andthecertifiedaccuracyachievedbyR-Blurisatparorbetterthanthat
+achievedbyrandomizedsmoothing[Cohenetal.,2019]. Ourworkprovidesfurtherevidencethat
+biologicallyinspiredtechniquescanimprovetheaccuracyandrobustnessofAImodels.
+References
+DanielLKYamins,HaHong,CharlesFCadieu,EthanASolomon,DarrenSeibert,andJamesJ
+DiCarlo. Performance-optimizedhierarchicalmodelspredictneuralresponsesinhighervisual
+cortex. Proceedingsofthenationalacademyofsciences,111(23):8619–8624,2014.
+CharlesFCadieu,HaHong,DanielLKYamins,NicolasPinto,DiegoArdila,EthanASolomon,
+NajibJMajaj,andJamesJDiCarlo. Deepneuralnetworksrivaltherepresentationofprimateit
+cortexforcorevisualobjectrecognition. PLoScomputationalbiology,10(12):e1003963,2014.
+ChristianSzegedy,WojciechZaremba,IlyaSutskever,JoanBruna,DumitruErhan,IanGoodfellow,
+andRobFergus. Intriguingpropertiesofneuralnetworks. InICLR,2014. URLhttp://arxiv.org/
+abs/1312.6199.
+RobertGeirhos,CarlosRMTemme,JonasRauber,HeikoHSchütt,MatthiasBethge,andFelixA
+Wichmann. Generalisationinhumansanddeepneuralnetworks. Advancesinneuralinformation
+processingsystems,31,2018.
+Samuel Dodge and Lina Karam. A study and comparison of human and deep learning recogni-
+tionperformanceundervisualdistortions. In201726thinternationalconferenceoncomputer
+communicationandnetworks(ICCCN),pages1–7.IEEE,2017.
+AndrewIlyas,ShibaniSanturkar,DimitrisTsipras,LoganEngstrom,BrandonTran,andAleksander
+Madry. Adversarialexamplesarenotbugs, theyarefeatures. Advancesinneuralinformation
+processingsystems,32,2019.
+Aleksander Madry, Aleksandar Makelov, Ludwig Schmidt, Dimitris Tsipras, and Adrian Vladu.
+Towardsdeeplearningmodelsresistanttoadversarialattacks. InInternationalConferenceon
+LearningRepresentations,2018.
+EricWong,LeslieRice,andJZicoKolter. Fastisbetterthanfree: Revisitingadversarialtraining. In
+InternationalConferenceonLearningRepresentations,2019.
+HongyangZhang, YaodongYu, JiantaoJiao, EricXing, LaurentElGhaoui, andMichaelJordan.
+Theoreticallyprincipledtrade-offbetweenrobustnessandaccuracy. InInternationalconferenceon
+machinelearning,pages7472–7482.PMLR,2019.
+JeremyCohen,ElanRosenfeld,andZicoKolter. Certifiedadversarialrobustnessviarandomized
+smoothing. InInternationalConferenceonMachineLearning,pages1310–1320.PMLR,2019.
+MarcFischer,MaximilianBaader,andMartinVechev. Certifieddefensetoimagetransformations
+viarandomizedsmoothing. AdvancesinNeuralInformationProcessingSystems,33:8404–8417,
+2020.
+NicholasCarlini,FlorianTramer,JZicoKolter,etal. (certified!!) adversarialrobustnessforfree!
+arXivpreprintarXiv:2206.10550,2022.
+SanderJoos,TimVanhamme,DavyPreuveneers,andWouterJoosen. Adversarialrobustnessisnot
+enough: Practicallimitationsforsecuringfacialauthentication. InProceedingsofthe2022ACM
+onInternationalWorkshoponSecurityandPrivacyAnalytics,pages2–12,2022.
+10
+Yash Sharma and Pin-Yu Chen. Attacking the madry defense model with l_1-based adversarial
+examples. arXivpreprintarXiv:1710.10733,2017.
+LukasSchott,JonasRauber,MatthiasBethge,andWielandBrendel. Towardsthefirstadversarially
+robustneuralnetworkmodelonmnist. arXivpreprintarXiv:1805.09190,2018.
+DylanMPaiton,CharlesGFrye,ShengYLundquist,JoelDBowen,RyanZarcone,andBrunoA
+Olshausen. Selectivityandrobustnessofsparsecodingnetworks. Journalofvision,20(12):10–10,
+2020.
+TaoBai,JinqiLuo,JunZhao,BihanWen,andQianWang. Recentadvancesinadversarialtraining
+foradversarialrobustness. arXivpreprintarXiv:2102.01356,2021.
+JoelDapello,TiagoMarques,MartinSchrimpf,FranziskaGeiger,DavidCox,andJamesJDiCarlo.
+Simulatingaprimaryvisualcortexatthefrontofcnnsimprovesrobustnesstoimageperturbations.
+AdvancesinNeuralInformationProcessingSystems,33:13073–13087,2020.
+AdityaJonnalagadda,WilliamYangWang,B.S.Manjunath,andMiguelEckstein.Foveater:Foveated
+transformerforimageclassification,2022. URLhttps://openreview.net/forum?id=mqIeP6qPvta.
+YanLuo,XavierBoix,GemmaRoig,TomasoPoggio,andQiZhao. Foveation-basedmechanisms
+alleviateadversarialexamples. arXivpreprintarXiv:1511.06292,2015.
+JonathanMGant,AndrzejBanburski,andArturoDeza. Evaluatingtheadversarialrobustnessofa
+foveatedtexturetransformmoduleinacnn. InSVRHM2021Workshop@NeurIPS,2021.
+ManishReddyVuyyuru,AndrzejBanburski,NishkaPant,andTomasoPoggio. Biologicallyinspired
+mechanismsforadversarialrobustness. AdvancesinNeuralInformationProcessingSystems,33:
+2135–2146,2020.
+EmmaE.M.Stewart,MatteoValsecchi,andAlexanderC.Schütz. Areviewofinteractionsbetween
+peripheral and foveal vision. Journal of Vision, 20(12):2–2, 11 2020. ISSN 1534-7362. doi:
+10.1167/jov.20.12.2. URLhttps://doi.org/10.1167/jov.20.12.2.
+Thorsten Hansen, Lars Pracejus, and Karl R Gegenfurtner. Color perception in the intermediate
+peripheryofthevisualfield. Journalofvision,9(4):26–26,2009.
+Helga Kolb. Facts and figures concerning the human retina - ncbi bookshelf, May 2005. URL
+https://www.ncbi.nlm.nih.gov/books/NBK11556/.
+ValentinDragoiandChieyekoTsuchitani. Visualprocessing: Eyeandretina(section2,chapter14)
+neuroscienceonline: Anelectronictextbookfortheneurosciences: Departmentofneurobiology
+andanatomy-theuniversityoftexasmedicalschoolathouston,2020. URLhttps://nba.uth.tmc.
+edu/neuroscience/m/s2/chapter14.html.
+Farzad Ramezani, Saeed Reza Kheradpisheh, Simon J Thorpe, and Masoud Ghodrati. Object
+categorizationinvisualperipheryismodulatedbydelayedfovealnoise. JournalofVision,19(9):
+1–1,2019.
+ArturoDezaandTaliaKonkle. Emergentpropertiesoffoveatedperceptualsystems,2021. URL
+https://openreview.net/forum?id=2_Z6MECjPEa.
+RTPramod,HarishKatti,andSPArun. Humanperipheralblurisoptimalforobjectrecognition.
+arXivpreprintarXiv:1807.08476,2018.
+Panqu Wang and Garrison W Cottrell. Central and peripheral vision for scene recognition: A
+neurocomputationalmodelingexploration. Journalofvision,17(4):9–9,2017.
+MARY A Johnson. Color vision in the peripheral retina. American journal of optometry and
+physiologicaloptics,63(2):97–103,1986.
+Kaiming He, Xiangyu Zhang, Shaoqing Ren, and Jian Sun. Deep residual learning for image
+recognition. InProceedingsoftheIEEEconferenceoncomputervisionandpatternrecognition,
+pages770–778,2016.
+11
+Alex Krizhevsky, Vinod Nair, and Geoffrey Hinton. Cifar-10 (canadian institute for advanced
+research). URLhttp://www.cs.toronto.edu/~kriz/cifar.html.
+JohannesMehrer,CourtneyJSpoerer,EmerCJones,NikolausKriegeskorte,andTimCKietzmann.
+Anecologicallymotivatedimagedatasetfordeeplearningyieldsbettermodelsofhumanvision.
+ProceedingsoftheNationalAcademyofSciences,118(8):e2011417118,2021.
+OlgaRussakovsky,JiaDeng,HaoSu,JonathanKrause,SanjeevSatheesh,SeanMa,ZhihengHuang,
+AndrejKarpathy,AdityaKhosla,MichaelBernstein,etal. Imagenetlargescalevisualrecognition
+challenge. Internationaljournalofcomputervision,115:211–252,2015.
+Dan Hendrycks and Thomas Dietterich. Benchmarking neural network robustness to common
+corruptionsandperturbations. arXivpreprintarXiv:1903.12261,2019.
+JiaDeng, WeiDong, RichardSocher, Li-JiaLi, KaiLi, andLiFei-Fei. Imagenet: Alarge-scale
+hierarchicalimagedatabase. In2009IEEEconferenceoncomputervisionandpatternrecognition,
+pages248–255.Ieee,2009.
+EkinDCubuk, BarretZoph, DandelionMane, VijayVasudevan, andQuocVLe. Autoaugment:
+Learningaugmentationpoliciesfromdata. arXivpreprintarXiv:1805.09501,2018.
+SergeyZagoruykoandNikosKomodakis. Wideresidualnetworks. BritishMachineVisionConfer-
+ence,2016.
+JeremyHowardandSylvainGugger. Fastai: Alayeredapifordeeplearning. Information,11(2):108,
+2020.
+MatthiasKümmerer,MatthiasBethge,andThomasSAWallis. Deepgazeiii: Modelingfree-viewing
+humanscanpathswithdeeplearning. JournalofVision,22(5):7–7,2022.
+FrancescoCroceandMatthiasHein.Reliableevaluationofadversarialrobustnesswithanensembleof
+diverseparameter-freeattacks. InInternationalconferenceonmachinelearning,pages2206–2216.
+PMLR,2020.
+Anish Athalye, Nicholas Carlini, and David Wagner. Obfuscated gradients give a false sense of
+security: Circumventingdefensestoadversarialexamples. InInternationalconferenceonmachine
+learning,pages274–283.PMLR,2018a.
+NicholasCarlini,AnishAthalye,NicolasPapernot,WielandBrendel,JonasRauber,DimitrisTsipras,
+IanGoodfellow,AleksanderMadry,andAlexeyKurakin. Onevaluatingadversarialrobustness.
+arXivpreprintarXiv:1902.06705,2019.
+Sylvestre-Alvise Rebuffi, Sven Gowal, Dan Andrei Calian, Florian Stimberg, Olivia Wiles, and
+TimothyAMann. Dataaugmentationcanimproverobustness. AdvancesinNeuralInformation
+ProcessingSystems,34:29935–29948,2021.
+Aounon Kumar and Tom Goldstein. Center smoothing: Certified robustness for networks with
+structuredoutputs. AdvancesinNeuralInformationProcessingSystems,34:5560–5575,2021.
+BaiLi,ChangyouChen,WenlinWang,andLawrenceCarin. Certifiedadversarialrobustnesswith
+additivenoise. Advancesinneuralinformationprocessingsystems,32,2019.
+ChuanGuo,MayankRana,MoustaphaCisse,andLaurensVanDerMaaten. Counteringadversarial
+imagesusinginputtransformations. arXivpreprintarXiv:1711.00117,2017.
+EdwardRaff,JaredSylvester,StevenForsyth,andMarkMcLean. Barrageofrandomtransformsfor
+adversariallyrobustdefense. InProceedingsoftheIEEE/CVFConferenceonComputerVision
+andPatternRecognition,pages6528–6537,2019.
+AnishAthalye,LoganEngstrom,AndrewIlyas,andKevinKwok. Synthesizingrobustadversarial
+examples. InInternationalconferenceonmachinelearning,pages284–293.PMLR,2018b.
+12
+IlyaOTolstikhin,NeilHoulsby,AlexanderKolesnikov,LucasBeyer,XiaohuaZhai,ThomasUn-
+terthiner, Jessica Yung, Andreas Steiner, Daniel Keysers, Jakob Uszkoreit, et al. Mlp-mixer:
+An all-mlp architecture for vision. Advances in Neural Information Processing Systems, 34:
+24261–24272,2021.
+AlexeyDosovitskiy,LucasBeyer,AlexanderKolesnikov,DirkWeissenborn,XiaohuaZhai,Thomas
+Unterthiner, Mostafa Dehghani, Matthias Minderer, Georg Heigold, Sylvain Gelly, et al. An
+image is worth 16x16 words: Transformers for image recognition at scale. arXiv preprint
+arXiv:2010.11929,2020.
+13
+24 52.05
+50
+23
+40
+22
+30
+21
+18.80
+20
+20
+10
+19
+0
+1510 25 50 100 STE EOT-10
+# Steps Method
+(a) (b)
+Figure9:AccuracyofaR-BlurmodeltrainedonImagenetunderAPGDattackwithdifferentsettings.
+(a)showstheaccuracywhenAPGDattackisappliedwithdifferentnumbersofupdatesteps. (b)
+showstheaccuracywhen10stepofexpectation-over-transformation(EOT-10)[Athalyeetal.,2018b]
+isusedandR-Blurisconvertedintoastraight-through-estimator(STE)inthebackwardpass. The
+dashedlinein(b)showstheaccuracyofa25-stepAPGDattackwithoutEOTandnormalgradient
+computation for R-Blur. Together these results strongly indicate that R-Blur does not obfuscate
+gradientsandlegitimatelyimprovestheadversarialrobustnessofthemodel.
+A PreventingGradientObfuscation
+Wetakeanumberofmeasurestoensurethatourresultscorrespondtothetruerobustnessofour
+method,andweavoidthepitfallsofgradientobfuscation[Athalyeetal.,2018a,Carlinietal.,2019].
+Firstly,weremoveinferencetimestochasticityfromallthemodelswetest. Wedothisbysampling
+theGaussiannoiseusedinR-BlurandVOneBlockonceandapplyingthesamenoisetoalltestimages.
+Similarly,wesampletheaffinetransformparametersforRandAffineonceandusethemforalltest
+images. WealsocomputethefixationpointsequencesforR-BlurandR-Warponunattackedimages
+anddonotupdatethemduringorafterrunningAPGD.Secondly,weranAPGDfor1to100iterations
+andobservedthatasthenumberofiterationsincreasesthesuccessrateoftheattackincreases(Figure
+9a). Thesuccessrateplateausat50iterations. Sincetheattacksuccessratewith25stepsisonly0.1%
+lowerthanthesuccessratewith50steps,werunAPGDwith25stepsinmostofourexperiments.
+Thirdly,weappliedexpectationovertransformation[Athalyeetal.,2018b]bycomputing10gradient
+samplesateachAPGDiterationandaveragingthemtoobtainthefinalupdate. Wefoundthisdidnot
+changetheattacksuccessratesowetakeonly1gradientsampleinmostofourexperiments(Figure
+9b). Finally,wealsousedastraight-though-estimatortopassgradientsthroughR-Blur incaseit
+maybeobfuscatingthemandfoundthatdoingsoreducestheattacksuccessrate,thusindicatingthat
+gradientsthatpassthroughR-Blurretainvaluableinformationthatcanbeusedbytheadversarial
+attack(Figure9b).
+B FixationPointSelection
+Inthisstudy,wedidnotattempttodevelopanoptimalfixationpointselectionalgorithm,andinstead,
+weoperateundertheassumptionthatpointsatwhichhumanstendtofixatearesufficientlyinformative
+toperformaccurateobjectclassification. Therefore,weusedDeepGaze-III[Kümmereretal.,2022],
+whichisaneuralnetworkmodeltrainedtomodelthehumangaze. DeepGaze-IIIusesadeepCNN
+backbonetoextractfeaturesfromtheimage,andbasedonthesefeaturesanotherDNNpredictsa
+heatmap that indicates, for each spatial coordinate, the probability that a human will fixate on it.
+However,itispossiblethatthisalgorithmissub-optimal,andwithfurtherstudy,abetteronecould
+bedeveloped. Thoughdevelopingsuchanalgorithmisoutofthescopeofthispaper,weconducta
+preliminarystudytodetermineifitispossibletoselectbetterfixationpointsthantheonespredicted
+byDeepGaze-III.
+Tothisend,werunthefollowingexperimenttopickanoptimalfixationpointforeachimageduring
+inference. Foreachtestingimage,weselect49fixationpoints,spaceduniformlyinagrid. Using
+themodelswetrainedinearlier(seesection3)weobtainpredictionsforeachimageandeachofthe
+49fixationpoints. Iftherewasatleastonefixationpointatwhichthemodelwasabletocorrectly
+14
+ycaruccA ycaruccA
+(a)OptimalFixation (b)DeepGaze-IIIFiveFixations (c)AdversarialTraining
+Figure10: Theaccuracyobtainedoncleanandadversarialdatawhen(a)theoptimalfixationpoint
+wasselected,(b)whenthefivefixationapproachfromSection3wasused,and(c)anadversarially
+trainedmodelwasused.
+classifytheimage,weconsiderittobecorrectlyclassifiedforthepurposeofcomputingaccuracy. We
+repeatthisexperimentforEcoset-10,Ecoset,andImagenet,usingcleanandadversariallyperturbed
+data. Weobtaintheadversariallyperturbedimagesforeachofthe49fixationpointsbyfixingthe
+fixationpointatonelocationrunningtheAPGDattackwithℓ -normboundedto0.004. Figure11
+∞
+illustratesthisexperimentwithsomeexampleimages.
+TheresultsarepresentedinFigure10. Weseethatwhentheoptimalfixationpointischosenaccuracy
+onbothcleanandadversariallyperturbeddataimproves,withtheimprovementincleanaccuracy
+beingthemostmarked. ThecleanaccuracyonEcoset-10,Ecoset,andImagenetimprovedby5%,
+11%,and10%respectively,whichmakesthecleanaccuracyoftheR-Blurmodelonparorbetter
+thanthecleanaccuracyachievedbytheunmodifiedResNet. Furthermore,whentheoptimalfixation
+point,ischosenR-BlurobtainshighercleanaccuracythanAT onallthedatasets.
+These results are meant to lay the groundwork for future work toward developing methods for
+determiningtheoptimalfixationpointbasedontheinputimage. However,theyalsoillustratethat
+modelstrainedwithR-Blurlearnfeaturesthatarenotonlymoreadversariallyrobustfeaturesthan
+ResNetbutalsoallowthemodeltomakehighlyaccuratepredictionsoncleandata.
+C EvaluationsWithDifferentArchitectures
+TodemonstratethatthebenefitsofR-BlurarenotlimitedtoCNNs,wetrainedMLP-Mixer[Tolstikhin
+etal.,2021]andViT[Dosovitskiyetal.,2020]modelswithR-Blurpreprocessingandevaluatedtheir
+robustness. WeusetheconfigurationofMLP-MixerreferredtoasS16in[Tolstikhinetal.,2021].
+OurViThasasimilarconfiguration,with8layerseachhavingahiddensizeof512,anintermediate
+sizeof2048,and8self-attentionheads. Wetrainbothmodelswithabatchsizeof128for60epochs
+onEcoset-10usingtheAdamoptimizer. Thelearningrateoftheoptimizerislinearlyincreasedto
+0.001over12epochsandisdecayedlinearlytoalmostzeroovertheremainingepochs. Theresults
+areshowninFigure12.
+WeobservethatR-BlursignificantlyimprovestherobustnessofMLP-Mixermodels,andachieves
+greateraccuracythanR-Warpathigherlevelsofperturbations. Theseresultsshowthattherobustness
+endowed to ResNets by R-Blur was not dependent on the model architecture, and they further
+strengthenourclaimthatlossinfidelityduetofoveationcontributestotherobustnessofhumanand
+computervision.
+D BreakdownofAccuracyAgainstCommonCorruptionbyCorruptionType
+InFigure13webreakdowntheperformanceofthemodelsoncommoncorruptionsbyhigher-level
+corruptioncategories. TheindividualmembersofeachcategoryarelistedinTable2. Weseethat
+in most of the categories, R-Blur achieves the highest median accuracy against the most severe
+corruptions. WealsonotethatR-Blurexhibitsaremarkabledegreeofrobustnesstonoise,whichis
+substantiallygreaterthanalltheothermodelsweevaluated. ItispertinenttonoteherethatGaussian
+noisewasjust1ofthe4typesofnoiseincludedinthenoisecategory,andthustheperformanceof
+R-BlurcannotbeattributedtooverfittingonGaussiannoiseduringtraining. Furthermore,robustness
+toonetypeofrandomnoisedoesnottypicallygeneralizetoothertypesofrandomnoise[Geirhos
+15
+Figure11: Thisfigureindicatesthelocationsoftheoptimalfixationpointsforsomesampleimages.
+Each square in the grid corresponds to one of 49 fixation locations and represents the highest
+resolution region of the image if the model fixates at the center of the square. Squares that are
+shadedgreenindicatethatthemodel’spredictionatthecorrespondingfixationpointwascorrect,
+whilesquaresshadedredindicatethatthemodel’spredictionatthecorrespondingfixationpointwas
+incorrect. Weseethattherearecertainimagesinwhichthereareonlyafewoptimalfixationpoints
+andtheymaynotbeinthecenterorinthecornersoftheimage.
+(a)ResNet-18 (b)MLP-Mixer (c)ViT
+Figure12:TheaccuracyobtainedonEcoset-10againstadversarialperturbationsofvariousℓ norms
+∞
+whenR-BlurisusedwithResNet,MLP-MixerandViTbackbones.
+16
+Noise Blur Weather Digital
+gaussiannoise defocusblur snow contrast
+shotnoise glassblur frost elastictransform
+impulsenoise motionblur fog pixelate
+specklenoise zoomblur brightness jpegcompression
+gaussianblur spatter saturate
+Table2: Categoriesofcorruptionsusedtoevaluaterobustnesstocommoncorruptions. Thiscatego-
+rizationfollowstheonefrom[HendrycksandDietterich,2019]
+etal.,2018]. Therefore,thefactthatR-Blurexhibitsimprovedrobustnesstomultipletypesofnoise
+indicatesthatitisnotjusttrainingonGaussiannoise,butratherthesynergyofallthecomponentsof
+R-Blurthatislikelythesourceofitssuperiorrobustness.
+100 100 100 100
+90 ResNet R-Warp 90 90 90
+80 5-RandAffine VOneBlock 80 80 80
+70 R-Blur AT 70 70 70 60 60 60 60
+50 50 50 50
+40 40 40 40
+30 30 30 30
+20 20 20 20
+10 10 10 10
+0 0 0 0
+1 2 3 4 5 1 2 3 4 5 1 2 3 4 5 1 2 3 4 5
+Corruption Severity Corruption Severity Corruption Severity Corruption Severity
+(a)Imagenet
+100 100 100 100
+90 90 90 90 ResNet VOneBlock
+80 80 80 80 5-RandAffine R-Blur
+70 70 70 70 R-Warp AT 60 60 60 60
+50 50 50 50
+40 40 40 40
+30 30 30 30
+20 20 20 20
+10 10 10 10
+0 0 0 0
+1 2 3 4 5 1 2 3 4 5 1 2 3 4 5 1 2 3 4 5
+Corruption Severity Corruption Severity Corruption Severity Corruption Severity
+(b)Ecoset
+(c)blur (d)noise (e)weather (f)digital
+(g)CIFAR-10
+Figure13: TheaccuracyachievedbyR-Blurandbaselinesonvariousclassesofcommoncorruptions,
+proposedin[HendrycksandDietterich,2019]. Theboxplotshowsthedistributionofaccuracyvalues
+on4-5differentcorruptionsineachclassappliedatdifferentseveritylevels(x-axis)with1referring
+toleastsevereand5beingthemostseverecorruption. R-Blurgenerallyachievesthehighestmedian
+accuracyonthehighestseveritylevels.
+E SensitivityAnalysisofHyperparametersinR-Blur
+TomeasuretheinfluenceofthevariousHyperparametersofR-Blurweconductasensitivityanalysis.
+First, we vary the scale of the Gaussian noise added to the image, the viewing distance during
+inference,andthevalueofβ fromSection2.5,whichisthescalingfactorthatmapseccentricity(see
+equation1tostandarddeviation,andmeasuretheimpactonaccuracyoncleanaswellasadversarially
+perturbeddata. TheresultsofthisanalysisarepresentedinFigure14. Weseethat, asexpected,
+increasingthescaleofthenoiseimprovesaccuracyonadversariallyperturbeddata,however,this
+improvementdoesnotsignificantlydegradecleanaccuracy. Itappearsthattheadaptiveblurringis
+mitigatingthedeleteriousimpactofGaussiannoiseoncleanaccuracy. Ontheotherhand,increasing
+β beyond0.01surprisinglydoesnothaveasignificantimpactonaccuracyandrobustness. Wealso
+17
+ycaruccA
+ycaruccA
+ycaruccA
+ycaruccA
+ycaruccA
+ycaruccA
+ycaruccA
+ycaruccA
+Figure14: TheimpactofthehyperparametersofR-Blurontheaccuracyandrobustnessofmodels
+trainedonEcoset-10. (left)thestandarddeviationofGaussiannoise,and(right)β fromSection2.5.
+60 60
+50 50
+40 is_perturbed 40 is_perturbed
+False False
+30 True 30 True
+20 20
+10
+15 31 48 64 87 1 2 3 4 5
+Width of In-Focus Region # Fixation Points
+Figure15: Theimpactofthesizeofthein-focusregionbyvaryingtheviewingdistance(left)and
+thenumberoffixationpointsoverwhichthelogitsareaggregated(right)onaccuracy. Theplotsare
+computedfromaR-BlurmodeltrainedonImagenet,andtheperturbeddataisobtainedbyconducting
+a25-stepAPGDattackwith∥δ∥ = 0.004. Weseethataccuracyoncleanandperturbeddatais
+∞
+maximizedwhenthewidthofthein-focusregionis48(thiscorrespondstovd=3)andaggregating
+overmorefixationpointsimprovesaccuracyoncleanandperturbeddata.
+measuredtheaccuracyoncleanandperturbeddataaftervaryingtheviewingdistance(see2.4)and
+thenumberoffixationpointsoverwhichthelogitsareaggregated. TheseresultsareplottedinFigure
+15,andtheyshowthataccuracyoncleanandperturbeddataismaximizedwhenthewidthofthe
+in-focusregionis48(thiscorrespondstovd=3)andaggregatingovermorefixationpointsimproves
+accuracyoncleanandperturbeddata.
+F TrainingConfiguration
+Table3presentstheconfigurationsusedtotrainthemodelsusedinourevaluation. Forallthemodels
+theSGDoptimizerwasusedwithNesterovmomentum=0.9.
+G ImplementationDetails
+WeusedPytorchv1.11andPython3.9.12toforourimplementation. Weusedtheimplementationof
+Auto-PGDfromtheTorchattackslibrary(https://github.com/Harry24k/adversarial-attacks-pytorch).
+For R-Warp we used the code from the official repo https://github.com/mvuyyuru/adversary.git.
+Likewise, for VOneBlock we used the code from https://github.com/dicarlolab/vonenet, and
+for DeepGaze-III models we used the code from https://github.com/matthias-k/DeepGaze.
+The training code for DeepGaze-III with R-Blur and R-Warp backbones is based on
+https://github.com/matthias-k/DeepGaze/blob/main/train_deepgaze3.ipynb, and can be found in
+adversarialML/biologically_inspired_models/src/fixation_prediction/train_deepgaze.py.
+Our clones of these repositories are included in the supplementary material. For
+multi-gpu training, we used Pytorch Lightning v1.7.6. We used 16-bit mixed pre-
+cision training to train most of our models. The code for R-Blur can be found in
+adversarialML/biologically_inspired_models/src/retina_preproc.py which is
+partofthesupplementalmaterial.
+18
+ycaruccA ycaruccA
+Dataset Method BatchSize nEpochs LR LR-Schedule WeightDecay nGPUs
+CIFAR-10 ResNet 128 0.4 60 L-Warmup-Decay(0.2) 5e-5 1
+AT 128 0.4 60 L-Warmup-Decay(0.2) 5e-5 1
+R-Warp 128 0.4 60 L-Warmup-Decay(0.2) 5e-5 1
+R-Blur 128 0.4 60 L-Warmup-Decay(0.2) 5e-5 1
+G-Noise 128 0.4 60 L-Warmup-Decay(0.2) 5e-5 1
+Ecoset-10 ResNet 128 0.4 60 L-Warmup-Decay(0.2) 5e-4 1
+AT 128 0.4 60 L-Warmup-Decay(0.2) 5e-4 1
+R-Warp 128 0.4 60 L-Warmup-Decay(0.2) 5e-4 1
+R-Blur 128 0.1 60 L-Warmup-Decay(0.1) 5e-4 1
+VOneBlock 128 0.1 60 L-Warmup-Decay(0.1) 5e-4 1
+G-Noise 128 0.4 60 L-Warmup-Decay(0.2) 5e-4 1
+Ecoset ResNet 256 0.2 25 L-Warmup-Decay(0.2) 5e-4 2
+AT 256 0.2 25 L-Warmup-Decay(0.2) 5e-4 4
+R-Warp 256 0.1 25 L-Warmup-Decay(0.2) 5e-4 4
+R-Blur 256 0.1 25 C-Warmup-2xDecay(0.1) 5e-4 4
+VOneBlock 256 0.1 25 C-Warmup-2xDecay(0.1) 5e-4 4
+G-Noise 256 0.1 25 C-Warmup-2xDecay(0.1) 5e-4 4
+Imagenet ResNet 256 0.2 25 L-Warmup-Decay(0.2) 5e-4 2
+AT 256 0.2 25 L-Warmup-Decay(0.2) 5e-4 4
+R-Warp 256 0.1 25 L-Warmup-Decay(0.2) 5e-4 4
+R-Blur 256 0.1 25 C-Warmup-2xDecay(0.1) 5e-4 4
+VOneBlock 256 0.1 25 C-Warmup-2xDecay(0.1) 5e-4 4
+G-Noise 256 0.1 25 C-Warmup-2xDecay(0.1) 5e-4 4
+Table3: Theconfigurationsusedtotrainthemodelsusedinourevaluation. L-Warmup-Decay(f)
+representsaschedulethatlinearlywarmsupanddecaysthelearningrateandf representsthefraction
+ofiterationsdevotedtowarmup. C-Warmup-2xDecay(0.1)issimilarexceptthatthewarmupand
+decayfollowacosinefunction,andtherearetwodecayphases. Boththeschedulersareimplemented
+usingtorch.optim.lr_scheduler.OneCycleLRfromPytorch.
+H HardwareDetails
+WetrainedourmodelsoncomputeclusterswithNvidiaGeForce2080TiandV100GPUs. Mostof
+theImagenetandEcosetmodelsweretrainedandevaluatedontheV100s,whiletheCIFAR-10and
+Ecoset-10modelsweretrainedandevaluatedonthe2080Ti’s.
+19

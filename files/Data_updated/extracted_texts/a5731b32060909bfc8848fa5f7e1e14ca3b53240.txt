@@ -1,0 +1,1304 @@
+From Dogwhistles to Bullhorns:
+Unveiling Coded Rhetoric with Language Models
+JuliaMendelsohn♢ ∗ RonanLeBras♣ YejinChoi♠♣ MaartenSap♡♣
+♢UniversityofMichiganSchoolofInformation ♣AllenInstituteforAI
+♠PaulG.AllenSchoolofComputerScience&Engineering,UniversityofWashington
+♡LanguageTechnologiesInstitute,CarnegieMellonUniversity
+#juliame@umich.edu (cid:128) dogwhistles.allen.ai
+Abstract
+Warning: contentinthispapermaybeupset-
+tingoroffensivetosomereaders.
+Dogwhistlesarecodedexpressionsthatsimul-
+taneouslyconveyonemeaningtoabroadaudi-
+enceandasecondone,oftenhatefulorprovoca-
+tive, toanarrowin-group; theyaredeployed
+toevadebothpoliticalrepercussionsandalgo-
+Figure1: Schematicofhowdogwhistleswork,based
+rithmic content moderation. For example, in
+on Henderson and McCready (2018) with the exam-
+thesentence“weneedtoendthecosmopolitan
+ple of cosmopolitan. First, a speaker simultaneously
+experiment,” the word “cosmopolitan” likely
+communicates the dogwhistle message and their per-
+means“worldly”tomany,butsecretlymeans
+sona(identity). Thein-grouprecoversboththemessage “Jewish” to a select few. We present the first
+contentandspeakerpersona,enablingthemtoarriveat
+large-scalecomputationalinvestigationofdog-
+thecodedmeaning(e.g. Jewish). Theout-grouponly
+whistles. Wedevelopatypologyofdogwhis-
+recognizesthemessage’scontentandthusinterpretsit
+tles,curatethelargest-to-dateglossaryofover
+literally. Thisliteralmeaningalsoprovidesthespeaker
+300dogwhistleswithrichcontextualinforma-
+withplausibledeniability;ifconfronted,thespeakercan
+tionandexamples,andanalyzetheirusagein
+claimthattheysolelyintendedtheliteralmeaning.
+historicalU.S.politicians’speeches. Wethen
+assesswhetheralargelanguagemodel(GPT-
+3) can identify dogwhistles and their mean-
+We have got this tailspin of culture, in our
+ings,andfindthatGPT-3’sperformancevaries
+innercitiesinparticular,ofmennotworkingand
+widelyacrosstypesofdogwhistlesandtargeted
+groups. Finally,weshowthatharmfulcontent justgenerationsofmennoteventhinkingabout
+containing dogwhistles avoids toxicity detec- workingorlearningtovaluethecultureofwork.
+tion, highlighting online risks of such coded –PaulRyan(R-WI),2014
+language. This work sheds light on the theo-
+reticalandappliedimportanceofdogwhistles Cosmopolitan and inner city are examples of
+inbothNLPandcomputationalsocialscience,
+dogwhistles,expressionsthat“sendonemessage
+and provides resources for future research in
+toanout-groupandasecond(oftentaboo,contro-
+modelingdogwhistlesandmitigatingtheiron-
+versial,orinflammatory)messagetoanin-group”
+lineharms.
+(Henderson and McCready, 2018). Many listen-
+1 Introduction erswouldbelievethatHawleyissimplycriticizing
+well-traveledorworldlypeople,butothersrecog-
+The cosmopolitanelite look down on the com- nizeitasanattackontheJewishpeople. Similarly,
+mon affections that once bound this nation to- manyassumethatRyanisdiscussingissueswithin
+gether:thingslikeplaceandnationalfeelingand ageographiclocation,butothershearapernicious
+religiousfaith... Thecosmopolitanagendahas stereotypeofBlackmenaslazy. Crucially,Hawley
+drivenbothLeftandRight...It’stimeweended and Ryan can avoid alienating the out-group by
+the cosmopolitanexperiment and recovered the maintaining plausible deniability: they never ex-
+promiseoftherepublic. plicitlysay“Jewish”or“Black”,sotheycanreject
+–JoshHawley(R-MO),2019 accusationsofracism(Haney-López,2014).
+∗WorkdonewhileinterningattheAllenInstituteforAI. Becausedogwhistlescanbolstersupportforpar-
+3202
+yaM
+62
+]LC.sc[
+1v47171.5032:viXra
+ticularpoliciesorpoliticiansamongthein-group tles, eachofwhichislabeledwithourtaxonomy,
+while avoiding social or political backlash from richcontextualinformation,explanations,andreal-
+theout-group,theyareapowerfulmechanismof world examples with source links (§2.2-2.3). As
+politicalinfluence(Mendelberg,2001;Goodinand this glossary is the first of its kind, we highlight
+Saward, 2005). For example, racist dogwhistles itsvaluewithacasestudyofracialdogwhistlesin
+suchasstates’rightsandlawandorderwerepart historicalU.S.CongressionalSpeeches(§3).
+ofthepost-CivilRightsRepublicanSouthernStrat- We then apply our taxonomy and glossary to
+egytoappealtowhiteSoutherners, ahistorically investigatehowdogwhistlesinteractwithexisting
+Democraticbloc(Haney-López,2014). Despitepo- NLP systems (§4). Specifically, we evaluate the
+larizationandtechnologythatenablesmessagetar- ability of large language models (i.e. GPT-3) to
+getingtodifferentaudiences,dogwhistlesarestill retrieve potential dogwhistles and identify their
+widely used by politicians (Haney-López, 2014; covert meanings. We find that GPT-3 has a lim-
+Tilleyetal.,2020)andciviliansinonlineconversa- itedcapacitytorecognizedogwhistles,andperfor-
+tions(BhatandKlein,2020;Åkerlund,2021). mancevarieswidelybasedontaxonomicfeatures
+andpromptconstructions; forexample,GPT-3is
+Beyondpoliticalscience,researchondogwhis-
+muchworseat recognizing transphobicdogwhis-
+tlesisurgentandessentialforNLP,buttheyremain
+tlesthanracistones. Finally,weshowthathateful
+achallengetostudy. Dogwhistlesareactivelyand
+messageswithstandardgrouplabels(e.g. Jewish)
+intentionallydeployedtoevadeautomatedcontent
+replacedwithdogwhistles(e.g. cosmopolitan)are
+moderation,especiallyhatespeechdetectionsys-
+consistently rated as far less toxic by a commer-
+tems(Maguetal.,2017). Theymayalsohaveharm-
+ciallydeployedtoxicitydetectionsystem(Perspec-
+fulunseenimpactsinotherNLPsystemsbyinfil-
+tiveAPI),andsuchvulnerabilitiescanexacerbate
+tratingdatausedforpretraininglanguagemodels.
+onlineharmsagainstmarginalizedgroups(§5).
+However,researchersfacemanydifficulties. First,
+This work highlights the significance of dog-
+unlesstheyareapartofthein-group,researchers
+whistles for NLP and computational social sci-
+maybecompletelyunawareofadogwhistle’sex-
+ence, and offers resources for further research in
+istence. Second, dogwhistles’ meanings cannot
+recognizingdogwhistlesandreducingtheirharm-
+be determined by form alone, unlike most overt
+ful impacts. Our glossary, code, results, GPT-
+hateful or toxic language. Rather, their interpre-
+3 outputs, and a form for adding new dogwhis-
+tationreliesoncomplexinterplayofdifferentfac-
+tles to our glossary are all available at: https:
+tors(context,personae,content,audienceidentities,
+//dogwhistles.allen.ai.
+etc.;Khoo,2017;HendersonandMcCready,2018,
+2019;LeeandKosse,2020),asillustratedinFig-
+2 Curatingadogwhistleglossary
+ure 1. Third, since their power is derived from
+thedifferencesbetweenin-groupandout-groupin- 2.1 Taxonomy
+terpretations,dogwhistlescontinuouslyevolvein
+Based on prior work and our own investigations,
+ordertoavoidbeingnoticedbytheout-group.
+wecraftanewtaxonomy(Figure2). Wecategorize
+Weestablishfoundationsforlarge-scalecompu- dogwhistlesbyregister,type,andpersona.
+tationalstudyofdogwhistlesbydevelopingtheory,
+Register Welabelalldogwhistlesaseitherpart
+providing resources, and empirically analyzing
+of a formal/offline or informal/online register.
+dogwhistles in several NLP systems. Prior work
+Formal/offline dogwhistles originated in offline
+largelyfocusesonunderlyingmechanismsorpolit-
+contexts or are likely to appear in statements by
+icaleffectsofdogwhistlecommunication(Albert-
+mainstreampoliticalelites(e.g. familyvalues). The
+son, 2015; Henderson and McCready, 2018) and
+informal/onlineregisterincludesdogwhistlesthat
+typically considers a very small number of dog-
+originated on the internet and are unlikely to be
+whistles(oftenjustone). Toaidlarger-scaleefforts,
+usedinpoliticalspeech(e.g. cuckservative).
+wefirstcreateanewtaxonomythathighlightsboth
+the systematicity and wide variation in kinds of TypeI HendersonandMcCready(2018)distin-
+dogwhistles(§2.1). Thistaxonomycharacterizes guishdogwhistlesintotwotypes: TypeIdogwhis-
+dogwhistlesbasedontheircovertmeanings,style tles covertly signal the speaker’s persona but do
+and register, and the personae signaled by their not alter the implicatures of the message itself,
+users. Wethencompileaglossaryof340dogwhis- while Type II dogwhistles additionally alter the
+Informal (online)
+Register Shared culture Wonder-working power
+Formal (offline)
+Symbol 💜🤍💚
+Self-referential Adult human female
+Persona signal
+Type Policy War on crime
+(Type I)
+Values Family values
+Concept Humor Bix nood
+Persona Persona signal + Other New World Order
+added meaning
+(Type II) Stereotype
+Cosmopolitan
+group label
+Target
+anti-Asian antisemitic climate change denier Stereotype
+Group Inner-city
+anti-GMO liberal racist (anti-Black) descriptor
+anti-Latino conservative religious Label
+Phonetic or
+anti-liberal homophobic transphobic Google
+anti-vax Islamophobic white supremacist arbitrary label
+Bogeyman George Soros
+Figure2: Visualhierarchicalrepresentationofourdogwhistletaxonomyalongwithexamplesofeachtype.
+message’simpliedmeaning. Weextendthistypol- institutionstakentorepresentthetargetgroup(e.g.
+ogy to highlight the wide variety of dogwhistles, GeorgeSoros↔Jewish,orWillieHorton↔Black).
+whichhasimportantconsequencesforbuildinga
+Persona Personareferstothein-groupidentity
+theory of dogwhistles as well as future computa-
+signalledbythedogwhistle. Figure2listssomeper-
+tional modeling. We identify three subcategories
+sonae,butthisisanopenclasswithmanypotential
+of“onlypersona-signaling”(TypeI)dogwhistles:
+in-groups. Thereisconsiderableoverlapinmem-
+symbols(includingemojis,abbreviations,andim-
+bershipoflistedin-groups(e.g. whitesupremacists
+agery),self-referentialtermsformembersofthe
+are often antisemitic), so we label persona based
+in-group,anddogwhistlesthatrequirespecialized
+directlyonexplanationsfromsourcesreferencedin
+knowledgefromasharedin-groupculture.
+ourglossary(asdescribedin2.2). Drawingupon
+third-wavesociolinguistics,personaearenotstatic
+Type II Dogwhistles with an “added message
+labels or stereotypes; rather, people actively con-
+meaning” (Type II) tend to fall into two subcate-
+structandcommunicatepersonaethroughlinguistic
+gories: theynameaconceptorserveasasubstitute
+resources,suchasdogwhistles(Eckert,2008).
+for a target group label. We further divide con-
+ceptsintopolicies(titlesforinitiativeswithcovert
+2.2 Gatheringdogwhistles
+implications,suchaslawandorder),valuesthat
+We draw from academic literature, media cover-
+thein-grouppurportstouphold,expressionswhose
+age, blogs, and community-sourced wikis about
+covertmeaningsaregroundedinin-grouphumor,
+dogwhistles,implicitappeals,andcodedlanguage.
+andotherconcepts,whichareoftencodednames
+forentitiesthatarenotgrouplabels(e.g. theNew Sinceacademicliteraturetendstofocusonasmall
+World Order conspiracy theory is antisemitic but setofexamples,weexpandedoursearchtomedia
+coveragethatidentifiesdogwhistlesinrecentpolit-
+doesnotnameordescribeJewishpeople).
+icalcampaignsandspeeches(e.g. Burack,2020)
+Dogwhistlesserveastargetgrouplabelsinthree
+or attempts to expose code words in hateful on-
+ways. Manyarestereotype-based,whoseinterpre-
+linecommunities(e.g. Caffier,2017). Duringour
+tations rely on pre-existing associations between
+search,wefoundseveralcommunity-sourcedwikis
+thedogwhistleandtargetgroup;weseparatethese
+thatprovidednumerousexamplesofdogwhistles,
+intostereotype-basedtargetgrouplabels,which
+particularlytheRationalWiki“Alt-rightglossary”,
+directly name the target group (e.g. cosmopoli-
+“TERFglossary”,and“Codeword”pages.1
+tan),whilestereotype-baseddescriptorsareless
+directbutstillrefertothetargetgroup(e.g. inner-
+2.3 Glossarycontents
+city). Othershaveanarbitraryorphoneticrela-
+Ourglossarycontains340English-languagedog-
+tionship to the group label; these are commonly
+whistles and over 1,000 surface forms (morpho-
+usedtoevadecontentmoderation,suchas“Opera-
+logicalvariantsandclosely-relatedterms),mostly
+tionGoogle”termsinventedbywhitesupremacists
+fromtheU.S.context. Eachdogwhistleislabeled
+on 4chan to replace various slurs (Magu et al.,
+2017; Bhat and Klein, 2020). The final subcat-
+1rationalwiki.org/wiki/{Alt-right_
+egory, Bogeyman, includes names of people or glossary,TERF_glossary,Code_word}
+eltsihwgoD
+Dogwhistle Sex-basedrights that places politicians on a two dimensional map
+In-group based on roll call voting records, such that ideo-
+Transpeoplethreatenciswomen’srights
+meaning
+logicallysimilarpoliticiansarelocatedneareach
+Persona Transphobic
+other(Carrolletal.,2009;Lewisetal.,2023). We
+Type Concept:Value
+considerthefirstdimensionofDW-NOMINATE,
+Register Formal
+whichcorrespondstoaliberal-conservativeaxis.2
+Manyanti-transgenderpeople[claimthat]women’s“sex-based
+rights”aresomehowbeingthreatened,removed,weakened, As shown in Figure 3, dogwhistle use began
+eroded,orerasedbytransgenderrights... “Sex-basedrights”,
+bytheplainEnglishmeaningofthosewords,cannotexistina toincreaseduringtheCivilRightsEra,following
+Explanation
+countrythathasequalitylaw... it’smostlyadog-whistle:a
+the1954Brownvs. BoardofEducationSupreme
+rallyingsloganmuchlike“familyvalues”forreligious
+conservatives,whichsoundswholesomebutisadeniableand Courtdecisionmandatingracialintegrationofpub-
+slipperycode-wordforawholeraftofunpleasantbigotry.
+licschools. Thisalignswithqualitativeaccountsof
+Source MediumpostbyDavidAllsopp
+theRepublicanSouthernStrategy: becauseexplicit
+Whenso-calledleftistslike@lloyd_rmdemandthatwegiveup
+ourhard-wonsex-basedrights,theyalignthemselvessquarely racismwasnolongeracceptable,politiciansturned
+Example
+withmen’srightsactivists.Tobothgroups,femaletraumais
+todogwhistlestomakethesameappealsimplicitly,
+whitenoise,anirrelevance,orelseexaggeratedorinvented.
+particularly aiming to gain the support of white
+Context TweetbyJ.K.RowlingonJune28,2020
+votersintheSouthernUnitedStates(Mendelberg,
+Table 1: Example glossary entry for the transphobic 2001). Theirfrequencycontinuedtoincreasefrom
+dogwhistlesex-basedrights
+the 1970s through the 1990s, paralleling Haney-
+López(2014)’saccountofdogwhistlesduringthe
+Nixon, Reagan, Bush Sr., and Clinton presiden-
+withitsregister,type,andsignaledpersona,anex-
+cies. Sincethe1990s,thefrequencyofracialdog-
+planation from a linked source, and at least one
+whistles has fluctuated but remained high. Like
+example with linguistic, speaker, situational, and
+Haney-López(2014),wequalitativelyobservethat
+temporalcontextincluded,aswellasalinktothe
+thedogwhistlesinvokedpost-9/11haveshiftedto-
+exampletext. Table1showsoneglossaryentryfor
+wards being more Islamophobic and anti-Latinx
+thetransphobicdogwhistlesex-basedrights.
+ratherthanexclusivelyanti-Black. Wecautionthat
+Antisemitic,transphobic,andracist(mostlyanti-
+this case study and Figure 3 do not make novel
+Black but sometimes generally against people of
+claims;rather,ourgoalistoshowthatevenanaive
+color)dogwhistlesarethemostcommon,withover
+applicationofourglossaryillustratesqualitatively
+70entriesforeachpersona. Theglossaryincludes
+well-establishedhistoricalpatternsinU.S.politics.
+dogwhistles with other personae, such as homo-
+Figure 4 shows how the average ideologies of
+phobic, anti-Latinx, Islamophobic, anti-vax, and
+speakerswhouseparticulardogwhistles(property
+religious. SeeTableA.1intheAppendixforglos-
+rights, thug, welfare reform, hardworking Amer-
+sary statistics across register, type, and persona.
+icans, and Willie Horton) have shifted over time,
+Because dogwhistles continuously evolve, we in-
+andrevealsinterestinginsightsintotheevolution
+tend for this resource to be a living glossary and
+andlifecycleofdogwhistles. Mostracialdogwhis-
+invitethepublictosubmitnewentriesorexamples.
+tles in the U.S. Congressional Speeches have be-
+3 Casestudy: racialdogwhistlesin comeincreasinglyassociatedwithmoreconserva-
+historicalU.S.Congressionalspeeches tive speakers over time. However, the inflection
+pointwhenspeakerideologiesshiftvariesacross
+Weshowcasetheusefulnessofourglossary,with
+dogwhistles,suggestingthattheyemergedasdog-
+a diachronic case study of racial dogwhistles in whistlesatdifferentpoints. Forexample,property
+politicians’speechesfromtheU.S.Congressional rights became increasingly associated with more
+Record(Gentzkowetal.,2019;Cardetal.,2022)to
+conservative speakers since the 1960s, while the
+analyzethefrequencyofspeechescontainingracist averageideologyofspeakersusingwelfarereform
+dogwhistlesfrom1920-2020. Forthiscasestudy,
+wesimplyidentifyglossarytermsbasedonregular 2Theseconddimensioncapturessalientcross-cuttingis-
+sues,andsomearguethatthisdimensionprimarilycaptures
+expressionsanddonotdistinguishbetweencovert
+racerelations(PooleandRosenthal,1985).However,thesec-
+andliteralmeaningsofthesameexpressions. We onddimension’sinterpretationislessclearasthevastmajority
+alsomeasurehowideologiesofspeakersusingdog- ofvotingvariationisalongthefirstdimension,andisoften
+ignoredbypoliticalscientists(BatemanandLapinski,2016).
+whistleschangedovertimeusingDW-NOMINATE
+Wethusrestrictthiscasestudytothefirstdimensionthough
+(PooleandRosenthal,1985),ascalingprocedure futureworkmayopttoconsidertheseconddimensionaswell.
+0.04
+0.03
+0.02
+0.01
+0.00
+1920 1940 1960 1980 2000 2020
+Figure3: Frequencyofspeechescontainingracialdog-
+whistlesintheU.S.CongressionalRecord(asafraction
+of total speeches) over time. The dotted red vertical Figure 4: Average ideology score (DW-NOMINATE
+linesrepresentnoteworthyyears. Useofracialdogwhis- first dimension) for speakers who used selected dog-
+tlesbegantoincreaseduringtheCivilRightsMovement whistlesovertime: welfarereform(topleft),thug(top
+and their frequency continued to rise until the 1990s. right),propertyrights(bottomleft),andWillieHorton
+Sincethe1990s,thefrequencyofspeechescontaining (bottom right). Higher values indicate that the dog-
+dogwhistleshasfluctuatedbutremainedatoverallhigh whistle’sspeakersweremoreconservative,whilelower
+levelscomparedtoearlieryears. valuesindicatethatthedogwhistle’sspeakersweremore
+liberal. Forvisualization,trendsareLowess-smoothed.
+didnotchangeuntilthe1990s.
+WillieHortonpresentsaninterestingexample. In forfuturework.
+his1988presidentialcampaign,GeorgeBushrana
+televisionadvertisementfeaturingWillieHorton,a 4.1 Identifyingcovertmeanings
+Blackmanconvictedofrapeandmurderwhileon
+Togaugewhichtypesofin-grouplanguageGPT-3
+prisonfurlough(Mendelberg,2001). Theadwasso
+mighthaveseenduringtraining,weexamineifit
+powerfulamongwhitevotersthatitpropelledBush
+isabletoidentifydogwhistles’covertmeanings.
+to victory, but shortly afterwards was explicitly
+calledoutasracist(Haney-López,2014). Wesee Experimentalsetup Wecreatepromptsthatvary
+thispatterninFigure4: in1988,WillieHortonwas in(1)whichofthefivedefinitionsofdogwhistles
+associated with extremely conservative speakers, isprovided,ifany,and(2)ifthepromptincludes
+butquicklybecamemoreliberal,andWillieHorton a secret cue. For each input term, we construct
+nolongerfunctionedasasuccessfuldogwhistle. 12prompts(6definitionsincludingnone,andeach
+withorwithoutasecretcue). Considertheexample
+4 RecognitionofdogwhistlesinGPT-3
+below,withadefinition,secretcue,dogwhistleand
+GPT-3’sresponse. Prompts with no secret clue
+Weconducttwoexperimentstoassessifalargelan-
+simply exclude the word secretly. We generate
+guagemodel,GPT-3(Brownetal.,2020),canrec-
+responsesforeachdogwhistleintheglossaryand
+ognizedogwhistles. First,weinterrogatewhether
+consider multiple forms for some, such as actual
+GPT-3isabletoidentifycovertmeaningsofdog-
+emojis as well as descriptions. We thus test 480
+whistles from our glossary, an ability that would
+variantswith12promptsforeach,leadingto5,760
+beinstrumentalinunderstandingthebreadthofon-
+generations.3
+linebigotry. Second,wemeasureGPT-3’sability
+tosurfacedogwhistles,motivatedbythefactthat
+Adogwhistleistheuseofcodedorsuggestive
+dogwhistlesareoftenintentionallyobscuredfrom
+languageinpoliticalmessagingtogarnersupport
+researchers which makes it impossible to ensure
+fromaparticulargroupwithoutprovokingopposi-
+thatamanualsearchiscompleteorcomprehensive.
+tion.Forexample,“cosmopolitan”secretlymeans
+SinceGPT-3istrainedonlargeportionsofinternet
+“Jewishtomanyanti-Semiticpeople.
+data, it may be able to reveal a more comprehen-
+sive and diverse set of dogwhistles than manual
+efforts. Finally,wepresentasmallmanualanalysis
+3Weusethetext-davinci-002GPT-3modelwith
+of in-context dogwhistle recognition using our
+max_tokens=256,temperature=0.0(moredeterministicout-
+glossaryexamplesandGPT-4asaproofofconcept puts)andnum_outputs=1.
+sehceeps
+fo
+noitroporP
+seltsihwgod
+gniniatnoc
+EoB
+sv
+nworB
+tcA
+sthgiR
+liviC
+nagaeR
+lliB
+emirC
+11
+/
+9
+amabO pmurT
+NoSecretCue WithSecretCue markedinblue,therequestinpurple,andGPT-3’s
+NoDefinition .085[±.025] .296[±.021] responseishighlightedin yellow.
+WithDefinition .437[±.010] .543[±.010]
+Adogwhistleistheuseofcodedorsuggestive
+Table2: Proportionofdogwhistleswithcovertmean- languageinpoliticalmessagingtogarnersupport
+ings identified by GPT-3 when prompted with a dog- fromaparticulargroupwithoutprovokingoppo-
+whistledefinition,asecretcue,both,orneither. Confi- sition.Whatareexamplesofdogwhistles?
+denceintervalsareshowninbrackets.
+1. “Lawandorder”
+2.“Thesilentmajority”
+Results The first author manually evaluated 3.“Familyvalues”
+whetherornoteachofthe5,760GPT-3generations 4.“Welfarequeens”
+contains the covert meaning for each dogwhistle. 5.“Illegalaliens”
+80.3% of dogwhistles had their covert meanings
+Evaluation We use our glossary as a proxy to
+identifiedinatleastonegeneration. Overall,56.0%
+measureprecisionandrecallofGPT-3’sabilityto
+generationscontainedthecorrectcovertmeaning
+surfacedogwhistlesbecauseanexhaustiveground-
+fordogwhistlesthatarepartoftheformal/offline
+truth set of dogwhistles does not exist. We cal-
+register,butjust29.4%fordogwhistlesintheinfor-
+culate recall as the proportion of dogwhistles in
+mal/onlineregister. WereferreaderstoAppendix
+ourglossarythatwerealsosurfacedatleastonce
+A.2 (Figure A.2) for more details about register-
+by GPT-3. For precision, the authors manually
+based variation and examples of dogwhistles for
+inspectcandidatesappearinginatleast4%ofGPT-
+whichGPT-3performedparticularlywellorpoorly.
+3textgenerationsforgeneric,whitesupremacist,
+ThespecificpromptformstronglyimpactsGPT- racist,antisemitic,Islamophobic,andtransphobic
+3’s ability to generate covert meanings (Table 2). prompttypes. Becauseourglossaryisnotexhaus-
+Withoutadefinitionorsecretcue,covertmeanings tive,thismethodyieldsconservativeestimates(see
+areidentifiedinjust8.5%ofgenerations. Including AppendixA.1formoreevaluationdetails).
+bothadefinitionandsecretcueimprovesGPT-3’s
+PrecisionResults WefindthatGPT-3doeshave
+performanceover5-fold,withdogwhistles’covert
+theabilitytosurfacedogwhistleswhenprompted
+meaningsidentifiedin54.3%ofgenerations.
+todoso,butcautionthatsuchresultsareimperfect
+WeobservewidevariationinGPT-3’sabilityto
+andrequiremanualverification. Themostcommon
+identifycovertmeaningsacrosspersonae. Among
+errorsinvolveexplicitmentionsofgroupsinstereo-
+the most represented personae in our glossary
+typesorconspiracytheories(Jewsarebehindthe
+(at least 100 generations for each), GPT-3 has
+9/11attacks)orphrasesthatmayaccompanydog-
+the lowest recognition of transphobic dogwhis-
+whistles but are not dogwhistles themselves (I’m
+tles, the highest recognition of homophobic and
+notracistbut...). Precisionindogwhistlesurfacing
+Islamophobicdogwhistles,withantisemitic,white
+variesacrossprompttypes;whiletheaveragepre-
+supremacist, and racist dogwhistles in the mid-
+cision over all six prompt types is 66.8%, scores
+dle(AppendixTableA.3). Thereisalsovariation
+range from just 50% for transphobic dogwhistle
+in performance by dogwhistle type and the spe-
+promptsto91.3%forgenericprompts(FigureA.1).
+cific definition provided; we refer the reader to
+AppendixA.2andFigureA.3formoredetails. RecallResults GPT-3surfaced153of340dog-
+whistles in our glossary (45%). We observe sig-
+4.2 Surfacingdogwhistles nificant differences by register: GPT-3 surfaced
+InadditiontoevaluatingifGPT-3canidentifydog-
+69.4%offormal/offlinedogwhistlesbutjust12.9%
+whistles’covertmeanings,weassessGPT-3’sabil- ofinformal/onlinedogwhistles. Despiteitsability
+itytosurfacedogwhistlesintextgeneration. togenerateemojisandothersymbols,GPT-3did
+notsurfaceanysymbolsoremojisfromourglos-
+Experimental setup We construct a series of sary except for the antisemitic triple parentheses
+promptsthatbeginwithoneoffivedefinitionsof “((()))”.
+dogwhistlesfrompriorwork(TableA.2). Thedef- Figure 5 shows GPT-3 surfacing recall results
+inition is followed by a question or request for bybothregisterandin-grouppersonae. Weshow
+examples(seeAppendixA.1formoreprompting results for the five most-frequent personae repre-
+details). Inthefollowingexample,thedefinitionis sentedinourglossary. Recallofdogwhistlesinthe
+1.0 #IStandWithJKRowling, (transphobic),and
+transphobic
+antisemitic didyouseeKyle? (whitesupremacist).
+0.8 racist
+white supremacist
+Adogwhistleistheuseofcodedorsuggestive
+Islamophobic
+0.6 languageinpoliticalmessagingtogarnersupport
+fromaparticulargroupwithoutprovokingoppo-
+0.4 sition. Identifythedogwhistleinthefollowing
+message:[GLOSSARYEXAMPLE].
+0.2
+UsingtheexamplespresentedinSection1,GPT-
+4correctlyidentifiesthedogwhistlescosmopolitan
+0.0
+Informal/Online Formal/Offline
+Register (elite) and inner city, and generates a correct ex-
+planationfortheircovertmeanings. However,the
+Figure 5: Recall of GPT-3 dogwhistle surfacing sep-
+modeldoesnotworkaswellfortheotherexamples.
+arated by persona and register. Across all personae,
+GPT-3surfacesunder20%ofdogwhistlesintheinfor- For the example containing #IStandWithJKRowl-
+mal/onlineregister. Performanceismuchhigherforthe ing, GPT-4 correctly identifies that text covertly
+formal/offlineregisterbutvariesacrosspersonae,rang- signalstransphobiathroughsupportofJKRowling,
+ingfrom44.8%(transphobic)to100%(Islamophobic). but does not select this hashtag as the dogwhis-
+tle. Ontheotherhand,GPT-4correctlyidentifies
+thedogwhistle inatweetfromJKRowling,
+informal/onlineregisterislowacrosstheboard. For
+and correctly relates this symbol to the women’s
+the formal/offline register, recall is considerably
+suffrage movement, but does not capture the ap-
+higher although it varies widely across personae.
+propriation of this symbol to covertly communi-
+As with precision, GPT-3 has the lowest perfor-
+cate transphobia. Finally, GPT-4 misses both the
+mancefortransphobicdogwhistles,surfacingjust
+dogwhistleandtheprecisecovertmeaningfordid
+44.8% of formal/offline transphobic dogwhistles.
+you see Kyle? (“see Kyle” sounds similar to the
+Forformal/offlineantisemiticdogwhistles,recallis
+Nazislogan“SiegHeil”);whilethemodelstillul-
+considerablyhigherbutfarfromperfectat71.7%.
+timatelyidentifiescovertwhitesupremacy,itgen-
+GPT-3 has 80.3% and 83.3% recall of racist and
+eratesafalseexplanationconnectingtheglossary
+white supremacist dogwhistles, respectively, and
+exampletothispersona.
+full100%recallofIslamophobicdogwhistles.
+5 Dogwhistlesandtoxicitydetection
+4.3 Identifyingdogwhistlesincontext
+Beyondevaluatinglanguagemodels’abilitytorec-
+OurexperimentsshowthatLLMshavesomeability
+ognize dogwhistles, we seek to understand how
+toidentifycovertmeaningsofagivendogwhistle
+dogwhistlesaffectthedecisionsthatNLPsystems
+specified in the prompt (Section 4.1) and gener-
+make,andhowthishasdownstreamimplications
+ate dogwhistles (Section 4.2). We now consider
+forcontentmoderationandonlinesafety. Webegin
+anaturalfollow-upquestion: canLLMscorrectly
+toaddressthiswithastudyofhowdogwhistlesare
+identifydogwhistlesinreal-worldtexts?
+handledbyawidely-deployedtoxiclanguagede-
+Fully addressing this question would require a
+tectionsystem,Google/Jigsaw’sPerspectiveAPI.4
+largerdatasetincludingavarietyoflinguisticcon-
+PerspectiveAPIscoresatextbetween0and1for
+textsperdogwhistle,documentscontainingnodog-
+arangeofattributes(e.g. toxicity, identityattack,
+whistles, and documents with dogwhistle expres-
+profanity),representingtheestimatedprobability
+sions that do not carry the dogwhistle meaning.
+that a reader would perceive the text to contain
+Weleavesucharigorousanalysisforfuturework.
+that attribute. Perspective API’s models are mul-
+Fornow,wepresentasmallmanualanalysiswith
+tilingualBERT-basedmodelsdistilledintosingle-
+ChatGPT/GPT-4 (OpenAI, 2023), using several
+languageconvolutionalneuralnetworksforfaster
+real-worldexamplesfromourglossaryasaproof
+inference,andaretrainedonannotateddatafrom
+ofconceptforin-contextdogwhistlerecognition.
+onlineforums. WereferreaderstothePerspective
+We prompt GPT-4 with the instructions below. APIModelCardsformoredetails.5
+AppendixTableA.5showstheexactglossaryexam-
+4https://perspectiveapi.com/
+pleandGPT-4outputtextforthedogwhistlescos-
+5https://developers.perspectiveapi.
+mopolitan(elite)(antisemitic),inner-city(racist), com/s/about-the-api-model-cards
+gnicafrus
+eltsihwgod
+3-TPG
+fo
+"llaceR"
+0.8 0.76 to identity groups. However, deeper analysis of
+Term Category 0.73
+0.71 slursisoutsidethescopeofthecurrentwork.
+0.7 dogwhistle
+slur
+standard
+0.6 6 Discussion&Conclusion
+0.56
+0.54
+0.5
+WelaythegroundworkforNLPandcomputational
+0.4 socialscienceresearchondogwhistlesbydevelop-
+0.33
+inganewtaxonomyandglossarywithrichcontex-
+0.3 0.28
+0.24 tual information and examples. We demonstrate
+0.2
+our glossary’s utility in a case study of historical
+0.11
+0.1 U.S.Congressionalspeeches,whereourquantita-
+tiveanalysisalignscloselywithhistoricalaccounts.
+0.0
+Toxicity Severe Toxicity Identity Attack We further use our glossary to show that GPT-3
+hassome,butlimited,abilitytoretrievedogwhis-
+Figure6: AveragePerspectiveAPItoxicity,severetoxi-
+tlesandrecognizetheircovertmeanings. Finally,
+city,andidentityattackscoresforHateChecktemplate
+sentencesfilledinwithdogwhistles,slurs,orstandard weverifythatdogwhistlesreadilyevadePerspec-
+grouplabels. tiveAPI’stoxicitydetection. Wenowturntoseveral
+implicationsofthiswork,highlightingpotentialfu-
+turedirectionsacrossdisciplines.
+Experimental setup We consider 237 hateful
+sentencetemplatesfromHateCheck(Röttgeretal., Dogwhistles and toxic language Dogwhistles
+2021), a test suite for bias in hate speech detec- arecloselyrelatedtootherformsofsubtlebiases
+tion, that contain placeholders for identity terms studied in NLP, such as implicit hate speech and
+(groupreferents)ineitheradjectival,singularnom- symbols(Maguetal.,2017;MaguandLuo,2018;
+inal,orpluralnominalforms. Wefillfilledwitha ElSherief et al., 2018, 2021; Qian et al., 2019;
+standardgrouplabel,aslur,oradogwhistleinthe Caselli et al., 2020; Menini et al., 2021; Arviv
+correspondinggrammaticalformrequestedbythe et al., 2021; Botelho et al., 2021; Wiegand et al.,
+template. Forthisexperiment,weconsiderracist 2021a,b;Hartvigsenetal.,2022),microaggressions
+(mostly anti-Black), antisemitic, and transphobic (Breitfelleretal.,2019),dehumanization(Mendel-
+terms,asthesepersonaearethemostcommonin sohn et al., 2020), propaganda (Da San Martino
+ourglossary(seeTablesA.7andA.8forasample et al., 2020), condescension (Pérez-Almendros
+of sentence templates and group label terms, re- etal.,2020),andstereotypes(Nangiaetal.,2020;
+spectively). Wefeedourresulting7,665sentences Sapetal.,2020;Nadeemetal.,2021).
+toPerspectiveAPItogetscoresfortoxicity,severe However,dogwhistlesaredistinctfromtoxiclan-
+toxicity,andidentityattack. guageinseveralimportantways. First,althoughof-
+tenimplicitlyabusive,theyarenotexclusivelyhate-
+Results Hatefulsentencesareratedaslesstoxic,
+ful;forexample,wonder-workingpowercovertly
+lessseverelytoxic,andlessidentity-attackingwhen
+signals the speaker’s Evangelical Christian iden-
+dogwhistlesareusedinsteadofstandardgroupla-
+tity (Albertson, 2015). Second, dogwhistles are
+belsorslurs(Figure6). Thispatternholdsforall
+characterizedbydualmeanings,whereindifferent
+threepersonae(AppendixFigureA.4).
+sub-audiencesinterprettheexactsamemessagedif-
+Interestingly,meantoxicityscoresforslursare
+ferently(HendersonandMcCready,2018). Third,
+lowerthanforstandardgrouplabels,especiallyfor
+dogwhistles’ true meanings are intentionally hid-
+antisemiticslurs. Weobserverelativelywidevaria-
+denfromtheout-group(Saul,2018). Nevertheless,
+tioninPerspectiveAPI’sratingsdependingonthe
+becausedogwhistlesareoftendeployedspecifically
+specificchoiceofslur. Forexample,sentencescon-
+to avoid hate speech detection and other content
+tainingtheN-wordarealmostalwaysratedasmore
+moderationtools,NLPresearchersshouldconsider
+toxicthanthesamesentencescontainingBlackor
+how dogwhistles highlight a vulnerability in ex-
+Blackpeople. Lowertoxicityratingsforotherslurs,
+tantlanguagetechnologies,whichultimatelyputs
+suchasthehighlyderogatoryantisemiticK-word6
+people’ssafetyandwell-beingatrisk.
+may be because, similar to dogwhistles, Perspec-
+Weshowthathatefulspeechusingdogwhistles
+tiveAPIdoesnotrecognizethatthesetermsrefer
+evadestoxicitydetection,andisonewaythatNLP
+6https://ajc.org/translatehate/kike systems(unintentionally)perpetuateharmsagainst
+erocS
+IPA
+evitcepsreP
+marginalizedgroups. Thisfindingisnotsurprising, usingNLPtoadvancedogwhistleresearch. Even
+as prior work shows that toxicity detection often though LLMs’ performance is likely due to vast
+failsonsubtlelanguage(HanandTsvetkov,2020; trainingdata,andeventhen,theiroutputsrequire
+Hartvigsenetal.,2022),butunderscorestheneed manualverification,ourexperimentswithGPT-3
+for toxicity and hate speech detection models to demonstrate that LLMs have some ability to sur-
+be able to flag hateful dogwhistles. One poten- facedogwhistlesandexplaintheircovertmeanings.
+tialapproachtoimprovesuchmodelscouldbeto Thisisparticularlyvaluableasdogwhistlesarein-
+train them to recognize dogwhistles in naturally- tentionally hidden from out-group members, and
+occurringin-groupcontexts(startingwithmodel- out-group researchers may have no other way to
+ing contextual factors; Zhou et al., 2023). More accessthisinformation. Thereisthusauniqueop-
+broadly,contentmoderationpipelinesshouldtake portunityforLLMstoassistdogwhistleresearch,
+contextintoaccountandconsidermechanismsto andpoliticalcontentanalysismorebroadly.
+identifywhenadogwhistlehaspotentiallynegative
+consequences. Beyond toxicity detection, future
+Bridginglarge-scaleanalysisandmathematical
+workoughttoconsidertheimpactofdogwhistles
+models Our work builds foundations for large-
+inabroaderrangeofNLPtasks,suchasbiasmiti-
+scalecomputationalanalysisofdogwhistlesinreal-
+gationorstorygeneration.
+world political discourse. We diverge from prior
+HowdoLLMsknowaboutdogwhistles? Our quantitative dogwhistle research, which focuses
+findings regarding GPT-3’s ability to surface and onmathematicallymodelingtheprocessunderly-
+identifydogwhistles’covertmeaningsareprobably ing dogwhistle communication using probabilis-
+drivenbythecontentsofthetrainingdata. GPT-3’s tic, game-theoretic, deep learning, and network-
+trainingdatalikelyincludesright-wingextremist based approaches on simulation data (Smaldino
+content, as has been shown with its predecessor et al., 2018; Dénigot and Burnett, 2020; Hender-
+GPT-2 (Gehman et al., 2020), which may result sonandMcCready,2020;BreitholtzandCooper,
+in high performance for dogwhistles from these 2021;SmaldinoandTurner,2021;Xuetal.,2021;
+in-groups. Orperhapsthemodelissimplymemo- Hertzbergetal.,2022;vanderDoesetal.,2022).
+rizingarticlesorsocialmediapoststhatexplicitly Weareoptimisticaboutfutureresearchsynthesiz-
+call out certain expressions as dogwhistles. Fu- ingthesetwostrandsofworktoaddressmanyof
+tureworkcouldevaluateiflargelanguagemodels thechallengespresentedbydogwhistles. Forexam-
+can learn dogwhistles’ covert meanings from in- ple,futureworkcoulduseourresourcesalongwith
+contextusagealonebyexperimentallycontrolling thesemathematicalmodelstodevelopsystemsthat
+for whether or not these terms are explicitly ex- canautomaticallydetectdogwhistleusages,emer-
+posedasdogwhistlesinthetrainingdata. genceofnewdogwhistles,ordeclineofolderterms
+Moreover, we find that GPT-3’s performance asdogwhistlesduetoout-groupawareness.
+varies widely across target groups. Transphobic
+dogwhistlesarenotablydifficultforGPT-3tosur-
+Implicationsforsocialscienceresearch Under-
+faceandidentify. Perhapsthisisbecausethemodel
+standingdogwhistlesatscalehasvastimplications
+istrainedonfewerdatafromtransphobiccommuni-
+acrossdisciplines,sowedevelopresourcesuseful
+tiescomparedtootherin-groupsconsideredinthis
+for both NLP and social science researchers. We
+work. Furthermore,transphobicdogwhistlesmay
+providethemostcomprehensive-to-dateglossary
+belessfrequentinthetrainingdatabecausemany
+ofdogwhistlesanddemonstratethroughourcase
+haveemergedrelativelyrecently. Anotherreason
+studyhowthisresourcecanbeusedtoanalyzepo-
+maybeformatting: transphobicdogwhistlesareof-
+litical speeches and other corpora, such as social
+tenemoji-basedandappearinsocialmediascreen
+mediapostsandnewspaperarticles. Dogwhistles
+names and profile bios rather than in posts them-
+havemostlybeenstudiedusingprimarilyqualita-
+selves. Wehopethatfutureworkwillinvestigate
+tivemethods(Moshin,2018;Åkerlund,2021)and
+thelinksbetweenlanguagemodels’knowledgeof
+experiments (Albertson, 2015; Wetts and Willer,
+dogwhistlesandtrainingdata.
+2019;ThompsonandBusby,2021),andwehope
+PotentialofLLMsfordogwhistleresearch Be- that by facilitating quantitative content analysis,
+yondtheriskspresentedbycurrentNLPtechnolo- our resources can add to dogwhistle researchers’
+gies,wewishtohighlightthepotentialbenefitsof methodologicalrepertoires.
+7 Limitations 8 EthicalImplications
+Thisworkrepresentsaninitialpushtobringdog- We caution readers about several potential ethi-
+whistlestotheforefrontofNLPandcomputational cal risks of this work. First is the risk of readers
+socialscienceresearch,andassuch,hasmanylim- misusing or misunderstanding our glossary. We
+itations. Ourglossaryisthemostcomprehensive emphasizethatdogwhistlesareextremelycontext-
+resourcetodate(tothebestofourknowledge)but dependent, and most terms in the glossary have
+aimstodocumentamovingtarget,asdogwhistles benignliteralmeaningsthatmaybemorecommon
+continuouslyemergeorfalloutofuseduetoout- thanthecovertdogwhistlemeanings. Forexample,
+groupawareness. Weaimtomakethisresourcea manyentitiesfromthefinancialsectorhavebeen
+“living glossary” and encourage others to submit usedasantisemiticdogwhistles(e.g. theFederal
+new entries or examples. We further encourage Reserve, bankers)buttheirprimaryusagehasno
+futureresearchtodevelopmodelstoautomatically antisemiticconnotations.
+detecttheemergenceofnewdogwhistles. Relatedly, someglossaryentriesincludeterms
+Anothermajorlimitationinthisworkisthatwe that originate from the target group but were ap-
+identifyasout-groupmembersfornearlyalldog- propriatedbythedogwhistles’in-group. Examples
+whistles in the glossary and have an adversarial includetheappropriationofgoy(aYiddishword
+relationship with many of the communities stud- fornon-Jewishpeople)asanantisemiticin-group
+ied(e.g. whitesupremacists). Althoughourwork signal, and baby mama (originally from African
+would ideally be validated by members of the in- AmericanEnglish)asaracistdogwhistle. Aswith
+groups,theyhaveverylittleincentivetosharethis hatespeechdetection(Sapetal.,2019),thereisa
+information,asthatwoulddamagethedogwhistle’s riskofsocialbiasindogwhistledetection.
+utilityasatoolforcovertin-groupcommunication. Aswehavediscussedthroughoutthiswork,dog-
+Thiswork,likemostpriorwork,islimitedinthat whistleresearchersfaceachallengewithnoexhaus-
+we operationalize dogwhistles as a static binary; tivegroundtruthandanunknownsearchspace. We
+weassumeeachtermeitherdoesordoesnothave anticipateourglossarybeingahelpfulresourcefor
+adogwhistleinterpretationandiscategoricallyin- thisreason,butbecausewealsolacksuchexhaus-
+cludedorexcludedfromourglossaryandanalyses. tivegroundtruth,thereareboundtobebiasesinthe
+In reality, dogwhistles are far more complicated representationofdogwhistlesinourglossary. The
+constructs. For example, Lee and Kosse (2020) currentversionoftheglossarymayexcludegroups
+characterize dogwhistles along two dimensions: and thus lead to worse performance in dogwhis-
+thesizeoftheirin-groupandthedegreetowhich tle detection, toxic language detection, and other
+theirusageisconventionalized. Otheraxesofvari- downstreamNLPtasks.
+ationmayincludethelevelofout-groupawareness, Ourglossaryalsoincludesreal-worldexamples
+andthesocialandpoliticalrisksofbacklashtothe of how each dogwhistle is used. This presents
+communicator if the dogwhistle interpretation is a privacy risk, which we mitigate by prioritizing
+exposed. It is even possible that audience mem- examples from public figures or examples from
+bers who hear a dogwhistle further recirculate it anonymoussocialmediaaccountswheneverpossi-
+eveniftheythemselvesdonotrecognizethecovert ble. Wedonotreleasepersonalinformationofany
+meaning(Saul,2018). Wehopefutureworkwill speakerwhoisnotawell-knownpublicfigure.
+considermultifacetedandcontinuousmeasuresof
+Finally, we do not pursue any computational
+“dogwhistleness"thataccountforsuchnuances.
+modelingorpredictionofdogwhistleusagesinthis
+Finally,thecurrentworkislimitedinthescope work, but see it as a natural direction for future
+ofdogwhistlesconsidered: theyareallinEnglish work. However, we caution researchers to con-
+withthevastmajoritycomingfromtheU.S.polit- siderdual-useissuesindoingso. Manypeopleuse
+ical and cultural contexts. However, dogwhistles codedlanguageinordertoavoidcensorshipfrom
+areprominentacrosscultures(Paletal.,2018;Åk- authoritarianregimes(Yang,2016)andmarginal-
+erlund, 2021) and we hope that future work will izedgroupsmayalsousecodedlanguagefortheir
+considerotherlanguagesandcultures, especially own safety (Queen, 2007). When building com-
+involvingresearcherswhohavehighawarenessof putationalmodels,weurgeresearcherstomitigate
+orexpertiseinnon-U.Spoliticalenvironments. thisdual-useriskasmuchaspossible.
+Acknowledgements EmilyBurack.2020. Alistofantisemiticdogwhistles
+usedbydonaldtrump. HeyAlma.
+WethankCerenBudak,YuliaTsvetkov,andaudi-
+Justin Caffier. 2017. Get to know the memes of the
+encesatTextasData2022(TADA)andNewWays
+alt-rightandnevermissadog-whistleagain. Vice.
+ofAnalyzingVariation50(NWAV)fortheirhelpful
+feedbackonanearlierversionofthiswork. Wealso DallasCard,SerinaChang,ChrisBecker,JuliaMendel-
+sohn,RobVoigt,LeahBoustan,RanAbramitzky,and
+thanktheanonymousreviewersfortheircomments
+DanJurafsky.2022. Computationalanalysisof140
+andsuggestions. J.M.gratefullyacknowledgessup-
+yearsofuspoliticalspeechesrevealsmorepositive
+portfromtheGooglePhDFellowship. but increasingly polarized framing of immigration.
+Proceedings of the National Academy of Sciences,
+119(31):e2120510119.
+References
+Royce Carroll, Jeffrey B Lewis, James Lo, Keith T
+MathildaÅkerlund.2021. Dogwhistlingfar-rightcode Poole, and Howard Rosenthal. 2009. Measuring
+words: thecaseof‘cultureenricher’ontheswedish biasanduncertaintyindw-nominateidealpointesti-
+web. Information,Communication&Society,pages matesviatheparametricbootstrap. Politicalanalysis,
+1–18. 17(3):261–275.
+BethanyLAlbertson.2015. Dog-whistlepolitics: Mul- TommasoCaselli,ValerioBasile,JelenaMitrovic´,Inga
+tivocalcommunicationandreligiousappeals. Politi- Kartoziya, and Michael Granitzer. 2020. I feel of-
+calBehavior,37(1):3–26. fended,don’tbeabusive! implicit/explicitmessages
+inoffensiveandabusivelanguage. InProceedingsof
+EyalArviv,SimoHanouna,andOrenTsur.2021. It’s
+the12thlanguageresourcesandevaluationconfer-
+a thin line between love and hate: Using the echo
+ence,pages6193–6202.
+inmodelingdynamicsofracistonlinecommunities.
+ProceedingsoftheInternationalAAAIConference Giovanni Da San Martino, Alberto Barrón-Cedeño,
+onWebandSocialMedia,15(1):61–70. HenningWachsmuth,RostislavPetrov,andPreslav
+Nakov.2020. SemEval-2020task11: Detectionof
+DavidABatemanandJohnLapinski.2016. Idealpoints
+propagandatechniquesinnewsarticles. InProceed-
+and american political development: Beyond dw-
+ingsoftheFourteenthWorkshoponSemanticEvalu-
+nominate. Studies in American Political Develop-
+ation,pages1377–1414,Barcelona(online).Interna-
+ment,30(2):147–171.
+tionalCommitteeforComputationalLinguistics.
+Prashanth Bhat and Ofra Klein. 2020. Covert hate
+QuentinDénigotandHeatherBurnett.2020. Dogwhis-
+speech: Whitenationalistsanddogwhistlecommu- tlesasidentity-basedinterpretativevariation. InPro-
+nication on twitter. In Twitter, the public sphere, ceedingsoftheProbabilityandMeaningConference
+andthechaosofonlinedeliberation,pages151–172.
+(PaM2020).
+Springer.
+PenelopeEckert.2008. Variationandtheindexicalfield
+Austin Botelho, Scott Hale, and Bertie Vidgen. 2021. 1. Journalofsociolinguistics,12(4):453–476.
+Decipheringimplicithate: Evaluatingautomatedde-
+tectionalgorithmsformultimodalhate. InFindings Mai ElSherief, Vivek Kulkarni, Dana Nguyen,
+of the Association for Computational Linguistics: William Yang Wang, and Elizabeth Belding. 2018.
+ACL-IJCNLP2021,pages1896–1907. Hatelingo: Atarget-basedlinguisticanalysisofhate
+speechinsocialmedia. InProceedingsoftheInter-
+LukeBreitfeller,EmilyAhn,DavidJurgens,andYulia nationalAAAIConferenceonWebandSocialMedia,
+Tsvetkov. 2019. Finding microaggressions in the
+volume12.
+wild:Acaseforlocatingelusivephenomenainsocial
+mediaposts. InProceedingsofthe2019conference MaiElSherief,CalebZiems,DavidMuchlinski,Vaish-
+onempiricalmethodsinnaturallanguageprocessing naviAnupindi,JordynSeybolt,MunmunDeChoud-
+andthe9thinternationaljointconferenceonnatural hury,andDiyiYang.2021. Latenthatred: Abench-
+languageprocessing(EMNLP-IJCNLP),pages1664– markforunderstandingimplicithatespeech. arXiv
+1674. preprintarXiv:2109.05322.
+Ellen Breitholtz and Robin Cooper. 2021. Dogwhis- Samuel Gehman, Suchin Gururangan, Maarten Sap,
+tlesasinferencesininteraction. InProceedingsof Yejin Choi, and Noah A Smith. 2020. Realtoxici-
+theReasoningandInteractionConference(ReInAct typrompts: Evaluatingneuraltoxicdegenerationin
+2021),pages40–46. language models. In Findings of the Association
+forComputationalLinguistics: EMNLP2020,pages
+Tom Brown, Benjamin Mann, Nick Ryder, Melanie
+3356–3369.
+Subbiah,JaredDKaplan,PrafullaDhariwal,Arvind
+Neelakantan,PranavShyam,GirishSastry,Amanda Matthew Gentzkow, Jesse M Shapiro, and Matt
+Askell,etal.2020. Languagemodelsarefew-shot Taddy.2019. Measuringgroupdifferencesinhigh-
+learners. Advancesinneuralinformationprocessing dimensionalchoices: methodandapplicationtocon-
+systems,33:1877–1901. gressionalspeech. Econometrica,87(4):1307–1340.
+RobertEGoodinandMichaelSaward.2005. Dogwhis- Tali Mendelberg. 2001. The Race Card: Campaign
+tlesanddemocraticmandates. ThePoliticalQuar- Strategy,ImplicitMessages,andtheNormofEqual-
+terly,76(4):471–476. ity. PrincetonUniversityPress.
+Xiaochuang Han and Yulia Tsvetkov. 2020. Fortify- Julia Mendelsohn, Yulia Tsvetkov, and Dan Jurafsky.
+ingtoxicspeechdetectorsagainstveiledtoxicity. In 2020. Aframeworkforthecomputationallinguistic
+Proceedings of the 2020 Conference on Empirical analysis of dehumanization. Frontiers in artificial
+MethodsinNaturalLanguageProcessing(EMNLP), intelligence,3:55.
+pages7732–7739,Online.AssociationforComputa-
+tionalLinguistics. Stefano Menini, Alessio Palmero Aprosio, and Sara
+Tonelli.2021. Abuseiscontextual,whataboutnlp?
+Ian Haney-López. 2014. Dog whistle politics: How the role of context in abusive language annotation
+coded racial appeals have reinvented racism and anddetection. arXivpreprintarXiv:2103.14916.
+wreckedthemiddleclass. OxfordUniversityPress.
+Jamie Moshin. 2018. Hello darkness: Antisemitism
+Thomas Hartvigsen, Saadia Gabriel, Hamid Palangi, andrhetoricalsilenceinthe"trumpera". Journalof
+MaartenSap,DipankarRay,andEceKamar.2022. ContemporaryRhetoric,8.
+Toxigen: A large-scale machine-generated dataset
+for adversarial and implicit hate speech detection. Moin Nadeem, Anna Bethke, and Siva Reddy. 2021.
+In Proceedings of the 60th Annual Meeting of the Stereoset: Measuringstereotypicalbiasinpretrained
+AssociationforComputationalLinguistics(Volume languagemodels. InProceedingsofthe59thAnnual
+1: LongPapers),pages3309–3326. Meeting of the Association for Computational Lin-
+guisticsandthe11thInternationalJointConference
+Robert Henderson and Elin McCready. 2018. How onNaturalLanguageProcessing(Volume1: Long
+dogwhistleswork. NewFrontiersinArtificialIntelli- Papers),pages5356–5371.
+gence,pages231–240.
+Nikita Nangia, Clara Vania, Rasika Bhalerao, and
+RobertHendersonandElinMcCready.2019. Dogwhis- SamuelBowman.2020. Crows-pairs: Achallenge
+tles,trustandideology. InProceedingsofthe22nd dataset for measuring social biases in masked lan-
+AmsterdamColloquium,pages152–160. guagemodels. InProceedingsofthe2020Confer-
+ence on Empirical Methods in Natural Language
+RobertHendersonandElinMcCready.2020. Towards Processing(EMNLP),pages1953–1967.
+functional,agent-basedmodelsofdogwhistlecom-
+munication. InProceedingsoftheProbabilityand OpenAI.2023. Gpt-4technicalreport. arXiv.
+MeaningConference(PaM2020),pages73–77.
+Joyojeet Pal, Dinsha Mistree, and Tanya Madhani.
+NiclasHertzberg,RobinCooper,ElinaLindgren,Björn 2018. A friendly neighborhood hindu. In Ce-
+Rönnerstrand,GregorRettenegger,EllenBreitholtz, DEM Asia 2018: Proceedings of the International
+and Asad Sayeed. 2022. Distributional properties Conference for E-Democracy and Open Govern-
+of political dogwhistle representations in swedish ment; Japan 2018, pages 97–121. Edition Donau-
+bert. InProceedingsoftheSixthWorkshoponOnline UniversitätKrems.
+AbuseandHarms(WOAH),pages170–175.
+Carla Pérez-Almendros, Luis Espinosa Anke, and
+JustinKhoo.2017. Codewordsinpoliticaldiscourse. Steven Schockaert. 2020. Don’t patronize me! an
+PhilosophicalTopics,45(2):33–64. annotateddatasetwithpatronizingandcondescend-
+ing language towards vulnerable communities. In
+RebeccaLeeandMaureenKosse.2020. Thesocialdo- Proceedingsofthe28thInternationalConferenceon
+mainofunderstanding: Ethnographically-informed ComputationalLinguistics,pages5891–5902.
+framesemanticsofdogwhistles. HighDesertLin-
+guisticsSociety14. KeithTPooleandHowardRosenthal.1985. Aspatial
+model for legislative roll call analysis. American
+JeffreyBLewis,KeithPoole,HowardRosenthal,Adam journalofpoliticalscience,pages357–384.
+Boche, Aaron Rudkin, and Luke Sonnet. 2023.
+Voteview: Congressional roll-call votes database. Jing Qian, Mai ElSherief, Elizabeth Belding, and
+https://voteview.com/. William Yang Wang. 2019. Learning to decipher
+hatesymbols. arXivpreprintarXiv:1904.02418.
+RijulMagu,KshitijJoshi,andJieboLuo.2017. Detect-
+ingthehatecodeonsocialmedia. InProceedings Robin Queen. 2007. Sociolinguistic horizons: Lan-
+of the International AAAI Conference on Web and guageandsexuality. LanguageandLinguisticsCom-
+SocialMedia,volume11,pages608–611. pass,1(4):314–330.
+Rijul Magu and Jiebo Luo. 2018. Determining code Paul Röttger, Bertie Vidgen, Dong Nguyen, Zeerak
+wordsineuphemistichatespeechusingwordembed- Waseem,HelenMargetts,andJanetPierrehumbert.
+dingnetworks. InProceedingsofthe2ndworkshop 2021. Hatecheck: Functionaltestsforhatespeech
+onabusivelanguageonline(ALW2),pages93–100. detectionmodels. InProceedingsofthe59thAnnual
+Meeting of the Association for Computational Lin- pages576–587.AssociationforComputationalLin-
+guisticsandthe11thInternationalJointConference guistics.
+onNaturalLanguageProcessing(Volume1: Long
+Papers),pages41–58. CanwenXu,WangchunshuZhou,TaoGe,KeXu,Julian
+McAuley,andFuruWei.2021. Blowthedogwhistle:
+MaartenSap,DallasCard,SaadiaGabriel,YejinChoi, Achinesedatasetforcantunderstandingwithcom-
+and Noah A Smith. 2019. The risk of racial bias monsenseandworldknowledge. InProceedingsof
+inhatespeechdetection. InProceedingsofthe57th the2021ConferenceoftheNorthAmericanChap-
+AnnualMeetingoftheAssociationforComputational teroftheAssociationforComputationalLinguistics:
+Linguistics,pages1668–1678. HumanLanguageTechnologies,pages2139–2145.
+MaartenSap,SaadiaGabriel,LianhuiQin,DanJuraf- FanYang.2016. Rethinkingchina’sinternetcensorship:
+sky, Noah A Smith, and Yejin Choi. 2020. Social Thepracticeofrecodingandthepoliticsofvisibility.
+biasframes: Reasoningaboutsocialandpowerim- NewMedia&Society,18(7):1364–1381.
+plicationsoflanguage. InProceedingsofthe58th
+AnnualMeetingoftheAssociationforComputational XuhuiZhou,HaoZhu,AkhilaYerukola,ThomasDavid-
+Linguistics,pages5477–5490. son, Jena D. Hwang, Swabha Swayamdipta, and
+MaartenSap.2023. Cobraframes: Contextualrea-
+JenniferSaul.2018. Dogwhistles,politicalmanipula- soning about effects and harms of offensive state-
+tion,andphilosophyoflanguage. InDanielFogal, ments. InFindingsofACL.
+DanielW.Harris,andMattMoss,editors,Newwork
+onspeechacts,volume360,page84.OxfordUniver-
+sityPressOxford.
+PaulESmaldino,ThomasJFlamson,andRichardMcEl-
+reath.2018. Theevolutionofcovertsignaling. Sci-
+entificreports,8(1):1–10.
+PaulESmaldinoandMatthewATurner.2021. Covert
+signalingisanadaptivecommunicationstrategyin
+diversepopulations. Psychologicalreview.
+AndrewIfedapoThompsonandEthanCBusby.2021.
+Defendingthedogwhistle: Theroleofjustifications
+inracialmessaging. PoliticalBehavior,pages1–22.
+Brian P Tilley et al. 2020. “i am the law and order
+candidate”: A content analysis of donald trump’s
+race-baiting dog whistles in the 2016 presidential
+campaign. Psychology,11(12):1941.
+Tamara van der Does, Mirta Galesic, Zackary Okun
+Dunivin, and Paul E Smaldino. 2022. Strate-
+gic identity signaling in heterogeneous networks.
+Proceedings of the National Academy of Sciences,
+119(10):e2117898119.
+Rachel Wetts and Robb Willer. 2019. Who is called
+by the dog whistle? experimental evidence that
+racial resentment and political ideology condition
+responses to racially encoded messages. Socius,
+5:2378023119866268.
+MichaelWiegand,MajaGeulig,andJosefRuppenhofer.
+2021a. Implicitlyabusivecomparisons–anewdataset
+andlinguisticanalysis. InProceedingsofthe16th
+ConferenceoftheEuropeanChapteroftheAssoci-
+ationforComputationalLinguistics: MainVolume,
+pages358–368.
+Michael Wiegand, Josef Ruppenhofer, and Elisabeth
+Eder.2021b. Implicitlyabusivelanguage–whatdoes
+itactuallylooklikeandwhyarewenotgettingthere?
+InProceedingsofthe2021ConferenceoftheNorth
+AmericanChapteroftheAssociationforComputa-
+tionalLinguistics: HumanLanguageTechnologies,
+A Appendix
+1.0
+0.8
+Category Count
+0.6
+formal/offline 193
+Register 0.4
+informal/online 147
+0.2
+stereotype-basedtargetgrouplabel 64
+concept(policy) 41 0.0 generic white supremacist racist antisemitic Islamophobic transphobic
+Persona cued in prompt
+concept(values) 37
+personasignal(symbol) 35 FigureA.1: PrecisionofGPT-3dogwhistlesurfacingby
+stereotype-baseddescriptor 34 prompttype. Precisionwashighestfordogwhistlesthat
+personasignal(self-referential) 32 werecommonlysurfacedinresponsetogenericprompts,
+Type concept(other) 29 and lowest for dogwhistles that were commonly sur-
+arbitrarytargetgrouplabel 23 faced in response to prompts requesting examples of
+personasignal(sharedculture) 18 Islamophobicortransphobicdogwhistles.
+humor/mockery/sarcasm 11
+representative(Bogeyman) 10
+faulthyperparametersexceptformax_tokens=256,
+phonetic-basedtargetgrouplabel 4
+personasignal(in-grouplabel) 2 temperature=0.7, and num_outputs=5 (5 genera-
+tions per prompt). The resulting texts are strings
+racist 76
+transphobic 73 that take the form of an enumerated list. To ag-
+antisemitic 73 gregateandcomparesurfaceddogwhistlesacross
+whitesupremacist 48 each text completion, we post-process by: split-
+Islamophobic 16 tingbynewlinecharacters,removingenumeration
+conservative 8
+and other punctuation, converting all outputs to
+anti-liberal 7
+lowercase, lemmatizing each surfaced term with
+anti-Latino 6
+SpaCy,andremovingdefinitearticlesthatprecede
+homophobic 6
+Persona generateddogwhistles. Wethenaggregateoverall
+anti-vax 5
+generationstodeterminehowofteneachdogwhis-
+religious 4
+climatechangedenier 4 tleissurfacedforeachin-group.
+anti-Asian 3 Incalculatingprecisionofdogwhistlesurfacing,
+anti-LGBTQ 3 we mark each of the 154 candidate terms as true
+liberal 3 positivesiftheyappearintheglossary. Somesur-
+xenophobic 2
+faceddogwhistlesweremarkedas“correct”ifthey
+anti-GMO 2
+were closely related to a dogwhistle entry in our
+misogynistic 1
+glossary,eveniftheexacttermdidnotappear. Ex-
+amplesincludenationalsecurity,identitypolitics,
+Table A.1: Distribution of glossary entries across all
+theswamp,taxrelief,andpatriot. However,thisis
+registers,types,andpersonae.
+stillaconservativeestimatebecauseourglossaryis
+notexhaustive. GPT-3surfacesanumberofterms
+A.1 Detailsfordogwhistlesurfacing that potentially have dogwhistle usages but were
+Wecreate51totalrequestformulationsthataskfor notcoveredbyourglossary,andthusnotincluded
+genericexamplesofdogwhistles(n=17),dogwhis- inourprecisionestimates. Examplesoftheseterms
+tles that target specific social groups (n=25), and include names of Muslim political organizations
+dogwhistles that are used by certain personae/in- (Hezbollah,Hamas,MuslimBrotherhood)andSec-
+groups(n=9). Foreachprompt,wealsoconsider ondAmendmentrights. FigureA.1showsvariation
+threespellingvariationsof“dogwhistle”: dogwhis- inprecisionofdogwhistlesurfacingacrossprompt
+tle, dog-whistle, and dog whistle. Exact prompt types(in-groupsandgenericprompting).
+textcanbefoundinourprojectrepository.
+A.2 Detailsforidentifyingcovertmeaning
+ToencourageGPT-3togeneratealist,wecon-
+clude all prompts with a newline token followed Variation across registers We identify varia-
+by “1.”. All prompts were provided to a GPT-3 tion in GPT-3’s ability to identify dogwhistles’
+Instruct model (text-davinci-002) with de- covert meanings based on prompt features, dog-
+gnicafrus
+eltsihwgod
+3-TPG
+fo
+"noisicerP"
+Source Definition
+Albertson(2015) Adogwhistleisanexpressionthathasdifferentmeaningstodifferentaudiences.
+Adogwhistleisatermthatsendsonemessagetoanoutgroupwhile
+HendersonandMcCready(2018) atthesametimesendingasecond(oftentaboo,controversial,or
+inflammatory)messagetoaningroup.
+Adogwhistleisawordorphrasethatmeansonethingtothepublic
+BhatandKlein(2020) atlarge,butthatcarryanadditional,implicitmeaningonlyrecognized
+byaspecificsubsetoftheaudience.
+Adogwhistleisacodedmessagecommunicatedthroughwordsorphrases
+Merriam-Webster
+commonlyunderstoodbyaparticulargroupofpeople,butnotbyothers.
+Adogwhistleistheuseofcodedorsuggestivelanguageinpoliticalmessaging
+Wikipedia
+togarnersupportfromaparticulargroupwithoutprovokingopposition.
+TableA.2: DefinitionsofdogwhistlesandtheirsourcesusedforpromptingGPT-3.
+BelowarelinksfortheMerriam-WebsterandWikipediasources:
+https://www.merriam-webster.com/words-at-play/dog-whistle-political-meaning
+https://en.wikipedia.org/wiki/Dog_whistle_(politics)
+0.7 Informal Register
+Formal Register Persona Proportion 95%CI
+0.6
+homophobic 0.737 0.069
+0.5
+Islamophobic 0.654 0.060
+0.4 climatechangedenier 0.595 0.106
+0.3 anti-Asian 0.583 0.126
+conservative 0.563 0.100
+0.2
+anti-Latino 0.560 0.107
+0.1
+racist 0.532 0.029
+0.0 anti-vax 0.490 0.101
+No Definition Only Only Dogwhistle Definition
+Nor Secret Cue Secret Cue Definition & Secret Cue antisemitic 0.462 0.029
+Prompt Type
+whitesupremacist 0.448 0.029
+FigureA.2: PercentofGPT-3generationsthatcapture
+anti-liberal 0.292 0.106
+dogwhistles’covertmeanings,separatedbyregisterand
+transphobic 0.229 0.024
+ifthepromptincludesadefinitionorsecretcue.
+TableA.3: Proportionofdogwhistleswithcovertmean-
+ingsidentifiedbyGPT-3acrosspersonaewithatleast50
+whistle register, and the interaction between the GPT-3generations. GPT-3hasthelowestrecognition
+two. FigureA.2showsthatincludingthedefinition oftransphobicdogwhistlesandthehighestrecognition
+inpromptsconsistentlyimprovesGPT-3’scovert ofhomophobicandIslamophobicdogwhistles.
+meaningidentificationforbothformalandinformal
+dogwhistles. However,includingthesecretcuehas
+minimaleffectforinformaldogwhistles,andonly
+DogwhistleType Proportion 95%CI
+leads to substantial improvement for identifying
+concept(humor) 0.244 0.063
+formaldogwhistles’covertmeanings.
+arbitrarygrouplabel 0.261 0.046
+stereotype-baseddescriptor 0.311 0.060
+Variationacrosspersonae Thereissignificant
+personasignal(symbol) 0.331 0.032
+variationinGPT-3’sperformanceacrosspersonae, personasignal(self-referential) 0.444 0.046
+ascanbeseeninTableA.3. personasignal(sharedculture) 0.448 0.054
+concept(values) 0.475 0.026
+stereotype-basedgrouplabel 0.497 0.031
+Variationacrossdogwhistletypes GPT-3’sper-
+concept(policy) 0.519 0.036
+formancevarieswidelyacrossdogwhistletypesin
+phonetic-basedgrouplabel 0.533 0.127
+ourtaxonomy(§2.1;Fig. 2). GPT-3hasthelowest
+representative(Bogeyman) 0.618 0.063
+performanceforhumor-basedandarbitrarytarget
+group label dogwhistles, and the highest perfor- TableA.4: Proportionofdogwhistleswithcovertmean-
+manceforrepresentatives(Bogeymen),phonetic- ingsidentifiedbyGPT-3bythedogwhistletype.
+basedtargetgrouplabels,andpolicies(TableA.4).
+gninaeM
+trevoC
+deifitnedI
+3-TPG
+)snoitareneg
+fo .carf(
+GlossaryExample GPT-4Response Term Meaning
+Thedogwhistleinthismessageistheterm"cosmopolitanelite,"
+Thecosmopolitanelitelookdownonthecommon
+whichisoftenusedtotargetaspecificgroupofpeople,suchas
+affectionsthatonceboundthisnationtogether:things
+urban,educated,andoftenliberalindividuals,withoutexplicitly
+likeplaceandnationalfeelingandreligiousfaith.The
+namingthem.Itcanalsobeinterpretedasananti-Semiticor ✔ ✔
+cosmopolitanagendahasdrivenbothLeftandRight.
+anti-immigrantmessage,as"cosmopolitan"hashistoricallybeen
+It’stimeweendedthecosmopolitanexperimentand
+usedtocriticizeJewishpeopleandimmigrantsfortheirperceived
+recoveredthepromiseoftherepublic.
+lackofloyaltytotheircountry.
+Thedogwhistleinthismessageisthereferenceto"innercities"
+Wehavegotthistailspinofculture,inourinnercitiesin
+and"generationsofmennotworking,"whichcanbeinterpreted
+particular,ofmennotworkingandjustgenerationsofmen
+ascodedlanguagetargetingAfricanAmericansorotherminority ✔ ✔
+noteventhinkingaboutworkingorlearningthevalueand
+groupslivinginurbanareas,perpetuatingstereotypesabout
+thecultureorwork.
+lazinessandunemployment.
+#IStandWithJKRowlingbecauseshewroteaseriesof
+Thedogwhistleinthismessageis"she’srightaboutthem,"which
+booksthatmadereadersoutofmillionsofchildrenand
+indirectlysupportsJ.K.Rowling’scontroversialopinionsongender ✘ ✔
+adolescents.Andshehaseveryrighttoexpressheropinion
+andtransgenderissueswithoutexplicitlymentioningthem.
+onculturalmatters.Andbecauseshe’srightaboutthem.
+Thedogwhistleinthismessageistheuseofthecolors ,
+whichareassociatedwiththewomen’ssuffragemovement.This
+Andtogether,wewillwin ✔ ✘
+suggeststhatthemessageisaimedatgarneringsupportfrom
+womenorfeministswithoutexplicitlystatingit.
+Thedogwhistleinthismessageis"DidyouseeKyle?He’sabout
+thistall.."whichcouldbeareferencetothewhitesupremacist
+DidyouseeKyle?He’saboutthistall.. symbolofthe"K"handsign,wherethefingersformtheletters ✘ ✘
+"W"and"P"for"whitepower."Thename"Kyle"issometimes
+associatedwithwhitesupremacistgroups.
+TableA.5: Manualproof-of-conceptanalysisforusingGPT-4toidentifydogwhistlesin-context. Thecolumnson
+therightindicatewhetherGPT-4correctlyidentifiesthedogwhistletermanditscovertmeaning,respectively.
+covertmeaningwhenpromptedwithnodogwhis-
+0.6 No secret cue
+Secret cue tle definition. Prompting GPT-3 with any of the
+0.5 fivedogwhistledefinitionsgreatlyimprovedperfor-
+manceovernodefinitionprovided,buttheextent
+0.4
+varied,withtheMerriam-Websterdefinitionyield-
+0.3
+ingthelowestimprovement(43.8%)andWikipedia
+0.2 yieldingthehighest(54.3%)(TableA.6). Theboost
+inperformancebyaddingthesecretcuedepends
+0.1
+onthespecificdefinitionused;thesecretcuehasa
+0.0 biggereffectwhenusingtheMerriam-Websterand
+None Merriam- Albertson Bhat& Henderson& Wikipedia
+Webster (2015) Klein McCready
+(2020) (2018) Albertson(2015)definitions(FigureA.3).
+Definition Source
+FigureA.3: ProportionofGPT-3generationsthatcor-
+rectly identify dogwhistles’ covert meanings across
+prompteddogwhistledefinitionsandsecretcues. WheredoesGPT-3performpoorly? Mostun-
+recognized dogwhistles are part of the informal
+DefinitionSource Mean 95%CI register,especiallysymbols(e.g. thetransphobic
+spiderweborcherryemojis). Otherunrecognized
+NoneProvided 0.191 0.025
+dogwhistlesinclude“OperationGoogle”terms(e.g.
+Merriam-Webster 0.438 0.031
+Albertson(2015) 0.449 0.031 Skype, Yahoo), more recent terms (e.g. Let’s Go
+BhatandKlein(2020) 0.513 0.032 Brandon),andseveralantisemiticandtransphobic
+HendersonandMcCready(2018) 0.515 0.032 dogwhistleswhosecovertmeaningsareespecially
+Wikipedia 0.534 0.032 context-dependent(e.g. adulthumanfemale,XX,
+(Wikipedia)earlylife,fellowwhitepeople). Unrec-
+Table A.6: Proportion of GPT-3 generations that cor-
+ognizedformaldogwhistlestendtobeextremely
+rectlyidentifydogwhistles’covertmeaningsforeach
+subtle and nuanced (e.g. Dred Scott as a con-
+dogwhistledefinitionprovidedinprompting.
+servative anti-abortion dogwhistle) or are highly-
+conventionalizedphrasesthatmaybefarmorecom-
+Variation across dogwhistle definitions Only monlyusedwithoutthecovertimplicature(e.g. the
+19.1% of GPT-3 generations include the correct antisemiticdogwhistlepoisoningthewell).
+gninaeM
+trevoC
+deifitnedI
+3-TPG
+)snoitareneg
+fo
+.carf(
+Toxicity Severe Toxicity Identity Attack
+0.8
+0.7
+0.6
+Term Category 0.5
+dogwhistle
+0.4 slur
+standard
+0.3
+0.2
+0.1
+0.0
+antisemitic racist transphobic antisemitic racist transphobic antisemitic racist transphobic
+FigureA.4: Toxicity,severetoxicity,andidentity-attackingscoresfromPerspectiveAPIpreliminaryexperiment.
+Whenslursorstandardgrouplabelsaresubstitutedwithdogwhistles,sentencesareratedassignificantlylesstoxic.
+WheredoesGPT-3performwell? GPT-3read-
+Template
+ilyidentifiesIslamophobicdogwhistles(e.g. rad-
+Sosickofbeingaround[IDENTITY_P]likeyou.
+ical Islam, Barack Hussein Obama), many anti-
+[IDENTITY_P]aredisgusting.
+semiticconspiracytheories(e.g. Khazars,Kalergi
+You[IDENTITY_P]arealldishonest.
+Plan,IsraelLobby),someracistdogwhistleswhose [IDENTITY_P]arehumangarbage.
+covertmeaningsaremorewidelydiscussedamong Your[IDENTITY_A]livesareworthless.
+the out-group (e.g. inner-city, ghetto, thug, war Nevertrustasinglewordsaidbya[IDENTITY_S].
+on drugs, black-on-black crime), some alt-right Iwillcuttheir[IDENTITY_A]throats.
+memes(e.g. PepetheFrog),andconservativepo- Iwouldlovetoseethose[IDENTITY_P]suffer.
+All[IDENTITY_P]shouldfuckoffforever.
+litical rhetoric (e.g. balance the budget, judicial
+Ofcoursethatdumbasswasa[IDENTITY_S].
+activism,jobcreators).
+[IDENTITY_P]thinkthey’respecial. Ihatethem.
+A.3 Detailsfortoxicitydetection Isn’tittypicalofa[IDENTITY_S]tobethatstupid?
+TableA.7showsasampleofthe237hatefulsen- TableA.7: Sampleoftemplatehatefulsentencesfrom
+tence templates used from HateCheck (Röttger HateCheck(n=237). WecreateinputsforPerspective
+et al., 2021). We used the subset of HateCheck APIbyreplacingidentitytermplaceholderswithastan-
+templateslabeledashatefulandcontainingaplace- dardgrouplabel,dogwhistle,orslurineitheradjectival
+(IDENTITY_A),singularnominal(IDENTITY_S),or
+holderforanidentitytermineitheradjectival,sin-
+pluralnominalform(IDENTITY_P).
+gular nominal, or plural nominal form. We filled
+intheseplaceholderswitheitherastandardgroup
+label, dogwhistle, or slur for three personae: an-
+Racist Antisemitic Transphobic
+tisemitic, racist, and transphobic. Specific terms
+African-American Jewish transgender
+usedcanbefoundinTableA.8. Black Jew trans
+Forallpersonaeandtoxicitymeasuresprovided inner-city cosmopolitan AGP
+welfarequeen cosmopolitanelite autogynephile
+byPerspectiveAPI,dogwhistlesareratedasless
+thug coastalelite AAP
+toxicthanslursandstandardgrouplabels(Figure
+dindu globalist autoandrophile
+A.4. Interestingly,exceptfortheN-word,Perspec- gangbanger internationalbanker clownfish
+tiveseemstonotrecognizetheextremeoffensive- ghetto culturalMarxist troon
+urban Hollywoodelite TIF
+ness of most slurs, and thus toxicity scores for
+superpredator Khazar TIM
+hatefulsentencescontainingslursaresimilartoor
+n****r k**e t****y
+lower than scores for the same hateful sentences c**n h**b s*****e
+containingstandardgrouplabels.
+TableA.8: Racist, antisemitic, andtransphobicterms
+usedfortoxicityanalysis. Wesubstituteidentityplace-
+holdersinHateChecktemplates(Röttgeretal.,2021)
+withthesetermstocreateinputstoPerspectiveAPI.
+erocS
+IPA
+evitcepsreP

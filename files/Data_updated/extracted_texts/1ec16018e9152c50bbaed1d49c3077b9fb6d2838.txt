@@ -1,0 +1,1117 @@
+Interpreting Language Models with Contrastive Explanations
+KayoYin GrahamNeubig
+∗
+UniversityofCalifornia,Berkeley CarnegieMellonUniversity
+kayoyin@berkeley.edu gneubig@cs.cmu.edu
+Abstract Input:Canyoustopthedogfrom
+Output:barking
+Modelinterpretabilitymethodsareoftenused 1.Whydidthemodelpredict“barking”?
+toexplainNLPmodeldecisionsontaskssuch Canyoustopthedogfrom
+as text classification, where the output space 2.Whydidthemodelpredict“barking”insteadof“crying”?
+isrelativelysmall. However, whenappliedto Canyoustopthedogfrom
+language generation, where the output space 3.Whydidthemodelpredict“barking”insteadof“walking”?
+often consists of tens of thousands of tokens, Canyoustopthedogfrom
+these methods are unable to provide informa-
+Table 1: Explanations for the GPT-2 prediction given
+tiveexplanations. Languagemodelsmustcon-
+theinput“Canyoustopthedogfrom_____". Inputto-
+sider various features to predict a token, such
+kensthataremeasuredtoraiseorlowertheprobability
+asitspartofspeech,number,tense,orseman-
+of“barking”areinredandbluerespectively,andthose
+tics. Existingexplanationmethodsconflateev-
+with little influence are in white. Non-contrastive ex-
+idenceforallthesefeaturesintoasingleexpla-
+planationssuchasgradient input(1)usuallyattribute
+nation, which is less interpretable for human ×
+thehighestsaliencytothetokenimmediatelypreceding
+understanding.
+the prediction. Contrastive explanations (2, 3) give a
+To disentangle the different decisions in lan- morefine-grainedandinformativeexplanationonwhy
+guage modeling, we focus on explaining lan- themodelpredictedonetokenoveranother.
+guage models contrastively: we look for
+salientinputtokensthatexplainwhythemodel
+predicted one token instead of another. We
+asgradient-basedsaliencymaps(Lietal.,2016a;
+demonstrate that contrastive explanations are
+Sundararajanetal.,2017),arenotasinformative
+quantifiably better than non-contrastive expla-
+for LM predictions compared to other tasks like
+nations in verifying major grammatical phe-
+nomena, and that they significantly improve textclassification. Forexample,toexplainwhyan
+contrastivemodelsimulatabilityforhumanob- LM predicts “barking” given “Can you stop the
+servers. Wealsoidentifygroupsofcontrastive dog from ____”, we demonstrate in experiments
+decisions where the model uses similar evi-
+thattheinputtokenprecedingthepredictionisof-
+dence,andweareabletocharacterizewhatin-
+tenmarkedasthemostinfluentialtokentothepre-
+puttokensmodelsuseduringvariouslanguage
+diction(Table1)byinstanceattributionmethods.
+generationdecisions.1
+Theprecedingtokenisindeedhighlyimportantto
+1 Introduction determinecertainfeaturesofthenexttoken,ruling
+outwordsthatwouldobviouslyviolatesyntaxin
+Despitetheirsuccessacrossawideswathofnatural that context (e.g. non “-ing” verbs in the given
+languageprocessing(NLP)tasks,neurallanguage example). However,thisdoesnotexplainwhythe
+models(LMs)areoftenusedasblackboxes: how modelmadeothermoresubtledecisions,suchas
+theymakecertainpredictionsremainsobscure(Be- whyitpredicts“barking”insteadof“crying”or
+linkovandGlass,2019). Thisisinpartduetothe “walking”,whichareallplausiblechoicesifweonly
+high complexity of the LM task itself, as well as lookattheprecedingtoken. Ingeneral,language
+thatofthemodelarchitecturesusedtosolveit. modelinghasalargeoutputspaceandahighcom-
+Wearguethatthisisalsoduetothefactthatinter- plexitycomparedtootherNLPtasks;ateachtime
+pretabilitymethodscommonlyusedinNLP,such step,theLMchoosesonewordoutofallvocabu-
+laryitems,andseverallinguisticdistinctionscome
+∗∗WorkdonewhileatCarnegieMellonUniversity.
+1Codeanddemo:https://github.com/kayoyin/interpret-lm. intoplayforeachlanguagemodeldecision.
+184
+Proceedingsofthe2022ConferenceonEmpiricalMethodsinNaturalLanguageProcessing,pages184-198
+December7-11,2022©2022AssociationforComputationalLinguistics
+TobetterexplainLMdecisions,weproposeinter- (Wallaceetal.,2019). Despitetheimportanceof
+pretingLMswithcontrastiveexplanations(Lipton, both language models and interpretability in the
+1990). Contrastive explanations aim to identify NLPliterature,therelativepaucityofworkinthis
+causalfactorsthatleadthemodeltoproduceone areamaybesomewhatsurprising,andwepositthat
+outputinsteadofanotheroutput. Webelievethat this may be due to the large output space of lan-
+contrastive explanations are especially useful to guagemodelsnecessitatingtheuseoftechniques
+handlethecomplexityandthelargeoutputspace suchascontrastiveexplanations,whichwedetail
+oflanguagemodeling. InTable1, thesecondex- furtherbelow.
+planationsuggeststhattheinputword“dog”makes
+“barking” more likely than a verb not typical for 2.2 ContrastiveExplanations
+dogs such as “crying”, and the third explanation Contrastive explanations attempt to explain why
+suggests that the input word “stop” increases the given an input x the model predicts a target y t
+likelihoodof“barking”overaverbwithoutnega- instead of a foil y f. Relatedly, counterfactual
+tiveconnotationssuchas“walking”. explanationsexplorehowtomodifytheinputxso
+Inthispaper,wefirstextendthreeinterpretabil- thatthemodelmorelikelypredictsy insteadofy
+f t
+ity methods to compute contrastive explanations (McGillandKlein,1993).
+(§3). We then perform a battery of experiments While contrastive and counterfactual explana-
+aimedatexaminingtowhatextentthesecontrastive tions have been explored to interpret model deci-
+explanationsaresuperiortotheirnon-contrastive sions(seeStepinetal.(2021)forabroadsurvey),
+counterpartsfromvariousperspectives: they are relatively new to NLP and have not yet
+beenstudiedtoexplainlanguagemodels.
+• RQ1: Are contrastive explanations better at
+Recently, Jacovi etal. (2021)produce counter-
+identifyingevidencethatwebelieve,a-priori,
+factual explanations for text classification mod-
+tobeusefultocaptureavarietyoflinguistic
+elsbyerasingcertainfeaturesfromtheinputand
+phenomena(§4)?
+projecting the input representation to the “con-
+trastive space” that minimally separates two de-
+• RQ2: Do contrastive explanations allow hu-
+cisionclasses. Then,theycomparemodelprobabil-
+man observers to better simulate language
+itiesbeforeandaftertheintervention.
+modelbehavior(§5)?
+We, on the other hand, propose contrastive ex-
+• RQ3: Are different types of evidence neces- planationsforlanguagemodeling,whereboththe
+sarytodisambiguatedifferenttypesofwords, number of input factors and the output space are
+and does the evidence needed reflect (or un- muchlarger. Whilewealsouseacounterfactualap-
+cover)coherentlinguisticconcepts(§6)? proachwitherasure(§3.3),counterfactualmethods
+maybecomeintractableoverlonginputsequences
+2 Background
+andalargefoilspace. We,therefore,alsopropose
+contrastiveexplanationsusinggradient-basedmeth-
+2.1 ModelExplanation
+ods(§3.1,§3.2)thatmeasurethesaliencyofinput
+Ourworkfocusesonmodelexplanationsthatcom-
+tokensforacontrastivemodeldecision.
+municate why a model made a certain prediction.
+Particularly, we focus on methods that compute
+3 ContrastiveExplanationsfor
+saliencyscoresS(x i)overinputfeaturesx
+i
+tore-
+LanguageModels
+veal which input tokens are most relevant for a
+prediction: thehigherthesaliencyscore,themore In this section, we describe how we extend three
+x supposedlycontributedtothemodeloutput. existinginputsaliencymethodstothecontrastive
+i
+Despite a large body of literature examining setting. Thesemethodscanalsobeeasilyadapted
+input feature explanations for NLP models on to tasks beyond language modeling, such as ma-
+tasks such as text classification (for a complete chinetranslation(AppendixA).
+review see Belinkov and Glass (2019); Madsen
+3.1 GradientNorm
+et al. (2021)), or interpreting how language mod-
+elsuselinguisticfeaturessuchassyntax(Ravfogel Simonyanetal.(2013);Lietal.(2016a)calculate
+et al., 2021; Finlayson et al., 2021), few works saliencyscoresbasedonthenormofthegradientof
+attempttoexplainlanguagemodelingpredictions themodelprediction,suchastheoutputlogit,with
+185
+respecttotheinput. ApplyingthismethodtoLMs 4 DoContrastiveExplanationsIdentify
+entailsfirstcalculatingthegradientasfollows: LinguisticallyAppropriateEvidence?
+g(x ) = q(y x)
+i ∇xi t
+|
+First,weaskwhethercontrastiveexplanationsare
+where x is the input sequence embedding, y is quantifiably better than non-contrastive explana-
+t
+thenexttokenintheinputsequence,q(y x)isthe tionsinidentifyingevidencethatwebelieveapri-
+t
+modeloutputforthetokeny giventhein| putx. ori should be important to the LM decision. In
+t
+ordertodoso,wedevelopamethodologyinwhich
+Then,weobtainthesaliencyscorefortheinput
+tokenx bytakingtheL1norm: wespecifycertaintypesofevidencethatindicate
+i
+howtomakeparticulartypesoflinguisticdistinc-
+S (x ) = g(x )
+GN i i L1 tions,andmeasurehowwelleachvarietyofexpla-
+|| ||
+WeextendthismethodtotheContrastiveGra- nationmethoduncoversthisspecifiedevidence.
+dientNormdefinedby:
+4.1 LinguisticPhenomena
+g (x ) = (q(y x) q(y x))
+∗ i ∇xi t
+| −
+f
+| Asasourceoflinguisticphenomenatostudy,we
+S G∗N(x i) = ||g ∗(x i) ||L1 usetheBLiMPdataset(Warstadtetal.,2020). This
+whereq(y x)isthemodeloutputforfoily given datasetcontains67setsof1,000pairsofminimally
+f f
+|
+theinputx. Thistellsushowmuchaninputtoken different English sentences that contrast in gram-
+x influencesthemodeltoincreasetheprobability matical acceptability. An example of a linguis-
+i
+ofy whiledecreasingtheprobabilityofy . ticparadigmmaybeanaphornumberagreement,
+t f
+whereanacceptablesentenceis“Manyteenagers
+3.2 Gradient Input were helping themselves.” and a minimally con-
+×
+Forthegradient inputmethod(Shrikumaretal., trastiveunacceptablesentenceis“Manyteenagers
+×
+2016;Deniletal.,2014),insteadoftakingtheL1 were helping herself.” because in the latter, the
+norm of the gradient, we take the dot product of number of the reflexive pronoun does not agree
+thegradientwiththeinputtokenembeddingx : withitsantecedent.
+i
+From this dataset, we chose 12 paradigms be-
+S (x ) = g(x ) x
+GI i i i
+· longingto5phenomenaandcreatedasetofrules
+WedefinetheContrastiveGradient Input: toidentifytheinputtokensthatenforcegrammat-
+×
+ical acceptability. In the previous example, the
+S (x ) = g (x ) x
+G∗I i ∗ i
+·
+i
+anaphoragreementisenforcedbytheantecedent
+“teenagers”. Weshowexamplesforeachlinguistic
+3.3 InputErasure
+phenomenonanditsassociatedruleinTable2.
+Erasure-basedmethodsmeasurehowerasingcer-
+tainpartsoftheinputaffectstheoutput(Lietal., Anaphor Agreement. The gender and number
+2016b). This can be measured as the difference of a pronoun must agree with its antecedent. We
+between the model output given the input x and implementthecorefruleusingspaCy(Honnibal
+giventheinputwherex hasbeenzeroedout,x : andMontani,2017)andNeuralCoref2 toextractall
+i i
+¬
+inputtokenscoreferentwiththetargettoken.
+S (x ) = q(y x) q(y x )
+E i t t i
+| − | ¬
+WedefinetheContrastiveInputErasure: Argument Structure. Certain arguments can
+onlyappearwithcertainverbs. Forexample,many
+S (x ) =
+E∗ i action verbs must be used with animate objects.
+(q(y
+t
+x) q(y
+t
+x i)) (q(y
+f
+x) q(y
+f
+x i)) Weimplementthemain_verbruleusingspaCyto
+| − | ¬ − | − | ¬
+extractthemainverboftheinputsentence.
+Thismeasureshowmucherasingx fromtheinput
+i
+makesthefoilmorelikelyandthetargetlesslikely.
+Determiner-Noun Agreement. Demonstrative
+Although erasure-based methods directly mea-
+determiners and the associated noun must agree.
+surethechangeintheoutputduetoaperturbation
+Weimplementthedet_nounrulebygeneratingthe
+intheinput,whilegradient-basedmethodsapprox-
+dependency tree using spaCy and extracting the
+imate this measurement, erasure is usually more
+determinerofthetargetnoun.
+computationallyexpensiveduetohavingtorunthe
+modelonallpossibleinputperturbations. 2https://github.com/huggingface/neuralcoref
+186
+Phenomenon AcceptableExample UnacceptableExample Rule
+Katherinecan’thelpherself. Katherinecan’thelphimself. coref
+AnaphorAgreement
+Manyteenagerswerehelpingthemselves. Manyteenagerswerehelpingherself. coref
+ArgumentStructure Amandawasrespectedbysomewaitresses. Amandawasrespectedbysomepicture. main_verb
+Phillipwasliftingthismouse. Phillipwasliftingthismice. det_noun
+Determiner-NounAgreement
+Tracypraisesthoseluckyguys. Tracypraisesthoseluckyguy. det_noun
+NPILicensing Eventhesetruckshaveoftenslowed. Eventhesetruckshaveeverslowed. npi
+Subject-VerbAgreement Asketchoflightsdoesn’tappear. Asketchoflightsdon’tappear. subj_verb
+Table 2: Examples of BLiMP minimal pairs. Contrastive tokens are bolded. Tokens extracted by our rules that
+enforcegrammaticalacceptabilityareunderlined.
+NPI Licensing. Certain negative polarity items DotProductandProbesNeededcalculatealign-
+(NPI) are only allowed to appear in certain con- mentforeachsentence,andwecomputetheaver-
+texts,e.g.“never”appearsonitsown,while“ever” ageoverallsentence-wisealignmentscoresforthe
+generallymustbeprecededby“not”. Inallofour alignmentscoreoveralinguisticparadigm. MRR
+examples with NPI licensing, the word “even” is calculatesalignmentoveranentireparadigm.
+anNPIthatcanappearintheacceptableexample
+GPT-2 GPT-Neo
+butnotintheunacceptableexample,sowecreate 0.8
+thenpirulethatextractsthisNPI. 0.6 0.50 0.51
+0.4 0.350.35 0.25 0.27 0.360.36 0.300.32
+Subject-Verb Agreement. The number of the 0.2 0.15
+-0.21 -0.04-0.01
+0.0
+subject and its verb must agree. We implement
+0.2
+thesubj_verbrulebygeneratingthedependency Rand SGN SG*N SGI SG*I SE SE* Rand SGN SG*N SGI SG*I SE SE*
+treeusingspaCytoextractthesubjectoftheverb. (a)DotProduct(↑)
+GPT-2 GPT-Neo
+2.0
+4.2 AlignmentMetrics 1.571.521.5 1.47 1.561.501.481.581.57
+1.5 1.261.32
+1.18 1.17
+We use three metrics to quantify the alignment 0.92
+1.0
+between an explanation and the known evidence
+0.5
+enforcingalinguisticparadigm. Theexplanationis
+avector ofthesamesizeastheinputx,where 0.0 Rand SGN SG*N SGI SG*I SE SE* Rand SGN SG*N SGI SG*I SE SE*
+S
+thei-thelement givesthesaliencyscoreofthe (b)ProbesNeeded(↓)
+i
+S GPT-2 GPT-Neo
+win ip tu ht ato bk ie nn arx yi. vT eh ce tok rnow
+,
+an lse ovid oe fn sc ae mis er se ip zr ees ae sn tt hed
+e
+00 .. 68 0.580.570.600.580.640.610.65 0.590.590.610.570.590.640.71
+E
+input x, where i = 1 if the token x i enforces a 0.4
+E
+grammaticalruleonthemodeldecision.
+0.2
+Dot Product. The dot product
+S · E
+measures 0.0 Rand SGN SG*N SGI SG*I SE SE* Rand SGN SG*N SGI SG*I SE SE*
+thesumofsaliencyscoresofallinputtokensthat (c)MeanReciprocalRank(↑)
+arepartoftheknownevidence.
+Figure 1: Alignment of GPT-2 (left) and GPT-Neo
+Probes Needed (Zhong et al., 2019; Yin et al., (right)explanationstoknownevidenceaccordingtodot
+2021b). We measure the number of tokens we product(top),probesneeded(middle),meanreciprocal
+needtoprobe,basedontheexplanation ,tofind rank(bottom)averagedoverlinguisticparadigms.
+S
+atokenthatisintheknownevidence. Thiscorre-
+spondstotherankingofthefirsttokenx suchthat
+i 4.3 Results
+G = 1aftersortingtokensbydescendingsaliency.
+i
+WeuseGPT-2(Radfordetal.,2019)andGPT-Neo
+Mean Reciprocal Rank (MRR). We calculate (Blacketal.,2021)toextractexplanations. GPT-
+the average of the inverse of the rank of the first 2isalargeautoregressivetransformer-basedLM
+tokenthatispartoftheknownevidenceiftheto- with 1.5 billion parameters and trained on 8 mil-
+kens are sorted in descending saliency. This also lionwebpages. GPT-NeoisasimilarLMwith2.7
+corresponds to the average of the inverse of the billion parameters and trained on The Pile (Gao
+probesneededforeachsentenceevaluated. et al., 2020) containing 825.18GB of largely En-
+187
+glishtext. Inadditiontotheexplanationmethods GPT-2 GPT-Neo
+4 GI: r=0.84 4
+describedabove,wealsosetuparandombaseline GN: r=0.73
+as a comparison, where we create a vector of the 3 E: r=0.62 3
+same size as explanations with values randomly
+2
+sampledfromauniformdistributionover[0,1). 2 GI: r=0.56
+1 GN: r=0.41
+InFigure1,wecanseethatoverall,contrastive
+1 E: r=-0.51
+explanationshaveahigheralignmentwithlinguis- 0.50 0.25 0.00 0.25 0.50 0.25 0.00 0.25
+Difference in MRR Difference in MRR
+tic paradigms than their non-contrastive counter-
+partsforbothGPT-2andGPT-Neoacrossthediffer- Figure 2: Scatter plot of the average distance of the
+knownevidencetothetargettokenacrosseachlinguis-
+entmetrics. Althoughnon-contrastiveexplanations
+tic paradigm against the difference in MRR scores be-
+donotalwaysoutperformtherandombaseline,con-
+tween the contrastive and non-contrastive versions of
+trastiveexplanationshaveabetteralignmentwith
+eachexplanationmethod,withthePearsoncorrelation
+BLiMPthanrandomvectorsformostcases. for each explanation method. Statistically significant
+Pearson’srvalues(p<0.05)areinbold.Inmostcases,
+Correct Incorrect there is a positive correlation between the increase in
+DP(↑) PN(↓) MRR(↑) DP(↑) PN(↓) MRR(↑) MRRandthedistanceoftheevidence.
+Rand 0.34 1.66 0.57 0.27 2.05 0.50
+SGN 0.36 1.45 0.58 0.37 1.60 0.56
+S∗GN 0.50 1.33 0.61 0.48 1.71 0.57
+fullalignmentscoresforeachparadigm,explana-
+SGI 0.26 1.44 0.59 0.24 1.72 0.55
+S∗GI 0.36 1.25 0.64 -0.05 1.27 0.64 tionmethod,metricandmodel.
+SE -0.51 1.34 0.64 0.44 1.30 0.55
+S∗E 0.29 1.13 0.68 0.18 1.71 0.55
+5 DoContrastiveExplanationsHelp
+Table 3: Alignment of GPT-2 explanations to known UsersPredictLMBehavior?
+evidenceonexampleswherethemodelmakesacorrect
+Tofurtherevaluatethequalityofdifferentexplana-
+(left)andincorrect(right)prediction, accordingtodot
+product(DP),probesneeded(PN),andmeanreciprocal tionmethods,wenextdescribemethodologyand
+rank(MRR).Alignmentscoresthatarebetterthanthe experiments to measure to what extent explana-
+score for the analogous explanation method with the tionscanimprovetheabilityofuserstopredictthe
+differentcontrastivesettingarebolded. outputofthemodel,namelymodelsimulatability
+(Lipton,2018;Doshi-VelezandKim,2017).
+In Table 3, we further examined alignment be-
+tween model explanations and known evidence 5.1 StudySetup
+on instances where the model correctly allocates Our user study is similar in principle to previous
+moreprobabilitytotheacceptabletoken,orincor- worksthatmeasuremodelsimulatabilitygivendif-
+rectlyselectstheothertoken. Onexampleswhere ferentexplanations(Chandrasekaranetal.,2018;
+themodelmakesanincorrectprediction,itisnot Hase and Bansal, 2020; Pruthi et al., 2020). In
+clearwhethernon-contrastiveorcontrastivemeth- our study (Figure 3), users are given the input of
+odshavebetteralignment. Onexampleswherethe a GPT-2 model, two choices for the next token,
+modelpredictscorrectly,contrastiveexplanations andanexplanationforthemodeloutput. Theyare
+obtainbetteralignmentthantheirnon-contrastive asked to select which of the two choices is more
+counterpartsforeachexplanationmethodandalign- likelythemodeloutput,thenanswerwhetherthe
+mentmetric. explanationwasusefulinmakingtheirdecision3.
+In Figure 2, we see that for most explanation
+Wecomparetheeffectofhavingnoexplanation,
+methods,thelargerthedistancebetweentheknown
+explanations with Gradient Input, Contrastive
+×
+evidence and the target token, the larger the in-
+Gradient Input, Erasure and Contrastive Era-
+×
+creaseinalignmentofcontrastiveexplanationsover
+sure. WedonotincludeGradientNormandCon-
+non-contrastive explanations. This suggests that
+trastiveGradientNormbecausethesemethodsdo
+contrastive explanations particularly outperform
+3AlthoughHaseandBansal(2020)suggestnotshowing
+non-contrastiveoneswhentheknownevidenceis
+explanationsforcertainmethodsattesttimeduetopotential
+relativelyfurtherawayfromthetargettoken,thatis, fordirectlyrevealingthemodeloutput,thisislessofaconcern
+contrastiveexplanationscanbettercapturemodel forsaliency-basedmethodsastheirdesignmakesitnon-trivial
+toleakinformationinthisway.Weopttoshowexplanations
+decisionsrequiringlonger-rangecontext.
+to measure whether they sufficiently help the user make a
+InAppendixB,wealsoprovideatablewiththe predictionsimilartothemodelonanindividualexample.
+188
+ecnatsiD ecnatsiD
+sentences in a row. We balance the data so that
+there were an equal number of examples where
+the true output x = a and x = b, and also by
+t t
+model correctness so that the model chooses the
+correct output 50% of the time, preventing users
+fromguessingmodelbehaviorbyselectingacer-
+tain token or the true token. In total, we obtain
+4000datapointsformodelsimulatability.
+5.2 Results
+InTable4,weprovidetheresultsofouruserstudy.
+For each explanation method evaluated, we com-
+Figure3: Exampleofapromptinourhumanstudy. puted the simulation accuracy over all samples
+(Acc.) as well as accuracy over samples where
+notprovideinformationondirectionality. Fornon- themodeloutputisequaltothegroundtruth(Acc.
+contrastivemethods,weprovidetheexplanationfor Correct)anddifferentfromthegroundtruth(Acc.
+whythemodelpredictedatoken. Forcontrastive Incorrect). Wealsocomputedthepercentageofex-
+methods,weprovidetheexplanationforwhythe planationsthatusersreporteduseful,aswellasthe
+modelpredictedonetokeninsteadofanother. simulationaccuracyoversampleswheretheuser
+Weinclude20pairsofhighlyconfusablewords foundthegivenexplanationuseful(Acc. Useful)
+forourstudy(AppendixC).10ofthesepairsare andnotuseful(Acc. NotUseful).
+selected from BLiMP to reflect certain linguistic Totestourresultsforstatisticalsignificanceand
+phenomena, and the other 10 word pairs are se- account for variance in annotator skill and word
+lectedfrompairswiththehighest“confusionscore” pairdifficulty,wefittedlinearmixed-effectsmodels
+on WikiText-103 test split (Merity et al., 2016). using Statsmodels (Seabold and Perktold, 2010)
+Wedefineconfusionusingthejointprobabilityof withtheannotatorandwordpairasrandomeffects,
+aconfusionfromtokenatobgivenacorpusX: the explanation method as fixed effect, and the
+answer accuracy or usefulness as the dependent
+P(x true = a,x model = b) = variable. InAppendixDweprovidetheresultsof
+1 themixed-effectsmodelswefitted.
+P (xˆ = b x )
+model t <t
+N |
+x X∈Xt ∈posX(x) |xt=a
+Acc. Acc. Acc. Acc.
+where x is a sentence in X, pos(x) is the set of Acc. Correct Incorrect Useful Useful NotUseful
+positionsoftokensinx,N isthesizeofthecorpus. None 61.38 74.50 48.25 – – –
+Theconfusionfromatobisthesumoftheprob-
+SGI 64.00 78.25 49.75 62.12 67.20 58.75
+S G∗I 65.62 79.00 52.25 63.88 69.67 58.48
+abilities assigned by the model to token b where SE 63.12 79.00 47.25 46.50 65.86 60.75
+tokenaisthegroundtruth,normalizedbythenum- S E∗ 64.62 77.00 52.25 64.88 70.52 53.74
+berofsentencesinthecorpus.
+Table 4: Simulation accuracy (%) in predicting GPT-
+The confusion score for word pair (a,b) is the
+2outputsandsubjectiveusefulnessofexplanationsfor
+minimumofconfusionfromatobandvice-versa, variousexplanationmethods. Foreachmethod,scores
+toensurethatwordsaremutuallyconfusable: thatarestatisticallysignificantlyhigher(p 0.05)than
+≤
+the analogous method with a different contrastive set-
+(a,b) = min(P(x true = a,x model = b), ting are bolded. Overall, users achieve higher simula-
+C
+P(x = b,x = a)). tionaccuracywithcontrastiveexplanations.
+true model
+Accuracy Firstofall,usershavethelowestaccu-
+We recruited 10 graduate students in machine racyinpredictingLMoutputswhennoexplanation
+learning(notauthorsofthispaper)toperformthe is given, which suggests that all four types of ex-
+study. Eachparticipantisgiven10differentword planationshelpuserssimulatemodelbehavior. For
+pairs. Foreachwordpair,oneexplanationmethod bothexplanationmethods,thecontrastivesetting
+waschosenatrandomtogeneratetheaccompany- leads to a significantly higher contrastive simula-
+ing explanations, and the participant is given 40 tionaccuracythanthenon-contrastivesetting.
+189
+We also examined examples where annotators 500sentencesfromWikiText-103andobtainasen-
+incorrectly predict the model output, and for all tence set X. For each foil y and each sentence
+f
+typesofexplanationsgiven,themosthumanerrors x X,wegenerateasinglecontrastiveexplana-
+i
+∈
+are made in examples where there are no words tione(x ,y ,y ). Then,foreachtargety andfoil
+i t f t
+in the input sentence that makes one word more y , we generate an aggregate explanation vector
+f
+likelythantheother. Notably,thethreewordpairs e(y ,y ) = e(x ,y ,y )byconcatenating
+with the lowest user accuracy are “son/brother”,
+thet sinf gleexplax ni∈atX ionvei ctot rsf
+foreachsentencein
+L
+“fast/super”, and “black/green”, which are often thecorpus.
+interchangeable. Then, for a given target y , we apply k-means
+t
+clustering on the concatenated contrastive expla-
+Usefulness Contrastive explanations were also
+nationsacrossdifferentfoilsy toclusterfoilsby
+f
+considered useful to users for model simulation
+explanation similarity. We use GPT-2 to extract
+significantly more often than non-contrastive ex-
+all the contrastive explanations due to its better
+planations, with a particularly large gain in the
+alignment with linguistic phenomena than GPT-
+erasure-based setting. Answer accuracy on sam-
+Neo(§4). Weonlyextractcontrastiveexplanations
+pleswheretheusersfoundtheexplanationusefulis
+withgradientnormandgradient inputduetothe
+higherthantheaccuracyoverallsamplesforeach ×
+computationalcomplexityofinputerasure(§3.3).
+explanationmethod,whichsuggeststhatuserscan
+In Table 5, we show examples of the obtained
+alsoidentifyusefulexplanationstosomeextent.
+clusters. Foilsineachclusteraresortedindescend-
+These results, on the whole, provide evidence
+ingfrequencyintrainingdata. Forthefirstfoilin
+thatcontrastiveexplanationshelphumanobservers
+eachcluster,wealsoretrieveits20nearestneigh-
+simulatemodelpredictionsmoreaccurately.
+bors in the word embedding space according to
+Euclideandistanceforcomparison,todisentangle
+6 WhatContextDoModelsUsefor
+the effect of word embeddings from the effect of
+CertainDecisions?
+linguisticdistinctionsonfoilclusters.
+Finally,weusecontrastiveexplanationstodiscover
+6.2 FoilClusters
+how language models achieve various linguistic
+distinctions. Wehypothesizethatsimilarevidence First,weverifythatlinguisticallysimilarfoilsare
+isnecessarytodisambiguatefoilsthataresimilar indeedclusteredtogether: wediscoverclustersre-
+linguistically. Totestthishypothesis,wepropose latingtoavarietyofpreviouslystudiedlinguistic
+amethodologywherewefirstrepresenteachtoken phenomena, a few of which we detail below and
+byavectorrepresentingitssaliencymapwhenthe giveexamplesinTable5. Moreover,foilclusters
+tokenisusedasafoilincontrastiveexplanationof reflectlinguisticdistinctionsthatarenotfoundin
+aparticulartargetword. Conceptually,thisvector the nearest neighbors of word embeddings. This
+represents the type of context that is necessary to suggeststhatthemodelusesimilartypesofinput
+disambiguatetheparticulartokenfromthetarget. featurestomakecertaindecisions.
+Next,weuseaclusteringalgorithmonthesevec- Anaphoragreement: Topredictanaphoragree-
+tors,generatingclustersoffoilswheresimilartypes ment, models must contrast pronouns from other
+ofcontextareusefultodisambiguate. Wethenver- pronounswithdifferentgenderornumber. Wefind
+ifywhetherwefindclustersassociatedwithsalient that indeed, when the target is a pronoun, other
+linguisticdistinctionsdefineda-priori. Finally,we pronounsofadifferentgenderornumberareoften
+inspectthemeanvectorsofexplanationsassociated clustered together: when the target is a male pro-
+withfoilsintheclustertoinvestigatehowmodels noun, we find a cluster of female pronouns. The
+performtheselinguisticdistinctions. foilclustercontaining“she”includesseveraltypes
+ofpronounsthatareallofthefemalegender. On
+6.1 Methodology
+theotherhand,thenearestneighborsof“she”are
+We generate contrastive explanations for the 10 mostlylimitedtosubjectandobjectpronouns,and
+most frequent words in WikiText-103 for each theyareofvariousgendersandnumbers.
+major part of speech as the target token, and Animacy: Incertainverbphrases,themainverb
+use the 10,000 most frequent vocabulary items enforces that the subject is animate. Reflecting
+as foils. For each target y , we randomly select this,whenthetargetisananimatenoun,inanimate
+t
+190
+Phenomenon/POS Target FoilCluster EmbdNearestNeighbors Example
+Anaphor he she,her,She,Her,herself,hers she,She,her,She,he,they,Her,we,it,she,I, Thatnight,IlsaconfrontsRickinthe
+Agreement that,Her,you,was,there,He,is,as,in’ desertedcafé.Whenherefusestogive
+hertheletters,_____
+Animate man fruit, mouse, ship, acid, glass, water, tree, fruit,fruits,Fruit,meat,flower,fruit,tomato, Youmaynotbesurprisedtolearnthat
+Subject honey, sea, ice, smoke, wood, rock, sugar, vegetables,fish,apple,berries,food,citrus, KellyPoolwasneitherinventedbya
+sand,cherry,dirt,fish,wind,snow banana,vegetable,strawberry,fru,delicious, _____
+juice,foods
+Determiner-Noun page tabs,pages,icons,stops,boxes,doors,short- tabs,tab,Tab,apps,files,bags,tags,websites, Immediatelyafter"HeavyCompetition"
+Agreement cuts,bags,flavours,locks,teeth,ears,tastes, sections,browsers,browser,icons,buttons, firstaired,NBCcreatedasub-_____
+permissions, stairs, tickets, touches, cages, pages,keeps,clips,updates,28,insists,14
+saves,suburbs
+Subject-Verb go doesn,causes,looks,needs,makes,isn,says, doesn, isn, didn, does, hasn, wasn, don, MalaandtheEskimos_____
+Agreement seems,seeks,displays,gives,wants,takes, wouldn, makes, gets, has, is, aren, gives,
+uses,fav,contains,keeps,sees,tries,sounds Doesn,couldn,seems,takes,keeps,doesn
+ADJ black Black, white, black, White, red, BLACK, Black,Black,black,black,White,BLACK, Althoughgeneralrelativitycanbeused
+green,brown,dark,orange,African,blue,yel- white,Blue,Red,White,In,B,The,The,It, toperformasemi@-@classicalcalcu-
+low,pink,purple,gray,grey,whites,Brown, red,Dark,7,Green,African lationof_____
+silver
+ADJ black Asian,Chinese,English,Italian,American, Asian,Asian,Asia,Asians,Chinese,African, WhiletakingpartintheAmericanNe-
+Indian,East,South,British,Japanese,Euro- Japanese,Korean,China,European,Indian, groAcademy(ANA)in1897,DuBois
+pean,African,Eastern,North,Washington, ethnic,Chinese,Japan,American,Caucasian, presentedapaperinwhichherejected
+US,West,Australian,California,London Australian,Hispanic,white,Arab FrederickDouglass’spleafor_____
+ADP for to,in,and,on,with,for,when,from,at,(, to,in,for,on,and,as,with,of,a,at,that, Thewarofwordswouldcontinue_____
+if,as,after,by,over,because,while,without, the,from,by,an,(,To,is,it,or
+before,through
+ADV back the,to,a,in,and,on,of,it,",not,that,with, the,a,an,it,this,that,in,The,to,The,all, Onewouldhavethoughtthatclaimsdat-
+for,this,from,up,just,at,(,all and,their,as,for,on,his,at,some,what ing_____
+DET his the,you,it,not,that,my,[,this,your,he,all, the,a,an,it,this,that,in,The,to,The,all, ApreviewscreeningofSweetSmellof
+so,what,there,her,some,his,time,him,He and,their,as,for,on,his,at,some,what Successwaspoorlyreceived,asTony
+Curtisfanswereexpectinghimtoplay
+oneof_____
+NOUN girl Guy,Jack,Jones,Robin,James,David,Tom, Guy,Guy,guy,guy,Gu,Dave,Man,dude,Girl, VeronicatalkstotoSeanFriedrichand
+Todd,Frank,Mike,Jimmy,Michael,Peter, Guys,John,Steve,\x00,\xef\xbf\xbd,\xef tellshimaboutthe_____
+George,William,Bill,Smith,Tony,Harry, \xbf\xbd,\x1b,\xef\xbf\xbd,\x12,\x1c,\x16
+Jackson
+NUM five the,to,a,in,and,on,of,is,it,",not,that,1, the,a,an,it,this,that,in,The,to,The,all, Fromtheageof_____
+with,for,2,this,up,just,at and,their,as,for,on,his,at,some,what
+VERB going got,didn,won,opened,told,went,heard,saw, got,gets,get,had,went,gave,took,came, Trumanhaddreamedof_____
+wanted,lost,came,started,took,gave,hap- didn,did,getting,been,became,has,was,
+pened,tried,couldn,died,turned,looked made,started,have,gotten,showed
+Table5: ExamplesoffoilclustersobtainedbyclusteringcontrastiveexplanationsofGPT-2. Foreachcluster,the
+20mostfrequentfoilsareshown,aswellasthe20nearestneighborsinthewordembeddingspaceofthefirstfoil,
+andanexampleisincludedforthecontrastiveexplanationofthetargettokenvs. theunderlinedfoilinthecluster.
+Ineachexplanation,thetwomostsalientinputtokensarehighlightedindecreasingintensityofred.
+nounsformacluster. WhilethefoilclusterinTable 6.3 ExplanationAnalysisResults
+5 contains a variety of singular inanimate nouns,
+Byanalyzingtheexplanationsassociatedwithdif-
+the nearest neighbors of “fruit” are mostly both
+ferentclusters,wearealsoabletolearninteresting
+singularandpluralnounsrelatedtoproduce.
+propertiesofhowGPT-2makescertainpredictions.
+WeprovideourfullanalysisresultsinAppendixE.
+Todistinguishbetweenadjectives,themodelof-
+tenreliesoninputwordsthataresemanticallysim-
+Plurality: Fordeterminer-nounagreement,sin- ilar to the target (e.g. “relativity” to distinguish
+gularnounsarecontrastedwithclustersofplural “black” from other colors). To contrast adposi-
+noun foils, and vice-versa. We find examples of tionsandadverbsfromotherwordswiththesame
+clustersofpluralnounswhenthetargetisasingular POS, verbs in the input that are associated with
+noun,whereasthenearestneighborsof“tabs”are thetargetwordareuseful: forexample,theverbs
+bothsingularandpluralnouns. Toverifysubject- “dating” and “traced” are useful when the target
+verb agreement, when the target is a plural verb, is“back”. Tochoosethecorrectgenderfordeter-
+singularverbsareclusteredtogether,butthenear- miners,nounsandpronouns,themodeloftenuses
+estneighborsof“doesn”containbothsingularand genderedpropernounsandpronounsintheinput.
+pluralverbs,especiallynegativecontractions. Todisambiguatenumbersfromnon-numberwords,
+191
+inputwordsrelatedtoenumerationormeasurement forward (we can simply perform the same op-
+(e.g. “age”,“consists”,“least”)areuseful. erations on the gradient over the difference be-
+Our analysis also reveals why the model may tween model probabilities for the target and foil
+have made certain mistakes. For example, when tokens),itisnontrivialtodesigncontrastiveexpla-
+the model generates a pronoun of the incorrect nationsbasedonotherexplanationmethodssuch
+gender, it was often influenced by proper nouns asattention-basedinputsaliency.
+andpronounsofadifferentgenderintheinput.
+Second,manyofourexperimentswouldnotbe
+Overall, our methodology for clustering con-
+easilyreproducedinlanguagesotherthanEnglish
+trastive explanations provides an aggregate anal-
+that lack sufficient linguistic resources. All the
+ysisoflinguisticdistinctionstounderstandgeneral
+experimentsinourpaperaimedatexploringtheca-
+propertiesoflanguagemodeldecisions.
+pabilitiesofcontrastiveexplanationsareperformed
+7 ConclusionandFutureWork usingGPT-2andGPT-Neolanguagemodels,that
+havebeentrainedonlargeamountsofEnglishdata.
+In this work, we interpreted language model de- Toreproduceexperimentsinotherlanguages,we
+cisions using contrastive explanations by extend- wouldneedalanguagemodelintheotherlanguage
+ing three existing input saliency methods to the ofsufficientpower,whichisnotavailableformost
+contrastive setting. We also proposed three new languages. TheexperimentsinSection4address
+methodstoevaluateandexplorethequalityofcon- onlyasubsetoftypesofgrammaticalacceptability,
+trastive explanations: an alignment evaluation to andrequireadatasetofminimalpairsalongdiffer-
+verifywhetherexplanationscapturelinguistically enttypesofgrammaticalacceptability,whichmay
+appropriate evidence, a user evaluation to mea- notbeavailableformostlanguages. Moreover,to
+sure model simulatability of explanations, and a automatically extract the expected evidence, we
+clustering-basedaggregateanalysistoinvestigate relyoncoreNLPtoolssuchascoreferenceresolu-
+modelpropertiesusingcontrastiveexplanations. tion,POStaggeranddependencyparsers. Again,
+Wefindthatcontrastiveexplanationsarebetter these tools are not available for most languages.
+alignedtoknownevidencerelatedtomajorgram- Furthermore, the accuracy of the extracted evi-
+maticalphenomenathantheirnon-contrastivecoun- dencedependsoftheaforementionedtools,which
+terparts. Moreover,contrastiveexplanationsallow have fairly high but not perfect accuracy. While
+bettercontrastivesimulatabilityofmodelsforusers. our experiments are not easily extendable to lan-
+From there, we studied what kinds of decisions guages other than English, our method itself of
+require similar evidence and we used contrastive contrastiveexplanationsislanguageagnosticand
+explanationstocharacterizehowmodelsmakecer- canbereadilyappliedtomodelsofanylanguage.
+tain linguistic distinctions. Overall, contrastive
+explanationsgiveamoreintuitiveandfine-grained InSection5,weperformahumanstudytoeval-
+interpretationoflanguagemodels. uateexplanationmethods. Thisevaluationmethod
+Future work could explore the application of requirehumanannotatorsandisthereforemorere-
+these contrastive explanations to other machine sourceintensivethanautomaticevaluationmethods.
+learning models and tasks, extending other inter- Weweremotivatedtoperformthisstudyneverthe-
+pretability methods to the contrastive setting, as lessasmodelsimulatabilityforhumanusersisone
+wellasusingwhatwelearnaboutmodelsthrough importantaspectofinterpretability.
+contrastiveexplanationstoimprovethem.
+TheexperimentsinSection6arealsoresource
+intensive. In total, we computed: 2 explanation
+8 Limitations
+methods 8partsofspeech 10targetwords
+× × ×
+The experiments and methodology described in 10,000foils 500inputsentences=800,000,000
+×
+thispaperhavesomelimitations,notablytheirex- contrastiveexplanations. Forthisreason,weomit-
+tensions to other explanation methods, other lan- tedtheslowercontrastiveerasureexplanationfrom
+guages,andtheirresourcerequirements. thisexperiment,butgeneratingallthecontrastive
+First, the applicability of the contrastive set- explanationsusingtherelativelyfasterexplanation
+tingtootherexplanationmethodsmaybelimited. methods, then clustering them required about 48
+Whileextendinggradient-basedexplanationmeth- hoursofcomputationon8RTX8000GPUs.
+odstothecontrastivesettingisrelativelystraight-
+192
+References Marcin Junczys-Dowmunt, Roman Grundkiewicz,
+Tomasz Dwojak, Hieu Hoang, Kenneth Heafield,
+Yonatan Belinkov and James Glass. 2019. Analysis
+Tom Neckermann, Frank Seide, Ulrich Germann,
+methods in neural language processing: A survey.
+Alham Fikri Aji, Nikolay Bogoychev, André F. T.
+Transactions of the Association for Computational
+Martins, and Alexandra Birch. 2018. Marian: Fast
+Linguistics,7:49–72.
+neural machine translation in C++. In Proceedings
+of ACL 2018, System Demonstrations, pages 116–
+Sid Black, Leo Gao, Phil Wang, Connor Leahy, and
+121, Melbourne, Australia. Association for Compu-
+Stella Biderman. 2021. GPT-Neo: Large Scale
+tationalLinguistics.
+Autoregressive Language Modeling with Mesh-
+Tensorflow. If you use this software, please cite it
+JiweiLi,XinleiChen,EduardHovy,andDanJurafsky.
+usingthesemetadata.
+2016a. Visualizing and understanding neural mod-
+Arjun Chandrasekaran, Viraj Prabhu, Deshraj Yadav, elsinNLP. InProceedingsofthe2016Conference
+PrithvijitChattopadhyay,andDeviParikh.2018. Do of the North American Chapter of the Association
+explanationsmakeVQAmodelsmorepredictableto for Computational Linguistics: Human Language
+a human? In Proceedings of the 2018 Conference Technologies,pages681–691,SanDiego,California.
+onEmpiricalMethodsinNaturalLanguageProcess- AssociationforComputationalLinguistics.
+ing, pages 1036–1042, Brussels, Belgium. Associa-
+tionforComputationalLinguistics. Jiwei Li, Will Monroe, and Dan Jurafsky. 2016b. Un-
+derstanding neural networks through representation
+Misha Denil, Alban Demiraj, and Nando De Freitas. erasure. arXivpreprintarXiv:1612.08220.
+2014. Extractionofsalientsentencesfromlabelled
+documents. arXivpreprintarXiv:1412.6815. Peter Lipton. 1990. Contrastive explanation. Royal
+InstituteofPhilosophySupplement,27:247–266.
+Finale Doshi-Velez and Been Kim. 2017. Towards a
+rigorous science of interpretable machine learning.
+Zachary C. Lipton. 2018. The mythos of model inter-
+arXivpreprintarXiv:1702.08608.
+pretability: In machine learning, the concept of in-
+terpretabilityisbothimportantandslippery. Queue,
+Matthew Finlayson, Aaron Mueller, Sebastian
+16(3):31–57.
+Gehrmann,StuartShieber,TalLinzen,andYonatan
+Belinkov. 2021. Causal analysis of syntactic
+agreement mechanisms in neural language models. Andreas Madsen, Siva Reddy, and Sarath Chandar.
+In Proceedings of the 59th Annual Meeting of the 2021. Post-hocinterpretabilityforneuralnlp:Asur-
+Association for Computational Linguistics and the vey. arXivpreprintarXiv:2108.04840.
+11thInternationalJointConferenceonNaturalLan-
+guage Processing (Volume 1: Long Papers), pages AnnLMcGillandJillGKlein.1993. Contrastiveand
+1828–1843, Online. Association for Computational counterfactual reasoning in causal judgment. Jour-
+Linguistics. nalofPersonalityandSocialPsychology,64(6):897.
+Leo Gao, Stella Biderman, Sid Black, Laurence Gold- StephenMerity,CaimingXiong,JamesBradbury,and
+ing, Travis Hoppe, Charles Foster, Jason Phang, RichardSocher.2016. Pointersentinelmixturemod-
+Horace He, Anish Thite, Noa Nabeshima, Shawn els. arXivpreprintarXiv:1609.07843.
+Presser, and Connor Leahy. 2020. The Pile: An
+800gbdatasetofdiversetextforlanguagemodeling. DanishPruthi,BhuwanDhingra,LivioBaldiniSoares,
+arXivpreprintarXiv:2101.00027. MichaelCollins,ZacharyCLipton,GrahamNeubig,
+and William W Cohen. 2020. Evaluating explana-
+Peter Hase and Mohit Bansal. 2020. Evaluating ex-
+tions: How much do explanations from the teacher
+plainable AI: Which algorithmic explanations help
+aidstudents? arXivpreprintarXiv:2012.00893.
+userspredictmodelbehavior? InProceedingsofthe
+58thAnnualMeetingoftheAssociationforCompu-
+Alec Radford, Jeffrey Wu, Rewon Child, David Luan,
+tational Linguistics, pages 5540–5552, Online. As-
+Dario Amodei, Ilya Sutskever, et al. 2019. Lan-
+sociationforComputationalLinguistics.
+guage models are unsupervised multitask learners.
+OpenAIblog.
+Matthew Honnibal and Ines Montani. 2017. spaCy 2:
+NaturallanguageunderstandingwithBloomembed-
+dings, convolutionalneuralnetworksandincremen- ShauliRavfogel,GrushaPrasad,TalLinzen,andYoav
+talparsing. Toappear. Goldberg. 2021. Counterfactual interventions re-
+veal the causal effect of relative clause represen-
+Alon Jacovi, Swabha Swayamdipta, Shauli Ravfogel, tations on agreement prediction. arXiv preprint
+YanaiElazar,YejinChoi,andYoavGoldberg.2021. arXiv:2105.06965.
+Contrastive explanations for model interpretability.
+In Proceedings of the 2021 Conference on Empiri- Skipper Seabold and Josef Perktold. 2010. Statsmod-
+calMethodsinNaturalLanguageProcessing,pages els: Econometric and statistical modeling with
+1597–1611,OnlineandPuntaCana,DominicanRe- python. InProceedingsofthe9thPythoninScience
+public.AssociationforComputationalLinguistics. Conference,volume57,page61.Austin,TX.
+193
+AvantiShrikumar,PeytonGreenside,AnnaShcherbina, neuralmachinetranslation(NMT)modelsdifficult.
+and Anshul Kundaje. 2016. Not just a black Wethereforealsoextendcontrastiveexplanations
+box: Learning important features through prop-
+toNMTmodels.
+agating activation differences. arXiv preprint
+We compute the contrastive gradient norm
+arXiv:1605.01713.
+saliency for an NMT model by first calculating
+KarenSimonyan,AndreaVedaldi,andAndrewZisser-
+thegradientovertheencoderinput(thesourcesen-
+man.2013. Deepinsideconvolutionalnetworks: Vi-
+tence)andoverthedecoderinput(thepartialtrans-
+sualising image classification models and saliency
+maps. arXivpreprintarXiv:1312.6034. lation)as:
+Ilia MS at re típ nin P, erJ eo irs ae -FM ariñA al .o 2n 0s 2o 1, .A Ale sj ua rn vd er yo ofC ca ota nl ta ra, sta in vd
+e
+g ∗(xe i) = ∇xe
+i
+q(y t |xe,xd) −q(y f |xe,xd)
+and counterfactual explanation generation methods (cid:16) (cid:17)
+for explainable artificial intelligence. IEEE Access, g (xd) = q(y xe,xd) q(y xe,xd)
+9:11974–12001. ∗ i ∇xd i t | − f |
+(cid:16) (cid:17)
+wherexe istheencoderinput,xd isthedecoder
+MukundSundararajan,AnkurTaly,andQiqiYan.2017.
+Axiomatic attribution for deep networks. In Inter- input, and the other notations follow the ones in
+national Conference on Machine Learning, pages §3.1.
+3319–3328.PMLR. Then,thecontrastivegradientnormforeachxe
+i
+andxd are:
+Eric Wallace, Jens Tuyls, Junlin Wang, Sanjay Subra- i
+manian,MattGardner,andSameerSingh.2019. Al-
+lenNLP Interpret: A framework for explaining pre- S G∗N(xe i) = ||g ∗(xe i)
+||L1
+dictions of NLP models. In Empirical Methods in
+NaturalLanguageProcessing. S (xd) = g (xd)
+G∗N i || ∗ i ||L1
+AlexWarstadt,AliciaParrish,HaokunLiu,AnhadMo- Similarly,thecontrastivegradient inputare:
+hananey,WeiPeng,Sheng-FuWang,andSamuelR. ×
+Bowman.2020. BLiMP:Thebenchmarkoflinguis- S (xe) = g (xe) xe
+ticminimalpairsforEnglish. TransactionsoftheAs- G∗I i ∗ i · i
+sociationforComputationalLinguistics,8:377–392.
+S (xd) = g (xd) xd
+G∗I i ∗ i · i
+KayoYin,PatrickFernandes,AndréF.T.Martins,and
+Graham Neubig. 2021a. When does translation re-
+Wedefinetheinputerasureforeachxe
+i
+andxd
+i
+quire context? a data-driven, multilingual explo- as:
+ration. arXivpreprintarXiv:2109.07446.
+S (xe) = q(y xe,xd) q(y xe ,xd)
+Kayo Yin, Patrick Fernandes, Danish Pruthi, Aditi E∗ i t | − t | ¬i
+Chaudhary, André F. T. Martins, and Graham Neu- (cid:16) (cid:17)
+q(y xe,xd) q(y xe ,xd)
+big. 2021b. Do context-aware translation models − f | − f | ¬i
+pay the right attention? In Proceedings of the (cid:16) (cid:17)
+59thAnnualMeetingoftheAssociationforCompu-
+tationalLinguisticsandthe11thInternationalJoint S (xd) = q(y xe,xd) q(y xe,xd )
+Conference on Natural Language Processing (Vol- E∗ i t | − t | ¬i
+ume 1: Long Papers), pages 788–801, Online. As- (cid:16) (cid:17)
+q(y xe,xd) q(y xe,xd )
+sociationforComputationalLinguistics. − f | − f | ¬i
+(cid:16) (cid:17)
+RuiqiZhong,StevenShao,andKathleenR.McKeown.
+2019. Fine-grainedsentimentanalysiswithfaithful A.2 QualitativeResults
+attention. CoRR,abs/1908.06870.
+InTable6,weprovideexamplesofnon-contrastive
+and contrastive explanations for NMT decisions.
+A ContrastiveExplanationsforNeural
+WeuseMarianMT(Junczys-Dowmuntetal.,2018)
+MachineTranslation(NMT)Models
+with pre-trained weights from the model trained
+A.1 ExtendingContrastiveExplanationsto totranslatefromEnglishtoRomancelanguages4
+NMT to extract explanations. Each example reflects a
+Machinetranslationcanbethoughtofasaspecific decision associated with one of the five types of
+typeoflanguagemodelswherethemodeliscondi- linguisticambiguitiesduringtranslationidentified
+tionedonboththesourcesentenceandthepartial inYinetal.(2021a).
+translation. It has similar complexities as mono-
+4https://github.com/Helsinki-NLP/Tatoeba-Challenge/
+linguallanguagemodelingthatmakeinterpreting blob/master/models/eng-roa/README.md
+194
+In the first example, the model must translate
+the gender neutral English pronoun “it” into the
+masculine French pronoun “il”. In both non-
+contrastive and contrastive explanations, the En-
+glish antecedent “vase” influences the model to
+predict“il”,howevertodisambiguate“il”fromthe
+femininepronoun“elle”,themodelalsorelieson
+thefrenchantecedentanditsmasculineadjective
+“nouveauvase”.
+Inthesecondexample,themodelmusttranslate
+“your”withtheformalitylevelconsistentwiththe
+partial translation. While in the non-contrastive
+Whydidthemodelpredict"il"?
+en:Iorderedanewvaseanditarrivedtoday explanation,onlytokensinthesourcesentenceare
+fr:J’aicommandéunnouveauvaseet salient which do not explain the model’s choice
+Whydidthemodelpredict"il"insteadof"elle"?
+en:Iorderedanewvaseanditarrivedtoday of formality level, in the contrastive explanation,
+fr:J’aicommandéunnouveauvaseet other French words in the polite formality level
+2.Whydidthemodelpredict"votre"? suchas“Vous”and“pouvez”aresalient.
+en:Youcannotbringyourdoghere.
+In the third example, the model must translate
+fr:Vousnepouvezpasamener
+Whydidthemodelpredict"votre"insteadof"ton"? “learned”usingtheverbformthatisconsistentwith
+en:Youcannotbringyourdoghere. the partial translation. Similarly to the previous
+fr:Vousnepouvezpasamener
+example,onlythecontrastiveexplanationcontains
+3.Whydidthemodelpredict"apprenais"?
+salienttokensinthesameverbfromasthetarget
+en:IlikedschoolbecauseIlearnedalotthere.
+fr:J’aimaisl’écoleparcequej’ tokensuchas“aimais”.
+Whydidthemodelpredict"apprenais"insteadof"ai"?
+In the fourth example, the model needs to re-
+en:IlikedschoolbecauseIlearnedalotthere.
+fr:J’aimaisl’écoleparcequej’ solvetheelidedverbin“Idon’tknow”totranslate
+4.Whydidthemodelpredict"sais"? into French. The contrastive explanation with a
+en:Theyknowwhattodo,Idon’t. differentverbasafoilshowsthattheelidedverbin
+fr:Ilssaventquoifaire,jene
+thetargetsidemakesthecorrectverbmorelikely
+Whydidthemodelpredict"sais"insteadof"veux"?
+en:Theyknowwhattodo,Idon’t. thananotherverb.
+fr:Ilssaventquoifaire,jene
+Inthefifthexample,themodelmustchoosethe
+5.Whydidthemodelpredict"carnet"?
+translationthatislexicallycohesivewiththepartial
+en:Ilikemyoldnotebookbetterthanmynewnotebook
+fr:J’aimemieuxmonanciencarnetquemonnouveau translation, where “carnet” refers to a book with
+Whydidthemodelpredict"carnet"insteadof"ordinateur"? paperpagesand“ordinateur”referstoacomputer
+en:Ilikemyoldnotebookbetterthanmynewnotebook
+notebook. Inthenon-contrastiveexplanation,the
+fr:J’aimemieuxmonanciencarnetquemonnouveau
+word“notebook”andthetargettokenprecedingthe
+Table 6: Examples of non-contrastive and contrastive predictionarethemostsalient. Inthecontrastive
+explanationsforNMTmodelstranslatingfromEnglish
+explanation,theword“carnet”inthepartialtrans-
+toFrenchusinginput gradient. Inputtokensthatare
+× lationalsobecomessalient.
+measured to raise or lower the probability of each de-
+cision are in red and blue respectively, and those with
+B AlignmentofContrastive
+littleinfluenceareinwhite.
+ExplanationstoLinguisticParadigms
+InTable7,wepresentthefullalignmentscoresof
+contrastiveexplanationsfromGPT-2andGPT-Neo
+modelswiththeknownevidencetodisambiguate
+linguisticparadigmsintheBLiMPdataset.
+C HighlyConfusableWordPairs
+InTable8,weprovidethelistofcontrastiveword
+pairsusedinourhumanstudyformodelsimulata-
+bility(§5). Thefirst10pairsaretakenfromBLiMP
+linguisticparadigmsandweprovidetheassociated
+195
+GPT-2 GPT-Neo
+Paradigm Dist Explanation DotProduct(↑) ProbesNeeded(↓) MRR(↑) DotProduct(↑) ProbesNeeded(↓) MRR(↑)
+Random 0.528 0.706 0.718 0.548 0.618 0.762
+SGN 0.429 1.384 0.478 0.480 0.828 0.622
+S G∗N 0.834 0.472 0.809 0.785 0.432 0.815
+anaphor_gender_agreement 2.94 SGI 0.078 1.402 0.468 -0.054 0.526 0.786
+S G∗I -0.019 0.502 0.791 -0.133 0.684 0.747
+SE -0.350 0.564 0.764 0.645 0.078 0.963
+S E∗ 0.603 0.090 0.964 0.637 0.156 0.903
+Random 0.554 0.666 0.741 0.568 0.598 0.756
+SGN 0.463 1.268 0.512 0.508 0.784 0.639
+S G∗N 0.841 0.702 0.677 0.816 0.524 0.763
+anaphor_number_agreement 2.90 SGI 0.084 1.346 0.497 -0.095 0.510 0.797
+S G∗I 0.084 0.408 0.860 -0.068 0.636 0.775
+SE -0.349 0.704 0.728 0.618 0.128 0.940
+S E∗ 0.604 0.136 0.951 0.666 0.106 0.956
+Random 0.155 2.940 0.378 0.150 2.976 0.379
+SGN 0.211 1.080 0.699 0.236 0.828 0.727
+S G∗N 0.463 0.754 0.749 0.452 0.862 0.721
+animate_subject_passive 3.27 SGI 0.016 4.004 0.233 0.020 2.780 0.416
+S G∗I 0.069 2.782 0.412 0.016 2.844 0.409
+SE -0.036 3.214 0.362 0.168 2.024 0.444
+S E∗ 0.125 2.122 0.500 0.123 2.120 0.517
+Random 0.208 2.202 0.449 0.207 2.142 0.461
+SGN 0.239 1.320 0.598 0.150 2.954 0.287
+S G∗N 0.275 2.680 0.406 0.258 2.906 0.302
+determiner_noun_agreement_1 1.00 SGI 0.560 0.038 0.983 -0.042 2.384 0.380
+S G∗I 0.162 1.558 0.603 -0.056 2.554 0.371
+SE 0.022 1.150 0.604 0.234 1.290 0.543
+S E∗ 0.031 2.598 0.363 0.362 0.612 0.811
+Random 0.198 2.248 0.437 0.202 2.110 0.456
+SGN 0.236 1.228 0.616 0.160 2.716 0.324
+S G∗N 0.286 2.578 0.380 0.266 2.826 0.310
+determiner_noun_agreement_irregular_1 1.00 SGI 0.559 0.034 0.984 -0.035 2.160 0.419
+S G∗I 0.046 2.038 0.507 -0.046 2.428 0.374
+SE 0.020 1.082 0.628 0.205 1.360 0.548
+S E∗ 0.026 2.502 0.352 0.306 0.784 0.755
+Random 0.167 2.672 0.406 0.168 2.672 0.405
+SGN 0.118 3.914 0.237 0.120 3.902 0.230
+S G∗N 0.210 3.532 0.267 0.228 3.814 0.245
+determiner_noun_agreement_with_adjective_1 2.05 SGI 0.118 2.426 0.354 -0.010 2.736 0.356
+S G∗I 0.141 2.012 0.482 -0.051 2.950 0.342
+SE 0.042 1.730 0.583 0.092 2.748 0.333
+S E∗ 0.305 1.084 0.680 0.260 1.176 0.697
+Random 0.167 2.620 0.401 0.158 2.820 0.392
+SGN 0.116 3.920 0.240 0.125 3.620 0.248
+S G∗N 0.205 3.664 0.256 0.228 3.718 0.243
+determiner_noun_agreement_with_adj_irregular_1 2.07 SGI 0.106 2.620 0.345 -0.007 2.754 0.358
+S G∗I 0.111 2.244 0.448 -0.047 3.126 0.316
+SE 0.048 1.688 0.586 0.103 2.644 0.347
+S E∗ 0.313 1.024 0.686 0.263 1.066 0.683
+Random 0.336 1.080 0.604 0.350 0.984 0.632
+SGN 0.294 1.160 0.510 0.376 0.454 0.778
+S G∗N 0.456 0.450 0.787 0.449 0.382 0.812
+npi_present_1 3.19 SGI 0.100 1.374 0.463 -0.160 1.288 0.575
+S G∗I 0.144 0.570 0.759 0.202 0.766 0.752
+SE -0.336 1.514 0.556 0.624 0.086 0.960
+S E∗ 0.160 0.902 0.684 0.062 1.204 0.556
+Random 0.230 1.936 0.494 0.227 2.106 0.463
+SGN 0.266 1.199 0.584 0.269 0.965 0.646
+S G∗N 0.408 1.092 0.619 0.392 1.000 0.649
+distractor_agreement_relational_noun 3.94 SGI 0.044 2.291 0.369 -0.066 2.326 0.434
+S G∗I 0.223 1.057 0.631 0.051 1.383 0.591
+SE -0.023 1.922 0.434 0.120 2.007 0.400
+S E∗ 0.190 1.709 0.502 0.186 1.617 0.544
+Random 0.561 0.539 0.760 0.545 0.494 0.769
+SGN 0.652 0.242 0.917 0.610 0.348 0.860
+S G∗N 0.676 0.315 0.843 0.644 0.376 0.817
+irregular_plural_subject_verb_agreement_1 1.11 SGI 0.590 0.253 0.912 0.067 0.472 0.783
+S G∗I 0.348 0.298 0.864 0.021 0.489 0.750
+SE -0.570 0.787 0.617 -0.021 0.893 0.553
+S E∗ 0.264 0.635 0.673 0.267 0.584 0.734
+Random 0.694 0.316 0.853 0.693 0.336 0.849
+SGN 0.740 0.194 0.946 0.724 0.268 0.906
+S G∗N 0.756 0.251 0.909 0.747 0.274 0.898
+regular_plural_subject_verb_agreement_1 1.13 SGI 0.748 0.202 0.944 -0.039 0.333 0.852
+S G∗I 0.371 0.242 0.889 0.039 0.262 0.879
+SE -0.614 0.610 0.718 0.303 0.632 0.694
+S E∗ 0.584 0.353 0.836 0.568 0.313 0.842
+Table7: AlignmentofGPT-2andGPT-NeoexplanationswithBLiMP.Scoresbetterthantheir(non-)contrastive
+counterpartsarebolded. “Dist”givestheaveragedistancefromthetargettotheimportantcontexttoken.
+196
+uniqueidentifierforeachpair. Thelast10pairsare thetargetareoftenclusteredtogether. Forexample,
+chosenfromwordpairswiththehighestconfusion when the target is “black”, we find one cluster
+score. with various color adjectives, and we also find a
+differentclusterwithvariousadjectivesrelatingto
+Word1 Word2 BLiMPUID theraceornationalityofaperson.
+actor actress anaphor_gender_agreement
+We find that to distinguish between different
+herself himself anaphor_gender_agreement
+themselves herself anaphor_number_agreement adjectives,inputwordsthataresemanticallyclose
+women pictures animate_subject_passive to the correct adjective are salient. For example
+boy dog animate_subject_passive
+todisambiguatetheadjective“black”fromother
+cat cats determiner_noun_agreement_1
+is are irregular_plural_subject_verb_agreement_1 colors,wordssuchas“venom”and“relativity”are
+has have regular_plural_subject_verb_agreement_1
+important.
+him himself principle_A_domain_1
+he who wh_island
+Adpositions. When the target is an adposition,
+Word1 Word2 ConfusionScore
+otheradpositionsareofteninthesamecluster.
+black green 0.0008
+Bruce Beth 0.0021 Todistinguishbetweendifferentadpositions,the
+fast super 0.0011
+verbassociatedwiththeadpositionisoftenuseful
+health hospital 0.0012
+red bright 0.0007 to the LM. For example, when the target word is
+snow winter 0.0005 “from”,verbssuchas“garnered”and“released”
+son brother 0.0027
+summer winter 0.0003 helps the model distinguish the target from other
+white blue 0.0034 adpositions that are less commonly paired with
+wine grape 0.0106
+theseverbs(e.g. “for”,“of”). Asanotherexample,
+Table 8: List of highly confusable words pairs chosen forthetargetword“for”,verbsthatindicatealong-
+forouruserstudy. lastingactionsuchas“continue”and“lived”help
+themodeldisambiguate.
+Adverbs. When the target is an adverb, other
+DependentVariable Intercept Effect P-Value
+adverbs are often clustered together. Sometimes,
+Accuracy 0.624 0.015 0.050
+whenthetargetisaspecifictypeofadverb,suchas
+Acc. Correct 0.744 0.026 0.005
+anadverbofplace,wecanfindaclusterwithother
+Acc. Incorrect 0.530 -0.010 0.460
+adverbsofthesametype.
+Useful 0.570 0.063 0.000
+Similarlytoadpositions,LMsoftenusetheverb
+Acc. Useful 0.677 -0.020 0.513
+associatedwiththetargetadverbtocontrastitfrom
+Acc. Useful 0.450 -0.009 0.444
+otheradverbs. Forexample,theverbs“dating”and
+Table9: Thedependentvariables,intercepts,theeffect “traced”areusefulwhenthetargetis“back”,and
+of the explanation method on the dependent variable theverbs“torn”and“lower”areusefulwhenthe
+anditsp-valueinthelinearmixed-effectsmodelsfitted targetis“down”.
+tomodelsimulatabilityresults.
+Determiners. Other determiners are often clus-
+teredtogetherwhenthetargetisadeterminer. Par-
+D MixedEffectsModelsResults ticularly,whenthetargetisapossessivedeterminer,
+wefindclusterswithotherpossessivedeterminers,
+In Table 9, we show the results of fitting linear
+andwhenthetargetisademonstrativedeterminer,
+mixed-effects models to the results of our user
+wefindclusterswithdemonstrativedeterminers.
+studyformodelsimulatability(§5).
+When the determiner is a gendered possessive
+determinersuchas“his”,propernounsofthesame
+E AnalysisofFoilClusters
+gender, such as “John” and “George”, are often
+InFigure5,wegiveafewexamplesofclustersand useful. For demonstrative determiners, such as
+explanationsweobtainforeachpartofspeech. For “this”,verbsthatareusuallyassociatedwithatar-
+each part of speech, we describe our findings in getedobject,suchas“achieve”and“angered”are
+moredetailinthefollowing. useful.
+Adjectives. Whenthetargetwordisanadjective, Nouns. Whenthetargetnounreferstoaperson,
+otherfoiladjectivesthataresemanticallysimilarto for example, “girl”, foil nouns that also refer to
+197
+apersonformonecluster(e.g. “woman”, “man- modelusessimilarevidencetomakedecisionsto
+ager”, “friend”), commonly male proper nouns verifyanaphorgenderagreement. Wealsodidnot
+form another (e.g. “Jack”, “Robin”, “James”), findfoilclustersassociatedwithdistinguishingthe
+commonlyfemalepropernounsformanother(e.g. numberofthepronoun: often,thesedecisionsfol-
+“Sarah”, “Elizabeth”, “Susan”), and inanimate lowdirectlyfromdecidingbetweenapronounand
+objects form a fourth (e.g. “window”, “fruit”, a proper noun, or deciding between a male and
+“box”). femalepronoun.
+When the target noun is an inanimate object, To disambiguate a gendered pronoun such as
+thereareoftentwonotableclusters: aclusterwith such as “he”, from pronouns or proper nouns
+singular inanimate nouns and a cluster with plu- with different genders (e.g. “she” or “Anna”),
+ralinanimatenouns. Thissuggestshowclustering propernounsofthesamegenderasthetarget(e.g.
+foilsbyexplanationsconfirmthatcertaingrammat- “James”)andothergenderedpronounsordetermin-
+icalphenomenarequiresimilarevidencefordisam- ers(e.g. “his”)areuseful. Todisambiguatefrom
+biguation;inthiscase,determiner-nounagreement. propernounsofthesamegenderasthetarget,inter-
+Topredictatargetanimatenounsuchas“girl” estingly,thesamepropernounasthefoilappearing
+insteadoffoilnounsthatrefertoanon-femaleor intheinputispositivelysalient;GPT-2isoftenin-
+older person, input words that are female names fluencedbypreviouslyappearingpropernounsto
+(e.g. “Meredith”) or that refer to youth (e.g. generateapronouninstead.
+“young”) are useful. To disambiguate from male
+Verbs. Whenthetargetwordisaverb,foilverbs
+propernouns,inputwordsthatrefertofemalepeo-
+thathaveadifferentverbformareoftenclustered
+ple(e.g. “Veronica”,“she”)oradjectivesrelated
+together. Thissuggeststhatthemodelusessimilar
+to the target (e.g. “tall”) influence the model to
+inputfeaturestoverifysubject-verbagreement.
+generateafemalecommonnoun. Todisambiguate
+Whenthetargetverbisinpresentparticipleform,
+fromfemalepropernouns,adjectivesanddetermin-
+auxiliary verbs in the input are useful (e.g. “is”,
+ers are useful. To disambiguate from inanimate
+“been”) to distinguish from verbs in other forms.
+objects,wordsthatdescribeahumanorahuman
+Similarly,whenthetargetverbisininfinitiveform,
+action(e.g. “delegate”,“invented”)areuseful.
+verbsinthesamecompoundasthetargetverbare
+Topredictatargetinanimatenounsuchas“page”
+important.
+insteadofnounsthatarealsosingular,inputwords
+withsimilarsemanticsareimportantsuchas“sheet”
+and“clicking”areimportant. Forpluralnounfoils,
+thedeterminer(e.g. “a”)isimportant.
+Numbers. When the target is a number, non-
+number words often form one cluster and other
+numbersformanothercluster.
+To disambiguate numbers from non-number
+words,inputwordsrelatedtoenumerationormea-
+surementareuseful(e.g. “age”,“consists”,“least”).
+Todisambiguatewordslike“hundred”and“thou-
+sand”fromothernumberssuchas“20”or“five”,
+input words used for counting (e.g. “two”, “sev-
+eral”) are useful, because “hundred”s are count-
+ableinEnglish(i.e. “twohundreds”,“severalhun-
+dreds”).
+Pronouns. When the target word is a gendered
+pronoun,foilpronounsofadifferentgenderfrom
+thetargetformonecluster,foilswithpropernouns
+of a different gender form a second cluster, and
+foilswithpropernounsofthesamegenderasthe
+target form a third cluster. This shows that the
+198

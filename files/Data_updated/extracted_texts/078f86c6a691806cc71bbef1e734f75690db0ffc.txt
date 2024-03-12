@@ -1,0 +1,783 @@
+FREDOM: Fairness Domain Adaptation Approach to
+Semantic Scene Understanding
+Thanh-DatTruong1,NganLe1,BhikshaRaj2,JacksonCothren3,KhoaLuu1
+1CVIULab,UniversityofArkansas,USA 2CarnegieMellonUniversity,USA
+3Dep. ofGeosciences,UniversityofArkansas,USA
+{tt032, thile, jcothre, khoaluu}@uark.edu, bhiksha@cs.cmu.edu
+Abstract
+Although Domain Adaptation in Semantic Scene Seg-
+mentation has shown impressive improvement in recent
+years,thefairnessconcernsinthedomainadaptationhave
+yettobewelldefinedandaddressed.Inaddition,fairnessis
+oneofthemostcriticalaspectswhendeployingthesegmen-
+tation models into human-related real-world applications,
+e.g., autonomous driving, as any unfair predictions could
+influence human safety. In this paper, we propose a novel
+Fairness Domain Adaptation (FREDOM) approach to se-
+manticscenesegmentation.Inparticular,fromtheproposed
+formulatedfairnessobjective,anewadaptationframework
+willbeintroducedbasedonthefairtreatmentofclassdistri-
+butions. Moreover,togenerallymodelthecontextofstruc-
+turaldependency,anewconditionalstructuralconstraintis
+introduced to impose the consistency of predicted segmen-
+tation. Thanks to the proposed Conditional Structure Net-
+work,theself-attentionmechanismhassufficientlymodeled
+thestructuralinformationofsegmentation.Throughtheab-
+lation studies, the proposed method has shown the perfor-
+mance improvement of the segmentation models and pro-
+motedfairnessinthemodelpredictions. Theexperimental
+resultsonthetwostandardbenchmarks, i.e., SYNTHIA→
+Cityscapes and GTA5 → Cityscapes, have shown that our
+methodachievedState-of-the-Art(SOTA)performance1.
+Figure1. TheclassdistributionsonCityscapesaredefinedfor
+FairnessproblemandLong-tailproblem. Inlong-tailproblem,
+1.Introduction severalheadclassesfrequentlyexistinthedataset,e.g.,Pole,Traf-
+ficLight,orSign. Still,theseclassesbelongtoaminoritygroup
+Semantic segmentation has achieved remarkable results inthefairnessproblemastheirappearanceonimagesdoesnotoc-
+in a wide range of practical problems, including scene un- cupytoomanypixels.OurFREDOMhaspromotedthefairnessof
+derstanding,autonomousdriving,andmedicalimaging,by modelsillustratedbyanincreaseofmIoUontheminoritygroup.
+usingdeeplearningmodels,e.g.,ConvolutionalNeuralNet-
+segmentation. Theunfairpredictionsofsegmentationmod-
+works (CNN) [3,4,24], Transformers [45]. Despite the
+elscanleadtosevereproblems,e.g.,inautonomousdriving,
+phenomenalachievement,thesedata-drivenapproachesstill
+unfairpredictionsmayresultinwrongdecisionsinmotion
+needtoimproveintreatingthepredictionofeachclass. In
+planning control and therefore affect human safety. More-
+particular, thesegmentationmodelstypicallytreatunfairly
+over,thefairnessissueofsegmentationmodelsisevenwell
+betweenclassesinthedatasetaccordingtotheclassdistri-
+observed or exaggerated when the trained models are de-
+butions. It is known as the fairness problem of semantic
+ployed into new domains. Many prior works alleviate the
+1The implementation of FREDOM is available at https:// performance drop on new domains by using unsupervised
+github.com/uark-cviu/FREDOM domain adaptation, but these approaches do not guarantee
+3202
+rpA
+4
+]VC.sc[
+1v53120.4032:viXra
+informationofimages. Then,pixelindependenceisrelaxed
+byadoptingtheMarkovianassumption[3,48]tomodelseg-
+mentationstructuresbasedonneighborpixels. Inthescope
+of our work, we are interested in addressing the fairness
+problem in semantic segmentation between classes under
+Figure2.IllustrationofthePresenceofClassesbetweenMajor the unsupervised domain adaptation setting. It should be
+(green boxes) and Minor (red boxes) Groups. Classes in the notedthatourinterestedproblemispractical. Inreal-world
+minoritygrouptypicallyoccupyfewerpixelsthantheonesinthe applications(e.g.,autonomousdriving),deeplearningmod-
+majoritygroup(Bestviewincolorand2×zoom).
+els are typically deployed into new domains compared to
+thetrainingdataset. Then,unsuperviseddomainadaptation
+thefairnessproperty.
+playsaroleinbridgingthegapbetweenthetwodomains.
+Thereneedstobemoreattentiononaddressingthefair-
+ContributionsofThisWork: Thisworkpresentsanovel
+nessissueinsemanticsegmentationunderthesupervisedor
+Unsupervised Fairness Domain Adaptation (FREDOM)
+domain adaptation settings. Besides, the definition of fair-
+approach to semantic segmentation. To the best of our
+ness in semantic segmentation needs to be better defined
+knowledge,thisisoneofthefirstworkstoaddressthefair-
+and,therefore,oftenneedsclarificationwiththelong-tailis-
+ness problem in semantic segmentation under the domain
+sueinsegmentation. Inparticular,thelong-tailproblemin
+adaptation setting. Our contributions can be summarized
+segmentationistypicallycausedbythenumberofexisting
+as follows. First, the new fairness objective is formulated
+instancesofeachclassinthedataset[21,44]. Meanwhile,
+for semantic scene segmentation. Then, based on the fair-
+thefairnessprobleminsegmentationisconsideredforthe
+ness metric, we propose a novel fairness domain adapta-
+number of pixels of each class in the dataset. Although
+tionapproachbasedonthefairtreatmentofclassdistribu-
+there could be a correlation between fairness and long-tail
+tions. Second, the novel Conditional Structural Constraint
+problems, these two issues are distinct. For example, sev-
+isproposedtomodelthestructuralconsistencyofsegmen-
+eralobjectsconstantlyexistinthedataset,buttheirpresence
+tation maps. Thanks to our introduced Conditional Struc-
+often occupies only tiny regions of the given image (con-
+ture Network, the spatial relationship and structure infor-
+tainingasmallnumberofpixels),e.g.,thePole,whichisa
+mation are well modeled by the self-attention mechanism.
+headclassinCityscapes,accountsforover20%ofinstances
+Significantly, our structural constraint relaxes the assump-
+while the number of pixels does only less than 0.01% of
+tion of pixel independence held by prior approaches and
+pixels. Hence,uponthefairnessdefinition,itshouldbelong
+generalizes the Markovian assumption by considering the
+to the minor group of classes as its presence does not oc-
+structural correlations between all pixels. Finally, our ab-
+cupymanypixelsintheimage. AnotherexampleisPerson,
+lation studies have shown the effectiveness of different as-
+which accounts for over 5% of instances, while the num-
+pects in our approach to the fairness improvement of seg-
+ber of pixels does only less than 0.01% of pixels. Traffic
+mentation models. Through experiments, our FREDOM
+LightsorSignsalsosufferasimilarproblem. Fig. 2illus-
+haspromotedthefairnesspropertyofsegmentationmodels
+tratestheappearanceofclassesinthemajorityandminority
+and achieved state-of-the-art (SOTA) performance on two
+groups. Therefore,althoughinstancesoftheseclassescon-
+standard benchmarks of unsupervised domain adaptation,
+stantlyexistinthedataset,thesearestillbeingmistreatedby
+i.e.,SYNTHIA→CityscapesandGTA5→Cityscapes.
+thesegmentationmodel.Fig.1illustratestheclassdistribu-
+tionsdefinedbasedonlong-tailandfairness,respectively.
+2.RelatedWork
+Several works reduce the class imbalance effects us-
+ing weighted (balanced) cross entropy [13,21,44], focal Unsupervised Domain Adaptation (UDA) in Semantic
+loss [1], data augmentation or rare-class sampling tech- Segmentation is a vital research topic as its ability to re-
+niques[1,19]. Still,theseneedtoaddressthefairnessprob- ducethenecessityformassivevolumesoflabeleddata.Ad-
+lem directly. Indeed, many prior domain adaptation meth- versariallearning[9,15,18,26,38,40],andself-supervised
+ods [6,17,28,34,36–39] have been used to improve the training[1,14,19,47]arecommonapproachestoUDA.
+overallperformance. However,thesemethodsoftenignore Adversarial Learning is a common approach to UDA
+unfaireffectsproducedbythemodelcausedbytheimbal- in semantic segmentation. The model is simultaneously
+anced class distribution. Besides, in some adaptation ap- trainedonsourceandtargetdomainsinthisapproach.Hoff-
+proaches using entropy minimization [29,42], the model’s manetal.[17]introducedthefirstadversarialapproachto
+bias caused by the class imbalance between majority and UDAinsegmentation. Then,Chenetal.[10]improvedthe
+minority groups is even exaggerated [7,35]. Meanwhile, modelbyutilizingpseudolabelsinparallelwiththeglobal
+other approaches using re-weighted or focal loss [1] often andclass-wiseadaptationlearningprocess. Thedistillation
+assumepixelindependenceandthenpenalizethelosscon- loss with spatial-aware model [9] proposed by Chen et al.
+tributionofeachpixelindividuallyandignorethestructural has been utilized to improve the spatial structures of seg-
+mentation. OthermethodshaveapproachedtheUDAprob- put image x ∈ X into the segmentation y ∈ Y, i.e
+lem by using image translation [16,27,49]. SPIGAN [23] y = F(x ,θ), and y = F(x ,θ). The standard domain
+s s t t
+embed depth information as its privileged information to adaptationcanbemathematicallyformulatedasinEqn.(1).
+i lm arlp yr ,o Vve ut eh te aU l.D [4A 3]m po rd oe pl of so er ds aem dea pn tt hic -as weg arm ee fn rata mti eo wn. orS kim usi -- θ∗=argm θin(cid:2)E xs,yˆs∼ps(ys,yˆs)Ls(ys,yˆs)+E xt∼pt(xt)Lt(yt () 1(cid:3)
+)
+ing privileged depth information. Vu et al. [42] presented where L is the supervised cross-entropy (CE) loss in the
+s
+thefirstadversarialentropyminimizationapproachtoUDA sourcedomain.Meanwhile,L istheunsupervisedlearning
+t
+in segmentation. Then, [29,46] presented a curriculum lossinthetargetdomainthatcanbedefinedastheadversar-
+adaptation training from easy to complex samples ranked ialloss[29,38,39,42],ortheself-supervisedloss[1,19,47].
+by the entropy level. Truong et al. [22,35] improved the In recent studies, the self-supervised loss defined by the
+performance of segmentation models by introducing a bi- cross-entropy loss with pseudo labels has achieved SOTA
+jectivemaximumlikelihoodapproach. performanceandoutperformedotherpriormethods. There-
+Self-supervised Approach has gained a SOTA perfor- fore, our proposed approach also defines L as the self-
+t
+mance in UDA in semantic segmentation in recent years supervisedloss[1,19]withthenovelfairnessguarantee.
+[1,14,19,47,50]. Inself-trainingapproaches,anewmodel
+3.1.TheFairnessObjectiveFunction
+is trained on unlabeled data using pseudo-labels derived
+from a trained model. Araslanov et al. [1] proposed an Under the fairness constraint in semantic segmentation,
+augmentationconsistencyapproachtoautomaticallyevolve theperformanceofeachclassshouldbeequallytreatedby
+pseudolabelswithoutusingfurthertrainingrounds. Zhang thedeepmodel. Thus,thegoaloffairnessinsemanticseg-
+et al. [47] introduced a knowledge distillation approach to mentationcanbedefinedasinEqn. (2).
+i tm hep sr oo fv ti pn sg et uh de op le ar bf eo lr sm oa nn lic ne eo .f Hm oyo ed rel es tw alh .i [l 1e 9a ]l is mo pc ro or vre ec dti tn hg
+e
+argm θin (cid:88) (cid:12) (cid:12) (cid:12)E x∈X(cid:88) L(yk=ci)−E x∈X(cid:88) L(yk=cj)(cid:12) (cid:12)
+(cid:12) (2)
+ci,cj k k
+performance of UDA via a new Transformer-based back-
+whereykdenotesthekthpixelofthesegmentationy,c and
+boneandtrainingrecipe. Then,[19]isfurtherimprovedby i
+c are the class categories, i.e, c ,c ∈ [1..C] (where C is
+introducingacontext-awarehigh-resolutionframeworkthat j i j
+thenumberofclasses),Listhelossfunctionmeasuringthe
+utilizes the advantages of small high-resolution crops for
+errorratesofpredictions. Formally, forallpairsofclasses
+maintaining precise segmentation and large low-resolution
+in the dataset, Eqn. (2) aims to minimize the difference
+cropsforcapturingcontextdependencies[20].
+in the error rates produced by the model between classes.
+ClassImbalanceApproaches: Jiaweietal.[30]presented
+Therefore,itguaranteesallclassesinthedatasetaretreated
+a balanced Softmax loss that helps reduce labels’ distribu-
+equally. Eqn. (2)canbefurtherderivedasinEqn. (3).
+tionshiftandalleviatesthelong-tailissue. Wangetal.[44]
+proposedaSeesawlossthatreweightsthecontributionsof (cid:88) (cid:12) (cid:12) (cid:12)E x∈X(cid:88) L(y sk=ci)−E x∈X(cid:88) L(y sk=cj)(cid:12) (cid:12) (cid:12)
+gradients produced by positive and negative instances of a ci,cj k k
+classbyusingtworegularizers,i.e.,mitigationandcompen- ≤ (cid:88) (cid:16) E x∈X(cid:88) L(y sk=ci)+E x∈X(cid:88) L(y sk=cj)(cid:17)
+sation. Ziweietal.[25]proposedanalgorithmthathandles ci,cj k k (3)
+imbalanced classification, few-shot learning, and open-set =2CE x∈XL(y)=2C(cid:104) E xs∈XsLs(ys)+E xt∈XtLt(yt)(cid:105)
+recognitionusingdynamicmeta-embedding.Chuetal.[11]
+(cid:104) (cid:105)
+proposedastochastictrainingschemeforsemanticsegmen- =2C E xs,yˆs∼ps(ys,yˆs)Ls(ys,yˆs)+E xt∼pt(xt)Lt(yt)
+tation,whichimprovesthelearningofdebiasedanddisen- FromEqn. (3),wecanobservethatthefairnessobjectivein
+tangled representations. Szabo et al. [33] proposed tilted Eqn.(2)isboundedbythestandardoptimizationofdomain
+cross-entropy loss to reduce the performance differences, adaptation in Eqn. (1). Although optimizing the standard
+whichpromotesfairnessamongthetargetclasses. domain adaptation as in Eqn. (1) could impose the con-
+straint of fairness under the upper bound in Eqn. (3), the
+3. The Proposed Fairness Domain Adaptation
+imbalance class distributions of pixels cause the model to
+ApproachtoSemanticSegmentation behaveunfairlybetweenclasseswhenoptimizingEqn. (1).
+Inparticular,Eqn. (1)canberewrittenasfollows,
+Letx ∈X andyˆ ∈Y beaninputimageanditscor-
+s s s s
+respondingsegmentationlabelinthesourcedomaindrawn (cid:34)(cid:90) (cid:90) (cid:35)
+fromthesourcedistributionp s,x
+t
+∈X tandyˆ
+t
+∈Y tbethe
+argm θin Ls(ys,yˆs)ps(ys)ps(yˆs)dysdyˆs+ Lt(yt)pt(yt)dyt
+i dn rp awut nim fra og mea thn ed tt ah re gs ee tg dm ise trn it ba uti to ion nla pb te .l Ii nnt uh ne suta pr eg re vt id seo dm da oin
+- =argm
+θin(cid:34)(cid:90) (cid:88)N
+Ls(y sk,yˆ sk)ps(y sk)ps(y s\k|y sk)ps(yˆs)dysdyˆs
+k=1
+mainadaptation,theground-truthsegmentationyˆ ofimage
+x t isnotavailable. LetF : X = X s∪X t → Y
+=t
+Y s∪Y t
++(cid:90) (cid:88)N
+Lt(y tk)pt(y tk)pt(y t\k|y
+tk)dyt(cid:35)
+be the deep network parameterized by θ that maps the in- k=1
+(4)
+whereN isthetotalnumberofpixelsintheimage,yk and The fraction between ideal and real data distributions, i.e.
+s
+y antk da tr ae rgth ee
+t
+dk oth map ii nx se ,l yo s\f kp are nd dic yte t\d
+k
+s ae rg em pe ren dta icti to en ds si en gmso eu nr tc ae
+-
+mp p′ s
+s
+e(
+(
+ny ys
+s
+t)
+)
+op
+p
+f′ s s(
+(
+thy yˆ
+ˆ
+es s)
+)
+ma on dd elpp nt′ t (( eyy ett d)) e, dc ta on bb ee imin pt re or vp ere dte tod aa cs hit eh ve ec fo aim rnp el se s-
+tions without the kth pixel in source and target domains, againsttheimbalanceddata. Itshouldbenotedthatp′(yˆ )
+s s
+p (yk)andp (yk)aretheclassdistributionsofpixelsinthe and p (yˆ ) are constants as they are distributed over seg-
+s t s s
+sourceandtargetdomains. Theclassdistributionsarecom- mentation labels, so these could be excluded during train-
+puted based on the number of pixels of each class in the ing. Then,Eqn. (6)canbefurtherderivedasfollows,
+td ia ot na as let s. truT ch te urt eer cm ons stp rs a( iy nts\ sk o|y fsk y) s\kan ad ndp t y( ty \kt\k o| ny tk y) ska ar ne dc yo tkn .di- argm θin(cid:34) E
+xs∼ps(ys),yˆs∼ps(yˆs)
+k(cid:88)N =1Ls(y sk,yˆ sk)p p′ s s( (y ys sk k) )p p′ s s( (y ys s\ \k k| |y ys sk k)
+)
+From imbalance distributions to unfair predictions: In
+sp ura ffc et ric ie m,t bh ae lac nl ca ess pd ri os btr li eb mu stio an ss so hf owpi nxe il ns Fp s ig( .y sk 1) .a Wnd hp et n(y thtk e) +E xt∼pt(xt) k(cid:88)N =1Lt(y tk)p p′ t t( (y yt tk k) )p p′ t t( (y yt t\ \k k| |y yt tk k) )(cid:35)
+(7)
+modelislearnedbythegradientdescentmethod,themodel
+behaves inequitably between classes. In particular, let us AsshowninEqn. (7),iftheconditionalstructurefractions
+considerthebehaviorofgradientsproducedbythegradient p′ s(y s\k|y sk) and p′ t(y t\k|y tk) are ignored, Eqn. (7) becomes
+descentlearningmethod. Formally,letc andc bethetwo ps(ys\k|y sk) pt(y t\k|y tk)
+i j aspecialcaseoftheweightedclassbalancedloss[13,44].
+classes in the dataset and p (yk = c ) << p (yk = c ).
+s s i s s j However,conditionalstructureplaysavitalroleinsemantic
+The gradients produced for each class with respect to the
+segmentation as it provides the constraints and correlation
+predictionscanbeformedasinEqn. (5).
+of structures among objects in images. The ignorance of
+(cid:12) (cid:12) (cid:12)(cid:12) (cid:12) (cid:12)∂(cid:82)(cid:80)N k=1Ls(y sk,yˆ sk)ps(y sk=ci)ps(y s\k|y sk)ps(yˆs)dysdyˆs(cid:12) (cid:12) (cid:12)(cid:12) (cid:12)
+(cid:12)≪
+conditionalstructurefractionscouldlowertheperformance
+(cid:12) (cid:12)(cid:12) (cid:12) ∂ys(ci) (cid:12) (cid:12)(cid:12) (cid:12) ofsegmentationmodels. Inaddition,althoughtheinputim-
+(cid:12) (cid:12) (cid:12)(cid:12) (cid:12) (cid:12)∂(cid:82)(cid:80)N k=1Ls(y sk,yˆ sk)ps(y sk=cj)qs(y s\k|y sk)ps(yˆk)dysdyˆs(cid:12) (cid:12) (cid:12)(cid:12) (cid:12)
+(cid:12)
+agesofthesourceandtargetdomainscanvarysignificantly
+(cid:12) (cid:12)(cid:12) (cid:12) ∂ys(cj) (cid:12) (cid:12)(cid:12) (cid:12) in appearance due to the distribution shift, their segmenta-
+(5) tionmapsbetweentwodomainssharesimilarclassdistribu-
+where ||.|| is the magnitude of the vector, y(ci) and y(cj) tionsandstructuralinformation[35,38,39]. Hence,thedis-
+s s
+tributionofsegmentationinthetargetdomainp (·)canbe
+represent the predicted probabilities of label c and c , re- t
+i j
+practically approximated by distribution in the source do-
+spectively. As shown in Eqn. (5), the model inclines to
+produce significant gradient updates of the classes having main, i.e., p′ t(yt) = p′ s(yt). Insummary, bytakingthelog
+pt(yt) ps(yt)
+a large population in the distributions (a majority group); ofEqn. (7), thelearningprocesscanbeformedasfollows
+meanwhile,thegradientupdatesoftheclasshavingasmall (thederivationofEqn.(8)isdetailedinthesupplementary):
+(cid:34)
+ap no dpu dl oa mtio inn ai tn edth be yd ti hst eri gb ru at dio ien ns ts(a ofm min ao jr oi rt iy tygr go ru op u) psa .re Sm imin ilo ar
+r
+θ∗≃argm θin E xs∼ps(xs),yˆs∼ps(yˆs)Ls(ys,yˆs)+E xt∼pt(xt)Lt(yt)
+b 3e .2h .av Tio hr ec Pan roa pls oo sb ee do Fb ase irrv ne ed ssin Ath de at pa trg ae tit od nom Aa pin p.
+roach
++
+N1 k(cid:88)N =1(cid:32)
+E
+xs∼ps(xs)log(cid:32) p p′
+s
+s( (y
+ys
+sk k) )(cid:33)
++E
+xt∼pt(xt)log(cid:32) pp s′
+s
+(( yy
+tt
+kk ))(cid:33)
+(cid:32) p′(y\k|yk)(cid:33) (cid:32) p′(y\k|yk)(cid:33)(cid:33)(cid:35)
+As discussed in the previous section, the fairness prob-
++E xs∼ps(xs)log ps s(ys s\k|ys
+sk)
++E xt∼pt(xt)log ps s(yt t\k|yt
+tk)
+lem is typically caused by imbalanced class distributions. (8)
+Therefore,toaddressthefairnessproblem,wefirstassume Insummary,therearethreetermsinthelearningobjec-
+that there exists an ideal distribution p′ s(y s) and p′ t(y t) so tive of our FREDOM approach. Hence, several properties
+thatthemodeltrainedontheidealdatadistributionsbehave arebroughtintothelearningprocessthatcanbeobserved.
+fairly between classes. It should be noted that we assume Domain Adaptation Objective The first two terms stand
+the ideal data distribution to frame and navigate our pro- fortheobjectiveofdomainadaptation.WhileL learnstoa
+s
+posedapproachtothefairnessdomainadaptationinseman- segmentonthesourcedomaininthesupervisedfashion,L
+t
+ticsegmentation. Then, theidealdatadistributionswillbe aimstounsupervisedadaptknowledgetothetargetdomain.
+relaxed later and there is no requirement for the ideal data Fairness Treatment from Class Distributions The next
+distributionduringthetrainingprocess. Formally,learning two terms, i.e, log(cid:16) p′ s(y tk)(cid:17) and log(cid:16) p′ s(y tk)(cid:17) , denoted as
+the adaptation framework of Eqn. (1) under the ideal data
+ps(y tk) ps(y tk)
+theL , imposethebehaviorofthemodelwithrespect
+Class
+distributioncanbeformulatedasinEqn. (6).
+totheclassdistribution. Inparticular,theseconstraintsaim
+(cid:34)
+argm θin E xs∼ps(ys),yˆs∼ps(yˆs)Ls(ys,yˆs) pp s′ s (( yy ss )) pp s′ s (( yy ˆˆ ss )) t so hor ue lg dul ba eri hz ae veth fe aip rr lyed bic et ti won es enof clc al sa ss es ses ws io thth rea st pt eh ce
+t
+m tood the el
+(6)
++E xt∼pt(xt)Lt(yt) pp t′ t (( yy tt ))(cid:35) c til oa nss ,td hi est mrib ou dt ei lo in s. eU xpn ed ce tr et dhe toid ee qa ul ad lla yta trd eais tt pri rb eu dt ii co tn ioa ns ssu om fap l-
+l
+Figure3. TheProposedFairnessFramework. Thepredictionsoftheinputssampledfromthesourceortargetdomainsarepenalized
+bythesupervisedlossL ortheself-supervisedlossL ,respectively. Then,thepredictionsareimposedbythefairnessclassbalanceloss
+s t
+L followedbytheConditionalConstraintLossL computedviaaConditionalStructureNetwork(Bestviewincolor).
+Class Cond
+classes. Thus,toachievethedesiredgoal,thedistributions demand for ideal data distribution is relaxed. Fig. 3 illus-
+ofpixelclassesshouldbeuniformlydistributed. Therefore, tratesourproposedfairnessdomainadaptationframework.
+we adopt the uniform distribution of the class distribution
+p′(yk),i.e.,p′(yk)= 1 whereCisthenumberofclasses. 4.TheConditionalStructureNetwork
+s s s s C
+ConditionalStructureConstraintThelasttwoterms,i.e.,
+(cid:18) (cid:19) (cid:18) (cid:19) The conditional structural constraint p (y\k|yk) can be
+log pp s′ s (( yy ss \\ kk || yy ss kk )) andlog p p′ s s( (y yt t\ \k k| |y
+y
+ttk k)
+)
+,denotedasL Cond, learned on the source dataset due to the as vais labils ity of the
+impose the conditional structure of the predicted semantic ground-truthsegmentationinthesourcedomain. Formally,
+segmentation. This condition plays a role as a metric to letp s(y s\k|y sk)bemodeledbytheconditionalstructurenet-
+measure the structural consistency of predicted segmenta- workGwithparametersΘ. Thentheconditionalstructure
+tion maps with respect to the one under the ideal distribu- networkcanbeauto-regressivelyformedasfollows:
+t di io tn ios nw alh se tr re uct th ue rem ,o i.d ee .,l pbe (h ya \v ke |s yf ka )i ,rl iy s. aM cho ad le ll ei nn gg inth ge pc roo bn -- argm ΘinE ys∈Ys−logps(ys\k|y sk,Θ)
+s s s N−1 (10)
+l be ym a. doS pe tv ine gra tl hp eri Mor arw koo vrk ias nm ao ssd ue mle pd tis ot nru [c 3tu ,r 4a 8l ]c won hs et rr eai tn ht es =argm ΘinE ys∈Ys (cid:88) −logps(yσik |yσik −1,...,yσ1k ,y sk,Θ)
+i=1
+models only consider the correlation between the current
+where σk is the permutation of {1...N}\{k}. Eqn. (10)
+pixel with its neighbor pixels. However, the smoothness
+could be modeled by Recurrent Neural Networks [41].
+ofpredictedsegmentationmapsishighlydependentonthe
+However, directly adopting recurrent approaches remains
+window size used in Markovian approaches (the number
+some potential limitations. Particularly, as the recurrent
+of neighbor pixels being selected). In our work, to suffi-
+approachesuseapre-definedpermutationofregressiveor-
+cientlycapturetheconditionalstructuralconstraint,instead
+ders, it requires different conditional structure models for
+ofmodelingonlyneighborhooddependenciesasMarkovian
+approaches,wegeneralizeitbymodelingp (y\k|yk)viaa
+different initial pixel conditions, e.g., p s(y s\k1|y sk1) and
+conditional structure network (detailed in
+Ss ec.s 4)s
+to con-
+p s(y s\k2|y sk2)shouldbemodeledtwodifferentmodels.This
+problemcouldbealleviatedbyconsideringthepermutation
+siderthecorrelationbetweenallpixelsinthesegmentation.
+ofregressiveorderasannetwork’sinput.However,learning
+Relaxation of Ideal Data Distribution One of the key
+asinglenetworktomodelconditionalstructuralconstraints
+challengingproblemsinoptimizingEqn.(8)isthatthecon-
+ofdifferentpermutationsisaheavytaskandineffective.
+ditionalidealdatadistributionsp′(y\k|yk)andp′(y\k|yk)
+s s s s t t Insteadofregressivelyformingp (y\k|yk),wepropose
+arenotavailable. Therefore,insteadofdirectlyoptimizing s s s
+theseterms,letusconsiderthetightboundasinEqn. (9). to model p s(y s\k|y sk) in the parallel fashion. Particularly,
+let m be the binary masked matrix of y , where the val-
+E log(cid:32) p′ s(ys\k|y sk)(cid:33) +E log(cid:32) p′ s(y t\k|y tk)(cid:33) uesofoneandzeroindicateagivenpixels (unmaskedpixel)
+xs∼ps(xs) ps(ys\k|y sk) xt∼pt(xt) ps(y t\k|y tk) and an unknown pixel (masked pixel), respectively. Then,
+≤−(cid:104) E xs∼ps(xs)logps(ys\k|y sk)+E xt∼pt(xt)logps(y t\k|y tk)(cid:105) the conditional structure p s(y s\k|y sk) can be rewritten as
+p (y ⊙(1−m)|y ⊙m), where ⊙ is the element-wise
+(9) s s s
+productandthemaskmcontainsonlyoneunmaskedpixel,
+With any form of ideal distribution p′ s(·), Eqn. (9) always i.e.,thegivenkthpixel(mk =1). Learningtheconditional
+holdduetologp′(·) ≤ 0. Hence,optimizingEqn. (9)also
+s structureconstraintviabinarymaskmcanbeformedas:
+ensuretheconditionalstructuralconstraintinEqn. (8)im-
+posed due to the upper bound of Eqn. (9). Therefore, the argm ΘinE ys∈Ys,m∈M−logps(ys⊙(1−m)|ys⊙m) (11)
+where M is the set of possible binary masks. Through
+Eqn. (11), modeling the conditional structural constraint
+p (y\k|yk) can be equivalently interpreted as learning the
+s s s
+condition of masked pixels on the given unmask pixel. To
+increasethemodelingcapabilityoftheconditionalstructure
+network, three different strategies of the binary mask are
+adopted during training. First, the binary mask only con-
+Figure4. TheMeanMagnitudeofNormalizedGradientsUp-
+tainsoneunmaskedpixeltomodeltheconditionstructural
+datedforEachClass.Configuration(A)isusedasthebaseline.
+constraint p (y\k|yk). Second, the binary mask does not
+s s s Implementation Two different segmentation architectures
+containanyunmaskedpixels(azeromask).Inthiscase,the
+areusedinourexperiments,i.e.,(1)DeepLab-V2[3]with
+model is going to learn the likelihood of the segmentation
+the Resnet-101 backbone and (2) Transformer with the
+mapp (y ).Third,thebinarymaskcontainsmorethanone
+s s MiT-B3backbone[45]. TheTransformerdesignof[5]has
+unmaskedpixelthataimstoincreasethegeneralizabilityof
+been adapted to our conditional network structure G. Our
+theconditionalstructurenetworkinmodelingsegmentation
+framework is implemented in PyTorch and trained on four
+structuresconditionedontheunmaskedpixels.
+48GB-VRAM NVIDIA Quadro P8000 GPUs. The model
+To model conditional structure network G in a parallel
+is optimized by the SGD optimizer [2] with learning rate
+fashion, the network G is designed as a Transformer. In
+2.5×10−4,momentum0.9,weightdecay10−4,andbatch
+particular,consideringeachpixelasatoken,thenetworkG
+size of 4 per GPU. The image size is set to 1280 × 720
+is formed as the Transformer with L self-attention blocks
+pixels. IntheproposedFREDOMframework,thelearning
+where each block is designed in a residual style and the
+strategiesandsamplingtechniquesof[1,19]areadoptedfor
+layernormsareappliedtoboththemulti-headself-attention
+the self-supervised loss L to train our model. Our imple-
+andmulti-perceptronlayers. Bythisdesign, thespatialre- t
+mentationisfurtherdetailedinthesupplementary.
+lationship and structural dependencies can be modeled by
+5.2.AblationStudy
+the self-attention mechanism. To effectively optimize the
+networkG,weadoptthelearningtacticofImage-GPT[5].
+Our ablation studies evaluate DeepLab-V2 models on
+5.Experiments twobenchmarksundertwosettings,i.e.,WithandWithout
+Adaptation. Eachsettinghasthreeconfigs,i.e.,(A)Model
+In this section, we present our experimental results on without L and L , (B) Fairness model with only
+Class Cond
+two standard benchmarks, i.e., SYNTHIA → Cityscapes L ,and(C)FairnessmodelwithL andL .
+Class Class Cond
+andGTA5→Cityscapes. First,wereviewdatasetsandour DoesAdaptationImprovetheFairness? Weevaluatethe
+implementation,followedbyanalyzingtheeffectivenessof impactofDomainAdaptationinimprovingthefairnessof
+our approach to fairness improvement in ablation studies. classes in the minor group. As shown in Tab. 1, domain
+Finally, we compare our experimental results with prior adaptation significantly improves fairness. In particular,
+SOTAdomainadaptationapproaches. Theperformanceof without adaptation, the segmentation models trained only
+segmentationmodelsisevaluatedusingthemeanIntersec- onthesourcedataretainlowperformanceinclassesinthe
+tionoverUnion(mIoU)andtheIoU’sstandarddeviation. minorgroup,i.e.,TrafficLight,Sign,andFence. However,
+with our fairness domain adaptation approach, the overall
+5.1.DatasetsandImplementation
+accuracy and individual IoU of classes in the minor group
+Cityscapes[12],areal-worlddatasetcollectedinEuropean, are significantly boosted. In particular, the mIoU accu-
+consists of 3,975 urban images with high-quality, dense racyofsegmentationmodelshasbeenimprovedby+22.4%
+annotations of 30 categories. The license of Cityscapes is and +21.6% on SYNTHIA → Cityscapes and GTA5 →
+availableforacademicandnon-commercialpurposes. Cityscapesbenchmarks. Themodel’sfairnesshasbeenim-
+SYNTHIA[32]isasyntheticdatasetforthesemanticseg- proved. Meanwhile,theIoU’sSTDofclasseshasbeenre-
+mentation task generated from a virtual world. There are ducedby1.4%and4.5%ontwobenchmarks,respectively.
+9,400 pixel-level labeled RGB images in SYNTHIA with Does Class Distributions Matter to Fairness Improve-
+16 standard classes overlapping with Cityscapes. The li- ment? As shown in Table 1, the fairness treatment from
+cense of SYNTHIA was registered under Creative Com- the class distribution loss L contributes a significant
+Class
+monsAttribution-NonCommercial-ShareAlike3.0. improvementtoboththeoverallperformanceandaccuracy
+GTA5 [31], a synthetic dataset generated from the game of classes in the minority group. In particular, the IoU ac-
+engine, contains 24,966 high-resolution, densely labeled curacyofeachclassinconfiguration(B)isimprovedcom-
+images created for the semantic segmentation task. There paredtotheoneinconfiguration(A)inbothwithandwith-
+are19standardclassesbetweenGTA5andCityscapes. The out adaptation settings. Specifically, in the adaptation set-
+GTA5datasetisprotectedundertheMITLicense. tingonbenchmarkSYNTHIA→Cityscapes,theclassdis-
+Table 1. Effectiveness of our FREDOM (DeepLab-V2) approach to fairness improvement. There are three configurations: (A) Model
+withoutL andL .(B)FairnessModelwithL only.(C)FairnessModelwithL andL .
+Class Cond Class Class Cond
+MajorityGroup MinorityGroup
+Configuration mIoU STD
+Road Build. Veget. Car S.Walk Sky Pole Person Terrain Fence Wall Sign Bike Truck Bus Train Tr.Light Rider M.bike
+SYNTHIA→Cityscapes
+(A) 64.9 71.5 73.1 62.9 26.1 71.0 21.7 48.4 − 0.2 3.0 0.2 35.6 − 27.9 − 0.1 20.7 12.0 33.7 27.8
+Without
+(B) 65.0 72.1 64.9 65.8 31.9 66.6 23.2 49.6 − 0.2 5.0 2.5 31.7 − 26.8 − 2.4 21.3 18.7 34.4 26.1
+Adaptation
+(C) 65.2 73.3 65.4 69.0 32.2 67.7 34.5 50.0 − 0.3 17.5 3.5 39.9 − 27.0 − 3.9 21.9 18.5 36.7 25.4
+(A) 84.9 85.7 86.4 86.8 44.9 88.6 45.8 69.3 − 2.5 31.0 40.5 57.1 − 45.9 − 48.9 31.4 47.4 56.1 25.3
+With
+(B) 84.8 85.8 86.4 86.8 45.2 88.9 47.6 70.1 − 2.6 31.3 43.0 58.5 − 46.0 − 51.9 34.1 49.2 57.0 24.9
+Adaptation
+(C) 86.0 87.0 87.1 87.1 46.3 89.1 48.7 71.2 − 5.3 33.3 46.8 59.9 − 54.6 − 53.4 38.1 51.3 59.1 24.0
+GTA5→Cityscapes
+(A) 75.8 77.2 81.3 49.9 16.8 70.3 25.5 53.8 24.6 21.0 12.5 20.1 36.0 17.2 25.9 6.5 30.1 26.4 25.3 36.6 24.0
+Without
+(B) 76.2 77.7 83.0 51.2 17.5 71.5 26.0 52.5 28.5 21.7 13.7 22.6 37.7 18.4 26.5 7.1 40.7 27.1 26.3 38.2 23.6
+Adaptation
+(C) 77.1 79.4 84.7 52.9 18.5 72.3 28.6 54.4 33.8 22.5 15.6 23.7 38.9 19.7 27.1 7.9 41.6 28.6 28.0 39.7 23.6
+(A) 90.3 87.2 88.1 88.6 53.5 87.3 44.4 67.3 42.2 28.5 41.1 50.1 54.4 52.5 56.9 33.7 48.9 33.1 42.6 57.4 20.9
+With
+(B) 90.6 87.3 88.1 88.8 53.7 87.4 44.9 67.7 42.3 28.6 41.9 52.9 57.6 55.2 57.5 47.6 50.8 36.9 44.9 59.2 19.8
+Adaptation
+(C) 90.9 87.8 88.6 89.7 54.1 89.5 45.2 68.8 42.6 32.6 44.1 57.1 58.1 58.4 62.6 55.3 51.4 40.0 47.7 61.3 19.1
+tributionlossL hasboostedtheperformanceofclasses Fig. 4visualizesthegradientsproducedw.r.teachclassin
+Class
+in the minority group, e.g., Traffic Light (from 48.9% to thedomainadaptationsetting. Inparticular,wetakeasub-
+51.9%), Sign (from 40.5 to 43.0%), Pole (from 45.8% to setinCityscapesandcomputethenormalizedgradientsup-
+48.6%). Withoutadaptation,improvementisalsoobserved. datedforeachclass.Themodelwithourproposedapproach
+Moreover, the standard deviation of IoU over classes has tendstoupdategradientsforeachclassfairly. Meanwhile,
+been reduced. It shows that the model’s fairness has been withoutusingourfairnessmethod,thegradientsofclasses
+promoted. Similarly,theperformanceofmodelsonbench- intheminoritygrouparedominatedbytheonesinthema-
+markGTA5→Cityscapesisalsoconsistentlyimproved. joritygroup,whichcouldresultinmodels’unfairbehaviors.
+Does the Conditional Structure Constraint Contribute
+5.3.ComparisonwithSOTAApproaches
+to Fairness Improvement? Configuration (C) in Table 1
+reportsexperimentalresultsofourmodelusingconditional SYNTHIA→CityscapesTable2presentsourexperimen-
+structure constraint loss L . Results in Table 1 have talresultsusingDeepLab-V2andTransformercomparedto
+Cond
+shown the de facto role of the conditional structure con- prior SOTA approaches. Our proposed approach achieves
+straint in performance improvement. Indeed, it enhances SOTA performance and outperforms prior methods using
+the IoU accuracy of each class in the minority group. For the same network backbone. Specifically, the mIoU accu-
+example, the average IoU accuracy of Fences, Pole, Traf- racyofourapproachusingTransformeris67.0%andhigher
+fic Light, and Sign has been improved by 2.3%. Overall, than DAFormer [19] by +6.1%. Although the results of
+theperformanceofsegmentationmodelshasbeenimproved severalindividualclassesareslightlylowerthanpriormeth-
+by a notable margin, i.e., +2.1% and 2.7% on SYNTHIA ods, overall, the mIoU accuracy and performance of indi-
+→ Cityscapes and GTA5 → Cityscapes, respectively. The vidual classes in the minor group have been significantly
+difference in performance between classes is reduced, il- promoted. Analyzing the mIoU accuracy of classes in the
+lustrated by the decrease of the IoU’s standard deviation, minor group, our results have been significantly improved
+whichmeansthemodel’sfairnessisimprovednotably. comparedtothepriorSOTAmethod(i.e.,DAFormer[19]).
+Does the Network Design Improve the Fairness? Table In particular, the performance of Rider, Fence, Pole, Traf-
+2 illustrates the results of our approach using DeepLab- fic Light, and Sign classes has been improved by 4.1%,
+V2 and Transformer networks. As in our results, the per- +2.8%,+7.3%,+10.1%,and+5.5%,respectively. Inad-
+formance of segmentation models using a more powerful dition,theIoUaccuracyofclassesinthemajorgroupisalso
+backbone, i.e., Transformer, outperformsthemodelsusing slightlyenhanced. Forexample,theIoUaccuracyofBuild-
+DeepLab-V2. The performance of classes in the minority ing, Car, Sidewalk, and Sky has been improved to 87.8%,
+grouphasbeenimprovednotably, e.g., theperformanceof 89.7%,54.1%,and89.5%,respectively. Itisvitaltohigh-
+classes Fence, Traffic Light, Sign, and Pole has been im- lightthat,toenhancetheperformanceofclassesinthemi-
+proved to 9.3%, 65.1%, 60.1%, and 57.3% on the SYN- noritygroup,themodeldoesnotsacrificeitsabilitytoiden-
+THIA→Cityscapesbenchmark. Themajorimprovements tify classes in the majority group. Instead, to promote the
+intheperformanceofoverallandindividualclassesarealso model’s fairness, our approach enhances its ability to seg-
+perceivedintheGTA5→Cityscapesbenchmark. Also,the mentclassesintheminorgrouptoreducethedifferencein
+standarddeviationofIoUoverclasseshasbeenmajorlyre- performancebetweenclassesinminorandmajorgroups.
+ducedby3.3%,illustratingthatfairnesshasbeenpromoted. GTA5 → Cityscapes As shown in Table 2, on the same
+DoestheModelFairlyTreatallClassDuringTraining? networkbackbone,ourFREDOMapproachperformsbetter
+Table2.ComparisonofSemanticSegmentationPerformancewithUDAMethodsUsingDeepLab-V2(DL-V2)andTransformer(Trans.).
+MajorityGroup MinorityGroup
+Approach Network mIoU STD
+Road Build. Veget. Car S.Walk Sky Pole Person Terrain Fence Wall Sign Bike Truck Bus Train Tr.Light Rider M.bike
+SYNTHIA→Cityscapes
+IntraDA[29] DL-V2 84.3 79.5 80.0 78.0 37.7 84.1 24.9 57.2 − 0.4 5.3 8.4 36.5 − 38.1 − 9.2 23.0 20.3 41.7 31.0
+BiMaL[35] DL-V2 92.8 81.5 82.4 85.7 51.5 84.6 30.4 55.9 − 1.0 10.2 15.9 38.8 − 44.5 − 17.6 22.3 24.6 46.2 30.9
+SAC[1] DL-V2 89.3 85.6 87.1 87.0 47.3 89.1 43.1 63.7 − 1.3 26.6 32.0 52.8 − 35.6 − 45.6 25.3 30.3 52.6 27.9
+ProDA[47] DL-V2 87.8 84.6 88.1 88.2 45.7 84.4 44.0 74.2 − 0.6 37.1 37.0 45.6 − 51.1 − 54.6 24.3 40.5 55.5 26.4
+FREDOM DL-V2 86.0 87.0 87.1 87.1 46.3 89.1 48.7 71.2 − 5.3 33.3 46.8 59.9 − 54.6 − 53.4 38.1 51.3 59.1 24.0
+TransDA[8] Trans. 90.4 86.4 90.3 92.3 54.8 93.0 53.8 71.2 − 1.7 31.1 37.1 49.8 − 66.0 − 61.1 25.3 44.4 59.3 27.3
+ProCST[14] Trans. 84.3 87.7 86.1 87.6 41.1 87.9 50.7 74.7 − 6.1 42.6 54.2 62.5 − 61.4 − 55.5 47.2 53.3 61.4 22.6
+DAFormer[19] Trans. 84.5 88.4 86.0 87.2 40.7 89.8 50.0 73.2 − 6.5 41.5 54.6 61.7 − 53.2 − 55.0 48.2 53.9 60.9 22.8
+FREDOM Trans. 89.4 89.3 89.9 90.5 50.8 93.7 57.3 79.4 − 9.3 48.8 60.1 68.1 − 66.0 − 65.1 51.6 62.3 67.0 22.0
+GTA5→Cityscapes
+IntraDA[29] DL-V2 90.6 82.6 85.2 86.4 36.1 80.2 27.6 59.3 39.3 21.3 29.5 23.1 37.6 33.6 53.9 0.0 31.4 29.4 32.7 46.3 26.7
+BiMaL[35] DL-V2 91.2 82.7 85.4 86.6 39.6 80.8 29.6 59.7 44.0 25.2 29.4 25.5 36.8 38.5 47.6 1.2 34.3 30.4 34.0 47.3 25.9
+SAC[1] DL-V2 90.3 86.6 87.5 88.5 53.9 86.0 45.1 67.6 40.2 27.4 42.5 42.9 45.1 49.0 54.6 9.8 48.6 29.7 26.6 53.8 24.2
+ProDA[47] DL-V2 87.8 79.7 88.6 88.8 56.0 82.1 45.6 70.7 45.2 44.8 46.3 53.5 56.4 45.5 59.4 1.0 53.5 39.2 48.9 57.5 21.7
+FREDOM DL-V2 90.9 87.8 88.6 89.7 54.1 89.5 45.2 68.8 42.6 32.6 44.1 57.1 58.1 58.4 62.6 55.3 51.4 40.0 47.7 61.3 19.1
+TransDA[8] Trans. 94.7 89.2 90.4 92.5 64.2 93.7 50.1 76.7 50.2 45.8 48.1 40.8 55.4 56.8 60.1 47.6 60.2 47.6 49.6 63.9 19.1
+ProCST[14] Trans. 95.8 89.8 90.2 92.3 69.6 93.0 49.8 72.2 50.3 45.0 55.8 63.3 63.1 72.2 78.8 65.1 56.8 44.9 56.4 68.7 17.1
+DAFormer[19] Trans. 95.7 89.4 89.9 92.3 70.2 92.5 49.6 72.2 47.9 48.1 53.5 59.4 61.8 74.5 78.2 65.1 55.8 44.7 55.9 68.3 17.3
+FREDOM Trans. 96.7 90.9 91.6 94.1 74.8 94.4 57.5 78.4 52.1 49.0 58.1 71.4 68.9 83.9 85.2 72.5 63.4 53.1 62.8 73.6 15.8
+than previous SOTA methods. In particular, our approach cogently and minimize the region of classes being erro-
+using Transformer achieves the mIoU accuracy of 73.6%, neously classified. The borders between classes are accu-
+whichistheSOTAresult;meanwhile,theresultoftheprior ratelyidentifiedandpredictedsegmentationcontinuityhas
+method[19]is68.3%. Noticeably,theperformanceresults improved compared to prior works. Although our predic-
+have been significantly enhanced in the classes of the mi- tionscontainsomenoise, theboundariesarestillclearand
+noritygroup,e.g.,incomparisonwithDAFormer[19],the correspondtothelabels. Morecomparisonsofquantitative
+IoUaccuracyofRider,Motorbike,Pole,TrafficLight,and andqualitativeresultsareavailableinthesupplementary.
+Sign has been increased by +8.4, +6.9%, 7.9%, +7.6%,
+6.ConclusionsandLimitations
+and+12.0%. Theperformanceaccuracyhasalsoimproved
+Thispaperhaspresentedthenewfairnessdomainadap-
+inthemajoritygroupclasses. Forexample,theaccuracyof
+tationtosemanticscenesegmentationbyanalyzingthefair-
+Building, Car, Sidewalk, and Sky is brought up to 90.9%,
+ness treatment from class distributions. In particular, the
+94.1%, 74.8%, and 94.4%. Our FREDOM approach has
+conditionalstructuralconstraintshaveimposed theconsis-
+strengthened the model’s ability to segment classes in the
+tencyofthepredictedsegmentationandmodeledthestruc-
+minorgrouptolessentheperformancegapbetweenminor
+tural information to improve the accuracy of segmentation
+andmajorgroups. Inaddition,theIoU’sstandarddeviation
+models. Our ablation studies have analyzed different as-
+overclasseshasbeendecreasedcomparedtopriormethods,
+pects affecting the fairness of segmentation models. It
+whichmeansthatfairnesshasbeenpromoted.
+has also shown the effectiveness of our approach in terms
+Qualitative Results Fig. 5 illustrates our results of the
+of fairness improvement. Our FREDOM approach has
+SYNTHIA→Cityscapcesexperiment. Ourapproachpro-
+achievedSOTAperformancecomparedtopriormethods.
+ducesbetterqualityresultsthanpriorUDAmethods.Partic-
+Limitations: One of the potential limitations in our ap-
+ularly,asignificantimprovementcanbeobservedfromthe
+proach is the computational cost of the conditional struc-
+predictions of classes in the minority group, e.g., the pre-
+tural constraint L . As the constraint is computed by
+Cond
+dictedsegmentationofsigns,persons,andpolesissharper.
+conditionalstructurenetworkG,itrequiresmorecomputa-
+Themodelcanwellsegmenttheclassesintheminorgroup
+tional resources and time during training. Also, our work
+only utilized specific self-supervised loss, network back-
+bones, and hyper-parameters to support our hypothesis.
+However, different aspects of learning have yet to be fully
+exploited, e.g., learning hyper-parameters, additional un-
+supervised loss L (adversarial loss, self-supervised loss).
+t
+Thesecouldbefurtherexploitedinourfuturework.
+AcknowledgmentThisworkissupportedbyNSFDataScience,
+DataAnalyticsthatareRobustandTrusted(DART),NSFWVAR-
+Figure 5. Qualitative Results on SYNTHIA → Cityscapes
+CRESH,andGooglerInitiatedResearchGrant.Wealsoacknowl-
+Columns1-4aretheresultsofSAC[1],andDAFormer[19],our
+edgetheArkansasHighPerformanceComputingCenterforpro-
+FREDOM,andgroundtruths(Bestviewin2×zoomandcolor).
+vidingGPUs.
+References CyCADA: Cycle-consistent adversarial domain adaptation.
+InICML,2018. 3
+[1] Nikita Araslanov, , and Stefan Roth. Self-supervised aug-
+[17] Judy Hoffman, Dequan Wang, Fisher Yu, and Trevor Dar-
+mentation consistency for adapting semantic segmentation.
+rell.FCNsinthewild:Pixel-leveladversarialandconstraint-
+InProceedingsoftheIEEEConferenceonComputerVision
+basedadaptation. arXiv:1612.02649,2016. 2
+andPatternRecognition(CVPR),2021. 2,3,6,8
+[18] WeixiangHong,ZhenzhenWang,MingYang,andJunsong
+[2] Le´onBottou. Large-scalemachinelearningwithstochastic Yuan. Conditionalgenerativeadversarialnetworkforstruc-
+gradientdescent. IninCOMPSTAT,2010. 6 tureddomainadaptation. InCVPR,2018. 2
+[3] Liang-Chieh Chen, George Papandreou, Iasonas Kokkinos, [19] LukasHoyer,DengxinDai,andLucVanGool. DAFormer:
+KevinMurphy,andAlanLYuille.Deeplab:Semanticimage Improving network architectures and training strategies for
+segmentationwithdeepconvolutionalnets,atrousconvolu- domain-adaptivesemanticsegmentation. InCVPR,2022. 2,
+tion,andfullyconnectedCRFs. TPAMI,2018. 1,2,5,6 3,6,7,8
+[4] Liang-ChiehChen,YukunZhu,GeorgePapandreou,Florian [20] Lukas Hoyer, Dengxin Dai, and Luc Van Gool. HRDA:
+Schroff, and Hartwig Adam. Encoder-decoder with atrous Context-aware high-resolution domain-adaptive semantic
+separableconvolutionforsemanticimagesegmentation. In segmentation. InProceedingsoftheEuropean Conference
+ECCV,2018. 1 onComputerVision(ECCV),2022. 3
+[5] Mark Chen, Alec Radford, Rewon Child, Jeff Wu, Hee- [21] Ting-IHsieh,EstherRobb,Hwann-TzongChen,andJia-Bin
+wooJun,PrafullaDhariwal,DavidLuan,andIlyaSutskever. Huang.Droplossforlong-tailinstancesegmentation.InPro-
+Generativepretrainingfrompixels. ICML,2020. 6 ceedings of the Workshop on Artificial Intelligence Safety
+[6] Minghao Chen, Hongyang Xue, and Deng Cai. Do- 2021 co-located with the Thirty-Fifth AAAI Conference on
+main adaptation for semantic segmentation with maximum ArtificialIntelligence,2021. 2
+squaresloss. InICCV,2019. 2 [22] IbsaJalata, NagaVenkataSaiRavitejaChappa, Thanh-Dat
+[7] Minghao Chen, Hongyang Xue, and Deng Cai. Do- Truong, Pierce Helton, Chase Rainwater, and Khoa Luu.
+main adaptation for semantic segmentation with maximum Eqadap: Equipollentdomainadaptationapproachtoimage
+squaresloss. InICCV,2019. 2 deblurring. IEEEAccess,10:93203–93211,2022. 3
+[23] Kuan-HuiLee,GermanRos,JieLi,andAdrienGaidon.SPI-
+[8] Runfa Chen, Yu Rong, Shangmin Guo, Jiaqi Han, Fuchun
+GAN: Privileged adversarial learning from simulation. In
+Sun, Tingyang Xu, and Wenbing Huang. Smoothing mat-
+ICLR,2019. 3
+ters: Momentumtransformerfordomainadaptivesemantic
+segmentation. CoRR,2022. 8 [24] Guosheng Lin, Anton Milan, Chunhua Shen, and Ian
+Reid. Refinenet: Multi-pathrefinementnetworksforhigh-
+[9] YuhuaChen,WenLi,andLucVanGool. Road:Realityori-
+resolutionsemanticsegmentation. InCVPR,2017. 1
+entedadaptationforsemanticsegmentationofurbanscenes.
+[25] Ziwei Liu, Zhongqi Miao, Xiaohang Zhan, Jiayun Wang,
+InCVPR,2018. 2
+Boqing Gong, and Stella X. Yu. Large-scale long-tailed
+[10] Yi-HsinChen,Wei-YuChen,Yu-TingChen,Bo-ChengTsai,
+recognitioninanopenworld,2019. 3
+Yu-Chiang Frank Wang, and Min Sun. No more discrimi-
+[26] Mingsheng Long, Yue Cao, Jianmin Wang, and Michael I
+nation: Crosscityadaptationofroadscenesegmenters. In
+Jordan. Learningtransferablefeatureswithdeepadaptation
+ICCV,2017. 2
+networks. InICML,2015. 2
+[11] SanghyeokChu,DongwanKim,andBohyungHan. Learn-
+[27] Zak Murez, Soheil Kolouri, David Kriegman, Ravi Ra-
+ing debiased and disentangled representations for semantic
+mamoorthi,andKyungnamKim.Imagetoimagetranslation
+segmentation. Advances in Neural Information Processing
+fordomainadaptation. InCVPR,2018. 3
+Systems,34:8355–8366,2021. 3
+[28] PhaNguyen,Thanh-DatTruong,MiaoqingHuang,YiLiang,
+[12] Marius Cordts, Mohamed Omran, Sebastian Ramos, Timo
+NganLe,andKhoaLuu. Self-superviseddomainadaptation
+Rehfeld, Markus Enzweiler, Rodrigo Benenson, Uwe
+incrowdcounting. In2022IEEEInternationalConference
+Franke, Stefan Roth, and Bernt Schiele. The Cityscapes
+onImageProcessing(ICIP),pages2786–2790,2022. 2
+datasetforsemanticurbansceneunderstanding. InCVPR,
+[29] Fei Pan, Inkyu Shin, Francois Rameau, Seokju Lee, and
+2016. 6
+In So Kweon. Unsupervised intra-domain adaptation for
+[13] YinCui,MenglinJia,Tsung-YiLin,YangSong,andSerge semanticsegmentationthroughself-supervision. InCVPR,
+Belongie. Class-balanced loss based on effective number 2020. 2,3,8
+of samples. In Proceedings of the IEEE/CVF Conference
+[30] Jiawei Ren, Cunjun Yu, Shunan Sheng, Xiao Ma, Haiyu
+onComputerVisionandPatternRecognition(CVPR),June
+Zhao,ShuaiYi,andHongshengLi. Balancedmeta-softmax
+2019. 2,4
+forlong-tailedvisualrecognition,2020. 3
+[14] Shahaf Ettedgui, Shady Abu-Hussein, and Raja Giryes. [31] StephanR.Richter,VibhavVineet,StefanRoth,andVladlen
+Procst: Boosting semantic segmentation using progressive Koltun. Playing for data: Ground truth from computer
+cyclicstyle-transfer,2022. 2,3,8 games. InECCV,2016. 6
+[15] YaroslavGaninandVictorLempitsky.Unsuperviseddomain [32] German Ros, Laura Sellart, Joanna Materzynska, David
+adaptationbybackpropagation. InICML,2015. 2 Vazquez, and Antonio M. Lopez. The SYNTHIA dataset:
+[16] Judy Hoffman, Eric Tzeng, Taesung Park, Jun-Yan Zhu, Alargecollectionofsyntheticimagesforsemanticsegmen-
+PhillipIsola,KateSaenko,AlexeiEfros,andTrevorDarrell. tationofurbanscenes. InCVPR,2016. 6
+[33] Attila Szabo´, Hadi Jamali-Rad, and Siva-Datta Mannava. getstructurelearningfordomainadaptivesemanticsegmen-
+Tilted cross-entropy (tce): Promoting fairness in semantic tation. arXivpreprintarXiv:2101.10979,2021. 2,3,8
+segmentation. InProceedingsoftheIEEE/CVFConference [48] Shuai Zheng, Sadeep Jayasumana, Bernardino Romera-
+on Computer Vision and Pattern Recognition, pages 2305– Paredes, Vibhav Vineet, Zhizhong Su, Dalong Du, Chang
+2310,2021. 3 Huang,andPhilipH.S.Torr. Conditionalrandomfieldsas
+[34] Thanh-Dat Truong, Ravi Teja Nvs Chappa, Xuan-Bac recurrentneuralnetworks.InProceedingsoftheIEEEInter-
+Nguyen, Ngan Le, Ashley P.G. Dowling, and Khoa Luu. nationalConferenceonComputerVision(ICCV),December
+Otadapt:Optimaltransport-basedapproachforunsupervised 2015. 2,5
+domainadaptation. In202226thInternationalConference [49] Jun-Yan Zhu, Taesung Park, Phillip Isola, and Alexei A
+onPatternRecognition(ICPR),pages2850–2856,2022. 2 Efros. Unpaired image-to-image translation using cycle-
+[35] Thanh-Dat Truong, Chi Nhan Duong, Ngan Le, Son Lam consistentadversarialnetworks. InICCV,2017. 3
+Phung, ChaseRainwater, andKhoaLuu. Bimal: Bijective [50] Yang Zou, Zhiding Yu, BVK Vijaya Kumar, and Jinsong
+maximum likelihood approach to domain adaptation in se- Wang. Unsupervised domain adaptation for semantic seg-
+manticscenesegmentation. InICCV,2021. 2,3,4,8 mentationviaclass-balancedself-training. InECCV,2018.
+[36] Thanh-DatTruong,ChiNhanDuong,KhoaLuu,Minh-Triet 3
+Tran, and Ngan Le. Domain generalization via universal
+non-volumepreservingapproach. InCRV,2020. 2
+[37] Thanh-Dat Truong, Pierce Helton, Ahmed Moustafa, Jack-
+sonDavidCothren,andKhoaLuu. Conda: Continualunsu-
+perviseddomainadaptationlearninginvisualperceptionfor
+self-drivingcars,2022. 2
+[38] Yi-Hsuan Tsai, Wei-Chih Hung, Samuel Schulter, Ki-
+hyukSohn,Ming-HsuanYang,andManmohanChandraker.
+Learningtoadaptstructuredoutputspaceforsemanticseg-
+mentation. InCVPR,2018. 2,3,4
+[39] Yi-HsuanTsai,KihyukSohn,SamuelSchulter,andManmo-
+hanChandraker.Domainadaptationforstructuredoutputvia
+discriminativerepresentations. arXiv:1901.05427,2019. 2,
+3,4
+[40] EricTzeng,JudyHoffman,KateSaenko,andTrevorDarrell.
+Adversarial discriminative domain adaptation. In CVPR,
+2017. 2
+[41] Aaron van den Oord, Nal Kalchbrenner, and Koray
+Kavukcuoglu. Pixelrecurrentneuralnetworks,2016. 5
+[42] Tuan-Hung Vu, Himalaya Jain, Maxime Bucher, Matthieu
+Cord,andPatrickPe´rez. Advent: Adversarialentropymini-
+mizationfordomainadaptationinsemanticsegmentation.In
+CVPR,2019. 2,3
+[43] Tuan-Hung Vu, Himalaya Jain, Maxime Bucher, Mathieu
+Cord,andPatrickPe´rez. Dada: Depth-awaredomainadap-
+tationinsemanticsegmentation. InICCV,2019. 3
+[44] Jiaqi Wang, Wenwei Zhang, Yuhang Zang, Yuhang
+Cao, Jiangmiao Pang, Tao Gong, Kai Chen, Ziwei Liu,
+Chen Change Loy, and Dahua Lin. Seesaw loss for long-
+tailed instance segmentation. In Proceedings of the IEEE
+Conference on Computer Vision and Pattern Recognition,
+2021. 2,3,4
+[45] EnzeXie,WenhaiWang,ZhidingYu,AnimaAnandkumar,
+JoseM.Alvarez,andPingLuo. Segformer: Simpleandef-
+ficientdesignforsemanticsegmentationwithtransformers.
+InNeurIPS,2021. 1,6
+[46] Zizheng Yan, Xianggang Yu, Yipeng Qin, Yushuang Wu,
+Xiaoguang Han, and Shuguang Cui. Pixel-Level Intra-
+DomainAdaptationforSemanticSegmentation.Association
+forComputingMachinery,2021. 3
+[47] PanZhang,BoZhang,TingZhang,DongChen,YongWang,
+andFangWen. Prototypicalpseudolabeldenoisingandtar-

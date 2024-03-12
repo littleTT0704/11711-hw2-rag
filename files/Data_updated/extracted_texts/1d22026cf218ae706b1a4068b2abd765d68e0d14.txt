@@ -1,0 +1,375 @@
+Self-supervision and Learnable STRFs for Age, Emotion, and Country
+Prediction
+RoshanSharma*1 TylerVuong*1 HiraDhamyal2 MarkLindsey1 BhikshaRaj21 RitaSingh2
+Abstract ofinterest. Usingmachinestosuggestfurtherinformation
+from this evidence can be quite beneficial in these cases
+This work presents a multitask approach to the
+(Singh,2019).
+simultaneous estimation of age, country of ori-
+gin,andemotiongivenvocalburstaudioforthe Asanotherexample,estimationofageandemotionfrom
+2022ICMLExpressiveVocalizationsChallenge an individual’s voice may prove to be very useful for au-
+EXVO-MULTITASKtrack. Themethodofchoice tomated customer service phone lines, as elderly people
+utilizedacombinationofspectro-temporalmod- maystruggletooperatethistypeoftechnology,andpeople
+ulationandself-supervisedfeatures,followedby exhibitinghighemotionsmayrequireahumancustomerser-
+anencoder-decodernetworkorganizedinamulti- vicerepresentativetohandletheirsituationinanempathetic
+taskparadigm. Weevaluatethecomplementarity manner.Incaseslikeeitherofthese,automaticpredictionof
+betweenthetasksposedbyexaminingindepen- thesecrucialpiecesofinformationaboutacallercanallow
+denttask-specificandjointmodels,andexplore machinestomanagecomplexsituationsmoreappropriately
+therelativestrengthsofdifferentfeaturesets. We whilestillprovidingefficiencyinregularsituations(Gong
+alsointroduceasimplescorefusionmechanismto et al., 2015). Knowledge of an individual’s country, age,
+leveragethecomplementarityofdifferentfeature andemotioninformationcanbeofsimilaruseinamedical
+setsforthistask. situation(Roteretal.,2006).
+We find that robust data preprocessing in con- Solutions to these individual tasks exist in the current lit-
+junctionwithscorefusionoverspectro-temporal erature,andcontinuetobeactivelyresearchedinthefield.
+receptivefieldandHuBERTmodelsachievedour The most recent approaches to these tasks have, not sur-
+bestEXVO-MULTITASKtestscoreof0.412. prisingly, turned to deep neural networks. In the case of
+emotion recognition from speech, state of the art accu-
+1.Introduction racyhasbeenachievedbyapplyingself-supervisiontoan
+upstream/downstreamarchitecture(daSilvaMoraisetal.,
+The2022ICMLExpressiveVocalizationsChallengeMul-
+2022). Ageandcountryinformation,whichismoreclosely
+titaskHigh-dimensionalEmotion,Age,andCountryTask
+relatedtotraditionalspeakeridentification,canbeestimated
+(EXVO-MULTITASK)(Bairdetal.,2022)involvesthesi-
+bynetworksthatutilizex-vectorembeddingsasinputfea-
+multaneous estimation of an individual’s age, country of
+tures (Snyder et al., 2018). It has been shown that these
+origin,andexpressedemotiongivenonlyshortrecordings
+networksbenefitgreatlyfromstrategicapplicationsofmul-
+ofvocalburstsfromtheindividual.
+titasklearningandtransferlearningtechniques(Kwasny&
+Motivationforpredictingtheseaspectsofindividualsfrom Hemmerling,2020).
+theirvoicescomesinmanyforms. Forexample,prediction
+Simultaneous solutions to these tasks, on the other hand,
+of age and country of origin from voice is of particular
+remain widely unexplored. While it is not logical to hy-
+interestinforensicscienceandprofilingcircles,asavocal
+pothesize that an individual’s age, country of origin, and
+signalissometimestheonlyevidenceleftbehindbyaperson
+choiceofemotionaredependentorcorrelatedvariables,it
+*Equal contribution 1Department of Electrical and may be the case that age or country of origin have an ef-
+Computer Engineering, Carnegie Mellon University, Pitts- fectonthewayanindividualexpressesacertainemotion.
+burgh, USA 2Language Technology Institute, Carnegie Becauseofthispossibleconditionalrelationship,itfollows
+Mellon University, Pittsburgh, USA. Correspondence
+thatperformingallthreeofthesetaskssimultaneouslyin
+to: Roshan Sharma <roshansh@cmu.edu>, Tyler Vuong
+amultitaskframeworkmaybeadvantageous. Thisisthe
+<tvuong@andrew.cmu.edu>.
+hypothesiswhichthisworkattemptstoprove.
+Proceedings of the 39th International Conference on Machine
+Learning,Baltimore,Maryland,USA,PMLR162,2022. Copy-
+right2022bytheauthor(s).
+2202
+nuJ
+52
+]DS.sc[
+1v86521.6022:viXra
+Self-supervisionandLearnableSTRFsforAge,Emotion,andCountryPrediction
+2.DataAnalysisandPreprocessing Country Age Emotion Val
+Data
+(UAR) (MAE) (CCC) S
+Data for the EXVO-MULTITASK track comes from the MTL
+Baseline 0.416 0.506 4.22 0.348
+Hume Vocal Burst Competition Dataset (H-VB) (Cowen Raw 0.443 0.510 4.30 0.352
+etal.,2022). Thedatasetiscomposedof59,201samples DCNormalized 0.514 0.433 4.47 0.344
+ofvocalburstaudio,splitnearlyevenlyintotraining,vali- Denoised 0.515 0.449 4.27 0.355
+VAD 0.467 0.391 4.56 0.324
+dation,andtestsets. Emotion,age,andcountrylabelsare
+providedforthetrainingandvalidationsets. Table1.A comparison of validation results when different pre-
+processing techniques are applied. We extract ComParE 2016
+Audiodataforthetaskwasprovidedintwoforms. First,
+featuresfromeachdatasetandtrainthemultitaskmodelarchitec-
+contestants were given the preprocessed data which was tureprovidedbytheorganizers.Wefindthatdenoisinggivesbetter
+usedtotrainthebaselinesystems. Thisdatawasin.wav results.
+format with a sample rate of 16 kHz. Note that this data
+exhibitedconsiderableclippingintheregionsthatcontained TheMMSE-STSAalgorithmwasusedherebecauseofits
+vocalization, likely as a result of the preprocessing. As versatilityinhandlingdifferentSNRs. Itwasalsoshown
+such, the original raw data was provided in the form of toleavecolorlessresidualnoiseratherthanmusicalnoise,
+compressed .webm files in addition to the preprocessed whichmaybeadvantageousforthedownstreamclassifier.
+data.
+2.2.ComparingPreprocessingTechniques
+Inthiswork,thefollowingpreprocessingstepswereapplied
+Tounderstandwhichpreprocessingtechniqueswouldwork
+totherawdata: First,eachsamplewasconvertedfromthe
+best for the task at hand, we tested the data at multiple
+.webmfiletypeto.wavanddownsampledto16kHzvia
+preprocessing stages. Specifically, we used the clipped
+ffmpeg. Second,theDCcomponentofeachsamplewas
+baselineaudio,un-clippedrawaudio,DCnormalizedaudio,
+removed by applying a highpass finite impulse response
+denoised audio, and VAD-processed audio. The model
+(FIR) filter with a stopband of 20 Hz, after which each
+architectureusedhereistheoneprovidedbythechallenge.
+samplewasgainnormalized. Third,thenoiseintheaudio
+wassuppressedbyapplyingaminimum-meansquareder- Table1showstheresultsachievedwhenopenSMILECom-
+rorshort-timespectralamplitude(MMSE-STSA)filtering ParE2016featuresareextractedfromeachversionofthe
+algorithm (Ephraim & Malah, 1984), which is described data. Scoresareshownintermsoftheevaluationmetrics
+insomedetailinthefollowingsubsection. Finally,silence outlined for the EXVO-MULTITASK track, including un-
+beforeandafterthevocalburstswasremovedusingavoice weightedaveragerecall(UAR)forcountryprediction,mean
+activitydetector(VAD)(Silero-Team,2021). absoluteerror(MAE)forageestimation,concordancecor-
+relationcoefficient(CCC)foremotionprediction,andthe
+2.1.DenoisingUsingtheEphraim-MalahAlgorithm harmonicmeanofthesemetrics(S ). Fromthetable
+MTL
+EphraimandMalah’sMMSE-STSAfilteringalgorithmis wecanobservethatdenoisingthedataisindeedimportant
+basedtheprinciplethatperceptualqualityismoreclosely forthetaskandachievesgoodresults. VADdegradesthe
+tiedtoamplitudethanphase.Assuch,thespectralamplitude performance, indicating that the silences in between the
+isoptimizedviaMMSEandcombinedwiththenoisyphase expressionsactuallycarryusefulinformationwhich,when
+toreconstructanenhancedsignal. removed,reducethepredictivecapacityofthemodels.
+TheMMSE-STSAisderivedstartingwiththeexpression
+3.ProposedMethod
+fortheexpectedvalueofthecleanSTSAgiventhenoisy
+Oursequencearchitectureiscomprisedofafeaturefrontend,
+short-timeFouriertransform(STFT).Afteraseriesofap-
+encoder,andpoolingmulti-taskdecoder.
+proximationsandalgebraicmanipulations,theexpression
+inEq. 1isachievedforhighsignal-to-noiseratios(SNR):
+3.1.FeatureFrontends
+Although the official challenge provided a few baseline
+ξ
+Aˆ ∼ = k R (1) utterance-levelfeaturefrontends,wewantedtoexplorethe
+k 1+ξ k
+k benefits of sequence-level feature frontends. We decided
+to use standard log-mel spectrogram feature frontend, a
+Here,Aˆ andR aretheestimatedcleanspectralamplitude
+k k modulation-based feature frontend and a HuBERT-based
+andgivennoisyspectralamplitudeattimeframek,respec-
+featurefrontend. Thethreefeaturefrontendsaredescribed
+tively,andξ istheSNRatframek. Fromthisexpression,
+k infurtherdetailbelow.
+itisevidentthatwhenSNRishigh,themultiplicativegain
+appliedtothenoisyspectralamplituderesemblesaWiener 3.1.1.LOG-MELSPECTROGRAMFEATURE
+filter. However,whenSNRislow,thegaindeviatesfrom Thefirstsequence-levelfeaturewetriedwasthestandard
+theWienerfilter,avoidingthehighbiasoftheWienerfilter log-melspectrogram. Wechosethelog-melspectrogram
+atlowSNRs. sinceitisoneofthemostcommonlyusedfeaturesfordeep-
+Self-supervisionandLearnableSTRFsforAge,Emotion,andCountryPrediction
+learning-basedspeechprocessingandhasbeenprovenuse-
+fulformanyspeech-relatedtasks. Inthisstudy,thelog-mel
+spectrogramiscalculatedusinga25-msHanningwindow
+witha10-mshopbetweenframesanda512-pointdiscrete
+Fouriertransform. 80melchannelswerecalculatedandwe
+applypowercompressionusingthelogarithmsubsequently.
+Additionally, global mean and variance normalization is
+appliedtoeachofthe80melchannels.
+Figure1.ExamplesofGabor-basedSTRFkernelstunedtovarious
+3.1.2.SPECTRO-TEMPORALMODULATIONFEATURE
+spectro-temporalmodulationfrequencies.
+Inadditiontothestandardlog-melspectrogram,wetried
+Country Age Emotion
+usingafrontendfeaturethatcapturesspectro-temporalmod- ModelDescription
+(UAR) (MAE) (CCC)
+ulations. Specifically, we use spectro-temporal receptive
+Emotion-only × × 0.626
+fields(STRFs)(Chietal.,2005;Meyer&Kollmeier,2011)
+Age-only × 4.02 ×
+tocapturethespectro-temporalmodulationsinthespeech
+Country-only 0.588 × ×
+signal. STRFsarebelievedtorespondtoarangeoftempo-
+JointMultitask 0.626 3.97 0.622
+ralandspectralmodulationpatternsintheauditorysystem.
+EachSTRFisparameterizedbyarateandscaleparameter
+Table2.PerformanceofindependentandmultitaskHuBERTen-
+thatcontrolthetemporalandspectralmodulationselectivity,
+codermodelsontheEXVO-MULTITASKvalidationset
+respectively. Example of gabor-based STRFs are shown
+below in Figure 1. Inspired by the results in (Xia et al., feed-forward layers, convolution, and self-attention. The
+2021) that used STRFs to capture spectro-temporal mod- initiallayeroftheconformerencoderconsistsofa2Dconvo-
+ulations for emotion recognition, we developed a similar lutionaldownsamplinglayer.Weincreasetheinputchannels
+spectro-temporalmodulationfeatureformulti-tasklearning. ofthedownsamplinglayerwhenSTRFfeaturesareused.
+Wedescribethespectro-temporalmodulationfeaturebelow.
+Self-Attentive Pooling Decoder: Our decoder uses task-
+GivenN STRFs,wedefinethespectro-temporalmodulation specificself-attentivepooling,followedbyaseriesoffully-
+feature(STMF)attimeframetandfrequencybinktobe connectedlayers.
+STMF[i,t,k]=STRF(i)[t,k](cid:63)LM[t,k], (2)
+3.3.Trainingsetup
+where LM denotes the log-mel spectrogram, (cid:63) refers to Weusethemeanabsoluteerror(MAE)objectivefunction
+cross-correlation,andiistheSTRFindex. EachoftheN to compute the loss for both the emotion and age predic-
+STRFsaretunedtospecificspectro-temporalmodulation tion. Forthecountryprediction, weusethenegativelog-
+patterns. We follow (Vuong et al., 2020) and enable the likelihoodobjectivefunction.Thefinallossusedtooptimize
+STRFmodulationparameterstobealearnableparameterby ourmultitasksystemisaweightedcombinationofthethree
+thedeepneuralnetwork(DNN).Specifically,theSTRFsare lossterms. Wetunetheweightsforeachlosstermbasedon
+implementedasa2DconvolutionallayerwheretheDNN theperformanceonthevalidationset.
+learnstherateandscalevaluethatparameterizetheSTRF
+L =α L +α L +α L (3)
+ratherthantheindividualkernelweights. Thegabor-based total 1 age 2 emo 3 country
+STRFsaredefinedastheproductbetweena2Dcomplex Duetoeachlosshavingadifferentrange,weuse1,80,and
+exponential and a hanning envelope. Having the STRF 8forα ,α ,andα ,respectively.
+1 2 3
+parameters learnable by the DNN enables us to learn the
+ThisresearchwasconductedusingtheESPnetframework
+optimalmodulationparametersdirectlywithouthavingto
+(Watanabeetal.,2018).Thecodeforthefeaturesandmodel
+choosetheoptimalparametersbeforehand. Theresulting
+architecturewillbeaccessiblehere1.
+STRF feature is 3D where the first dimension represents
+eachofthespectro-temporalmodulationsandtheremaining
+4.ExperimentalResultsandAnalysis
+tworepresentthetimeandfrequency,respectively.
+4.1.JointVersusIndependentModeling
+3.2.SequenceModelArchitecture Wehypothesizethattheinter-relatednessbetweenthetasks
+HuBERT Encoder: The HuBERT (Hsu et al., 2021) en- underconsiderationmakemultitasklearningaviableoption.
+codercomprisesaseriesofBERT-liketransformerlayers Wecomparedtheuseoftaskindependentmodelsandtask
+followingawav2vec2.0featureextractorunit. dependent models to establish if this holds for the task.
+Table2reportsresultsonthevalidationsetforourmodels
+ConformerEncoder: Conformersarethestateoftheart
+thatusetheHuBERTencoderforeachofthethreetasks,
+onmultiplespeechtasksincludingspeechrecognition. Con-
+formerscomprisetransformerlikelayerswithmacaron-style 1https://github.com/espnet/espnet
+Self-supervisionandLearnableSTRFsforAge,Emotion,andCountryPrediction
+Country Age Emotion Test
+Country Age Emotion Val Models
+Model (UAR) (MAE) (CCC) S
+(UAR) (MAE) (CCC) S MTL
+MTL
+HuBERT 0.659 4.00 0.559 0.410
+HuBERT 0.641 4.01 0.552 0.406
+Conformer
++Denoise 0.648 3.76 0.546 0.420 0.518 4.34 0.475 0.358
+(STRF)
++sp. perturb 0.650 3.82 0.559 0.419
+HuBERT
+Conformer 0.650 3.94 0.556 0.412
+0.504 4.03 0.507 0.375 +STRF
+(STRF)
+Conformer
+0.496 4.17 0.523 0.370 Table4.Performanceofmultitaskmodelsonthedenoisedtestset
+(log-mel)
+usingscorefusionbetweentheSTRFandHuBERTmodels
+Table3.Performanceofmultitaskmodelsonthevalidationsetfor
+STRFconformerpredictions,simplyaveragingthecountry
+variousencodersandfeaturefrontends
+andagepredictionsbetweenthetwogaveusthebestresults
+andasimplemultitasksetup. onthevalidationset. Fortheemotiontask,usingtheHu-
+BERTemotionpredictionswithoutanyfusiongaveusthe
+Wefindthatmultitasklearningimprovesperformanceon
+bestresultsonthevalidationset. Inourinitialscorefusion
+age regression and country classification, while retaining
+experiments,wefoundthatfusingtheHuBERTpredictions
+comparableemotionrecognitionperformance. Fromthese
+with the STRF predictions improved the performance of
+results,itappearsthatthereisnocleardependenceoncoun-
+thechallengescorefrom.406to.42onthevalidationset.
+tryoforiginandageforemotionprediction. Thisislikely
+Althoughsimplescorefusiongaveusimprovementonthe
+tobemoretrueforvocalburststhatdonotcontainspoken
+validation set, we found that the benefits on the test set
+language, since expressive vocal bursts are likely similar
+wereminimal. Webelievethattraininganadditionalclas-
+acrosscountriesandagegroups.
+sifiertocombinethescorescouldprovidebenefitsonthe
+testset. Additionally,wehypothesizemoresophisticated
+4.2.IndividualFeatureResults
+deeplearning-basedfusionmethodswouldbebeneficialand
+Table3summarizestheresultsonthevalidationsetforeach
+generalizebetteronthetestset.
+oftheindividualfeatures,encodersandfrontends. Forthe
+log-melandSTRFfeatures,weonlyusetheoriginalunpro-
+4.4.AnalysisofBestModelResult
+cessed waveform provided by the challenge. For the Hu-
+From our best test score, we observe that the model ob-
+BERTfeatures,weusetheoriginalunprocessedwaveform
+tains the highest CCC on awe, amusement, and surprise.
+andalsoinvestigatethebenefitsofusingdenoisedspeech.
+Thisislikelybecauseofhowdistinctivetheexpressionof
+On the validation set, all three features outperformed the
+theseemotionsis,whileemotionssuchasawkwardnessand
+challenge baseline. Interestingly, we also observed addi-
+triumpharemoreconfusable.
+tionalbenefitswhenweusedtheHuBERTencoderwiththe
+denoisedspeech. Wehypothesizethatdenoisingthespeech 5.Conclusion
+isbeneficialsincebackgroundnoisedecreasestheintelligi-
+In this paper, we examined the task of jointly predicting
+bilityofspeech. Furthermore,weinvestigatedtheimpact
+emotionalstate,speakerage,andcountryoforiginfromex-
+ofspeedperturbationsforthistaskandfoundthatitslightly
+pressivevocalburstsfortheEXVO-MULTITASKtrack. The
+improvescountrypredictionandemotionrecognitionwhile
+useofsequence-basedfeaturesoutperformsutterance-level
+performingworseonageprediction.
+functionalsreportedinthebaseline, whichhighlightsthe
+Inadditiontoanalyzingtheperformanceoftheindividual importanceoftimesequenceinformationforthethreetasks
+features,weexplorewhetherthefeaturesprovidecomple- underconsideration. Weevaluatetherelativestrengthsof
+mentarybenefits. Sinceeachofthefeaturesextractinfor- differentfeatures—log-mel,STRFs,andcontent-basedself-
+mation from different domains, we believe there will be supervisedHuBERTfeatures—foreachofthesetasksand
+benefitsfromcombiningdifferentfeaturescores. Wedis- findthatwhilelearnableSTRFkernelsoutperformlog-mel
+cussourscorefusionresultsinthenextsection. features,HuBERTfeaturesexhibitsuperiorperformance.
+4.3.ScoreFusionResults Toexploitcomplementaryacrossfeaturesets,weleveragea
+simpleweightedcombination-basedscorefusionofpredic-
+Table4summarizestheresultsonthetestsetforthefused
+tionsofdifferentmodels,therebyachievingourbestperfor-
+scoresfromtheindividualfeatures. Forscorefusion, we
+mancewithSTRFandHuBERTfeatures. Inthefuture,we
+simplytakeaweightedcombinationofthepredictionsfrom
+planonexploringmoresophisticateddeeplearning-based
+theindividualfeatures. Weusedtheweightedcombination
+fusionmethods. Specifically,weplanondirectlyfusingthe
+oftheindividualfeaturescoresthatprovidedthebestresults
+multipleinputfeaturesaswellasfusingintermediateoutput
+onthevalidationset. Interestingly,whenwecombinethe
+layersbetweenmultiplesystems.
+HuBERTpredictionswitheitherthelog-melconformeror
+Self-supervisionandLearnableSTRFsforAge,Emotion,andCountryPrediction
+References Roter, D. L., Frankel, R. M., Hall, J. A., and Sluyter,
+D. The expression of emotion through nonverbal be-
+Baird,A.,Tzirakis,P.,Gidel,G.,Jiralerspong,M.,Muller,
+havior in medical visits. Journal of General Inter-
+E.B.,Mathewson,K.,Schuller,B.,Cambria,E.,Keltner,
+nal Medicine, 2006. doi: 10.1111/j.1525-1497.2006.
+D., and Cowen, A. The icml 2022 expressive vocal-
+00306.x. URL https://www.ncbi.nlm.nih.
+izationsworkshopandcompetition: Recognizing, gen-
+gov/pmc/articles/PMC1484830/.
+erating, and personalizing vocal bursts, 2022. URL
+https://arxiv.org/abs/2205.01780. Silero-Team. Silerovad: pre-trainedenterprise-gradevoice
+activity detector (vad), number detector and language
+Chi,T.,Ru,P.,andShamma,S.A. Multiresolutionspec- classifier. https://github.com/snakers4/
+trotemporal analysis of complex sounds. The Journal silero-vad,2021.
+of the Acoustical Society of America, 118(2):887–906,
+August2005. ISSN0001-4966. doi: 10.1121/1.1945807. Singh, R. Profiling Humans from Their Voice. Springer,
+2019.
+Cowen, A., Bard, A., Tzirakis, P., Opara, M., Kim, L.,
+Snyder, D., Garcia-Romero, D., Sell, G., Povey, D., and
+Brooks,J.,andJacob,M. Thehumevocalburstcompeti-
+Khudanpur, S. X-vectors: Robust dnn embeddings
+tiondataset(h-vb)—rawdata[exvo: updated02.28.22]
+for speaker recognition. In 2018 IEEE International
+[dataset]. Zenodo,2022. doi: https://doi.org/10.5281/
+ConferenceonAcoustics,SpeechandSignalProcessing
+zenodo.6308780.
+(ICASSP),pp.5329–5333,2018. doi: 10.1109/ICASSP.
+2018.8461375.
+daSilvaMorais,E.,Hoory,R.,Zhu,W.,Gat,I.,Damasceno,
+M.,andAronowitz,H. Speechemotionrecognitionusing Vuong, T., Xia, Y., and Stern, R. M. Learnable spectro-
+self-supervisedfeatures. CoRR,abs/2202.03896,2022. temporalreceptivefieldsforrobustvoicetypediscrimina-
+URLhttps://arxiv.org/abs/2202.03896.
+tion. InInterspeech2020,pp.1957–1961.ISCA,October
+2020.
+Ephraim,Y.andMalah,D. Speechenhancementusinga
+minimum-meansquareerrorshort-timespectralampli- Watanabe,S.,Hori,T.,Karita,S.,Hayashi,T.,Nishitoba,J.,
+tudeestimator. IEEETransactionsonAcoustics,Speech, Unno,Y.,EnriqueYaltaSoplin,N.,Heymann,J.,Wiesner,
+and Signal Processing, 32(6):1109–1121, 1984. doi: M.,Chen,N.,Renduchintala,A.,andOchiai,T. ESPnet:
+10.1109/TASSP.1984.1164453. End-to-end speech processing toolkit. In Proceedings
+of Interspeech, pp. 2207–2211, 2018. doi: 10.21437/
+Gong, S., Dai, Y., Ji, J., Wang, J., and Sun, H. Emo- Interspeech.2018-1456. URLhttp://dx.doi.org/
+tion analysis of telephone complaints from customer 10.21437/Interspeech.2018-1456.
+based on affective computing. Computational In-
+Xia,Y.,Chen,L.-W.,Rudnicky,A.,andStern,R.M. Tem-
+telligence and Neuroscience, 2015. doi: 10.1155/
+poral context in speech emotion recognition. In Proc.
+2015/506905. URLhttps://www.ncbi.nlm.nih.
+Interspeech,volume2021,pp.3370–3374,2021.
+gov/pmc/articles/PMC4655047/.
+Hsu, W.-N., Bolte, B., Tsai, Y.-H. H., Lakhotia, K.,
+Salakhutdinov, R., and Mohamed, A. Hubert: Self-
+supervised speech representation learning by masked
+predictionofhiddenunits. IEEE/ACMTransactionson
+Audio,Speech,andLanguageProcessing,29:3451–3460,
+2021.
+Kwasny, D. and Hemmerling, D. Joint gender and age
+estimationbasedonspeechsignalsusingx-vectorsand
+transferlearning,2020. URLhttps://arxiv.org/
+abs/2012.01551.
+Meyer, B. T. and Kollmeier, B. Robustness of spectro-
+temporalfeaturesagainstintrinsicandextrinsicvariations
+inautomaticspeechrecognition. SpeechCommunication,
+53(5):753–767, May 2011. ISSN 0167-6393. doi: 10.
+1016/j.specom.2010.07.002.

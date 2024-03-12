@@ -1,0 +1,593 @@
+The Thirty-Second AAAI Conference
+on Artificial Intelligence (AAAI-18)
+Learning Interpretable Spatial Operations
+in a Rich 3D Blocks World
+YonatanBisk,1∗ KevinJ.Shih,2 YejinChoi,1 DanielMarcu3∗
+1PaulG.AllenSchoolofComputerScience&Engineering,UniversityofWashington
+2UniversityofIllinoisatUrbana-Champaign 3AmazonInc.
+{ybisk,yejin}@cs.washington.edu, kjshih2@illinois.edu, marcud@amazon.com
+“Onthe(new)fourthtower,mirrorNvidiawithUPS.”
+Abstract
+Inthispaper,westudytheproblemofmappingnaturallan-
+guageinstructionstocomplexspatialactionsina3Dblocks
+⇒
+world.Wefirstintroduceanewdatasetthatpairscomplex3D
+spatial operations to rich natural language descriptions that
+require complex spatial and pragmatic interpretations such
+as “mirroring”, “twisting”, and “balancing”. This dataset,
+builtonthesimulationenvironmentofBisk,Yuret,andMarcu
+(2016),attainslanguagethatissignificantlyricherandmore Figure1:Examplelanguageinstructioninournewdataset.
+complex,whilealsodoublingthesizeoftheoriginaldataset The action requires fine-grained positioning and utilizes a
+inthe2Denvironmentwith100newworldconfigurationsand complexconcept:mirror.
+250,000tokens.Inaddition,weproposeanewneuralarchi-
+tecturethatachievescompetitiveresultswhileautomatically
+discovering an inventory of interpretable spatial operations
+LiftingGridAssumptions Wefindthatlanguagesituated
+(Figure5).
+inaricherworldleadstoricherlanguage.Onesuchexample
+is presented in Figure 1. To correctly place the UPS block,
+the system must understand the complex physical, spatial,
+Motivation
+and pragmatic meaning of language including: (1) the 3D
+OneofthelongstandingchallengesofAI,firstintroducedas conceptofatower,(2)thatneworfourtharereferencingan
+SHRDLUinearly70s(Winograd1971),istobuildanagent assumed future, and (3) that mirror implies an axis and re-
+that can follow natural language instructions in a physical flection.However,conceptssuchasaboveareoftenoutside
+environment.Theultimategoalistocreatesystemsthatcan thescopeofmostexistinglanguagegroundingsystems.
+interactintherealworldusingrichnaturallanguage.How- In this work, we introduce a new dataset that allows for
+ever,duetothecomplexinterdisciplinarynatureofthechal- learning significantly richer and more complex spatial lan-
+lenge (Harnad 1990), which spans across several fields in guage than previously explored. Building on the simula-
+AI, including robotics, language, and vision, most existing tor provided by Bisk, Yuret, and Marcu (2016), we create
+studiesmakevaryingdegreesofsimplifyingassumptions. roughly 13,000 new crowdsourced instructions (9 per ac-
+On one end of the spectrum is rich robotics paired with tion), nearly doubling the size of the original dataset in the
+simple constrained language (Roy and Reiter 2005; Tellex 2Dblocksworldintroducedintheirpreviouswork.Wead-
+etal.2011),asacquiringalargecorpusofnaturallanguage dressthechallengeofrealisminthesimulateddatabyintro-
+groundedwitharealrobotisprohibitivelyexpensive(Misra ducingthreecrucialbutpreviouslyabsentcomplexities:
+etal.2014;Thomasonetal.2017).Ontheotherendofthe 1. 3Dblockstructures(lifting2Dassumptions)
+spectrumareapproachesbasedonsimulationenvironments,
+2. Fine-grained real valued locations (lifting grid assump-
+whichsupportbroaderdeploymentatthecostofunrealistic
+tions)
+simplifying assumptions about the world (Bisk, Yuret, and
+Marcu 2016; Wang, Liang, and Manning 2016). In this pa- 3. Rotational,angledmovements(liftinggridassumptions)
+per,weseektoreducethegapbetweentwocomplementary
+researcheffortsbyintroducinganewlevelofcomplexityto
+LearningInterpretableOperators Inaddition,weintro-
+both the environment and the language associated with the
+duce an interpretable neural model for learning spatial op-
+interactions.
+erations in the rich 3D blocks world. In particular, in our
+∗WorkperformedatUSC’sInformationSciencesInstitute. modelinsteadofusingasinglelayerconditionedonthelan-
+Copyright(cid:2)c 2018,AssociationfortheAdvancementofArtificial guage for interpreting the operations, we have the model
+Intelligence(www.aaai.org).Allrightsreserved. choose which parameters to apply via a softmax over the
+5028
+Bisk,Yuret,andMarcu(2016) Thiswork
+FreqRelations: left,up,right,directly,above,until NewRelations: degrees,rotate,clockwise,covering,
+corner,top,down,below,bottom,slide,space,between 45,layer,mirror,arch,towers,equally,twist,balance,...
+Figure 2: Example goal states in our work as compared to the previous Blocks dataset. Our work extends theirs to include
+rotations,3Dconstruction,andhumancreateddesigns.Thishasadramaticeffectonthelanguageused.Richworldsfacilitate
+richlanguage,abovearethemostcommonrelationsintheirdataandthemostcommonnewrelationsinours.
+possibleparametervectorstouse.Specifically,byhavingthe parsing (Andreas and Klein 2015; Artzi and Zettlemoyer
+modeldecideforeachexamplewhichparameterstouse,the 2013). Here, the community has traditionally been focused
+model picks among 32 different networks, deciding which on more complex and naturally occurring text, though this
+isappropriateforagivensentence.Learningthesenetworks hasnotalwaysbeenpossibleforthenavigationdomain.
+andwhentoapplythemenablesthemodeltoclusterspatial Simultaneously, work within NLP (Bisk, Marcu, and
+functions. Secondly, by encouraging low entropy in the se- Wong2016;Wang,Liang,andManning2016)andRobotics
+lector,themodelconvergestonearlyone-hotrepresentations (Li et al. 2016) returned to the question of action taking
+duringtraining.Asideeffectofthisdecisionisthatthefinal andsceneunderstandinginSHRDLUstyleworlds.Thegoal
+model exposes an API which can be used interactively for withthismodernincarnationwastotrulysolicitnaturallan-
+focusingthemodel’sattentionandchoosingitsactions.We guagefromhumanswithoutlimitingtheirvocabularyorref-
+willexploitthispropertywhengeneratingplotsinFigure5 erents. This was an important step in moving towards un-
+showing the meaning of each learned function. Our model constrainedlanguageunderstanding.
+is still fully end-to-end trainable despite choosing its own The largest corpus was provided by Bisk, Yuret, and
+parametersandcomposeablestructure,leadingtoamodular Marcu (2016). In this work, the authors presented pairs of
+networkstructuresimilarto(Andreasetal.2016). sceneswithsimulatedblockstousersofAmazon’sMechan-
+Therestofthepaperisorganizedasfollows.Wefirstdis- ical Turk. Turkers would then describe actions or instruc-
+cuss related work, introduce our new dataset, followed by tions that their imagined collaborator needs to perform to
+ournewmodel.Wethenpresentempiricalevaluations,anal- transformtheinputsceneintothetarget(e.g.Movingablock
+ysis on the internal representations, and error analysis. We to the side of another). An important aspect of this dataset
+concludewiththediscussionforfuturework. isthatparticipantsassumetheyarespeakingtoanotherhu-
+man.Thismeanstheydonotlimittheirvocabulary,spaceof
+RelatedWork references, simplify their grammar, or even write carefully.
+Theannotatorsassumethatwhomeverwillbereadingwhat
+Advances in robotics, language, and vision are all applica-
+they submit is capable of error correction, spatial reason-
+bletothisdomain.Theintersectionofroboticsandlanguage
+ing,andcomplexlanguageunderstanding.Thisprovidesan
+have seen impressive results in grounding visual attributes
+important,andrealistic,basisfortrainingartificiallanguage
+(Kollar, Krishnamurthy, and Strimel 2013; Matuszek et al.
+understanding agents. Follow-up work has investigated ad-
+2014), spatial reasoning (Steels and Vogt 1997; Roy 2002;
+vancestolanguagerepresentations(PisˇlandMarecˇek2017),
+Guadarrama et al. 2013), and action taking (MacMahon,
+spatialreasoning(TanandBansal2018),andreinforcement
+Stankiewicz, and Kuipers 2006; Yu and Siskind 2013).
+learning approaches for mapping language to latent action
+For example, recent work (Thomason et al. 2015; 2016;
+sequences(Misra,Langford,andArtzi2017).
+2017) has shown how these instructions can be combined
+withexplorationonphysicalroboticstofollowinstructions
+CreatingRealisticData
+andlearnrepresentationsonline.
+WithincomputervisionVisualQuestionAnswering(An- To facilitate closing the gap between simulation and real-
+tol et al. 2015) has been widely popular. Unfortunately, it ity, blocks should not have perfect locations, orderings, or
+is unclear what models are learning and how much they alignments.Theyshouldhavejitter,nuancedalignments,ro-
+are understanding versus memorizing bias in the training tationsandthehaphazardconstructionofrealobjects.Figure
+data(Ribeiro,Singh,andGuestrin2016).Datasetsandmod- 2showsexamplehowournewconfigurationsaimtocapture
+els have also recently been introduced for visual reasoning thatrealism(right)ascomparedtopreviouswork(left).Pre-
+(Johnsonet al.2017; Santoroet al.2017) andreferring ex- vious work created target configurations by downsampling
+pressions(Kazemzadehetal.2014;Maoetal.2016). MNIST(LeCunetal.1998)digits.Thisenabledthemtocre-
+Finally,withinthelanguagecommunity,interestinaction ateinterpretablebutunrealistic2Dfinalrepresentationsand
+understanding follows naturally from research in semantic the order in which blocks were combined was determined
+5029
+Configs Types Tokens Utters Ave.Len most common new concepts. We see that these predomi-
+B16 100 1,281 258,013 16,767 15.4 nantlyfocusonrotation(degrees,clockwise,...)and3Dcon-
+This 100 1,820 233,544 12,975 18.0 struction (arch, balance, ...), but higher level concepts like
+mirroringorbalancingposefundamentallynewchallenges.
+Total 200 2,299 491,557 29,742 16.5
+CorpusStatistics
+Table1:Corpusstatisticsforourdatasetascomparedtopre-
+viouswork(Bisk16),andthetotalstatisticswhencombined.
+Our new dataset comprises 100 configurations split 70-20-
+10betweentraining,testing,anddevelopment.Eachconfig-
+urationhasbetweenfiveandtwentysteps(andblocks).We
+byaheuristictosimulatedrawing/writing.
+present type and token statistics in Table 1, where we use
+Inourdata,wesolicitedcreationsfrompeoplearoundour
+NLTK’s (Bird, Klein, and Loper 2009) treebank tokenizer.
+lab and their children, not affiliated with the project. They
+This yields higher token counts in previous works due to
+builtwhatevertheywanted(openconceptdomain),inthree
+differentassumptionsaboutpunctuation.
+dimensions, and were allowed to rotate the blocks. For ex-
+Notallofourannotatorsmadeuseofthefull20blocks.
+ample, the animal on the left is an elephant whose trunk,
+Assuch,wehavefewerutterancesthantheoriginaldataset
+tail,andlegscurve.Additionally,becausehumansbuiltthe
+forthesamenumberofgoalconfigurations.Yet,wefindthat
+configurations, we were able to capture the order in which
+the instructions for completing our tasks are more nuanced
+blocks were placed for a more natural trajectory. Realism
+andthereforeresultinslightlylongersentencesonaverage.
+bringswithitimportantnewchallengesdiscussedbelow.
+Finally,wenotethatwhilethedatasetsaresimilar,thereare
+significant enough differences that one should not simply
+Real Valued Coordinate Spaces The discretized world assumethattrainingonthecombineddatasetwillnecessar-
+seeninseveralrecentdatasets(Bisk,Yuret,andMarcu2016; ily yield a “better” model on either one individually. There
+Wang,Liang,andManning2016)simplifiesspatialreason- areimportantlinguisticandspatialreasoningdifferencesbe-
+ing.Simpleconstructionslikeleftandrightcanbere- tweenthetwothatmakeourproposeddatamuchmoredif-
+duced to exact offsets that do not require context specific ficult.Wepresentallmodelingresultsonbothsubsetsofthe
+interpretations (e.g. right = +[1,0,0]). In reality, these dataandthefullcombineddataset.
+conceptsdependonthescenearoundthem.Forexample,in
+therightmostimageofFigure2,itiscorrecttosaythatthe
+EvaluationandAngles
+McDonald’s block is right of Adidas, but also that SRI is
+rightofHeineken,despitebothhavingdifferentoffsets.The We follow the evaluation setup by prior work and evaluate
+modifiermirroringdisambiguatesthemeaningforus. by reporting the average distance (L2 in block lengths) be-
+tweenwhereablockshouldbeplacedandthemodel’spre-
+diction.Thismetricnaturallyextendsto3D.
+SemanticallyIrrelevantNoise Itisimportanttonotethat
+with realism comes noise. Occasionally, an annotator may
+bump a block or shift the scene a little. Despite repeated Lx,y,z(p,g)=||p−g|| 2 (1)
+effortstocleanandcuratethedata,mostpeopledidnotcon-
+Wealsodeviseametricforevaluatingrotations.Inourre-
+siderthisnoisenoteworthybecauseitwassemanticallyirrel-
+leaseddata,1 wecapturedblockorientationsasquaternions.
+evanttothetask.Forexample,ifwhileperforminganaction,
+Thisallowsforacompleteandaccuratere-renderingofthe
+anearbyblockjostles,itdoesnotchangetheholisticunder-
+exact block orientations produced by our annotators. How-
+standingofthescene.Forthisreason,weonlyevaluatethe
+ever,themostsemanticallymeaningfulangleistheEulerian
+placement of the block that “moved the furthest.” This is a
+rotationaroundtheY-axis.Wewillthereforeevaluateerror
+baby step towards building models invariant to changes in
+as the minimal angle between the ground truth and predic-
+thesceneorthogonaltothegoal.
+tioninradiansas:
+Physics One concession we were forced to make was re- Lθ(p,g)=atan2(sin(p−g),cos(p−g)) (2)
+laxingphysics.Unlikepriorwork(Wangetal.2017),wein-
+sistedthatthefinalconfigurationsroughlyadheretophysics
+ExamplePhenomena
+(e.g. minimizing overhangs, no floating blocks, limited in-
+tersection),butwefoundvolunteerstoooftengaveupifwe
+Inthefollowingexample,nineinstructions(threeperanno-
+forced them to build entirely with physics turned on. This
+tator)areprovidedfortheproperplacementofMcDonald’s.
+alsomeansthatintermediarystepsthatintherealworldre-
+We see a diverse set of concepts that include counting, ab-
+quireacounter-weightcanbeconstructedonestepatatime.
+stractnotionslikemirrororparallel,geometricconceptslike
+asquareorrow,andevenconstraintsspecifiedbythreedif-
+Language Ournewcorpuscontainsnearlyallofthecon- ferentblocks.
+cepts of previous work, but introduces many more. Figure
+2 shows the most common relations in prior work, and the 1https://groundedlanguage.github.io/
+5030
+… east of block 2 World Att
+…
+v
+op
+World∗da
+CNNs
+Operation Att
+[ ]
+[cxicxjcxkdxidxjdxk]
+0 Argu dm aent 19 0 Ope dr oa ption 31 Mop ∗dop v op (cid:2) =(x,y,z)
+i,j,k
+1. Predict 2. Attend 3. Apply
+Figure3:Ourtargetpredictionmodelusesthesentencetoproducedistributionsoveroperationsandblocks(arguments).The
+argument values illuminate regions of the world before the selected operation is applied. This final representation is used to
+predictoffsetsin(x,y,z,θ)space.Inpractice,twobi-LSTMswereusedandthefinalvectorcontainsrotationinformation.
+t1 t2
+itbalancebetweenthetwostacksissufficientinformationto
+choosetherightangle.
+Theworldknowledgeandconceptsnecessarytocomplete
+this task are well beyond the ability of any systems we are
+currently aware of or expect to be built in the near future.
+Ourgoalistoprovidedataandanenvironmentwhichmore
+accuratelyreflectsthecomplexityofgroundinglanguageto
+McDonalds...
+actions. Where previous work broadened the community’s
+1 ...mirrorsTwitteracrosstheY-axis.
+2 ...tojustoveronespacerightofTwitter. understanding of the types of natural language people use
+3 ...totherightoftwitterwith1/2blockinbetween byrecreatingablocksworldwithrealhumanannotators,we
+4 ...therightsideoftwitterwithasmallspaceinbetween felt they did not go far enough in really covering the space
+5 ...asthebottomrightsquare,parallelwithTwitter, of actions and therefore language naturally present in even
+butalittlefurtherthantouching.
+thisconstrainedworld.
+6 ...soit’sjusttotheright(nottouching)theTwitterblock.
+7 ...1/3-block’s-lengthtotherightoftheTwtterblock.
+8 ...willmovedownandrightuntilitisinthesamerow Model
+astwitterwithasmallspacebetweenthem
+9 ...moveitdownwardsenoughtolineupwiththeTwitter In addition to our dataset, we propose an end-to-end train-
+logo,thenmoveitlefttobeclosertotheTwitterlogo, ablemodelthatisbothcompetitiveinperformanceandhas
+butnottouching.TheMcDonald’slogoshouldappear an easily interpretable internal representation. The model
+tobeinbetweentheboundariesofBurgerKing’s
+takes in a natural language instruction for block manipula-
+leftedgeandSRI’srightedge.
+tionanda3Drepresentationoftheworldasinput,andout-
+Laterinthesametask,theagentwillbeaskedtorotatea puts where the chosen block should be moved. The model
+blockandplaceitbetweenthetwostacks.Wepresenthere canbebrokendownintothreeprimarycomponents:
+just a few excerpts wherein the same action is described in 1. LanguageEncodingforBlockandOperationprediction
+fivedifferentways.
+2. Applyingaspatialoperation
+t7 t8
+3. Predictingacoordinateinspace.
+Our overall model architecture is shown in Figure 3. By
+keeping the model modular we can both control the bottle-
+necksthatlearningmustuseforrepresentationandprovide
+ourselves post hoc access to interpretable scene and action
+representations(exploredfurtherininterpretabilitysection).
+1 RotateSRItotheright... Withoutthese,themodelallowssentencesandoperationsto
+2 rotateit45degreesclockwise...
+berepresentedbyarbitraryN-dimensionalvectors.
+3 onlyhalfofonerotationsoitscornerspoint
+whereitsedgesdid...
+4 thelogofacesthetoprightcornerofthescreen... LanguageEncoder
+5 SpinSRIslightlytotherightandthensetit
+Asiscommon,weusebidirectionalLSTMs(Hochreiterand
+inthemiddleofthe4stacks
+Schmidhuber 1997; Schuster and Paliwal 1997) to encode
+Tocompletetheseinstructionsrequiresunderstandingan- the input sentence. We use two LSTMs: one for predicting
+gles, a new set of verbs (rotate, spin, ...), and references blocks to attend to, one for choosing the operations to ap-
+totheblock’spreviousorientation.Thefinalexample,indi- ply.BothLSTMsshareavocabularyembeddingmatrix,but
+catesthataspinisnecessary,butassumesthegoalofhaving have no other means of communication. We experimented
+5031
+with using a single LSTM as well as conditioning one on Giventheaforementionedargumentattentionmap(tensor
+theother,butfounditdegradedperformance. AofsizeB×D×H ×W ×1,ourmodelstartsbyapply-
+Once we have produced a representation for arguments ing the operation vector vop at every location of the map,
+ha and operations ho, we multiply each by their own feed- weighted by each location’s attention score. This creates a
+forward layers, then softmax to produce a distribution over worldrepresentationofsizeB×D×H ×W ×|vop|.We
+20blocksand32operationsfordaanddop,respectively. thenpassthisworldthroughtwoconvolutionallayersusing
+tanhorrelunonlinearities.
+da =softmax(Waha+ba) Inordertopredictthefinallocationfortheblock-to-move,
+(3)
+dop =softmax(Woho+bo) weapplyafinal1×1×1convolutionallayertopredictoff-
+setsandtheirrespectiveconfidencesforeachlocationrela-
+tivetoacoordinategrid(8valuestotal).Thecoordinategrid
+ArgumentSoftmax Thefirstoutputofourmodelisanat-
+is a constant 3D tensor generated by uniformly sampling
+tention over the block IDs. The input world is represented
+pointsacrosseachcoordinateaxistoachievethedesiredres-
+bya3DtensorofIDs.2Wecanconvertthistoaone-hotrep-
+olution. Given the coordinate grid, the goal of the learned
+resentation and multiply it by the distribution to get an at-
+convolutional model is to, at every sampled point, predict
+tentionper“pixel”(herebyreferredtoasargumentattention
+offsets for x, y, z, θ, as well as a confidence for each pre-
+map)equaltothemodel’sconfidence.Inpracticewefound
+dicted offset. This formulation was similarly used for key-
+that the model was better able to learn when the attention
+pointlocalizationin(Singh,Hoiem,andForsyth2016).Let
+map was multiplied by 10. This may be due to parameter gx(i,j,k)bethexcoordinatesforallsampledgridpointsat
+initialization.Additionally,wedonotallowthemodeltoat- gridlocation(i,j,k)andletdx(i,j,k)andcx(i,j,k)bethe
+tend to background so it is masked out (result in Figure 3) respectiveoffsetsandconfidences,thenthefinalpredictedxˆ
+Weusetheoperator*torepresenttheinnerproduct.
+coordinatefortheblock-to-moveiscomputedas:
+(cid:2)
+Ai,j,k =10(one hot(World i,j,k)∗da)
+(4) xˆ= gx(i,j,k)+cx(i,j,k)dx(i,j,k) (6)
+Ai,j,k =Ai,j,k∗bg mask
+i,j,k i,j,k
+OperationSoftmax Theseconddistributionwepredictis
+Here, confidences cx(i,j,k) are softmax normalized
+acrossallgridpoints.Predictionsforyˆ,zˆarecomputedsim-
+overfunctionsforspatialrelations.Herethemodelneedsto ˆ
+ilarly. We compute θ without a coordinate grid such that:
+choosehowfarandinwhatdirectionstogofromtheblocks (cid:3)
+ithaschosentofocuson.Unfortunately,thereisnoapriori
+θˆ= i,j,kcθ(i,j,k)dθ(i,j,k).
+set of such functions as we have specifically chosen not to
+tryandpretrain/biasthemodelinthiscapacity,sothemodel ImplementationDetails
+must perform a type of clustering where it simultaneously Our model is trained end-to-end using Adam (Kingma and
+choosesaweightedsumoffunctionsandtrainstheirvalues. Ba 2014) with a batch size of 32.The convolutional aspect
+As noted previously, for the sake of interpretability, we ofthemodelhas3layersandoperatesonaworldrepresen-
+forcetheencodingforoperations(dop)tobealatentsoftmax tationofdimensions32×4×64×64×32(batch,depth,
+distributionover32logits.Thefinaloperationvectorthatis height,width,channels).Thefirstconvolutionallayerusesa
+passedalongtotheconvolutionalmodeliscomputedas: filterofsize4×5×5andthesecondofsize4×3×3,each
+followed by a tanh nonlinearity for the 3D model3. Both
+vop =Mopdop (5)
+layersoutputatensorwiththesamedimensionsastheinput
+Here,Mop isasetof32basisvectors.Theoutputvector world. The final predicton layer is a 1 × 1 × 1 filter that
+vop isaweightedaverageacrossall32basisvectors,using projectsthe32dimensionalvectorateachlocationdownto
+dop toweighteachindividualbasis.Thegoalofthisformu- 8 values as detailed in the previous section. We further in-
+lationissuchthateachofthe32basisvectorswillbeinde- cludeanentropytermtoencouragepeakierdistributionsin
+pendentlyinterpretablebyreplacingdopwitha1-hotvector, theargumentandoperationsoftmaxes.
+allowingustoseewhattypeofspatialoperationeachvector
+represents. The choice of 32 basis vectors was an empiri- InterpretabilityandVisualizingtheModel
+calone.Weonlyexperimentedwithpowersoftwo,butitis Oneofthefeaturesofourmodelisitsinterpretability,which
+quitelikelyamoreoptimalvalueexists. we ensured by placing information bottlenecks within the
+architecture.Bydesigningthelanguage-to-operationencod-
+Predictingalocation
+ingprocessaspredictingaprobabilitydistributionoveraset
+The second half of our pipeline features a convolutional of learned basis vectors, we can interpret each vector as a
+model that combines the encoded operation and argument separateoperationandvisualizethebehaviorsofeachoper-
+blocks with the world representation to determine the final ationvectorindividually.
+locationoftheblock-to-move.
+3Wedidnotperformagridsearchforparameters,butwedid
+2In principle, we could work over an RGB rendering of the find the 2D model performed better when a relu was used and
+world,butdoingsowouldaddlayersofvisioncomplexitythatdo Batch-Normalization(IoffeandSzegedy2015).Finally,thedepth
+nothelpaddressthedominantlanguageunderstandingproblems. valuesandkernelweresetto1whentrainingexclusivelyin2D.
+5032
+Op 23 Source Target
+[0.75 0.25]
+[0.5 0.5 ] GoldSource End-to-End
+[0.25 0.75]
+Op 26 Acc. Mean Med Mean Med
+Bisk16 98 – – 0.98 0.0
+Pisˇl17 98.5 – – 0.72 –
+Ours 97.5 0.7 0.14 0.80 0.14
+v2 91.3 1.2 0.85 1.15 0.88
+Figure 4: Interpolations of operations 23 (north) and 26 v1+v2 95.9 1.0 0.50 1.10 0.51
+(east)beingappliedatninelocationsaroundtheworld. v1+v2→v1 98.1 0.8 0.15 0.84 0.15
+v1+v2→v2 93.1 1.2 0.88 1.35 0.91
+OP Descriptionslearnedfromourdata
+0 directlynorthwest leftandabove upperleft Table3:Acomparisonofourinterpretablemodelwithpre-
+1 directlybelow directlyunder south viousresults(top)inadditiontoourperformanceonournew
+bottomleftcornershouldbealmosttouchingupperright corpus (v2). Finally, we show how training jointly on both
+2
+northeast corporahasonlyaverymoderateeffectonperformance,in-
+3 southof below
+dicating the complementarity of the data. Target values are
+4 nextto
+errormeasurementsinblock-lengths(lowerisbetter).
+bottomsideshouldtouch directlyabove northof
+belowandtotherightof topleftcorner
+7
+isalmosttouchingthelowerrightcornerof
+8 leftof directlywestof Interpolating Operations The 1-hot operations can be
+shiftedbetweenblockhpandblocknvidia treatedlikeAPIcallswhereseveralcanbecalledatthesame
+11 itscenterwiththelinebetweenthenvidiaandmercedes time and interpolated. Figure 4 shows the predicted off-
+14 goesontopof stackedontop setswheninterpolatingoperations23(north)and26(east).
+18 placeitontopof
+Thereare two importanttakeawaysfromthis. First,we see
+19 directlyunderit
+that when combined, we can sweep out angles in the first
+21 totherightof directlyontherightof
+quadrant to reference them all. Second, we see that mag-
+23 5blocklengthsabove threerowsabove
+24 southwestof diagonallybelow nitudes and angles change as we move closer to the edges
+25 eastof totherightof of the world. This result is intuitive and desired. Specifi-
+ontheeastsideofthenvidiacube cally, a location like “to the right” has a variable interpre-
+26
+sothatthereisnospaceinbetweenthem tation depending on how much space exists in the world,
+threespacestotheleftof
+28 and the model is trying to make sure not to push a block
+totheleftwithtwointerveningemptyblockspaces
+off the table. In practice, our analysis found very few clear
+bottomfacetouchesbmw’stopface
+29 casesofthemodelusingthispower.Morecommonly,mass
+covershellwithheineken topofit
+would be split between two very similar operations or the
+Table 2: Utterances with low entropy for Op predictions sentencewasacompoundconstruction(leftofXandabove
+weremappedtotheircorrespondingargmaxdimension.We Y).Wedidfindthatoperation11correlatedwiththedescrip-
+extractedrelevantphrasehereforcommondimensions. tion between but it is difficult to divine why from the grid.
+Animportantextensionforfutureworkwillbetoconstruct
+amodelwhichcanapplymultipleoperationstoseveraldis-
+tinctarguments.
+Visualizing Operations We generated Figure 5 by plac-
+ing a single block in the world and moving it around a 9
+by9gridandpassinga1-hotoperationchoicevectortoour Linguistic Paraphrase Using the validation data, we
+model.Wethenplotavectorfromtheblock’scentertothe clusteredsentencesbytheirpredictedoperationvectors.To
+predictedtargetlocation.Weseemanysimpleandexpected pick out phrases we only look at sentences with very low
+relationships(left,right,...),butimportantlyweseetheoper- entropy distributions (highly confident) and we present our
+ationsarelocationspecificfunctions,notsimplyoffsets.Op- findings in Table 2. We see that specifications range from
+erationsontheedgesoftheworldaremorefine-grainedand short one word indicators (e.g. below) to nearly complete
+manymovedirectlytoaregionoftheworld(e.g.9=“cen- sentences (on the east side of the nvidia cube so that there
+ter”),notsimplyanoffset.Itisalsopossiblethatsomeofthe isnospaceinbetweenthem).Thisalsotouchesonthefact
+moredramaticedgevectorsmayserveasafailsafemecha- thatseveraloperationshavethesamedirectionbutdifferent
+nismformisinterpretedinstructions.Inparticular,nearlyall magnitudes.Specifically,operation23meansfarabove,not
+of the operations when applied in the bottom right corner directly,andweseethisinthevisualizedgridaswell.
+redirecttothecenteroftheboardratherthanoffofit.
+Results
+Additionally, while shown here in 2D, all of our predic-
+tionsareactuallyin3Dandcontainrotationpredictions.In InTable3,wecompareourmodelagainstexistingwork,and
+Figure5theoperationsdenotingdirectlyontoparethefig- evaluate on both theoriginal Blocks data (v1) and our new
+ureswiththeshortestarrows(e.g.Operation14). corpus(v2).Whileourprimarygoalwasthecreationofan
+5033
+0. 1. 2. 3.
+4. 5. 6. 7.
+8. 9. 10. 11.
+12. 13. 14. 15.
+16. 17. 18. 19.
+20. 21. 22. 23.
+24. 25. 26. 27.
+28. 29. 30. 31.
+Figure5:A2Dprojectedvisualizationoftheoperationsourmodeldiscovered.CommonoperationsaredescribedinTable2.
+Shortarrowsaremostlyin3D,andnearlyalloperationsexhibitdifferentbehaviorsdependingonlocationintheworld.
+5034
+Error Goal Instruction
+usesriasthebaseofafourthtowertothe
+4.8 leftandequidistantwiththeothertower
+placetheblockthatistotherightofthestellablockasthehighest
+spinsrislightlytotherightandthensetit blockontheboard.itshouldbeinlinewiththebottomblock.
+5.2 inthemiddleofthe4stacks
+Table5:Exampleutterancewhichrequiresbothunderstand-
+ing that highest is a 3D concept, and inferring that the 2D
+intheemerging3x3gridplacetexacoin
+conceptofalinehasbeenrotatedtobeinthez-dimension.
+6.4 themiddleleft
+Table4:Severalofourworstperformingresults.Errorsare
+Rotations Despiteastrongperformancebythemodelon
+inblocklengths,theimagesarethegoalconfiguration,and
+rotations,thereareanumberofcasesthatwerecompletely
+theinstructionshavebeenlowercasedandtokenized.
+overlooked. Upon inspection, these appear to be predomi-
+nantlycaseswheretherotationisnotexplicitlymentioned,
+butinsteadassumedorimplied:
+interpretablemodelandtheintroductionofnewspatialand
+• placetoyotaontopofsriinthesamedirection.
+linguistic phenomena, it is important to see that our model
+alsoperformswell.Wenotethreeimportantresults: • taketoyotaandplaceitontopofsri.
+First, we see that our model outperforms the original • ...makingpartoftheinsideofthecurveofthecircle.
+modelofBisk16,andisonlyslightlyweakerthanPisˇl17.
+Thefirsttwoshouldbethefocusofimmediatefuturework
+Our technique does outperform theirs when given the cor-
+as they only require trusting that a new block should trust
+rect source block, so it is possible that we can match their
+the orientation of an existing one below it unless there is a
+performancewithtuning.
+compellingreason(e.g.balance)torotateit.Thethirdcase,
+Second, our results indicate that the new data (v2) is
+returnstoourlargerdiscussiononunderstandinggeometric
+harder than v1, both in terms of isolating the correct block
+shapesandisprobablyoutofscopeformostapproaches.
+to move (91 vs 98% accuracy) and average error (1.15 vs
+0.80)ontheEnd-to-Endsetting.Further,amodeltrainedon
+Conclusions
+the union of our corpora improved in source prediction on
+Thisworkpresentsanewmodelwhichmovesbeyondsim-
+boththev1andv2testsets,buttargetlocationperformance
+plespatialoffsetpredictions(+x,+y,+z)tolearnfunctions
+waseitherunaffectedorslightlydeteriorated.Thisindicates
+whichcanbeappliedtothescene.Weachievethiswithout
+tousthatthenewdatasetisinfactcomplementaryandadds
+losinginterpretability.Inaddition,weintroduceanewcor-
+newconstructions.
+pusof10,000actionsand250,000tokenswhichcontainsa
+Finally, our model has an average error of 0.058 radians
+plethoraofnewconcepts(subtlemovements,balance,rota-
+(three degrees). In validation, 46% of predictions require
+tion)toadvanceresearchinactionunderstanding.
+a rotation. 1,374 of 1491 predictions are within 2 degrees
+ofthecorrectorientation.Theremainderhavedramatically
+larger errors (36 at 30◦, 81 at 45◦). This means that the Acknowledgments
+model is learning to interpret the scene and utterance cor- We thank the anonymous reviewers for their many insight-
+rectlyinthevastmajorityofcases. fulcomments.ThisworkwassupportedinpartbytheNSF
+grant (IIS-1703166), DARPA CwC program through ARO
+(W911NF-15-1-0543),andgiftsbyGoogleandFacebook.
+ErrorAnalysis
+Several of our model’s worst performing examples are in- References
+cludedinTable4.Themodel’serrorispresentedalongside
+Andreas, J., and Klein, D. 2015. Alignment-based com-
+thegoalconfigurationandmisunderstoodinstruction.
+positional semantics for instruction following. In Proc of
+Thefirstexamplespecifiesthegoallocationusinganab-
+EMNLP,1165–1174.
+stract concept (tower) and the offset (equidistant) implies
+Andreas,J.;Rohrbach,M.;Darrell,T.;andKlein,D. 2016.
+recognition of a larger pattern. The second example speci-
+Learning to compose neural networks for question answer-
+fiesthegoallocationintermsof“the4stacks”,againwith-
+ing. InProcofNAACL,1545–1554.
+outnaminganyofthemandin3D.Finally,thethirddemon-
+strates a particularly nice phenomenon in human language Antol,S.;Agrawal,A.;Lu,J.;Mitchell,M.;Batra,D.;Zit-
+where a plan is specified, the speaker provides categoriz- nick, C. L.; and Parikh, D. 2015. VQA: Visual Question
+ing information to enable its recognition, and then can use Answering. InICCV.
+this newly defined concept as a referent. No models to our Artzi,Y.,andZettlemoyer,L.S. 2013. WeaklySupervised
+knowledge have the ability to dynamically form new con- Learning of Semantic Parsers for Mapping Instructions to
+ceptsinthismanner. Actions. TransACL.
+5035
+Bird,S.;Klein,E.;andLoper,E. 2009. NaturalLanguage Ribeiro, M. T.; Singh, S.; and Guestrin, C. 2016. Noth-
+ProcessingwithPython. O’ReillyMedia. ingelsematters:Model-agnosticexplanationsbyidentifying
+prediction invariance. In NIPS Workshop on Interpretable
+Bisk,Y.;Marcu,D.;andWong,W. 2016. Towardsadataset
+MachineLearninginComplexSystems.
+forhumancomputercommunicationviagroundedlanguage
+acquisition. InProceedingsoftheAAAI2016Workshopon Roy, D., and Reiter, E. 2005. Connecting language to the
+SymbioticCognitiveSystems,729–732. world. ArtificialIntelligence167(1-2):1–12.
+Bisk,Y.;Yuret,D.;andMarcu,D. 2016. Naturallanguage Roy, D. K. 2002. Learning visually grounded words and
+communicationwithrobots. InProcofNAACL,751–761. syntaxforascenedescriptiontask. Computerspeech&lan-
+guage16(3-4):353–385.
+Guadarrama, S.; Riano, L.; Golland, D.; Go¨hring, D.;
+Yangqing, J.; Klein, D.; Abbeel, P.; and Darrell, T. 2013. Santoro, A.; Raposo, D.; Barrett, D. G.; Malinowski, M.;
+GroundingSpatialRelationsforHuman-RobotInteraction. Pascanu,R.;Battaglia,P.;andLillicrap,T. 2017. Asimple
+InIEEE/RSJIROS,1640–1647. neuralnetworkmoduleforrelationalreasoning. InGuyon,
+I.;Luxburg,U.V.;Bengio,S.;Wallach,H.;Fergus,R.;Vish-
+Harnad,S. 1990. Thesymbolgroundingproblem. Physica
+wanathan,S.;andGarnett,R.,eds.,AdvancesinNeuralIn-
+D42:335–346.
+formationProcessingSystems30,4972–4981.
+Hochreiter,S.,andSchmidhuber,J. 1997. Longshort-term
+Schuster,M.,andPaliwal,K.K. 1997. Bidirectionalrecur-
+memory. Neuralcomputation9(8):1735–1780.
+rentneuralnetworks. IEEETransactionsonSignalProcess-
+Ioffe,S.,andSzegedy,C.2015.Batchnormalization:Accel- ing45(11):2673–2681.
+eratingdeepnetworktrainingbyreducinginternalcovariate
+Singh, S.; Hoiem, D.; and Forsyth, D. 2016. Learning to
+shift.InBach,F.,andBlei,D.,eds.,ProcofICML,448–456.
+localizelittlelandmarks. InProcofCVPR,260–269.
+Johnson,J.;Hariharan,B.;vanderMaaten,L.;Hoffman,J.;
+Steels,L.,andVogt,P.1997.GroundingAdaptiveLanguage
+Fei-Fei,L.;Zitnick,C.L.;andGirshick,R. 2017. Inferring
+GamesinRoboticAgents. ProcofALife.
+andexecutingprogramsforvisualreasoning. InICCV.
+Tan,H.,andBansal,M. 2018. Source-targetinferencemod-
+Kazemzadeh, S.; Ordonez, V.; Matten, M.; and Berg, T. L.
+els for spatial instruction understanding. In Proceedings
+2014. Referitgame: Referring to objects in photographs of
+of the Thirty-Second Conference on Artificial Intelligence
+naturalscenes. InEMNLP,787–798.
+(AAAI-18).
+Kingma,D.,andBa,J.2014.Adam:Amethodforstochastic
+Tellex,S.;Kollar,T.;Dickerson,S.;Walter,M.R.;Banerjee,
+optimization. arXivpreprintarXiv:1412.6980.
+A.G.;Teller,S.;andRoy,N. 2011. Understandingnatural
+Kollar,T.;Krishnamurthy,J.;andStrimel,G. 2013. Toward languagecommandsforroboticnavigationandmobilema-
+InteractiveGroundedLanguageAcquisition. InRSS. nipulation. InInProceedingsoftheNationalConferenceon
+LeCun, Y.; Bottou, L.; Bengio, Y.; and Haffner, P. 1998. ArtificialIntelligence(AAAI).
+Gradient-based learning applied to document recognition. Thomason, J.; Zhang, S.; Mooney, R.; and Stone, P. 2015.
+ProceedingsoftheIEEE86(11):2278–2324. Learning to interpret natural language commands through
+Li,S.;Scalise,R.;Admoni,H.;Rosenthal,S.;andSrinivasa, human-robotdialog. InIJCAI,1923–1929.
+S.S.2016.Spatialreferencesandperspectiveinnaturallan- Thomason, J.; Sinapov, J.; Svetlik, M.; Stone, P.; and
+guageinstructionsforcollaborativemanipulation. InIEEE Mooney,R. 2016. Learningmulti-modalgroundedlinguis-
+International Symposium on Robot and Human Interactive ticsemanticsbyplaying“Ispy”. InIJCAI,3477–3483.
+Communication. IEEE. Thomason,J.;Padmakumar,A.;Sinapov,J.;Hart,J.;Stone,
+MacMahon, M.; Stankiewicz, B.; and Kuipers, B. 2006. P.; and Mooney, R. J. 2017. Opportunistic active learning
+Walkthetalk:Connectinglanguage,knowledge,andaction forgroundingnaturallanguagedescriptions. InCoRL.
+inrouteinstructions. InAAAI,1475–1482. Wang,S.I.;Ginn,S.;Liang,P.;andManning,C.D. 2017.
+Mao,J.;Huang,J.;Toshev,A.;Camburu,O.;Yuille,A.L.; Naturalizingaprogramminglanguageviainteractivelearn-
+and Murphy, K. 2016. Generation and comprehension of ing. InProcofACL,929–938.
+unambiguousobjectdescriptions. InCVPR,11–20. Wang,S.I.;Liang,P.;andManning,C.D. 2016. Learning
+Matuszek,C.;Bo,L.;Zettlemoyer,L.S.;andFox,D. 2014. languagegamesthroughinteraction. InProcofACL,2368–
+LearningfromUnscriptedDeicticGestureandLanguagefor 2378.
+Human-RobotInteractions. InAAAI. Winograd,T. 1971. Proceduresasarepresentationfordata
+Misra,D.K.;Sung,J.;Lee,K.;andSaxena,A. 2014. Tell inacomputerprogramforunderstandingnaturallanguage.
+medave:Context-sensitivegroundingofnaturallanguageto TechnicalReport235,MIT.
+manipulationinstructions. InProceedingsofRSS. Yu,H.,andSiskind,J.M. 2013. Groundedlanguagelearn-
+Misra, D.; Langford, J.; and Artzi, Y. 2017. Mapping in- ing from video described with sentences. In Proc of ACL,
+structionsandvisualobservationstoactionswithreinforce- 53–63.
+mentlearning. InProcofEMNLP,1015–1026.
+Pisˇl,B.,andMarecˇek,D.2017.Communicationwithrobots
+usingmultilayerrecurrentnetworks. InProcofRoboNLP.
+5036

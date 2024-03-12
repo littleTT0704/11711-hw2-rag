@@ -1,0 +1,977 @@
+To Adapt or to Annotate:
+Challenges and Interventions for Domain Adaptation in
+Open-Domain Question Answering
+DheeruDua1∗ EmmaStrubell2,3 SameerSingh1 PatVerga2
+1UniversityofCaliforniaIrvine 2 GoogleResearch 3 CarnegieMelonUniversity
+Abstract
+Recent advances in open-domain question an-
+swering (ODQA) have demonstrated impres-
+sive accuracy on standard Wikipedia style
+benchmarks. However, itislessclearhowro-
+bust these models are and how well they per-
+form when applied to real-world applications
+in drastically different domains. While there
+has been some work investigating how well
+ODQA models perform when tested for out-
+of-domain (OOD) generalization, these stud-
+ieshavebeenconductedonlyunderconserva-
+tiveshiftsindatadistributionandtypicallyfo-
+cusonasinglecomponent(ie. retrieval)rather
+than an end-to-end system. In response, we
+propose a more realistic and challenging do-
+Figure1: Top: AverageReaderperformanceforBase-
+main shift evaluation setting and, through ex-
+line and best interventional or augmentation setup on
+tensive experiments, study end-to-end model
+top. Bottom: Thedifferencebetweenbaselineandper-
+performance. Wefindthatnotonlydomodels
+formance (end-to-end F1) after introducing interven-
+fail to generalize, but high retrieval scores of-
+tions, averaged over datasets exhibiting specific shift
+tenstillyieldpooranswerpredictionaccuracy.
+Wethencategorizedifferenttypesofshiftsand types.
+propose techniques that, when presented with
+anewdataset, predictifinterventionmethods
+are likely to be successful. Finally, using in-
+models(ODQA).ThestateoftheartODQAsys-
+sightsfromthisanalysis,weproposeandeval-
+tems perform a two-stage pipeline process (Izac-
+uate several intervention methods which im-
+ard et al., 2022): 1) given a question, a context
+prove end-to-end answer F1 score by up to
+retriever (Karpukhin et al., 2020; Izacard et al.,
+∼24points.
+2021;Raffeletal.,2020)selectsrelevantpassages
+1 Introduction
+and2)aquestionansweringmodel,alsoknownas
+reader(IzacardandGrave,2020)answersthegiven
+General-purpose open-domain question answer-
+questionbasedontheretrievedpassages. Thisde-
+ing(Chenetal.,2017;Leeetal.,2019)isanimpor-
+couplingallowsforindependentadvancementsin
+tanttaskthatnecessitatesreadingandunderstand-
+domain generalization and adaptation of general-
+ing a large number of documents and succinctly
+purposecontextretrievers(Thakuretal.,2021)and
+answering a given question. It is especially cru-
+questionanswering(Fischetal.,2019)models.
+cial in fields such as Biomedicine, Legal, News,
+etc.,whereahugenumberofdocumentsareadded AgeneralpurposeODQAmodelshouldbere-
+everydayanddomainexpertiseisnecessarytoun- silient to changes in document, question and an-
+derstandthesedocuments. swer distributions. However, existing works sel-
+Recently, there have been great advancements domstudytheeffectivenessofamodeltrainedon
+andsuccessesinopen-domainquestionanswering a particular source domain and applied to a new
+targetdomain. Inthiswork,weaskthefollowing
+∗*Thisworkwasdonewhenthefirstauthorwasanintern
+atGoogleResearch. questions:
+2202
+ceD
+02
+]LC.sc[
+1v18301.2122:viXra
+1. How well do current state-of-the-art ODQA anylabeledtargetdata. Weobservethatzero-shot
+methodsperformwhentestedonvaryingde- datainterventionsyieldarelativelyhighimprove-
+greesofdatashiftandunderwhatconditions mentinperformance(upto15%inF1)forsome
+theyfail? shifttypes,whileothersdonotseethesegains.
+Finally,inSection5.2,weproposeasimpleand
+2. Givenasmallsetoflabeledexamplesinthe
+effective technique for few-shot language model
+new target domain, can we predict whether
+datagenerationrequiringonlyahandfulofexam-
+existing intervention schemes would be use-
+plesfromthetargetdomain. Whilemanyexisting
+fulinadaptingfromagivensourcemodelor
+workshaveleveragedquestiongenerationmodels
+would it better to collect annotations in the
+forcreatingadditionaltrainingdata,thesemodels
+targetdomain?
+aretypicallytrainedonthesourcedomaindataand
+3. What interventions or adaptation strategies suffer the same generalization shortcomings. In-
+can we perform to improve ODQA perfor- stead,inspiredbythestrongperformanceoflarge
+manceinOODtesting? language models (LLM) for summarization, we
+generatesentencesbypromptingtheLLMwitha
+Followingtheaboveresearchquestionswemake handfulofexamplesfromthetargetdomain. We
+fourprimarycontributioninthiswork. convert the generated sentences into cloze style
+First, in Section 2 we aggregate a set of seven QApairsandshowthatthistechniqueisespecially
+ODQA datasets, spanning five different domains effective when zero shot adaptation methods fail
+forevaluatingdomaingeneralizationofanODQA tocapturethetargetdomaindistribution,yielding
+modeltrainedongeneralpurpose. InSection4,we improvementsofupto24%inF1.
+use this test-bed to show that most SotA ODQA
+modelsfailtogeneralize,andgoontoanalyzethe 2 BackgroundandSetup
+failuremodesforOODgeneralization. Forexam-
+An open-domain (ODQA) model learns interac-
+ple, we observe that the retriever model’s perfor-
+tions among three random variables: question
+manceisquitesensitivetothetypeofentitiesand
+(Q), answer (A) and context (C). For a given
+lengthofpassagesseenattraining,andadditionally,
+q ∈ Q, first the retriever R returns a set of pas-
+in∼ 65%ofcaseswheretheanswerstringappears
+sages,c = R(q,C). Thesepassagesarethensent
+intheretrievallist(oneofthemostcommonlyused q
+toanansweringmodelM(alsoknownasreader)
+metricsforretrievalaccuracy),thecontextdoesnot
+toobtainthefinalanswer,aˆ ← M(a|q,c ).
+justifytheanswer. q
+In our experiments, we follow prior work and
+Second, in Section 3, we propose a generaliz-
+compute retriever performance as Accuracy at
+abilitytest,thatdeterminesthetypeofdatasetshift
+K(Acc@k),whichcomputesiftheoracleanswer
+in the target datasets with only a few labeled ex-
+is found in the top-k retrieved passages1. We set
+amplesintargetdomain. Thisgivesusanideaof
+k=100 in all of our experiments. To measure the
+how likely it is for a model trained in the source
+reader performance, we compute token-level F
+domain to adapt to an unseen target domain. In 1
+betweentheoracleanswerandpredictionfromthe
+Figure1,weobservethattargetdatasetswhichare
+answeringmodel2.
+closetosourcedomainandexhibit‘Noshift’,do
+notshowmuchimprovementwithzeroorfewshot
+2.1 Datasets
+dataaugmentation. Whilethetargetdatasets,that
+areverydifferentfromsourcedataandexhibit‘Full Inthiswork,wetestthegeneralizabilityofamodel
+trainedonasourcedomaintosevendatasetsinfive
+shift’needexamplesgeneratedinafewshotway
+vastlydifferenttargetdomains.
+thatcapturetheunderlyingtargetdomaintoadapt
+tothetargetdataset. Weconsiderfew-shotexam- Source Domain: For all of our experiments,
+plesasproxyfortargetdatadistribution. Zero-shot our source domain is English Wikipedia along
+dataaugmentationtechniquesyieldbestadaptation with the supervised data from NaturalQuestions
+under‘Labelshit’and‘Covariateshift’.
+1TheonlyexceptionisheCOLIEEdatasetwhichprimarily
+Third, in Section 5.1, we analyze the perfor- containsboolean(yes/no)answerssoweinsteaduseoracle
+mance impact of various intervention schemes, passagestocomputeAcc@100
+2Wedonotconsidertheothercommonreadermetricof
+suchasheuristicdataaugmentationsandlanguage
+exact-matchtoreducetheoccurrencesofminordatasetanno-
+modelgeneratedpseudo-data,withoutrelyingon tationguidelinesleadingtoa0scoreforareasonableanswer.
+(NQ)(Kwiatkowskietal.,2019)andBoolQ(Clark PassageRetriever(DPR) (Karpukhinetal.,2020)
+et al., 2019). We treat this domain as our source andthestate-of-the-artmodel4)Spider(Rametal.,
+as it used for the vast majority of current work 2021)(supervisedwithNaturalQuestions).
+in ODQA (and many other areas of language re- Reader: Weusethestate-of-the-artT5-largebased
+search). fusion-in-decoder(FiD)model(IzacardandGrave,
+Inadditiontothesupervisedtrainingdatafrom 2020)whichencodestop100documentsinparal-
+NQandBoolQ,weaddadditionalclozestyleques- lel. Therepresentationareconcatenatedandthen
+tionsderivedfromtheQApairsinNQ.Foreachqa decodedtogeneratethefinalanswer.
+pair, we retrieve a sentence from Wikipeida with
+3 CategorizingDataShiftTypes
+thehighestBM25similarityscore. Wethenconvert
+the retrieved sentence into a cloze-style question
+There are many aspects that determine in what
+byreplacingtheanswerstringinthesentencewith
+waysandtowhatextentonedatadistributiondif-
+sentinelmarkers(Raffeletal.,2020)3.
+fersfromanother. Havingabetterunderstanding
+Target Domains: We consider five vastly dif-
+ofthisspectrumofpossibilitieswouldenableusto
+ferent domains (Stackoverflow, Reddit, Pubmed,
+predictwhetheranewdatasetwouldbecompatible
+JapaneseStatuteLawcodes,CNN/Dailymailand
+with an existing model and, if not, what types of
+Wikipedia) as our target corpora and re-purpose
+interventionswouldberequiredinordertoenable
+seven open-domain QA and/or reading compre-
+themodeltoadapttothenewdomain.
+hension datasets for our evaluations (Figure ??).
+In this section, we define a taxonomy of shift
+The datasets are Quasar-S (Dhingra et al., 2017),
+typesforODQAbasedonthedistributionsofthe
+Quasar-T(Dhingraetal.,2017),SearchQA(Dunn
+sub-componentsoftheproblem(answer,question,
+et al., 2017) and BioASQ (Balikas et al., 2015)
+andcontextdistributions),anddevelopoftechnique
+which were introduced as ODQA datasets over
+forcategorizingtargetdomainsamongstthoseshift
+Stackoverflow,Reddit,WikipediaandPubmedcor-
+types. Whilewefindinlatersectionsthatthetype
+pusrespectively. ofshiftofteninfluencestheeffectivenessofanin-
+Additionally,were-purposeNewsQA(Trischler
+terventional scheme (See sections 5 and 5.2), we
+et al., 2016) and CliCR (Šuster and Daelemans,
+alsofindthatactuallydeterminingthetypeofshift
+2018) as ODQA datasets. These datasets were
+isquitechallenging.
+originally introduced as reading comprehension
+evaluationsandconstructedbyretrievingasetof 3.1 Typesofdatasetshift
+passagesforthegivenquestionfromPubmedand
+Each domain contains both an input distribution
+CNN/Dailymailcorpus. Wealsore-purposeCOL-
+(questions, contexts) and output distribution (an-
+IEE(Rabeloetal.,2022),originallyanentailment
+swers). Thecompatibility-orlack-there-of-over
+based QA dataset, by transforming the examples
+these two sub-distributions lead to four possible
+intobooleanquestionsandretrievingpassagesfrom
+settings.
+aJapaneseStatuteLawcorpus. End-to-endperfor-
+manceofODQAmodelstrainedontargetQApairs Noshift boththeinputandoutputdistributions
+withBM25retrievalsfromthetargetcorpus(UB- betweenthesourceandtargetdomainmatch.
+Ret,Figure5),indicatesthatthesedatasetscanbe
+Label shift (Storkey et al., 2009) occurs when
+reasonablyre-purposedforourODQAsetup. Fig-
+theinputdistributionsofthesourceandtargetdo-
+ure2showssomeexamplesfromtargetdatasets.
+mainsmatch,i.e., p (x ) = p(x)whiletheoutput
+s s t t
+label distribution given the input between source
+2.2 Models
+and target domain does not match, p (y |x ) (cid:44)
+s s s
+Retrievers: Wecomparefourdiverseretrievers: 1)
+p(y|x).
+t t t
+BM25(RobertsonandSpärckJones,1994)(sparse
+andunsupervised),2)Contriever(semi-supervised Covariateshift(Zadrozny,2004) occurswhen
+withMS-MARCO) (Izacardetal.,2021)3)Dense the source and target input distributions do not
+match i.e., p (x ) (cid:44) p(x) while the output label
+s s t t
+3Weuseclozeaugmentationfortrainingreadermodels distributionsmatches p (y |x ) = p(y|x).
+s s s t t t
+because some target datasets contain cloze-style questions,
+keepingthequestiondistributionconsistentacrossdifferent
+Fullshift occurswhenboththesourceandtarget
+experimentalsetups.Wedonotperformthisaugmentationfor
+retrieversbecauseweobservedaperformancedrop. inputandoutputdistributionsdonotmatch.
+Dataset, #ques, Passage Question-Answer
+Corpus #docs
+BioASQ, 5k, Parkinson’sdisease(PD)isoneofthemostcommondegenera- Q:Whichdiseaseofthecentralnervous
+Pubmed 30M tivedisordersofthecentralnervoussystemthatproducesmotor systemischaracterizedbythepresence
+andnon-motorsymptoms.Themajorityofcasesareidiopathic ofLewybodies?A:Parkinson’sdisease
+andcharacterizedbythepresenceofLewybodies.
+CliCR, 90k, Detailed history and examination ruled out the above causes Q:__isaknowncauseofkoilonychia,
+Pubmed 30M excepttheexposuretohighaltitudeasacauseforkoilonychia describedbysomeasLadakhikoilony-
+inourpatient. Exposuretohighaltitudeisaknownaetiology chia.A:Highaltitudeexposure
+forkoilonychias,alsodescribedbysomeauthorsas“Ladakhi
+koilonychia”.
+Quasar-S, 30k, IhaveamixedintegerquadraticprogramMIQPwhichIwould Q:scip–ansoftwarepackageforsolv-
+Stackover- 1.5M liketosolveusingSCIP.Theprogramisintheformsuchthaton ingmixedinteger__problemsA:linear-
+flow fixingtheintegervariablestheproblemturnsouttobealinear programming
+program.
+Quasar-T, 30k, Becauseofwidespreadimmunization,tetanusisnowrare.An- Q:Lockjawisanothernameforwhich
+Reddit 2M othernamefortetanusislockjaw. diseaseA:tetanus
+NewsQA, 70k, FormerboxingchampionVernonForrest,38,wasshotandkilled Q: Where was Forrest killed ? A: in
+Dailymail 0.5M insouthwestAtlanta,Georgia,onJuly25. southwestAtlanta,Georgia
+SearchQA, 70k, TheDangerousSummerandTheGardenofEden. Writtenin Q:WhilehewasinSpainin1959, he
+WIkipedia 20M 1959whileHemingwaywasinSpainoncommissionforLife... wrote“TheDangerousSummer”,astory
+aboutrivalbullfightersA:Hemingway
+COLIEE, 886,1k Amanifestationofintentionbasedonfraudorduressisvoidable. Q:Isittrue:Apersonwhomadeamani-
+Japanese Ifathirdpartycommitsafraudinducingafirstpartytomakea festationofintentionwhichwasinduced
+Legal manifestationofintentiontoasecondparty,thatmanifestationof byduressemanatedfromathirdparty
+Codes intentionisvoidableonlyifthesecondpartykneworcouldhave may rescind such manifestation of in-
+knownthatfact.Therescissionofamanifestationofintention tention on the basis of duress, only if
+induced by fraud under the provisions of the preceding two theotherpartykneworwasnegligentof
+paragraphsmaynotbedulyassertedagainstathirdpartyingood suchfact.A:No
+faithactingwithoutnegligence.
+Figure2: Examplesfromdatasetswithcontextandquestion-answerpairsfromdifferentdomains.
+dt > dt dt < dt
+u g u g
+p (q,c) ≈ p(q,c) p (q,c) (cid:48) p(q,c)
+s t s t
+dr −dt ≈ 0 dr −dt (cid:48) 0 dr −dt ≈ 0 dr −dt (cid:48) 0
+u u u u u u u u
+p (a|q,c) ≈ p(a|q,c) p (a|q,c) (cid:48) p(a|q,c) p (a|q,c) ≈ p(a|q,c) p (a|q,c) (cid:48) p(a|q,c)
+s t s t s t s t
+Noshift Labelshift Covariateshift Fullshift
+Figure3: Generalizabilitytest: Atfirstlevel,thefartherthetargetdistributionfromuniformascomparedtogold,
+the closer it is to the source. At second level, the gradual increase from left to right in the leaf nodes depicts
+increase in difference between distance of reference (source) from uniform and distance of target from uniform.
+Thelowerthedifference(i.e,theleftbranchatfinaldepth),thecloseristhetargettosource.
+AQhcraeS ecruoS T-rasauQ QSAoiB ecruoS S-rasauQ AQsweN RCilC
+3.2 CalculatingShiftinODQA resultsina(fine-tuned)posteriordistribution.
+Mostexistingworksconsiderclassificationsetups p(θ|x) = p(θ ;x )p(x|θ ;x )
+(cid:32)(cid:32) t (cid:32)(cid:32)t (cid:32)(cid:32)(cid:32) s (cid:32)(cid:32)(cid:32)s (cid:32)(cid:32)(cid:32)(cid:32)(cid:32)(cid:32)t(cid:32) s(cid:32)(cid:32)(cid:32)(cid:32)(cid:32)(cid:32)(cid:32)s
+where it is easy to compute the input and output (cid:124)(cid:123)(cid:122)(cid:125) (cid:124) (cid:123)(cid:122) (cid:125)(cid:124) (cid:123)(cid:122) (cid:125)
+posterior prior likelihood
+distributions. However, in our setting, we lack a
+= p (x )p(x|x )
+consistent method for computing these distribu- s s t t s
+tionswhichoftenrequirelargeamountsoflabeled
+Toanalyzethetypeofdatasetshift,wedevisea
+targetdatatotrainatargetmodelforcomparison.
+generalizabilitytest,wherewecomparetheprior
+Asanalternative,wedeterminethetypeofdataset
+distributiontoanuninformativepriorliketheuni-
+shiftbyestimatingwhetherthesourcemodelcon-
+formdistribution. Inparticular,ifthesourcemodel
+tainsusefulinformationabouttheinputandoutput
+isclosertotheuniformdistributionwhencompared
+distributionsofthetargetdatasetwhencompared
+withtheoracledistributionitdoesnothavetherea-
+withanuninformativeuniformprior.
+soning ability (informative signal) to understand
+We characterize shift in ODQA as a two-step thetargetdomain. Weassumewehaveaccesstoa
+process. We first compute the input distribution, fewlabeledexamplesintargetdomainforevalua-
+i.e, the joint question and context distribution us- tion.
+ing unnormalized (energy) scores from a dense
+Input/RetrieverDistribution: Inthefirststage,
+retriever (Karpukhin et al., 2020) to quantify the
+we compute the input distribution using retriever
+compatibilitybetweenagivenquestionandacon-
+scoresbyfollowingEq.1. Then,foragivenques-
+textviaR(q,c). Then,obtainthelikelihoodofthe
+tion,wecomputethedistanceoftheinputdistribu-
+gold context for a given question by normalizing
+tionofthetargetdomainfromtheuniformdistri-
+the energy scores from the retriever over a set of
+bution,dt andaveragethedistancesoverthesetof
+contexts. Thiscomputationovertheentirecorpus u
+examplesintheevaluationset. Similarly,wealso
+canbeveryexpensiveandresultsinalowentropy
+computethedistancefromthegolddistributionas
+distribution. To address this, we sample a set of
+contexts,C,fromtheentirecorpusC. d gt. Ifd ut > d ug ,weconcludethatthedistanceofa
+targetdistributionisfarfromtheuniformdistribu-
+R(q,c ) tionandclosertothegolddistribution,indicating
+p(q,c g) = (cid:80) R(qg
+,c )
+(1) that the source distribution is likely compatible
+ck∈C k
+with the target domain (Figure 3). Since we do
+not assume access to labeled target domain data
+Inthesecondstep,wetestiftheoutputdistribu-
+fortraining,thiscompatibilitymeasureisusedasa
+tionsmatchbycomputingthelikelihoodofgenerat-
+proxytoinferthat p (q,c) ≈ p(q,c). Weusethis
+inganoracleanswergivenaquestionandtherele- s t t
+notation as a way to interpret that source and tar-
+vantcontexts. Weuseglobalnormalization(Goyal
+getdistributionsarecompatibleandnotnecessarily
+et al., 2019) for computing the probability distri-
+equal.
+bution over a set of answer spans. Ideally, the
+normalizationshouldbecomputedoverallpossi-
+Dataset Retriever Reader Shift
+bleanswerspansinthecorpuswhichisintractable.
+BioASQ 0.3027 0.1765 Label
+Weinsteadsampleasetofanswerspanstoapprox-
+CliCR -0.8839 0.2352 Full
+imatethenormalizer. Quasar-S -0.6697 0.0767 Covar.
+Quasar-T 0.2016 0.1694 Label
+NewsQA -0.1967 0.1800 Full
+(cid:81) SearchQA 0.6165 -0.0063 No
+M(at|a<t,q,c )
+p(a g|q,c q) = (cid:80) (cid:81)t Mg (atg |a<t,qq
+,c )
+(2)
+Table1: Wassersteindistance: Computedover100ex-
+t k k q
+ak∈A ampleslabeledexamplesfromtargetdomain. Theref-
+erenceofsourcedomainmodelhasdr=0.2925
+u
+3.3 Predictingtypeofdatasetshift
+Adaptingorfine-tuningapre-trainedsourcemodel Output/Reader Distribution: In the second
+to match thetargetdomain, can be formulated in stage, we follow a similar procedure to charac-
+a Bayesian framework. The source model acts terize for the output distribution. To analyze the
+as a prior which when exposed to interventional compatibilitybetweentheoutputanswerdistribu-
+data,thatestimatesthelikelihoodoftargetdomain, tionandauniformdistribution,weneedtocompute
+aprobabilitydistributionoverasetofanswerssim- reader model with contexts retrieved by BM25 –
+ilar to stage 1. However, the conditional answer theoverallstrongestretriever.
+generationmodelisnottrainedwithacontrastive Upperbound-Retriever a target domain trained
+lossliketheretrieverleadingtotheanswerlikeli- reader model with gold contexts to approximate
+hood distribution having a higher entropy. Also, upper-boundperformance.
+thesupportsetofanswersusedfornormalization Overall, when testing models on the new tar-
+containsonlygrammaticallycorrectanswerspans getdomainsweobservelargeperformancedrops.
+making the likelihood scores attenuated. To deal Thisisespeciallytruewhenthetargetcorpusdif-
+withtheseissues,weuseareferenceanswercondi- fers from Wikipedia, such as in Quasar-S (stack-
+tionaldistributiontode-biasthelikelihoodscores overflow) and CliCR (pubmed), even though the
+withathreshold. Wetreatthesourcedistribution modelrequiressimilarreadingcapabilitiestothose
+as our reference and compute the distance from neededinthesourcedomain.
+theuniformandgolddistributionswithrespectto
+Interestingly, even though the BM25 retriever
+thesourcedistributionon100examplesfromthe
+accuracy is relatively high on the target datasets,
+validation set of the source domain. To infer if (forexample,∼83%Acc@100onQuasar-S),that
+p (a|q,c) ≈ p(a|q,c),wedeterminethedifference
+s t accuracydoesnottranslatetostrongreaderperfor-
+betweenthedistanceofreferencedistributionfrom manceandtherefore,overallQAaccuracy(∼11%
+uniformanddistanceoftargetdistributionfromuni-
+F1onQuasar-S,Figure5).
+form. Ifthisdifferenceiscloseto0,weconjecture
+To understand the performance gap, we manu-
+thatthe p (a|q,c)and p(a|q,c)arecompatible.
+s t allysample50predictionfromeachtargetdataset
+In Figure 3, we can see that the dataset
+whereretrievedpassagescontaintheoracleanswer
+SearchQA falls under the “No shift" category,
+butthereaderproducedanincorrectprediction. We
+hence, we conjecture that it will observe mini-
+observethatinaround65%cases,theAcc@100
+mal improvements under most data intervention
+metricyieldsafalsepositive, wherethepassage
+schemes, as the source is already able to capture
+contains an exact string match of the correct an-
+thetargetdistributionwell(Section5.1,5.2). We
+swer,butthecontextdoesnotactuallyanswerthe
+alsoconjecturethatdatasetsfallingunderthecate-
+givenquestion. Forexample,thequestion“What
+goryof“Labelshift”and“Covariateshift”aremore is the name of the office used by the president in
+amenabletozero-shotdatainterventions,however,
+thewhitehouse?"andanswer“oval",theretrieved
+“Fullshift”wouldbenefitmostfromfew-shotexam-
+passage“AtunnelwasdugintotheWhiteHouse
+plesorcollectingannotationsinthetargetdomain. connectingtheOvalOfficetoalocationintheEast
+Weconsiderfewshotaugmentationsasaproxyfor
+Wing...."iscreditedtoabletoanswerthequestion.
+annotatingexamplesinthetargetdomainbecause
+Thisshowsthatend-to-endperformanceiscrucial
+theaugmentationsaregeneratedwithsupervision
+inunderstandingimprovementsinretrieverswhich
+fromtargetdata.
+isoftenignored.
+4 HowWelldoModelsGeneralize?
+4.2 RetrieverGeneralization
+In this section, we want to first get a sense of To analyze model performance further, we com-
+how well existing SotA ODQA models perform pare the zero-shot generalization performance of
+whentestedOOD.WetesttheOODperformance fourdifferentretrievalmodelsinfigure4: BM25,
+ofsource-trainedmodelsontargetdomainvalida- Contriever,SpiderandDPR.
+tionsetsand,whentheyfail,analyzewhatcaused OneobservationwefindisthatSpider,thebest
+thoseerrors. performingmodelonthesourcedomain,exhibits
+animprovementonSearchQA(∼1%)(whichuses
+4.1 End-to-EndZero-shotGeneralization
+thesameunderlyingsourceWikipediadomain),but
+inFigure5,wetesttheend-to-enddomainadaption showslargedropsinperformancewhenappliedto
+performanceofthreemodelvariants: thetargetdatasets: ∼40%onNewsQA,∼28%on
+Source: afullysourcedomaintrainedmodelwith Quasar-Tand,Quasar-S.
+BM25 retrieved documents, demonstrating zero- Tounderstandthereasonforsuchanenormous
+shotgeneralizationperformance. performance drop, we sample 50 random incor-
+Upperbound-Reader a target domain trained rect predictions from Spider for manual analysis.
+BM25 DPR Source UB-RET UB-READ
+Spider Contriever-MSMARCO
+45.69
+NQ 48.65
+70.95
+77.09
+NQ 78.11 38.85
+83.37 BioASQ 55.92
+63.65 84.13
+6.13
+BioASQ 50.41 62.09 CliCR 34.52 51.16
+41.92
+34.79 11.05
+Quasar-S 61.83
+45.06 61.83
+CliCR 23.87 34.93
+24.78 Quasar-T 54.48
+40.93 85.62
+83.05 6.39
+Quasar-S 50.37 NewsQA 30.63
+54.73 65.21
+52.11 34.61
+70.53 SearchQA 60.31
+Quasar-T 54.77 60.31
+42.33 46.79
+72.83 COLIEE 56.88
+62.71
+51.26
+NewsQA 12.54 20 40 60 80
+9.62
+28.51
+70.76 Figure 5: Reader performance on target validation set
+SearchQA 63.03 without any interventions. SearchQA, Quasar-S and
+71.88
+74.56 Quasar-Tdonothavegoldpassageannotationssoboth
+COLIEE 73.39 82.57 upperboundaresame. Themajorityvotingbaselineon
+62.39 COLIEEis50.95
+80.6
+20 40 60 80
+performanceacrossallthedomains.
+Figure 4: Retriever performance (Acc@100) without
+anyinterventionsontargetdomaincorpus
+5 InterventionsforImprovingAdaption
+Intheprevioussection,wehypothesizewhichtar-
+We observe two major failure modes. First, we
+get datasets are easily adapted to by a source do-
+findthatdensemodelsaresensitivetochangesin
+main model. Based on the generalizability test,
+the length of contexts. When exposed to docu-
+our conjecture was that datasets with a less se-
+mentswithheterogeneouslengthsthatdifferfrom
+vere shift like Quasar-S, Quasar-T, and BioASQ
+those that they were trained on, models tend to
+would show marked performance improvements
+overretrieveshortercontexts. Toquantifythesen-
+with zero-shot adaptation when compared with
+sitivity to changes in lengths on source domains
+datasetslikeCliCRandNewsQA.Inthefollowing
+itself,wepoolpassagesfromalltargetcorpusinto
+experiments we observe an average performance
+a combined index. We observe that performance
+improvement of about 8.5% F1 on datasets with
+ofSpiderwhenexposedtothiscombinedindexre-
+labelshiftandcovariateshiftascomparedto3.5%
+ducesby∼15%andrestrictingtheminimumlength
+F1ondatasetswithfullshift.
+ofcontextstobe50wordsalleviatestheproblem
+andrecoverstheoriginalperformance. Thesecond 5.1 Zero-shotAdaptationMethods
+common failure mode occurs due to changes in
+We perform a series of controlled zero-shot data
+distribution of entity types from source to target
+interventionmethods,whereweconsidertheeffect
+domain,forinstancewordslike“plant"inquestion
+ofchangeindistributionofeachrandomvariable:
+“Which is produced in plants of narora kakrapar
+question (Q), answer (A) and context (C) one at
+tarapur" refers to "power plant" in the Wikipedia
+a time, while keeping the other two fixed. Our
+domain, while in case of Pubmed “plant" often
+zero-shot interventions utilize only unsupervised
+refers to living organic matter (Sciavolino et al.,
+(i.e,noquestion-answerpairannotations)datafrom
+2021). ThisismoreevidentinSpiderwhichuses
+the target domain but use source domain data in
+anauxiliarylossthatencouragesdocumentswith
+various ways to generate examples in the target
+sharedrecurringspans(mostlyentities)tobecloser
+domain.
+to each other. This skews model learning to enti-
+tiesseenduringtraining. Overall,BM25,beingan Varying context distribution To test the effect
+unsupervisedmethod,showsthemostcompetitive ofchangeincontextdistribution,wepoolallpas-
+sages from each dataset into a single document Source Target Combined
+index. Infigure6,weobservethatlearnedmodels
+46.05
+likeSpideraresensitivetoout-of-domaindistrac- NQ 46.05
+45.91
+tors,especiallywhenatargetdatasetisbasedonthe 35.21
+BioASQ 40.45
+source domain corpus (Wikipedia). For instance, 40.97
+SearchQAandNQbothsufferaperformancedrop CliCR 4.11 6.81
+6.7
+ofabout∼15%. Ontheotherhand,unsupervised
+10.74
+Quasar-S 14.95
+BM25 is much more robust and has a consistent 17.35
+performance even when exposed to a larger pool Quasar-T 33.36 41.94
+40.69
+ofdocumentswiththeoneexceptionbeingthele-
+6.3
+galdomaininCOLIEEwhichisaverysmallindex NewsQA 18.57
+13.45
+andlosesrepresentationwhencombinedwithmuch 30.46
+SearchQA 30.46
+buggerdatasets. 33.1
+47.71
+COLIEE 47.71
+46.78
+Spider-Target Spider-Comb
+BM25-Comb BM25-Target 10 20 30 40 50
+83.37 Figure 7: Reader Performance (F1): Effect of change
+68.19
+NQ 77.48 in context distribution with BM25 retrievals from the
+78.11
+combinedindex.
+41.92
+43.41
+BioASQ 62.64
+62.08
+24.77 typesfromthetargetcorpususingspaCy4. Wethen
+24.67
+CliCR 44.59
+45.05 use this coarse-grain entity type information as a
+54.73 setofclassestosampleentitiestoactascloze-style
+62.75
+Quasar-S 84.74 answers. Wechoose50kentitieswithfourdifferent
+83.05
+42.33 samplingstrategies: mostfrequent,uniformlysam-
+56.63
+Quasar-T 69.73 pledfromentitytypecategories,randomlysampled
+70.53
+9.62 fromvariousentitytypecategoriesandsampling
+12.05
+NewsQA 37.47 inproportiontoentitytypedistributionofanswers
+51.25
+71.88 intrainingsetoftargetdataset.
+57.66
+SearchQA 72.61 WechooseBioASQtoperformthesecontrolled
+70.76
+62.38 experiments because the source model has a rea-
+COLIEE 61.47 sonableend-to-endperformanceonBioASQeven
+82.56
+whenretrievingpassagesfromthesourcedomain
+0 20 40 60 80 Wikipedia corpus (Figure 7), suggesting that the
+source corpus contains sufficient information for
+Figure6: RetrieverPerformance(Acc@100): Varying
+context distribution by creating a combined document answering many BioASQ questions. This allows
+index ustousetheWikipediacorpusaloneforretrieval,
+whichisusefultocontrolforfixedpassagedistribu-
+Additionally,inFigure7weshowthattheFiD tionandgaugetheimpactoftheanswerdistribution
+readerisnotassensitiveastheretrievertochanges inisolation.
+incontextdistribution(targetvscombined)aswe In Table 2, we show that choosing the answer
+observe only a drop of 3% in F1 for NewsQA in distributionproportionaltotheuniformdistribution
+worstcasescenario. across entity type categories boosts retriever per-
+formancecomparedtorandomsampling,allowing
+Varyinganswerdistribution Manyworks(Gu-
+themodeltocapturealltypesofanswersandgen-
+ruranganetal.,2018;Duaetal.,2020;Jiangand
+eralize better to unseen answer distributions. On
+Bansal,2019)haveshownthatunanticipatedbias
+theotherhand,thebestreadermodelperformance
+inanswerpriordistributioncanintroducespurious
+isachievedwhenweknowthecorrectanswerdis-
+correlationsinmodellearning. Inthisexperiment,
+tribution of the target dataset upfront, as we see
+we vary the answer distribution by changing the
+in Table 3. While this demonstrates that answer
+samplingdistributionoverplausibleanswerspans.
+First, we extract and annotate coarse grain entity 4https://spacy.io/
+priorsinfluencereaderperformance,inanunsuper- Inordertosampleanswersforwhichweshould
+visedsetupwewillnothavethistruedistribution. curateStandardandClozeQApairs,wefollowthe
+Therefore,weadoptthesecondbesttechnique,i.e., previoussubsectionandsampleanswerspansuni-
+uniformsamplingfromacrosstheentitytypecate- formlybasedonanentitytypedistributionfromthe
+goriesforotherexperimentsinthepaper(Table5). targetcorpus. Wethenqueryourcombinedindex
+tocreateadatasetcontainingclozestylequestions
+Augmentations Acc@100 aligned with relevant documents. We use these
+Random 45.35 samesampledanswerstogeneratestandardQGen
+Uniform 50.02
+QApairsaswell.
+Mostfrequent 39.33
+We combine this augmented data with our ini-
+BioASQtrainanswers 47.48
+tial source domain data to train a DPR retriever
+Table2: Answerdistribution: Retriverperformanceon (Table4)andaFiDreader(Table5). Weobserve
+BioASQ similaraverageperformanceacrossbothinterven-
+tiontypesinretrieverandreadermodels. However,
+To understand the impact of the pre-trainining
+cloze QA pairs are computationally much more
+vsfine-tuningcorpus,wealsocomparetheperfor- efficienttogenerateastheydonotrequireanyad-
+mance of the FiD reader initialized from T5 pre-
+ditionalquestiongenerationmodels.
+trainedoncommon-crawldataset(C4)comparedto
+onethatwaspre-trainedonpubmedarticles. After
+Baseline ClozeQA StandardQGen
+pretraining,bothmodelsarethenfine-tunedonour
+CliCR 23.87 24.88 23.99
+sourcedomaindata. Inthiscase,weobservethat BioASQ 50.41 48.04 45.45
+fine-tuningonadomainthatdiffersfromthatused Quasar-S 50.37 66.87 68.21
+Quasar-T 54.77 53.93 55.57
+inpre-trainingresultsindeteriorationofmodelper-
+NewsQA 12.54 18.79 15.22
+formance. SearchQA 63.03 52.97 54.77
+COLIEE 61.47 60.55 57.80
+Augmentations C4 Pubmed
+Table4: Retrieverperformance: Comparingtwotypes
+Random 33.50 33.51
+Uniform 39.07 35.97 ofquestionformatsforaugmentation
+Mostfrequent 38.18 34.90
+BioASQtrainanswers 41.33 36.71
+5.2 Few-shotGeneralizabilityand
+Table 3: Answer distribution: Reader performance on
+Adapatability
+BioASQ
+Insection5,wesawthatzero-shotadaptationdoes
+not work well in cases where the target domain
+Varyingquestiondistribution Tovarytheques- distribution is very far from the source domain.
+tion distribution, we augment the source domain As hypothesized in section 3, we would expect
+withaugmentationsgeneratedfromthetargetdo- improvementsfromfew-shotinterventionsinthe
+main using two different methods. Our first ap- “FullShift"datasetsNewsQAandCliCRtobemore
+proach uses a question generation (Subramanian effectivethanthezero-shotinterventionsfromSec-
+etal.,2017)modeltrainedonthesourcedomainto tion 5. In this section, we find that to be true in
+generateaquestiongivenapassageandananswer. addition to the largely across-the-board effective-
+Thisquestiongenerationmodelcanbeappliedto nessoffew-shotinterventions.
+anewtargetpassageandaplausibleanswerspan
+(entity mention) from the passage (Shakeri et al.,
+Baseline ClozeQA StandardQGen
+2020;KrishnaandIyyer,2019;Songetal.,2018;
+BioASQ 45.38 49.41 46.43
+Klein and Nabi, 2019). We refer to this method
+CliCR 6.126 7.340 10.56
+as“StandardQGen"intable4and 5. Oursecond
+Quasar-S 10.24 21.79 17.47
+approach,whichhasbeenlessexploredpreviously, Quasar-T 34.92 41.99 44.73
+NewsQA 18.57 21.20 12.71
+converts a sentence in the target corpus to a fill-
+SearchQA 34.60 38.80 37.27
+in-the-blankstyleclozequestion(Taylor,1953)by COLIEE 46.79 54.17 62.38
+maskingaplausibleanswerspan(entitymention)
+inthesentence. Werefertothismethodas“Cloze Table5: Readerperformance: Comparingtwotypesof
+QA". questionformatsforaugmentation
+Few-shotDataGeneration Zero-shotinterven- Baseline DataGen
+tionslikequestiongenerationmodelsaretrainedon
+CliCR 23.87 29.06
+thesourcedomainandinevitablydonotproduce BioASQ 50.41 51.36
+Quasar-S 50.37 71.93
+generationsthatarefullycompatiblewiththetar-
+Quasar-T 54.77 55.47
+getdomain,leadingtodegradationwhenthesource NewsQA 12.54 22.69
+andtargetdomainsdifferdrastically. Analternative SearchQA 63.03 63.35
+COLIEE 73.39 82.23
+approachwouldbetotrainaquestiongeneration
+modelwithafewexamplesfromthetargetdomain.
+Table 6: Retriever Acc@100 with target specific few
+However,inpracticeitisdifficulttoadaptorfine-
+shotaugmentations(DataGen).
+tune a question generation and answering model
+(for validating QA pair correctness) with only a
+handfulofexamples. erate data, one could alternatively use the same
+Toalleviatethisproblem,weproposeafewshot modelandexamplestoanswerquestionsdirectly.
+techniquethatpromptsaLLM(Chowdheryetal., WenexttesttowhatextenttheLLMcanperform
+2022)togenerateasentencegivenapassage. We closed-bookQAbypromptingthesamemodelas
+useeightseedexamplesfromthetargetdomainto used in our data generation with 8 examples that
+generateadditionaltrainingdatatohelpbootstrap demonstrate how to answer questions in the tar-
+adaptation in the target domain. We observe that getdomain. InTable7,weobservethattheLLM
+itiseasierforlargelanguagemodelstocondition doeswellondatasetswithtriviastylefactualques-
+onasinglevariable(context)andcompress(Goyal tions, like SearchQA and Quasar-T, but in other
+et al., 2022) multiple facts from the passage into casesdoesnotperformaswell. Thefew-shotdata
+asinglesentence,ascomparedtoconditioningon augmentationtrainedmodel,ontheotherhand,per-
+acontextandanswerspantogether. Moreover,in formsbetteracrossawiderrangeofdomainsand
+section 5.1 we observed that augmentation with
+datasetswiththeimprovementsupto∼24%inF1
+clozestyleQApairsyieldedsimilarperformance onQuasar-Swhencomparedwithbaseline.
+tousingquestion-formattedQApairs,offeringevi-
+dencethatthepreciseformatisnotasimportantas Baseline Closed-Book DataGen
+ReaderParams (770M) (540B) (770M)
+thecontentitself.
+BioASQ 45.38 32.02 50.64
+We prompt the model in the following format,
+CliCR 6.126 10.84 19.42
+“Afterreadingthearticle,«context»thedoctorsaid Quasar-S 10.24 23.75 34.19
+«sentence»."forpubmedarticles. Forothertarget Quasar-T 34.92 55.32 45.86
+NewsQA 18.57 8.67 23.37
+corpuswereplacedoctorwithengineer,journalist
+SearchQA 34.60 61.53 37.65
+and poster for stackoverflow, dailymail and red- COLIEE 46.79 53.02 61.11
+ditrespectively. Tofilteroutinvalidsentences,we
+applythreesimpleheuristicsandremoveanygener- Table 7: Reader: F1 performance with target specific
+few-shot augmentations (DataGen). Both Close-Book
+ationthat1)includesanumber,2)doesnotrepeat
+and DataGen use eight examples from the target do-
+partofthepassageverbatim,and3)haslessthan
+main. Few-shotclosed-bookperformanceonNQwith
+75% word set overlap with the passage (after re-
+eightexamplesis36.71
+movingstopwords). Togaugetheprecisionofour
+generations, we manually sampled 20 generated
+InFigure8,weshowqualitativeexamplesgen-
+sentencesforeachdatasetandfoundthattheywere
+eratedbyourfew-shotmethoddepictingthatthey
+correctmorethan70%ofthetime.
+areabletocomposefactsfrommultiplesentences.
+Totesttheretrieverperformance,wetrainaDPR
+modelwithNaturalQuestionsandaround∼8k-10k
+6 RelatedWork
+examples,containingpairsoforiginalpassageand
+generatedsentence. Wecomparethismodelwith Mostexistingworksondomainadaptioninques-
+originalsourcedomainDPRmodelinTable6. We tion answering consider generalization of the re-
+observeperformanceimprovementsofupto∼18% trieverorreaderinisolation.
+inNewsQAand∼21%inQuasar-S.
+Domain generalization in readers: The most
+ComparisontoFew-ShotClosed-Book Rather popular work in generalization in reading com-
+than use a LLM and few-shot prompting to gen- prehension was introduced as part of the
+Dataset, Passage GeneratedSentence
+Corpus
+BioASQ, HerceptiniswidelyusedintreatingHer2-overexpressingbreastcancer.However, Herceptin is a breast
+Pubmed theapplicationofHerceptininprostatecancerisstillcontroversial....Thisimplies cancer drug that has
+thattargetingHer2bybothradio-andimmunotherapymightbeapotentialstrategy been used in treating
+fortreatingpatientswithandrogen-independentprostatecancer... prostatecancer.
+CliCR, Aninfantwasadmittedwithsymptomsofdiarrhoeaandvomiting. Afterinitial Immunocompetentin-
+Pubmed improvement she unexpectedly died. Postmortem confirmed a diagnosis of cy- fantscanpresentwith
+tomegalovirus(CMV)enterocolitis.Theauthorsreportthiscaseandreviewother CMVenterocolitis.
+publishedcasesofimmunocompetentinfantswhopresentedwiththisinfection.
+CliniciansshouldconsiderstoolCMVPCRtestorreferralforendoscopyandbiopsy
+inyoungbabieswhopresentwithprofuseandprolongedepisodesofdiarrhoea.
+Quasar-S, I’verecentlyfoundscala-bindgenfromaGitterroomonScalaNative.Seemslike scala-bindgen–scala-
+Stackover- atthepresentpointintimetheyaredevelopingatoolforgeneratingScalabindings bindgenisatoolthat
+flow forCheader-files. ArethereplansforgeneratingScalabindingsforObjective-C generates scala bind-
+andC++too... ingsforCheaderfiles.
+Quasar-T, InterviewWithGaryJames’InterviewWithMarshallLytleofBillHaley’sComets Bill Haley and his
+Reddit Itcanbesafelysaidthat“RockAroundTheClock”wasthesongbythegroupBill cometsmaderockand
+HaleyAndHisCometsthatstartedtheRock’nRollmovement.Stillperforming rollmusic
+today,hespokeaboutthoseearlydaysofRock’nRollandhisappreciationforwhat
+itmeanttohim.
+NewsQA, TheKardashiansarealreadyastapleonE!Network.Butthey’vechosenthemonth The Kardashians re-
+CNN/ ofNovembertoasserttheirdominanceonthebookworld. Kourtney,Kim,and leased a new book
+Dailymail Khloe’sfirstnovel,”Dollhouse,”hitsshelvestoday.“Dollhouse,”thefirstfiction called’Dollhouse’.
+endeavorfromtheKardashians,followssistersKamille,Kassidy,...
+SearchQA, CharlesHenryDowwasanAmericanjournalistwhoco-foundedDowJonesand Charles Henry Dow,
+Wikipedia CompanywithEdwardJonesandCharlesBergstresser.DowalsofoundedTheWall an American journal-
+StreetJournal,whichhasbecomeoneofthemostrespectedfinancialpublications ist,foundedTheWall
+intheworld...In1877,hepublishedaHistoryofSteamNavigationbetweenNew StreetJournalin1882.
+Yorkand...
+Figure8: Examplesofdatageneratedfromfew-shotprompting.
+MRQA (Fisch et al., 2019) challenge, which fo- trieverperformanceinisolationandnotend-to-end
+cusesontransferoflearningfrommultiplesource ODQAperformancewhichcanbeabrittlemetric.
+datasetstounseentargetdatasets. Thismulti-task Also,itexaminestheabilityofageneralpurpose
+learningsetuprequiresmodeltoperformreasoning retriever to generalize to various domains out-of-
+attesttimethatmaybeunseenattraining. Itisused the-boxandnotnecessarilyhowtoadapttoanew
+asawaytodiscernwhattypeofreasoningabilities domain.
+learnedattrainingtimearemorebeneficialforgen-
+Domain adaptation work in retrievers (Dai
+eralizationtoacohortofunseenreasoningabilities.
+etal.,2022)generatepassagesinafewshotmanner
+However,inthiswork,wefocusongeneralization
+giventhequerybutthisdoesnotrequiretheanswer
+capabilities of an end-to-end ODQA setup to be
+(entities) to be correct in the generated passage.
+ablereadandunderstandpassagesinnewdomain
+(Maetal.,2020)performsazero-shotadapatation
+andnottheabilitiestoperformunseenreasoning.
+withnoisylabelsasitisdifficulttotrainaQAval-
+idatorintargetdomain. (Siriwardhanaetal.,2022)
+Domaingeneralizationinretrievers: Arecent
+utilizesexamplesfromtargetdomaininatransfer
+lineofworkthattestdomaingeneralizationofre-
+learningsetupwhileweworkinzerotofewshot
+trievers(Petronietal.,2020;Rametal.,2021;Izac-
+setting.
+ardetal.,2022)focusesonconservativechanges
+tosourcedomain,forinstancetestinggeneraliza-
+7 Conclusion
+tion performance of model trained Natural Ques-
+tions to WebQuestions, TriviaQA – all of which Inthisworkweinvestigateddomaingeneralization
+use the same Wikiepdia corpus. Another line of inopendomainquestionansweringandpresented
+work follows a recently proposed retrieval bech- four main contributions. First, we analysed the
+mark,BEIR(Thakuretal.,2021)thattestsgeneral- problems with existing ODQA model and inves-
+izabilityofageneralpurposeretrievertodifferent tigate their failure modes. Second, we explored
+corpus/domains. Moreover, it consider only re- variouszero-shotandfew-shotdatainterventions
+to improve a model’s ability to generalize to an normalizationforrecurrentneuralsequencemodels
+unseentargetdomain. Finally,wedescribedatax- usingacontinuousrelaxationtobeamsearch. arXiv
+preprintarXiv:1904.06834.
+onomyofdatasetshifttypesthatprovidesanwayto
+approximatehoweffectiveasourcedomaintrained
+Tanya Goyal, Junyi Jessy Li, and Greg Durrett. 2022.
+modelcanbeadaptedtowardsanewtargetdomain. Newssummarizationandevaluationintheeraofgpt-
+3. arXivpreprintarXiv:2209.12356.
+References Suchin Gururangan, Swabha Swayamdipta, Omer
+Levy, Roy Schwartz, Samuel R Bowman, and
+GeorgiosBalikas,AnastasiaKrithara,IoannisPartalas, Noah A Smith. 2018. Annotation artifacts in
+andGeorgePaliouras.2015. Bioasq:Achallengeon natural language inference data. arXiv preprint
+large-scale biomedical semantic indexing and ques- arXiv:1803.02324.
+tion answering. In International Workshop on Mul-
+timodalRetrievalintheMedicalDomain,pages26–
+Gautier Izacard, Mathilde Caron, Lucas Hosseini, Se-
+39.Springer. bastian Riedel, Piotr Bojanowski, Armand Joulin,
+and Edouard Grave. 2021. Unsupervised dense in-
+Danqi Chen, Adam Fisch, Jason Weston, and An-
+formationretrievalwithcontrastivelearning. arXiv
+toine Bordes. 2017. Reading wikipedia to an-
+preprintarXiv:2112.09118.
+swer open-domain questions. arXiv preprint
+arXiv:1704.00051.
+Gautier Izacard and Edouard Grave. 2020. Lever-
+aging passage retrieval with generative models for
+Aakanksha Chowdhery, Sharan Narang, Jacob Devlin,
+open domain question answering. arXiv preprint
+Maarten Bosma, Gaurav Mishra, Adam Roberts,
+arXiv:2007.01282.
+Paul Barham, Hyung Won Chung, Charles Sutton,
+Sebastian Gehrmann, et al. 2022. Palm: Scaling
+Gautier Izacard, Patrick Lewis, Maria Lomeli, Lu-
+language modeling with pathways. arXiv preprint
+cas Hosseini, Fabio Petroni, Timo Schick, Jane
+arXiv:2204.02311.
+Dwivedi-Yu, Armand Joulin, Sebastian Riedel, and
+Christopher Clark, Kenton Lee, Ming-Wei Chang, Edouard Grave. 2022. Few-shot learning with re-
+Tom Kwiatkowski, Michael Collins, and Kristina trievalaugmentedlanguagemodels. arXivpreprint
+Toutanova. 2019. Boolq: Exploring the surprising arXiv:2208.03299.
+difficultyofnaturalyes/noquestions. arXivpreprint
+arXiv:1905.10044. Yichen Jiang and Mohit Bansal. 2019. Avoiding rea-
+soning shortcuts: Adversarial evaluation, training,
+ZhuyunDai,VincentYZhao,JiMa,YiLuan,Jianmo and model development for multi-hop qa. arXiv
+Ni, Jing Lu, Anton Bakalov, Kelvin Guu, Keith B preprintarXiv:1906.07132.
+Hall, and Ming-Wei Chang. 2022. Promptagator:
+Few-shot dense retrieval from 8 examples. arXiv VladimirKarpukhin,BarlasOg˘uz,SewonMin,Patrick
+preprintarXiv:2209.11755. Lewis,LedellWu,SergeyEdunov,DanqiChen,and
+Wen-tau Yih. 2020. Dense passage retrieval for
+Bhuwan Dhingra, Kathryn Mazaitis, and William W open-domain question answering. arXiv preprint
+Cohen. 2017. Quasar: Datasets for question an- arXiv:2004.04906.
+swering by search and reading. arXiv preprint
+arXiv:1707.03904.
+Tassilo Klein and Moin Nabi. 2019. Learning to an-
+swer by learning to ask: Getting the best of gpt-2
+Dheeru Dua, Sameer Singh, and Matt Gardner. 2020.
+andbertworlds. arXivpreprintarXiv:1911.02365.
+Benefitsofintermediateannotationsinreadingcom-
+prehension. InProceedingsofthe58thAnnualMeet-
+Kalpesh Krishna and Mohit Iyyer. 2019. Generat-
+ingoftheAssociationforComputationalLinguistics,
+ing question-answer hierarchies. arXiv preprint
+pages5627–5634.
+arXiv:1906.02622.
+MatthewDunn, LeventSagun, MikeHiggins, VUgur
+Tom Kwiatkowski, Jennimaria Palomaki, Olivia Red-
+Guney, Volkan Cirik, and Kyunghyun Cho. 2017.
+field, MichaelCollins, AnkurParikh, ChrisAlberti,
+Searchqa: A new q&a dataset augmented with
+Danielle Epstein, Illia Polosukhin, Jacob Devlin,
+context from a search engine. arXiv preprint
+KentonLee,etal.2019. Naturalquestions: abench-
+arXiv:1704.05179.
+markforquestionansweringresearch. Transactions
+Adam Fisch, Alon Talmor, Robin Jia, Minjoon Seo, of the Association for Computational Linguistics,
+Eunsol Choi, and Danqi Chen. 2019. Mrqa 2019 7:453–466.
+shared task: Evaluating generalization in reading
+comprehension. arXivpreprintarXiv:1910.09753. KentonLee,Ming-WeiChang,andKristinaToutanova.
+2019. Latent retrieval for weakly supervised
+KartikGoyal,ChrisDyer,andTaylorBerg-Kirkpatrick. open domain question answering. arXiv preprint
+2019. Anempiricalinvestigationofglobalandlocal arXiv:1906.00300.
+Ji Ma, Ivan Korotkov, Yinfei Yang, Keith Hall, and Sandeep Subramanian, Tong Wang, Xingdi Yuan,
+Ryan McDonald. 2020. Zero-shot neural passage Saizheng Zhang, Yoshua Bengio, and Adam
+retrievalviadomain-targetedsyntheticquestiongen- Trischler. 2017. Neural models for key phrase de-
+eration. arXivpreprintarXiv:2004.14503. tection and question generation. arXiv preprint
+arXiv:1706.04560.
+FabioPetroni, AleksandraPiktus, AngelaFan, Patrick
+Lewis, Majid Yazdani, Nicola De Cao, James Simon Šuster and Walter Daelemans. 2018. Clicr: A
+Thorne, Yacine Jernite, Vladimir Karpukhin, Jean dataset of clinical case reports for machine reading
+Maillard, et al. 2020. Kilt: a benchmark for comprehension. arXivpreprintarXiv:1803.09720.
+knowledgeintensivelanguagetasks. arXivpreprint
+arXiv:2009.02252. Wilson L Taylor. 1953. “cloze procedure”: A new
+toolformeasuringreadability. Journalismquarterly,
+JulianoRabelo,RandyGoebel,Mi-YoungKim,Yoshi- 30(4):415–433.
+nobu Kano, Masaharu Yoshioka, and Ken Satoh.
+Nandan Thakur, Nils Reimers, Andreas Rücklé, Ab-
+2022. Overview and discussion of the competi-
+tiononlegalinformationextraction/entailment(col- hishek Srivastava, and Iryna Gurevych. 2021. Beir:
+Aheterogenousbenchmarkforzero-shotevaluation
+iee) 2021. The Review of Socionetwork Strategies,
+of information retrieval models. arXiv preprint
+16(1):111–133.
+arXiv:2104.08663.
+ColinRaffel,NoamShazeer,AdamRoberts,Katherine
+AdamTrischler,TongWang,XingdiYuan,JustinHar-
+Lee, Sharan Narang, Michael Matena, Yanqi Zhou,
+ris, Alessandro Sordoni, Philip Bachman, and Ka-
+WeiLi,PeterJLiu,etal.2020. Exploringthelimits
+heer Suleman. 2016. Newsqa: A machine compre-
+of transfer learning with a unified text-to-text trans-
+hensiondataset. arXivpreprintarXiv:1611.09830.
+former. J.Mach.Learn.Res.,21(140):1–67.
+BiancaZadrozny.2004. Learningandevaluatingclas-
+Ori Ram, Gal Shachaf, Omer Levy, Jonathan Be-
+sifiers under sample selection bias. In Proceedings
+rant, and Amir Globerson. 2021. Learning to re-
+of the twenty-first international conference on Ma-
+trievepassageswithoutsupervision. arXivpreprint
+chinelearning,page114.
+arXiv:2112.07708.
+Stephen E Robertson and Karen Spärck Jones. 1994.
+Simple,provenapproachestotextretrieval. Techni-
+calreport,UniversityofCambridge,ComputerLab-
+oratory.
+Christopher Sciavolino, Zexuan Zhong, Jinhyuk Lee,
+and Danqi Chen. 2021. Simple entity-centric ques-
+tions challenge dense retrievers. arXiv preprint
+arXiv:2109.08535.
+Siamak Shakeri, Cicero Nogueira dos Santos, Henry
+Zhu,PatrickNg,FengNan,ZhiguoWang, Ramesh
+Nallapati, and Bing Xiang. 2020. End-to-end
+synthetic data generation for domain adaptation
+of question answering systems. arXiv preprint
+arXiv:2010.06028.
+Shamane Siriwardhana, Rivindu Weerasekera, Elliott
+Wen, Tharindu Kaluarachchi, Rajib Rana, and
+SurangaNanayakkara.2022. Improvingthedomain
+adaptation of retrieval augmented generation (rag)
+modelsforopendomainquestionanswering. arXiv
+preprintarXiv:2210.02627.
+LinfengSong,ZhiguoWang,WaelHamza,YueZhang,
+andDanielGildea.2018. Leveragingcontextinfor-
+mationfornaturalquestiongeneration. InProceed-
+ingsofthe2018ConferenceoftheNorthAmerican
+Chapter of the Association for Computational Lin-
+guistics: HumanLanguageTechnologies, Volume2
+(ShortPapers),pages569–574.
+Amos Storkey et al. 2009. When training and test
+sets are different: characterizing learning transfer.
+Datasetshiftinmachinelearning,30:3–28.

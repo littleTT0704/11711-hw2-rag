@@ -1,0 +1,623 @@
+Iterative Graph Self-distillation
+HanlinZhang1,ShuaiLin2,WeiyangLiu3,4,PanZhou5,JianTang6,7,XiaodanLiang2,EricP.Xing1
+1CarnegieMellonUniversity,2SunYat-senUniversity,3UniversityofCambridge,4MaxPlanckInstituteforIntelligent
+Systems,5SeaAILab6Mila-QuébecAIInstitute,7HECMontréal
+ABSTRACT Therefore,unsupervisedlearningongraphshasbeenlongstudied,
+Recently,therehasbeenincreasinginterestinthechallengeofhow suchasgraphkernels[43]andmatrix-factorizationapproaches[2].
+todiscriminativelyvectorizegraphs.Toaddressthis,weproposea Inspiredbytherecentsuccessofself-supervisedrepresentation
+methodcalledIterativeGraphSelf-Distillation(IGSD)whichlearns learninginvariousdomainslikeimages[8,20]andtexts[39],most
+graph-level representation in an unsupervised manner through relatedworksinthegraphdomaineitherfollowtheparadigmof
+instancediscriminationusingaself-supervisedcontrastivelearn- self-supervisedpretrainingonthepretexttasksorcontrastivelearn-
+ingapproach.IGSDinvolvesateacher-studentdistillationprocess ingviaInfoMaxprinciple[22].Theformeroftenneedsmeticulous
+thatusesgraphdiffusionaugmentationsandconstructstheteacher designsofhand-craftedtasks[23,55]whilethelatterisdominant
+modelusinganexponentialmovingaverageofthestudentmodel. inself-supervisedgraphrepresentationlearning,whichtrainsen-
+TheintuitionbehindIGSDistopredicttheteachernetworkrepre- coderstomaximizethemutualinformation(MI)betweentherepre-
+sentationofthegraphpairsunderdifferentaugmentedviews.Asa sentationsoftheglobalgraphandlocalpatches(suchassubgraphs)
+naturalextension,wealsoapplyIGSDtosemi-supervisedscenar- [18,45,48].However,context-instancecontrastiveapproachesusu-
+iosbyjointlyregularizingthenetworkwithbothsupervisedand allyneedtosamplesubgraphsaslocalviewstocontrastwithglobal
+self-supervisedcontrastiveloss.Finally,weshowthatfinetuning graphs.Andtheyusuallyrequireanadditionaldiscriminatorfor
+theIGSD-trainedmodelswithself-trainingcanfurtherimprove scoringlocal-globalpairsandnegativesamples,whichcanbecom-
+thegraphrepresentationpower.Empirically,weachievesignificant putationallyprohibitive[47].Besides,theperformanceisalsovery
+andconsistentperformancegainonvariousgraphdatasetsinboth sensitivetothechoiceofencodersandMIestimators[47].More-
+unsupervisedandsemi-supervisedsettings,whichwellvalidates over,context-instancecontrastiveapproachescannotbehandily
+thesuperiorityofIGSD. extendedtothesemi-supervisedsettingsincelocalsubgraphslack
+labelsthatcanbeutilizedfortraining.Therefore,weareseekingan
+approachthatlearnstheentiregraphrepresentationbycontrasting
+KEYWORDS
+thewholegraphdirectlytoaddresstheabovechallenges.
+graphrepresentationlearning,self-supervisedlearning,contrastive
+Motivatedbyrecentprogressoninstancediscriminationcon-
+learning
+trastive learning [16, 51], we propose the Iterative Graph Self-
+Distillation(IGSD),ateacher-studentframeworktolearngraph
+ACMReferenceFormat:
+HanlinZhang1,ShuaiLin2,WeiyangLiu3,4,PanZhou5,JianTang6,7,Xiao- representationsbycontrastinggraphinstancesdirectly.Thehigh-
+danLiang2,EricP.Xing1.2021.IterativeGraphSelf-distillation.In.ACM, levelideaofIGSDisbasedongraphcontrastivelearningwhere
+NewYork,NY,USA,9pages. wepullsimilargraphstogetherandpushdissimilargraphaway.
+However,theperformanceofconventionalcontrastivelearning
+largelydependsonhownegativesamplesareselected.Tolearn
+1 INTRODUCTION
+discriminativerepresentationsandavoidcollapsingtotrivialso-
+Graphsareubiquitousrepresentationsencodingrelationalstruc-
+lutions,alargesetofnegativesamples[8,20]oraspecialmining
+turesacrossvariousdomains.Learninglow-dimensionalvector
+strategy[20,42]isnecessary.Inordertoalleviatethedependency
+representationsofgraphsiscriticalinvariousdomainsranging
+onnegativesampleminingandstillbeabletolearndiscriminative
+fromsocialscience[35]tobioinformatics[11,58].Manygraphneu-
+graphrepresentations,weproposetouseself-distillationasastrong
+ralnetworks(GNNs)[14,27,52]havebeenproposedtolearnnode
+regularizationtoguidethegraphrepresentationlearning.
+andgraphrepresentationsbyaggregatinginformationfromevery
+IntheIGSDframework,graphinstancesareaugmentedassev-
+node’sneighborsvianon-lineartransformationandaggregation
+eralviewstobeencodedandprojectedintoalatentspacewhere
+functions.However,thekeylimitationofexistingGNNarchitec-
+wedefineasimilaritymetricforconsistency-basedtraining.The
+turesisthattheyoftenrequireahugeamountoflabeleddatato
+parametersoftheteachernetworkareiterativelyupdatedasan
+becompetitivebutannotatinggraphslikedrug-targetinteraction
+exponentialmovingaverageofthestudentnetworkparameters
+networksischallengingsinceitneedsdomain-specificexpertise.
+[16,20,46],allowingtheknowledgetransferbetweenthem.Asa
+merelysmallamountoflabeleddataisoftenavailableinmanyreal-
+Permissiontomakedigitalorhardcopiesofallorpartofthisworkforpersonalor worldapplications,wefurtherextendIGSDtothesemi-supervised
+classroomuseisgrantedwithoutfeeprovidedthatcopiesarenotmadeordistributed
+settingsuchthatitcaneffectivelyutilizegraph-levellabelswhile
+forprofitorcommercialadvantageandthatcopiesbearthisnoticeandthefullcitation
+onthefirstpage.CopyrightsforcomponentsofthisworkownedbyothersthanACM consideringarbitraryamountsofpositivepairsbelongingtothe
+mustbehonored.Abstractingwithcreditispermitted.Tocopyotherwise,orrepublish, sameclass.Moreover,toleveragetheinformationfrompseudo-
+topostonserversortoredistributetolists,requirespriorspecificpermissionand/ora
+fee.Requestpermissionsfrompermissions@acm.org. labelswithhighconfidence,wedevelopaself-trainingalgorithm
+Ljubljana’21,April19–23,2021,Ljubljana,Slovenia basedonthesupervisedcontrastivelossforfine-tuning.
+©2021AssociationforComputingMachinery.
+3202
+naJ
+3
+]GL.sc[
+3v90621.0102:viXra
+Ljubljana’21,April19–23,2021,Ljubljana,Slovenia Zhangetal.
+Weexperimentwithreal-worlddatasetsinvariousscalesand lineofcontrastivelearningapproachescalledinstancediscrimina-
+comparetheperformanceofIGSDwithstate-of-the-artgraphrep- tion(orcontext-contextcontrast)directlystudytherelationships
+resentationlearningmethods.ExperimentalresultsshowthatIGSD betweentheglobalrepresentationsofdifferentsamplesaswhat
+achievescompetitiveperformanceinbothself-supervisedandsemi- metriclearningdoes.Forinstance,ourmethodisinspiredbyBYOL
+supervisedsettingswithdifferentencodersanddataaugmentation [15],amethodbootstrapstherepresentationsofthewholeimages
+choices.Withthehelpofself-training,ourperformancecanexceed directly.AndGraphBarlowTwins[4]utilizesacross-correlation-
+state-of-the-artbaselinesbyalargemargin. basedlossinsteadofnegativesamplesforlearningrepresentations.
+Insummary,wemakethefollowingcontributionsinthispaper: Focusingonglobalrepresentationsbetweensamplesandcorre-
+spondingaugmentedviewsalsoallowsinstance-levelsupervision
+• Weproposeaself-distillationframeworkcalledIGSDforself- tobeincorporatednaturallylikeintroducingsupervisedcontrastive
+supervisedgraph-levelrepresentationlearningwheretheteacher- loss[26]intotheframeworkforlearningpowerfulrepresentations.
+studentdistillationisperformedforcontrastinggraphpairsunder GraphContrastiveCoding(GCC)[38]isapioneertoleveragein-
+differentaugmentedviewsusinggraphdiffusion. stancediscriminationasthepretexttaskforstructuralinformation
+• WefurtherextendIGSDtothesemi-supervisedscenarios,where pre-training.GraphCL[54]aimsatlearninggeneralizable,trans-
+thelabeleddataareutilizedeffectivelywiththesupervisedcon- ferrable,androbustrepresentationsofgraphdatainanunsuper-
+trastivelossandself-training. visedmanner.However,ourworkisfundamentallydifferentfrom
+• WeempiricallyshowthatIGSDsurpassesstate-of-the-artmeth- theirs.GCCaimstofindcommonandtransferablestructuralpat-
+odsinsemi-supervisedgraphclassificationandmolecularprop- ternsacrossdifferentgraphdatasetsandthecontrastiveschemeis
+ertypredictiontasksandachievesperformancecompetitivewith donethroughsubgraphinstancediscrimination.GraphCLfocuses
+state-of-the-artapproachesinself-supervisedgraphclassification ontheimpactofvariouscombinationsofgraphaugmentationson
+tasks. multipledatasetsandstudiesunsupervisedsettingonly.Onthe
+contrary,ourmodelaimsatlearninggraph-levelrepresentationin
+bothunsupervisedandsemi-supervisedsettingsbydirectlycon-
+2 RELATEDWORK trastinggraphinstancessuchthatdataaugmentationstrategies
+GraphRepresentationLearningTraditionally,graphkernelsare andgraphlabelscanbeutilizednaturallyandeffectively.
+widelyusedforlearningnodeandgraphrepresentations.Thiscom- KnowledgeDistillationKnowledgedistillation[21]isamethod
+monprocessincludesmeticulousdesignslikedecomposinggraphs fortransferringknowledgefromonearchitecturetoanother,allow-
+intosubstructuresandusingkernelfunctionslikeWeisfeiler-Leman ingmodelcompressionandinductivebiasestransfer.Self-distillation
+graphkernel[43]tomeasuregraphsimilaritybetweenthem.How- [12]isaspecialcasewhentwoarchitecturesareidentical,which
+ever,theyusuallyrequirenon-trivialhand-craftedsubstructures caniterativelymodifyregularizationandreduceover-fittingifper-
+and domain-specific kernel functions to measure the similarity formsuitablerounds[33].However,theyoftenfocusonclosingthe
+whileyieldsinferiorperformanceondownstreamtaskslikenode gapbetweenthepredictiveresultsofstudentandteacherrather
+classificationandgraphclassification.Moreover,theyoftensuf- thandefiningsimilaritylossinlatentspaceforcontrastivelearning.
+ferfrompoorscalability[5]andgreatmemoryconsumption[29] Semi-supervisedLearningModernsemi-supervisedlearning
+due to some procedures like path extraction and recursive sub- canbecategorizedintotwokinds:multi-tasklearningandcon-
+graphconstruction.Recently,therehasbeenincreasinginterestin sistency training between two separate networks. Most widely
+GraphNeuralNetwork(GNN)approachesforgraphrepresentation used semi-supervised learning methods take the form of multi-
+learningandmanyGNNvariantshavebeenproposed[27,40,52]. tasklearning:argmin 𝜃L𝑙(𝐷 𝑙,𝜃)+𝑤L𝑢(𝐷 𝑢,𝜃)onlabeleddata𝐷
+𝑙
+However,theymainlyfocusonsupervisedsettings. andunlabeleddata𝐷 .Byregularizingthelearningprocesswith
+𝑢
+ContrastiveLearningModernunsupervisedlearninginthe unlabeled data, the decision boundary becomes more plausible.
+form of contrastive learning can be categorized into two types: Anothermainstreamofsemi-supervisedlearningliesinintroduc-
+context-instancecontrastandcontext-contextcontrast[31].The ingstudentnetworkandteachernetworkandenforcingconsis-
+context-instancecontrast,orso-calledglobal-localcontrastfocuses tencybetweenthem[30,32,46].[1]studiestheempiricaleffectsof
+onmodelingthebelongingrelationshipbetweenthelocalfeatureof consistencyregularization,whichvalidatesthemotivationofthe
+asampleanditsglobalcontextrepresentation.Mostunsupervised teacher-studentmodel:introducingaslow-movingaverageteacher
+learningmodelsongraphslikeDGI[48],InfoGraph[45],CMC- networktomeasuresconsistencyagainstastudentone,thuspro-
+Graph[19]fallintothiscategory,followingtheInfoMaxprinciple vidingaconsistency-basedtrainingparadigmwheretwonetworks
+tomaximizethethemutualinformation(MI)betweentheinput canbemutuallyimproved.Ithasbeenshownthatsemi-supervised
+anditsrepresentation.However,estimatingMIisnotoriouslyhard learningperformancecanbegreatlyimprovedviaunsupervisedpre-
+incontext-instancecontrastivelearningandinpracticetractable trainingofa(big)model,supervisedfine-tuningonafewlabeled
+lower bound on this quantity is maximized instead. And maxi- examples,anddistillationwithunlabeledexamplesforrefiningand
+mizingtighterboundsonMIcanresultinworserepresentations transferringthetask-specificknowledge[9].However,whether
+withoutstrongerinductivebiasesinsamplingstrategies,encoder task-agnosticself-distillationwouldbenefitsemi-supervisedlearn-
+architectureandparametrizationofMIestimators[47].Besides, ingisstillunderexplored.
+theintricaciesofnegativesamplingincontext-instancecontrastive DataaugmentationDataaugmentationstrategiesongraphs
+approachesimposekeyresearchchallengeslikeimproperamount are limited since defining views of graphs is a non-trivial task.
+ofnegativesamplesorbiasednegativesampling[10,47].Another Therearetwocommonchoicesofaugmentationsongraphs(1)
+IterativeGraphSelf-distillation Ljubljana’21,April19–23,2021,Ljubljana,Slovenia
+feature-spaceaugmentationand(2)structure-spaceaugmentation. pairs(graphswiththesamelabels)andfarbetweennegativepairs
+Astraightforwardwayistocorrupttheadjacencymatrixwhich (graphswithdifferentlabels).Toachievethisgoal,IGSDemploys
+preservesthefeaturesbutaddsorremovesedgesfromtheadja- theteacher-studentdistillationtoiterativelyrefinerepresentations
+cencymatrixwithsomeprobabilitydistribution[48].[57]improves bycontrastinglatentrepresentationsembeddedbytwonetworks
+performanceinGNN-basedsemi-supervisednodeclassificationvia andusingadditionalpredictorandEMAupdatetoavoidcollapsing
+edgeprediction.Empiricalresultsshowthatthediffusionmatrix totrivialsolutions.Overall,IGSDencouragestheclosenessofaug-
+canserveasadenoisingfiltertoaugmentgraphdataforimproving mentedviewsfromthesamegraphinstanceswhilepushingapart
+graphrepresentationlearningsignificantlybothinsupervised[28] therepresentationsfromdifferentones.
+andunsupervisedsettings[18].[18]showsthebenefitsoftreating
+diffusionmatrixasanaugmentedviewofmulti-viewcontrastive 4.1 IterativeGraphSelf-Distillation
+graphrepresentationlearning. Framework
+InIGSD,weintroduceateacher-studentarchitecturecomprisestwo
+3 PRELIMINARIES
+networksinsimilarstructurecomposedbyencoder𝑓 ,projector𝑔
+𝜃 𝜃
+3.1 Formulation
+andpredictorℎ .Wedenotethecomponentsoftheteachernetwork
+𝜃
+Self-supervised/UnsupervisedGraphRepresentationLearn- andthestudentnetworkas𝑓 ,𝑔 and𝑓 ,𝑔 ,ℎ respectively.
+ing GivenasetofunlabeledgraphsG={𝐺 𝑖} 𝑖𝑁 =1,weaimatlearn- TheoverviewofIGSDis𝜃 il′ lus𝜃 t′ ratedi𝜃 nF𝜃 igur𝜃 e1.InIGSD,the
+ingthelow-dimensionalrepresentationofeverygraph𝐺 𝑖 ∈ G procedureofcontrastivelearningonnegativepairsisdescribed
+favorablefordownstreamtaskslikegraphclassification.
+asfollows:wefirstaugmenttheoriginalinputgraphs𝐺 toget
+𝑗
+Semi-supervisedGraphRepresentationLearning Consider augmentedview(s)𝐺′.Then𝐺′ anddifferentgraphinstance𝐺
+awholedataset G = G𝐿 ∪G𝑈 composedbylabeleddata G𝐿 = arefedrespectivelyin𝑗 totwoenc𝑗 oders𝑓 ,𝑓 forextractinggraph𝑖
+o{( u𝐺 r𝑖 g,𝑦 o𝑖 a) l} i𝑙 𝑖 s=1 toan led aru nn alab me ole dd eld ta ht aa tG c𝑈 an= m{ a𝐺 k𝑖 e} p𝑙 𝑖=+ r𝑢 𝑙 e+ d1 ic(u tis ou na sll oy n𝑢 g≫ rap𝑙 h), representations𝒉,𝒉′=𝑓 𝜃(𝐺 𝑖),𝑓 𝜃′(𝐺 𝑗′)w𝜃 ith𝜃 i′ terativemessagepass-
+ing in Eq. (1) and readout functions. The following projectors
+l {a (b 𝐺e 𝑘′ls ,𝑦fo 𝑘′r )}u 𝑘𝐾n =𝑙s 1e aen ndgr Ga 𝑈p ′h =s. {A 𝐺n 𝑘′d
+}
+𝑘𝐾w =(i 𝑙𝑙t ++h 1𝑢𝐾
+)
+aa su og um re tn rata inti io nn gs, dw ate a.getG 𝐿′ = 𝑔 𝒛𝜃 =,𝑔 𝑔𝜃 𝜃′ (t 𝒉r )an =sf 𝑊or (m 2)𝜎g (r 𝑊ap (h 1)r 𝒉e )p are ns den 𝒛t ′a =tio 𝑔n 𝜃s ′(𝒉to ′)p =ro 𝑊jec ′(t 2io )𝜎n (s 𝑊𝒛, ′𝒛 (1′ )𝒉v ′i )a
+,
+where𝜎denotesaReLUnonlinearity.Topreventcollapsingintoa
+3.2 GraphRepresentationLearning
+trivialsolution[15],aspecializedpredictorisusedinthestudent
+W ane dr te hp ere es de gn et sa etgr Ea .p Th hi ens dt oa mnc ine aa ns t𝐺 w( aV ys,E of) gw ri at ph hth ree pn reo sd ee nts ae tt ioV n network for attaining the predictionℎ 𝜃(𝒛) = 𝑊 ℎ(2)𝜎(𝑊 ℎ(1) 𝒛) of
+learningaregraphneuralnetworkswithneuralmessagepassing
+theprojection𝒛.Forpositivepairs,wefollowthesameprocedure
+mechanisms[17]:foreverynode𝑣 ∈ V,noderepresentationh𝑘 𝑣 e inx tc oep twtf oee nd ei tn wg ot rh ke so rr ei sg pin eca tl ivan eld y.augmentedviewofthesamegraph
+isiterativelycomputedfromthefeaturesoftheirneighbornodes
+N(𝑣)usingadifferentiableaggregationfunction.Specifically,at
+Tocontrastlatentsℎ 𝜃(𝒛)and𝒛′,weuse𝐿2norminthelatent
+space to approximate the semantic distance in the input space
+theiteration𝑘wegetthenodeembeddingasEq.(1):
+andtheconsistencylosscanbedefinedasthemeansquareerror
+h𝑘 𝑣 =𝜎(W𝑘·CONCAT(h𝑘 𝑣−1,AGGREGATE𝑘({h𝑢𝑘−1,∀𝑢∈N(𝑣)}))) (1) between the normalized predictionℎ 𝜃(𝒛) and projection 𝒛′. By
+Thenthegraph-levelrepresentationscanbeattainedbyaggregating passingtwographinstances𝐺 𝑖and𝐺 𝑗symmetrically,wecanobtain
+allnoderepresentationsusingareadoutfunctionlikesummation theoverallconsistencyloss:
+orset2setpooling[50].
+3.3 GraphDataAugmentation Lcon(𝐺 𝑖,𝐺 𝑗)=(cid:13) (cid:13) (cid:13)ℎ 𝜃 (𝒛𝒊)−𝒛 𝒋′(cid:13) (cid:13) (cid:13)2 2+(cid:13) (cid:13)ℎ 𝜃 (cid:0) 𝒛 𝒊′(cid:1)−𝒛𝒋(cid:13) (cid:13)2 2 (2)
+IthasbeenshownthatthelearningperformanceofGNNscanbe Withtheconsistencyloss,theteachernetworkprovidesaregres-
+improvedviagraphdiffusion,whichservesasahomophily-based siontargettotrainthestudentnetwork,anditsparameters𝜃′are
+denoisingfilteronbothfeaturesandedgesinrealgraphs[28].The updatedasanexponentialmovingaverage(EMA)ofthestudentpa-
+transformedgraphscanalsoserveaseffectiveaugmentedviewsin rameters𝜃 afterweightsofthestudentnetworkhavebeenupdated
+contrastivelearning[18].Inspiredbythat,wetransformagraph usinggradientdescent:
+𝐺 withtransitionmatrix𝑻 viagraphdiffusionandsparsification
+S = (cid:205) 𝑘∞ =0𝜃 𝑘𝑻𝑘 intoanewgraphwithadjacencymatrixSasan 𝜃 𝑡′←𝜏𝜃 𝑡′ −1+(1−𝜏)𝜃 𝑡 (3)
+augmentedviewinourframework.Whiletherearemanydesign Withtheaboveiterativeself-distillationprocedure,wecanaggre-
+choicesincoefficients𝜃 𝑘 likeheatkernel,weemployPersonalized gateinformationforaveragingmodelweightsovereachtraining
+PageRank(PPR)with𝜃𝑃𝑃𝑅 =𝛼(1−𝛼)𝑘duetoitssuperiorempirical
+stepinsteadofusingthefinalweightsdirectly[1].Itshouldbe
+𝑘
+performance[18].Asanotheraugmentationchoice,werandomly notedthatmaintainingaslow-movingaveragenetworkisalsoem-
+removeedgesofgraphstoattaincorruptedgraphsasaugmented ployedinsomemodelslikeMoCo[20]withdifferentmotivations:
+viewstovalidatetherobustnessofmodelstodifferentaugmentation MoCousesanEMAofencoderandmomentumencodertoupdate
+choices. theencoder,ensuringtheconsistencyofdictionarykeysinthe
+4 ITERATIVEGRAPHSELF-DISTILLATION memorybank.Ontheotherhand,IGSDusesamovingaverage
+Intuitively,thegoalofcontrastivelearningongraphsistolearn networktoproducepredictiontargets,enforcingtheconsistency
+graphrepresentationsthatarecloseinthemetricspaceforpositive ofteacherandstudentfortrainingthestudentnetwork.
+Ljubljana’21,April19–23,2021,Ljubljana,Slovenia Zhangetal.
+Augmentation LatentContrast
+𝐺
+!
+Encoder Projector Predictor ℎ !(𝑧 ")
+Mini-Batch
+𝐺 ′ 𝑧 ′
+! 𝑓 𝑔 ℎ !
+𝐺 ! ! !
+!
+𝐺 ℎ (𝑧 )
+" ! $
+𝐺
+"
+𝐺 ′ EMA 𝑧 ′
+" Update "
+𝐺 # 𝐺 𝑓 !! 𝑔 !! ℎ (𝑧 )
+# ! #
+𝐺 ′ 𝑧 ′
+# #
+Figure1:OverviewofIGSD.Illustrationofourframeworkinthecasewhereweaugmentinputgraphs𝐺 oncetoget𝐺′for
+onlyoneforwardpass.Blueandredarrowsdenotecontrastonpositiveandnegativepairsrespectively.
+4.2 Self-supervisedLearningwithIGSD whichiscrucial[10]butunachievableinmostcontext-instance
+InIGSD,tocontrasttheanchor𝐺 withothergraphinstances𝐺 contrastivelearningmodelssincesubgraphsaregenerallyhard
+𝑖 𝑗
+(i.e.negativesamples),weemploythefollowingself-supervised toassignlabelsto.Besides,withthislossweareabletofine-tune
+InfoNCEobjective[37]: ourmodeleffectivelyusingself-trainingwherepseudo-labelsare
+assignediterativelytounlabeleddata.
+Lself-sup =−E𝐺𝑖∼G  
+ 
+log
+exp(cid:16) −L𝑖c ,o 𝑖n(cid:17)
++ex (cid:205)p
+𝑁
+𝑗(cid:16) =−
+−
+11L I𝑖c 𝑖,o 𝑖 ≠n 𝑗(cid:17)
+·exp(cid:16) −L𝑖c ,o
+𝑗n(cid:17)  
+ 
+
+squW ari eth ert rh oe rs Lta (n Gd 𝐿a ,r 𝜃d ),s tu hp ee orv vi es re ad lll oo bs js el ci tk ive ec cro anss be en st uro mp my ao rr izm edea an
+s:
+ 
+where L 𝑖c ,o 𝑗n = Lcon(𝐺 𝑖,𝐺 𝑗). At the inference time, as semantic
+interpolationsonsamples,labelsandlatentsresultinbetterrepre- Lsemi=L(G𝐿,𝜃)+𝑤Lself-sup(G𝐿∪G𝑈,𝜃)+𝑤′Lsupcon(G𝐿,𝜃) (6)
+sentationsandcanimprovelearningperformancegreatly[3,49,56],
+weobtainthegraphrepresentation𝒉˜ byinterpolatingthelatent
+Commonsemi-supervisedlearningmethodsuseconsistencyreg-
+representations𝒉 = 𝑓 𝜃(𝐺)and𝒉′ = 𝑓 𝜃′(𝐺)withMixupfunction
+ularizationtomeasurediscrepancybetweenpredictionsmadeon
+Mix 𝜆(𝑎,𝑏)=𝜆·𝑎+(1−𝜆)·𝑏:
+perturbedunlabeleddatapointsforbetterpredictionstabilityand
+𝒉˜ =Mix 𝜆(𝒉,𝒉′) (4) generalization[36].Bycontrast,ourmethodsenforceconsistency
+constraintsbetweenlatentsfromdifferentviews,whichactsasa
+4.3 Semi-supervisedLearningwithIGSD regularizerforlearningdirectlyfromlabels.
+Labeleddataprovidesextrasupervisionaboutgraphclassesand
+Tobridgethegapbetweenself-supervisedpretraininganddown-
+alleviatesbiasednegativesampling.However,theyarecostlytoat-
+streamtasks,weextendourmodeltothesemi-supervisedsetting.In
+taininmanyareas.Therefore,wedevelopacontrastiveself-training
+thisscenario,itisstraightforwardtoplugintheself-supervisedloss
+algorithmtoleveragelabelinformationmoreeffectivelythancross
+asaregularizerforrepresentationlearning.However,theinstance-
+entropyinthesemi-supervisedscenario.Inthealgorithm,wetrain
+wisesupervisionlimitedtostandardsupervisedlearningmaylead
+themodelusingasmallamountoflabeleddataandthenfine-tune
+tobiasednegativesamplingproblems[10].Totacklethischallenge,
+itbyiteratingbetweenassigningpseudo-labelstounlabeledexam-
+wecanuseasmallamountoflabeleddatafurthertogeneralize
+plesandtrainingmodelsusingtheaugmenteddataset.Inthisway,
+thesimilaritylosstohandlearbitrarynumberofpositivesamples
+weharvestmassivepseudo-labelsforunlabeledexamples.
+belongingtothesameclass:
+Withincreasingsizeoftheaugmentedlabeleddataset,thedis-
+Lsupcon=∑︁ 𝑖𝐾 =𝑙
+1
+𝐾𝑁1
+𝑦 𝑖′
+∑︁ 𝑗𝐾 =𝑙 1I 𝑖≠𝑗 ·I 𝑦 𝑖′=𝑦′
+𝑗
+·Lcon(𝐺 𝑖,𝐺 𝑗) (5) c i anr ci g cm umi mn o ua rt lei av p te eop s hio it giw v he e -r qp uo a af ir lI isG tybS eD plo sc una egn din ob g -e lati om betp h lsr eo av s fae temd rei ete c ar l caa hst si iv . te eInl ry at tb h ioy is nc wo ton ayt cr , oa w mst e --
+where 𝑁 𝑦′ denotes the total number of samples in the training putethesupervisedcontrastivelossinEq.(5)andmakedistinction
+𝑖
+setthathavethesamelabel𝑦′asanchor𝑖.Thankstothegraph- fromconventionalself-trainingalgorithms[41].Onthecontrary,
+𝑖
+levelcontrastivenatureofIGSD,weareabletoalleviatethebiased traditionalself-trainingcanusepsuedo-labelsforcomputingcross
+negativesamplingproblems[26]withsupervisedcontrastiveloss, entropyonly.
+IterativeGraphSelf-distillation Ljubljana’21,April19–23,2021,Ljubljana,Slovenia
+Datasets MUTAG IMDB-B IMDB-M NCI1 COLLAB PTC
+#graphs 188 1000 1500 4110 5000 344
+#classes 2 2 3 2 3 2
+Avg#nodes 17.9 19.8 13.0 29.8 74.5 25.5
+RandomWalk 83.7±1.5 50.7±0.3 34.7±0.2 OMR OMR 57.9±1.3
+ShortestPath 85.2±2.4 55.6±0.2 38.0±0.3 51.3±0.6 49.8±1.2 58.2±2.4
+GraphletKernel 81.7±2.1 65.9±1.0 43.9±0.4 53.9±0.4 56.3±0.6 57.3±1.4
+WLsubtree 80.7±3.0 72.3±3.4 47.0±0.5 55.1±1.6 50.2±0.9 58.0±0.5
+DeepGraph 87.4±2.7 67.0±0.6 44.6±0.5 54.5±1.2 52.1±1.0 60.1±2.6
+MLG 87.9±1.6 66.6±0.3 41.2±0.0 >1Day >1Day 63.3±1.5
+GCKN 87.2±6.8 70.5±3.1 50.8±0.8 70.6±2.0 54.3±1.0 58.4±7.6
+Graph2Vec 83.2±9.6 71.1±0.5 50.4±0.9 73.2±1.8 47.9±0.3 60.2±6.9
+InfoGraph 89.0±1.1 74.2±0.7 49.7±0.5 73.8±0.7 67.6±1.2 61.7±1.7
+CMC-Graph 89.7±1.1 74.2±0.7 51.2±0.5 75.0±0.7 68.9±1.9 62.5±1.7
+GCC 86.4±0.5 71.9±0.5 48.9±0.8 66.9±0.2 75.2±0.3 58.4±1.2
+GraphCL 86.8±1.3 71.1±0.4 48.4±0.8 77.9±0.4 71.4±1.2 58.4±1.7
+Ours(Random) 85.7±2.1 71.6±1.2 49.2±0.6 75.1±0.4 65.8±1.0 57.6±1.5
+Ours 90.2±0.7 74.7±0.6 51.5±0.3 75.4±0.3 70.4±1.1 61.4±1.7
+Table1:Graphclassificationaccuracies(%)forkernelsandself-suppervisedmethodson6datasets.Wereportthemeanand
+standarddeviationoffinalresultswithfiveruns.‘>1Day’representsthatthecomputationexceeds24hours.‘OMR’meansout
+ofmemoryerror.
+5 EXPERIMENTS ModelConfiguration.Inourframework,WeuseGCNs[27]
+andGINs[52]asencoderstoattainnoderepresentationsforself-
+5.1 ExperimentalSetup
+suppervisedandsemi-supervisedgraphclassificationrespectively.
+EvaluationTasks.Weconductexperimentsbycomparingwith
+For semi-supervised molecular property prediction, we employ
+state-of-the-art models on three tasks. In graph classification messagepassingneuralnetworks(MPNNs)[14]asbackboneen-
+tasks,weexperimentinboththeself-suppervisedsettingwhere
+coderstoencodemoleculargraphswithrichedgeattributes.All
+weonlyhaveaccesstoallunlabeledsamplesinthedatasetand
+projectorsandpredictorsareimplementedastwo-layerMLPs.
+the semi-supervised setting where we use a small fraction of Insemi-supervisedmolecularpropertypredictiontasks,wegen-
+labeledexamplesandtreattherestasunlabeledonesbyignoring
+eratemultipleviewsbasedonedgeattributes(bondtypes)ofrich-
+theirlabels.Inmolecularpropertypredictiontaskswherelabels
+annotatedmoleculargraphsforimprovingperformance.Specifi-
+areexpensivetoobtain,weonlyconsiderthesemi-supervised
+cally,weperformlabel-preservingaugmentationtoattainmultiple
+setting.
+diffusionmatrixesofeverygraphondifferentedgeattributeswhile
+Datasets.Forgraphclassificationtasks,weemployseveralwidely-
+ignoringothersrespectively.Thediffusionmatrixgivesadenser
+used graph kernel datasets [25] for learning and evaluation: 3
+graphbasedoneachtypeofedgestoleverageedgefeaturesbetter.
+bioinformaticsdatasets(MUTAG,PTC,NCI1)and3socialnetwork
+Wetrainourmodelsusingdifferentnumbersofaugmentedtraining
+datasets(COLLAB,IMDB-B,IMDB-M)withstatisticssummarized
+dataandselecttheamountusingcrossvalidation.
+inTable1.Inthesemi-supervisedgraphregressiontasks,weuse
+Forself-suppervisedgraphclassification,weadoptLIB-SVM[6]
+theQM9datasetcontaining134,000drug-likeorganicmolecules
+withCparameterselectedin{1e-3,1e-2,...,1e2,1e3}asourdown-
+[40]with9heavyatomsandselectthefirsttenphysicochemical
+streamclassifier.Thenweuse10-foldcrossvalidationaccuracyas
+propertiesasregressiontargetsfortrainingandevaluation.
+theclassificationperformanceandrepeattheexperiments5times
+Baselines.Intheself-suppervisedgraphclassification,wecom-
+toreportthemeanandstandarddeviation.Forsemi-supervised
+parewiththefollowingrepresentativebaselines:InfoGraph[45],
+graphclassification,werandomlyselect5%oftrainingdataasla-
+CMC-Graph [19], GCC [38], GraphCL[54], Graph2Vec [34] and
+beleddatawhiletreattherestasunlabeledoneandreportthebest
+GraphKernelsincludingRandomWalkKernel[13],ShortestPath
+testsetaccuracyin300epochs.Followingtheexperimentalsetup
+Kernel[24],GraphletKernel[44],Weisfeiler-LehmanSub-treeKer-
+in[45],werandomlychoose5000,10000,10000samplesfortrain-
+nel(WLSubTree)[43],DeepGraphKernels[53],Multi-ScaleLapla-
+ing,validationandtestingrespectivelyandtherestaretreatedas
+cianKernel(MLG)[29]andGraphConvolutionalKernelNetwork
+unlabeledtrainingdataforthemolecularpropertypredictiontasks.
+(GCKN)[7]1.
+Hyper-Parameters For hyper-parameter tuning, we select
+Forthesemi-supervisedgraphclassification,wecompareour
+numberofGCNlayersover{2,8,12},batchsizeover{16,32,64,
+methodwithcompetitivebaselineslikeInfoGraph,InfoGraph*and
+128,256,512},numberofepochsover{20,40,100}andlearning
+MeanTeachers.AndtheGINbaselinedoesn’thaveaccesstotheun-
+rateover{1e-4,1e-3}inself-suppervisedgraphclassification.The
+labeleddata.Inthesemi-supervisedmolecularpropertyprediction
+hyper-parameterswetuneforsemi-supervisedgraphclassification
+tasks,baselinesincludeInfoGraph,InfoGraph*andMeanTeachers
+andmolecularpropertypredictionarethesamein[52]and[45],
+[46].
+respectively.
+1WereportourreproducedresultsofGCKNforfaircomparisonssincetheoriginal Inallexperiments,wefixthefixed𝛼 =0.2forPPRgraphdiffu-
+GCKNpaperadoptsdifferenttrain-testsplitsfornested10-foldcross-validation,which sionandsettheweightingcoefficientofMixupfunctiontobe0.5
+isdifferentfromtheStratified10foldonesofothercontrastivelearningworks[18,45] andtuneourprojectionhiddensizeover{1024,2048}andprojection
+andours.
+stesataD
+slenreKhparG
+desivreppus-fles
+Ljubljana’21,April19–23,2021,Ljubljana,Slovenia Zhangetal.
+Datasets IMDB-B IMDB-M COLLAB NCI1
+MeanTeachers 69.0 49.3 72.5 71.1
+InfoGraph* 71.0 49.3 67.6 71.1
+GIN(SupervisedOnly) 67.0 50.0 71.4 67.9
+Ours(Self-supp) 72.0 50.0 72.6 70.6
+Ours(SupCon) 75.0 52.0 73.4 67.9
+GIN(SupervisedOnly)+self-training 72.0 51.3 70.4 74.0
+Ours(Self-supp)+self-training 73.0 54,0 71 72.5
+Ours(SupCon)+self-training 77.0 55.3 73.6 77.1
+Table2:Graphclassificationaccuracies(%)ofsemi-supervisedexperimentson4datasets.Wereportthebestresultsontestset
+in300epochs.
+2.0
+InfoGraph InfoGraph* Mean Teachers Ours (IGSD)
+1.5
+1.0
+0.5
+0.0
+Mu (0) Alpha (1) HOMO (2) LUMO (3) Gap (4) R2 (5) ZPVE (6) U0 (7) U (8) H (9)
+Molecular Properties
+Figure2:Semi-supervisedmolecularpropertypredictionresultsintermsofmeanabsoluteerror(MAE)ratio.Thehistogram
+showserrorratiowithrespecttosupervisedresults(1.0)ofeverysemi-supervisedmodels.Lowerscoresarebetterandamodel
+outperformsthesupervisedbaselinewhenthescoreislessthan1.0.
+sizeover{256,512}.Westartself-trainingafter30epochsandtune sinceself-trainingiterativelyassignspsuedo-labelswithhighconfi-
+thenumberofiterationsover{20,50},pseudo-labelingthreshold dencetounlabeleddata,whichprovidesextrasupervisionontheir
+over{0.9,0.95}. categoriesundercontrastivelearningframework.
+Resultsonsemi-supervisedmolecularpropertyprediction.
+Wepresenttheregressionperformanceofourmodelmeasuredin
+5.2 NumericalResults
+theQM9datasetinFigure2.Wedisplaytheperformanceofour
+Resultsonself-suppervisedgraphclassification.Wefirstpresent modelandbaselinesasmeansquareerrorratiowithrespectto
+theresultsoftheself-suppervisedsettinginTable1.Allgraphker- supervisedresultsandourmodeloutperformsallbaselinesin9out
+nelsgiveinferiorperformanceexceptinthePTCdataset.TheRan- of10taskscomparedwithstrongbaselinesInfoGraph,InfoGraph*
+domWalkkernelrunsoutofmemoryandtheMulti-ScaleLaplacian andMeanTeachers.AndinsometaskslikeR2(5),U0(7)andU(8),
+Kernelsuffersfromalongrunningtime(exceeds24hours)intwo IGSDachievessignificantperformancegainsagainstitscounter-
+largerdatasets.IGSDoutperformsstate-of-the-artbaselineslikeIn- parts,whichdemonstratestheabilitytotransferknowledgelearned
+foGraph,CMC-GraphandGCCinmostdatasets,showingthatIGSD fromself-supperviseddataforsupervisedtasks.
+canlearnexpressivegraph-levelrepresentationsfordownstream
+classifiers.Besides,ourmodelstillachievecompetitiveresultsin
+datasetslikeIMDB-MandNCI1withrandomdroppingaugmen-
+tation,whichdemonstratestherobustnessofIGSDwithdifferent
+dataaugmentationstrategies. 5.3 AblationStudiesandAnalysis
+Results on semi-supervised graph classification. We fur- Effectsofself-training.Wefirstinvestigatetheeffectsofself-
+therapplyourmodeltosemi-supervisedgraphclassificationtasks trainingforourmodelperformanceinTable4.Resultsshowthat
+withresultsdemonstratedinTable4,whereweset𝑤 and𝑤′in self-trainingcanimprovetheGINbaselineandourmodelswith
+Eq. (6) to be 1 and 0 as Ours (Self-supp) while 0 and 1 as Ours self-suppervisedloss(self-supp)orsupervisedcontrastiveloss(Sup-
+(SupCon).Inthissetting,ourmodelperformsbetterthanMean Con).Theimprovementisevenmoresignificantcombinedwith
+TeachersandInfoGraph*.Boththeself-suppervisedlossandsuper- supervisedcontrastivelosssincehigh-qualitypseudo-labelspro-
+visedcontrastivelossprovideextraperformancegaincompared vide additional information of graph categories. Moreover, our
+withGINusingsuperviseddataonly.Besides,bothoftheirperfor- self-training algorithm consistently outperforms the traditional
+mancecanbeimprovedsignificantlycombinedusingself-training self-trainingbaseline,whichfurthervalidatesthesuperiorityofour
+especiallywithsupervisedcontrastiveloss.Itmakesempiricalsense model.
+oitaR
+rorrE
+IterativeGraphSelf-distillation Ljubljana’21,April19–23,2021,Ljubljana,Slovenia
+54
+Ours InfoGraph* 75.00
+52 74.75
+74.50
+50
+74.25
+48
+10 20 30 40 50 60
+74.00
+128 512 1024 2048
+Fraction of labeled data used (%)
+Size
+Figure3:Semi-supervisedgraphclassificationaccuracywith
+differentproportionoflabeleddata.
+Figure5:EffectsofprojectorhiddensizeonGraphclassifi-
+cationaccuracies(%).
+80
+Ours CMC-Graph conclusionsofpreviouscontrastivelearningworksintheimagedo-
+mainlike[8],whichhaveempiricallyshownthatusingadditional
+75 projectorcanimprovedownstreamperformance.
+Moreover,toinvestigatetheeffectsofprojectorsonmodelper-
+formance,wefixtheoutputsizeoflayersinencoderssothattheir
+70 outputsizeisalways512.Thenweconductedablationexperiments
+ondifferentsizeoftheprojectionheadonIMDB-Bwiththeresults
+inFig.5.Theperformanceisinsensitivetotheprojectionsizewhile
+65 alargerprojectionsizecouldslightlyimprovetheself-suppervised
+25 50 75 100 125
+learningperformance.
+Batch size (Negative Samples)
+Datasets MUTAG IMDB-B IMDB-M PTC
+IGSD 90.2±0.7 74.7±0.6 51.5±0.3 61.4±1.7
+Figure4:Self-suppervisedperformancewithdifferentbatch IGSDw/oprojector 87.7±0.9 74.2±0.6 51.1±0.6 56.7±0.9
+size(numberofnegativepairs) Table3:EffectsofprojectorsonGraphclassificationaccura-
+cies(%).
+Effectsofdifferentamountofnegativepairs.Wethencon-
+ductablationexperimentsontheamountofnegativepairsbyvary-
+ingbatchsizeover{16,32,64,128}withresultsonIMDB-Bdataset 6 CONCLUSIONS
+showninFigure4.Bothmethodscontrastnegativepairsbatch- Inthispaper,weproposeIGSD,anovelgraph-levelrepresentation
+wiseandincreasingbatchsizeimprovestheperformanceofIGSD learningframeworkviaself-distillation.Ourframeworkiteratively
+whiledegradesCMC-Graph.Whenbatchsizeisgreaterthan32, performsteacher-studentdistillationbyinstancediscriminationon
+IGSDoutperformsCMC-Graphandtheperformancegapbecomes augmentedviewsofgraphinstancesusinggraphdiffusion.Experi-
+largerasthebatchsizeincreases,whichmeansIGSDisbetterat mentalresultsinbothself-supervisedandsemi-supervisedsettings
+leveragingnegativepairsforlearningeffectiverepresentationsthan showthatIGSDisnotonlyabletolearnexpressivegraphrepresen-
+CMC-Graph. tationscompetitivewithstate-of-the-artmodelsbutalsoeffective
+Effectsofdifferentproportionoflabeleddata.Wealsoin- withdifferentchoicesofencodersandaugmentationstrategies.In
+vestigatetheperformanceofdifferentmodelswithdifferentpropor- thefuture,weplantoapplyourframeworktoothergraphlearning
+tionoflabeleddatawithIMDB-Bdataset.AsillustratedinFigure3, tasksandinvestigatethedesignofviewgeneratorstogenerate
+IGSDoutperformsthestrongInfoGraph*baselinegivendifferent effectiveviewsautomatically.
+amountoflabeleddataconsistently.Andtheperformancegainis
+mostsignificantwhenthefractionoflabeleddatais10%sinceour
+modelscanleveragelabelsmoreeffectivelybyregularizingoriginal
+self-suppervisedlearningobjectivewhenlabelsarescarce.
+Effects of the Projector. We further investigate the perfor-
+mancewithandwithouttheprojectoron4datasets.Resultsinthe
+Table3showthatdroppingtheprojectordegradestheperformance,
+whichindicatesthenecessityofaprojector.Italsoalignswiththe
+)%(
+ycaruccA
+)%(
+ycaruccA
+ycaruccA
+Ljubljana’21,April19–23,2021,Ljubljana,Slovenia Zhangetal.
+REFERENCES [23] WeihuaHu,BowenLiu,JosephGomes,MarinkaZitnik,PercyLiang,VijayPande,
+[1] BenAthiwaratkun,MarcFinzi,PavelIzmailov,andAndrewGordonWilson. andJureLeskovec.2019.StrategiesforPre-trainingGraphNeuralNetworks.In
+2019. ThereAreManyConsistentExplanationsofUnlabeledData:WhyYou InternationalConferenceonLearningRepresentations.
+ShouldAverage.InInternationalConferenceonLearningRepresentations. https: [24] HisashiKashima,KojiTsuda,andAkihiroInokuchi.2003.Marginalizedkernels
+//openreview.net/forum?id=rkgKBhA5Y7 betweenlabeledgraphs.InProceedingsofthe20thinternationalconferenceon
+[2] MikhailBelkinandParthaNiyogi.2002. Laplacianeigenmapsandspectral machinelearning(ICML-03).321–328.
+techniquesforembeddingandclustering.InAdvancesinneuralinformation [25] KristianKersting,NilsM.Kriege,ChristopherMorris,PetraMutzel,andMarion
+processingsystems.585–591. Neumann.2016.BenchmarkDataSetsforGraphKernels. http://graphkernels.
+[3] DavidBerthelot,NicholasCarlini,IanGoodfellow,NicolasPapernot,AvitalOliver, cs.tu-dortmund.de
+andColinARaffel.2019. Mixmatch:Aholisticapproachtosemi-supervised [26] PrannayKhosla,PiotrTeterwak,ChenWang,AaronSarna,YonglongTian,Phillip
+learning.InAdvancesinNeuralInformationProcessingSystems.5049–5059. Isola,AaronMaschinot,CeLiu,andDilipKrishnan.2020.SupervisedContrastive
+[4] PiotrBielak,TomaszKajdanowicz,andNiteshV.Chawla.2021. GraphBar- Learning.AdvancesinNeuralInformationProcessingSystems33(2020).
+lowTwins:Aself-supervisedrepresentationlearningframeworkforgraphs. [27] ThomasN.KipfandMaxWelling.2017. Semi-SupervisedClassificationwith
+arXiv:2106.02466[cs.LG] GraphConvolutionalNetworks.InInternationalConferenceonLearningRepre-
+[5] KarstenMBorgwardtandHans-PeterKriegel.2005.Shortest-pathkernelson sentations(ICLR).
+graphs.InFifthIEEEinternationalconferenceondatamining(ICDM’05).IEEE, [28] JohannesKlicpera,StefanWeißenberger,andStephanGünnemann.2019.Diffu-
+8–pp. sionimprovesgraphlearning.AdvancesinNeuralInformationProcessingSystems
+[6] Chih-ChungChangandChih-JenLin.2011.LIBSVM:Alibraryforsupportvector 32(2019),13354–13366.
+machines. ACMtransactionsonintelligentsystemsandtechnology(TIST)2,3 [29] RisiKondorandHoracePan.2016. Themultiscalelaplaciangraphkernel.In
+(2011),1–27. AdvancesinNeuralInformationProcessingSystems.2990–2998.
+[7] DexiongChen,LaurentJacob,andJulienMairal.2020.Convolutionalkernelnet- [30] Dong-HyunLee.2013.Pseudo-label:Thesimpleandefficientsemi-supervised
+worksforgraph-structureddata.InInternationalConferenceonMachineLearning. learningmethodfordeepneuralnetworks.InWorkshoponchallengesinrepre-
+PMLR,1576–1586. sentationlearning,ICML,Vol.3.
+[8] TingChen,SimonKornblith,MohammadNorouzi,andGeoffreyHinton.2020.A [31] XiaoLiu,FanjinZhang,ZhenyuHou,LiMian,ZhaoyuWang,JingZhang,andJie
+simpleframeworkforcontrastivelearningofvisualrepresentations.InInterna- Tang.2021.Self-supervisedlearning:Generativeorcontrastive.IEEETransactions
+tionalconferenceonmachinelearning.PMLR,1597–1607. onKnowledgeandDataEngineering(2021).
+[9] TingChen,SimonKornblith,KevinSwersky,MohammadNorouzi,andGeoffreyE [32] TakeruMiyato,Shin-IchiMaeda,MasanoriKoyama,andShinIshii.2019.Vir-
+Hinton.2020.BigSelf-SupervisedModelsareStrongSemi-SupervisedLearners. tualAdversarialTraining:ARegularizationMethodforSupervisedandSemi-
+AdvancesinNeuralInformationProcessingSystems33(2020),22243–22255. SupervisedLearning.IEEETransactionsonPatternAnalysisandMachineIntelli-
+[10] Ching-YaoChuang,JoshuaRobinson,Yen-ChenLin,AntonioTorralba,andSte- gence41,8(Aug2019),1979–1993. https://doi.org/10.1109/tpami.2018.2858821
+fanieJegelka.2020.DebiasedContrastiveLearning.InNeurIPS. [33] HosseinMobahi,MehrdadFarajtabar,andPeterLBartlett.2020.Self-distillation
+[11] DavidKDuvenaud,DougalMaclaurin,JorgeIparraguirre,RafaelBombarell, amplifiesregularizationinhilbertspace.arXivpreprintarXiv:2002.05715(2020).
+TimothyHirzel,AlánAspuru-Guzik,andRyanPAdams.2015.Convolutional [34] AnnamalaiNarayanan,MahinthanChandramohan,RajasekarVenkatesan,Lihui
+networksongraphsforlearningmolecularfingerprints.InAdvancesinneural Chen,YangLiu,andShantanuJaiswal.2017.graph2vec:Learningdistributed
+informationprocessingsystems.2224–2232. representationsofgraphs.arXivpreprintarXiv:1707.05005(2017).
+[12] TommasoFurlanello,ZacharyLipton,MichaelTschannen,LaurentItti,andAnima [35] MarkEJNewmanandMichelleGirvan.2004.Findingandevaluatingcommunity
+Anandkumar.2018.Bornagainneuralnetworks.InInternationalConferenceon structureinnetworks.PhysicalreviewE69,2(2004),026113.
+MachineLearning.PMLR,1607–1616. [36] AvitalOliver,AugustusOdena,ColinARaffel,EkinDogusCubuk,andIanGood-
+[13] ThomasGärtner,PeterFlach,andStefanWrobel.2003.Ongraphkernels:Hard- fellow.2018.RealisticEvaluationofDeepSemi-SupervisedLearningAlgorithms.
+nessresultsandefficientalternatives.InLearningtheoryandkernelmachines. AdvancesinNeuralInformationProcessingSystems31(2018),3235–3246.
+Springer,129–143. [37] AaronvandenOord,YazheLi,andOriolVinyals.2018.Representationlearning
+[14] JustinGilmer,SamuelSSchoenholz,PatrickFRiley,OriolVinyals,andGeorgeE withcontrastivepredictivecoding.arXivpreprintarXiv:1807.03748(2018).
+Dahl.2017. Neuralmessagepassingforquantumchemistry.InInternational [38] JiezhongQiu,QibinChen,YuxiaoDong,JingZhang,HongxiaYang,MingDing,
+conferenceonmachinelearning.PMLR,1263–1272. KuansanWang,andJieTang.2020. Gcc:Graphcontrastivecodingforgraph
+[15] Jean-Bastien Grill, Florian Strub, Florent Altché, Corentin Tallec, Pierre neuralnetworkpre-training.InProceedingsofthe26thACMSIGKDDInternational
+Richemond,ElenaBuchatskaya,CarlDoersch,BernardoAvilaPires,Zhaohan ConferenceonKnowledgeDiscovery&DataMining.1150–1160.
+Guo,MohammadGheshlaghiAzar,BilalPiot,koraykavukcuoglu,RemiMunos, [39] AlecRadford,KarthikNarasimhan,TimSalimans,andIlyaSutskever.2018.Im-
+andMichalValko.2020. BootstrapYourOwnLatent-ANewApproachto provinglanguageunderstandingbygenerativepre-training.
+Self-SupervisedLearning.InAdvancesinNeuralInformationProcessingSystems, [40] RaghunathanRamakrishnan,PavloODral,MatthiasRupp,andOAnatole
+H.Larochelle,M.Ranzato,R.Hadsell,M.F.Balcan,andH.Lin(Eds.),Vol.33. VonLilienfeld.2014.Quantumchemistrystructuresandpropertiesof134kilo
+CurranAssociates,Inc.,21271–21284. https://proceedings.neurips.cc/paper/ molecules.Scientificdata1,1(2014),1–7.
+2020/file/f3ada80d5c4ee70142b17b8192b2958e-Paper.pdf [41] Chuck Rosenberg, Martial Hebert, and Henry Schneiderman. 2005. Semi-
+[16] Jean-BastienGrill,FlorianStrub,FlorentAltché,CorentinTallec,PierreH. SupervisedSelf-TrainingofObjectDetectionModels.InProceedingsoftheSeventh
+Richemond,ElenaBuchatskaya,CarlDoersch,BernardoAvilaPires,Zhao- IEEEWorkshopsonApplicationofComputerVision(WACV/MOTION’05)-Volume
+hanDanielGuo,MohammadGheshlaghiAzar,BilalPiot,KorayKavukcuoglu, 1-Volume01.29–36.
+RémiMunos,andMichalValko.2020. BootstrapYourOwnLatent:ANew [42] FlorianSchroff,DmitryKalenichenko,andJamesPhilbin.2015. Facenet:A
+ApproachtoSelf-SupervisedLearning. arXiv:2006.07733[cs.LG] unifiedembeddingforfacerecognitionandclustering.InProceedingsoftheIEEE
+[17] WillHamilton,ZhitaoYing,andJureLeskovec.2017.Inductiverepresentation conferenceoncomputervisionandpatternrecognition.815–823.
+learningonlargegraphs.InAdvancesinneuralinformationprocessingsystems. [43] NinoShervashidze,PascalSchweitzer,ErikJanVanLeeuwen,KurtMehlhorn,
+1024–1034. andKarstenMBorgwardt.2011.Weisfeiler-lehmangraphkernels.Journalof
+[18] KavehHassaniandAmirHoseinKhasahmadi.2020. ContrastiveMulti-View MachineLearningResearch12,9(2011).
+RepresentationLearningonGraphs.InProceedingsofInternationalConference [44] NinoShervashidze,SVNVishwanathan,TobiasPetri,KurtMehlhorn,andKarsten
+onMachineLearning.3451–3461. Borgwardt.2009. Efficientgraphletkernelsforlargegraphcomparison.In
+[19] KavehHassaniandAmirHoseinKhasahmadi.2020.Contrastivemulti-viewrep- ArtificialIntelligenceandStatistics.488–495.
+resentationlearningongraphs.InInternationalConferenceonMachineLearning. [45] Fan-YunSun,JordanHoffman,VikasVerma,andJianTang.2020. InfoGraph:
+PMLR,4116–4126. UnsupervisedandSemi-supervisedGraph-LevelRepresentationLearningvia
+[20] KaimingHe,HaoqiFan,YuxinWu,SainingXie,andRossGirshick.2020.Mo- MutualInformationMaximization.InInternationalConferenceonLearningRep-
+mentumContrastforUnsupervisedVisualRepresentationLearning. 2020 resentations. https://openreview.net/forum?id=r1lfF2NYvH
+IEEE/CVFConferenceonComputerVisionandPatternRecognition(CVPR)(Jun [46] AnttiTarvainenandHarriValpola.2017.Meanteachersarebetterrolemodels:
+2020). https://doi.org/10.1109/cvpr42600.2020.00975 Weight-averagedconsistencytargetsimprovesemi-superviseddeeplearning
+[21] GeoffreyHinton,OriolVinyals,andJeffDean.2015.Distillingtheknowledgein results.AdvancesinNeuralInformationProcessingSystems30(2017).
+aneuralnetwork.arXivpreprintarXiv:1503.02531(2015). [47] MichaelTschannen,JosipDjolonga,PaulKRubenstein,SylvainGelly,andMario
+[22] RDevonHjelm,AlexFedorov,SamuelLavoie-Marchildon,KaranGrewal,Phil Lucic.2019.Onmutualinformationmaximizationforrepresentationlearning.
+Bachman,AdamTrischler,andYoshuaBengio.2018.Learningdeeprepresen- arXivpreprintarXiv:1907.13625(2019).
+tationsbymutualinformationestimationandmaximization.InInternational [48] PetarVeličković,WilliamFedus,WilliamLHamilton,PietroLiò,YoshuaBengio,
+ConferenceonLearningRepresentations. andRDevonHjelm.2018.Deepgraphinfomax.arXivpreprintarXiv:1809.10341
+(2018).
+IterativeGraphSelf-distillation Ljubljana’21,April19–23,2021,Ljubljana,Slovenia
+[49] VikasVerma,AlexLamb,ChristopherBeckham,AmirNajafi,IoannisMitliagkas, A APPENDIX
+DavidLopez-Paz,andYoshuaBengio.2019.Manifoldmixup:Betterrepresen-
+tationsbyinterpolatinghiddenstates.InInternationalConferenceonMachine A.1 ThecomparisonwithGCKNindifferent
+Learning.PMLR,6438–6447.
+evaluationsettings
+[50] OriolVinyals,SamyBengio,andManjunathKudlur.2015. OrderMatters:Se-
+quencetosequenceforsets. arXiv:1511.06391[stat.ML] TheevaluationsettinginoriginalGCKNpaperisdifferentfrom
+[51] ZhirongWu,YuanjunXiong,StellaXYu,andDahuaLin.2018.Unsupervised
+ours and other contrastive learning works like InfoGraph [45]
+featurelearningvianon-parametricinstancediscrimination.InProceedingsof
+theIEEEconferenceoncomputervisionandpatternrecognition.3733–3742. and CMC-Graph [19]: GCKN uses different train-test splits for
+[52] KeyuluXu,WeihuaHu,JureLeskovec,andStefanieJegelka.2018.HowPowerful nested10-foldcrossvalidationwithparameterofSVCisin 1 ×
+areGraphNeuralNetworks?.InInternationalConferenceonLearningRepresenta- 𝑛
+tions.
+𝑛𝑝.𝑙𝑜𝑔𝑠𝑝𝑎𝑐𝑒(−3,4,60),requiring10timesmorecomputation.While
+[53] PinarYanardagandSVNVishwanathan.2015.Deepgraphkernels.InProceedings weconductedexperimentsusingStratified10foldcrossvalidation
+ofthe21thACMSIGKDDInternationalConferenceonKnowledgeDiscoveryand withparametersinSVCin{1e-3,1e-2,... ,1e2,1e3}tocompare
+DataMining.1365–1374.
+[54] YuningYou,TianlongChen,YongduoSui,TingChen,ZhangyangWang,and withGCKNwithresultsasTable1inSection5.2.
+YangShen.2020.Graphcontrastivelearningwithaugmentations.Advancesin Wealsoevaluatedtherepresentationsusingthetrain-testsplit-
+NeuralInformationProcessingSystems33(2020),5812–5823.
+tingindexesprovidedinGCKNfornested10-foldcrossvalidation
+[55] YuningYou,TianlongChen,ZhangyangWang,andYangShen.2020.Whendoes
+self-supervisionhelpgraphconvolutionalnetworks?.InInternationalConference with parameter of SVC is in 𝑛1 ×𝑛𝑝.𝑙𝑜𝑔𝑠𝑝𝑎𝑐𝑒(−3,4,60) and the
+onMachineLearning.PMLR,10871–10880. resultsareasfollows:
+[56] HongyiZhang,MoustaphaCisse,YannNDauphin,andDavidLopez-Paz.2018.
+mixup:BeyondEmpiricalRiskMinimization.InInternationalConferenceonLearn-
+ingRepresentations. Datasets MUTAG IMDB-B IMDB-M NCI1 PTC
+[57] Tong Zhao, Yozen Liu, Leonardo Neves, Oliver Woodford, Meng Jiang,
+and Neil Shah. 2020. Data Augmentation for Graph Neural Networks. GCKN 87.6±2.8 76.6±3.8 53.1±3.3 83.4±2.0 60.9±6.9
+arXiv:2006.06830[cs.LG]
+Ours 91.6±7.6 75.4±3.9 52.3±3.3 79.4±2.3 63.2±7.8
+[58] YadiZhou,FeiWang,JianTang,RuthNussinov,andFeixiongCheng.2020.
+Table 4: Graph classification accuracies (%) of self-
+ArtificialintelligenceinCOVID-19drugrepurposing.TheLancetDigitalHealth
+(2020). supervised experiments (in the GCKN setting) on 6
+datasets.

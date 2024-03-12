@@ -1,0 +1,1375 @@
+Data-efficient Active Learning for Structured Prediction with
+Partial Annotation and Self-Training
+ZhisongZhang,EmmaStrubell,EduardHovy
+LanguageTechnologiesInstitute,CarnegieMellonUniversity
+zhisongz@cs.cmu.edu, strubell@cmu.edu, hovy@cmu.edu
+Abstract
+Model Prediction for Annotation for
+Highly-confident Parts Ambigious Parts
+✘
+Inthisworkweproposeapragmaticmethod
+✔
+thatreducestheannotationcostforstructured
+label spaces using active learning. Our ap-
+proachleveragespartialannotation,whichre- He saw the man with a backpack
+duces labeling costs for structured outputs
+by selecting only the most informative sub- Figure1: Examplepartialannotationsofadependency
+structuresforannotation. Wealsoutilizeself- tree. Manualannotationisrequestedonlyfortheuncer-
+trainingtoincorporatethecurrentmodel’sau- tainsub-structures(red),whereasmodelpredictionscan
+tomatic predictions as pseudo-labels for un- beusedtoannotatethehighly-confidentedges(blue).
+annotatedsub-structures. Akeychallengein
+effectivelycombiningpartialannotationwith
+Tomitigatesuchdatabottlenecks,activelearn-
+self-trainingtoreduceannotationcostisdeter-
+ing (AL), which allows the model to select the
+miningwhichsub-structurestoselecttolabel.
+most informative data instances to annotate, has
+To address this challenge, we adopt an error
+estimatortoadaptivelydecidethepartialselec- been demonstrated to achieve good model accu-
+tionratioaccordingtothecurrentmodel’scapa- racy while requiring fewer labels (Settles, 2009).
+bility. Inevaluationsspanningfourstructured When applying AL to structured prediction, one
+predictiontasks,weshowthatourcombination naturalstrategyistoperformfullannotation(FA)
+ofpartialannotationandself-trainingusingan
+fortheoutputstructures,forexample,annotatinga
+adaptiveselectionratioreducesannotationcost
+fullsequenceoflabelsorafullsyntaxtree. Dueto
+over strong full annotation baselines under a
+itssimplicity,FAhasbeenwidelyadoptedinAL
+faircomparisonschemethattakesreadingtime
+approaches for structured prediction tasks (Hwa,
+intoconsideration.
+2004;SettlesandCraven,2008;Shenetal.,2018).
+Nevertheless,astructuredobjectcanusuallybede-
+1 Introduction
+composedintosmallersub-structureshavingnon-
+Structuredprediction(Smith,2011)isafundamen- uniformdifficultyandinformativeness. Forexam-
+tal problem in NLP, wherein the label space con- ple, as shown in Figure 1, in a dependency tree,
+sistsofcomplexstructuredoutputswithgroupsof edges such as functional relations are relatively
+interdependentvariables. Itcoversawiderangeof easytolearn,requiringfewermanualannotations,
+NLPtasks,includingsequencelabeling,syntactic whileprepositionalattachmentlinksmaybemore
+parsing and information extraction (IE). Modern informativeandthusmoreworthwhiletoannotate.
+structuredpredictorsaredevelopedinadata-driven Thenon-uniformdistributionofinformativesub-
+way, by training statistical models with suitable structures naturally suggests AL with partial an-
+annotated data. Recent developments in neural notation(PA),wheretheannotationbudgetcanbe
+modelsandespeciallypre-trainedlanguagemodels preservedbyonlychoosingaportionofinformative
+(Petersetal.,2018;Devlinetal.,2019;Liuetal., sub-structurestoannotateratherthanlaboriously
+2019;Yangetal.,2019)havegreatlyimprovedsys- labeling entire sentence structures. This idea has
+temperformanceonthesetasks. Nevertheless,the beenexploredinpreviouswork,coveringtypical
+successofthesemodelsstillreliesontheavailabil- structuredpredictiontaskssuchassequencelabel-
+ityofsufficientmanuallyannotateddata,whichis ing(Shenetal.,2004;MarcheggianiandArtières,
+oftenexpensiveandtime-consumingtoobtain. 2014;Chaudharyetal.,2019;Radmardetal.,2021)
+3202
+tcO
+91
+]LC.sc[
+2v43621.5032:viXra
+Algorithm1ALProcedure. cle. Withevaluationsonfourbenchmarktasksfor
+Input: SeeddatasetL ,devdatasetD,unlabeledpoolU,to- structuredprediction(namedentityrecognition,de-
+0
+talbudgett,batchselectionsizeb,annotationstrategy. pendency parsing, event extraction, and relation
+Output: FinallabeleddatasetL,trainedmodelM.
+extraction), we show that PA can obtain roughly
+1: L ← L #Initialize
+0
+2: whilet>0do #Untiloutofbudget thesamebenefitsasFAwiththesamereadingcost
+3: M ← train(L, U) #Modeltraining butlesssub-structurelabelingcost,leadingtobet-
+4: S ← sentence-query(M, U) #Sentenceselection
+ter data efficiency. We also demonstrate that the
+5: ifstrategy==“partial”then
+6: r ← auto-ratio(S,D) #Decideadaptiveratio adaptivepartialselectionschemeandself-training
+7: partial-annotate(S,r) #Partialannotation playcrucialandcomplementaryroles.
+8: else
+9: full-annotate(S) #Fullannotation
+2 Method
+10: U ← U−S; L ← L∪S; t ← t−b
+11: M ← train(L, U) #Finalmodeltraining
+12: returnL, M 2.1 ALforStructuredPrediction
+Weadopttheconventionalpool-basedALsetting,
+which iteratively selects and annotates instances
+anddependencyparsing(SassanoandKurohashi,
+from an unlabeled pool. Please refer to Settles
+2010;MirroshandelandNasr,2011;Flanneryand
+(2009)forthebasicsanddetailsofAL;ourmain
+Mori,2015;Lietal.,2016). Ourworkfollowsthis
+illustrationfocusesmorespecificallyonapplying
+direction and investigates the central question in
+ALtostructuredprediction.
+ALwithPAofhowtodecidewhichsub-structures
+Algorithm 1 illustrates the overall AL process.
+to select. Most previous work uses a pre-defined
+Wefocusonsentence-leveltasks. InFA,eachsen-
+fixedselectioncriterion,suchasathresholdorra-
+tenceisannotatedwithafullstructuredobject(for
+tio,whichmaybehardtodecideinpractice. Inthis
+example,alabelsequenceorasyntaxtree). InPA,
+work,weadoptaperformancepredictortoestimate
+annotationgranularityisatthesub-structurelevel
+the error rate of the queried instances and decide
+(forexample,asub-sequenceoflabelsorapartial
+the ratio of partial selection accordingly. In this
+tree). Weadoptatwo-stepselectionapproachfor
+way,ourapproachcanautomaticallyandadaptively
+all the strategies by first choosing a batch of sen-
+adjust the amount of partial selection throughout
+tencesandthenannotatingwithinthisbatch. This
+theALprocess.
+approach is natural for FA since the original aim
+Another interesting question for AL is how
+istolabelfullsentences,anditisalsocommonly
+to better leverage unlabeled data. In this work,
+adopted in previous PA work (Mirroshandel and
+we investigate a simple semi-supervised method,
+Nasr, 2011; Flannery and Mori, 2015; Li et al.,
+self-training(Yarowsky,1995),whichadoptsthe
+2016). Moreover,thisapproachmakesiteasierto
+model’s automatic predictions on the unlabeled
+control the reading context size for fair compar-
+data as extra training signals. Self-training natu-
+isonsofdifferentstrategiesasdescribedin§3.2.
+rally complements AL in the typical pool-based
+Without loss of generality, we take sequence
+settingwhereweassumeaccesstoapoolofunla-
+labeling as an example and illustrate several key
+beleddata(Settles,2009). Itisparticularlycompat-
+pointsintheALprocess. Othertasksfollowsimilar
+iblewithPA-basedALsincetheun-selectedsub-
+treatment,withdetailsprovidedinAppendixA.
+structuresaretypicallyalsohighly-confidentunder
+the current model and likely to be predicted cor-
+• Model. WeadoptastandardBERT-basedmodel
+rectlywithoutrequiringadditionalannotation. We
+with a CRF output layer for structured output
+revisitthisideafrompreviouswork(Tomanekand
+modeling (Lafferty et al., 2001), together with
+Hahn,2009;MajidiandCrane,2013)andinvesti-
+theBIOtaggingscheme.
+gate its applicability with modern neural models
+andouradaptivepartialselectionapproach. • Querying Strategy. We utilize the query-by-
+Weperformacomprehensiveempiricalinvesti- uncertaintystrategywiththemargin-basedmet-
+gationontheeffectivenessofdifferentALstrate- ric, which has been shown effective in AL for
+gies for typical structured prediction tasks. We structuredprediction(MarcheggianiandArtières,
+performfaircomparisonsthataccountforthehid- 2014; Li et al., 2016). Specifically, each token
+den cost of reading time by keeping the context obtainsanuncertaintyscorewiththedifference
+sizethesameforallthestrategiesineachALcy- betweenthe(marginal)probabilitiesofthemost
+andsecondmostlikelylabel. Wealsotriedsev- sub-structurestoselect. Typicalsolutionsinprevi-
+eralotherstrategies,suchasleast-confidenceor ousworkincludesettinganuncertaintythreshold
+max-entropy,butdidnotfindobviousbenefits.1 (TomanekandHahn,2009)orspecifyingaselec-
+tionratio(Lietal.,2016). Thethresholdorratiois
+• Sentence selection. For both FA and PA, se-
+usuallypre-definedwithafixedhyper-parameter.
+lectingabatchofuncertainsentencesisthefirst
+Thisfixedselectingschememightnotbeanideal
+queryingstep. Weusethenumberoftotaltokens
+one. First,itisusuallyhardtospecifysuchfixed
+tomeasurebatchsizesincesentencesmayhave
+valuesinpractice. Iftoomanysub-structuresare
+variant lengths. The sentence-level uncertainty
+selected,therewillbelittledifferencebetweenFA
+is obtained by averaging the token-level ones.
+andPA,whereasiftoofew,theannotationamount
+Thislengthnormalizationheuristiciscommonly
+isinsufficienttotraingoodmodels. Moreover,this
+adoptedtoavoidbiasestowardslongersentences
+schemeisnotadaptivetothemodel. Asthemodel
+(Hwa,2004;Shenetal.,2018).
+is trained with more data throughout the AL pro-
+• Tokenselection. InPA,asubsetofhighlyuncer- cess, the informative sub-structures become less
+taintokensisfurtherchosenforannotation. One denseasthemodelimproves. Thus,thenumberof
+importantquestionishowmanytokenstoselect. selectedsub-structuresshouldbeadjustedaccord-
+Insteadofusingapre-definedfixedselectioncri- ingly. Tomitigatetheseshortcomings,wedevelop
+terion,wedevelopanadaptivestrategytodecide adynamicstrategythatcandecidetheselectionin
+theamount,aswillbedescribedin§2.2. anautomaticandadaptiveway.
+Weadopttheratio-basedstrategywhichenables
+• Annotation. Sequence labeling is usually
+straightforward control of the selected amount.
+adoptedfortasksinvolvingmentionextraction,
+Specifically,werankthesub-structuresbytheun-
+whereannotationsareoverspansratherthanin-
+certainty score and choose those scoring highest
+dividual tokens. Previous work explores sub-
+by the ratio. Our decision on the selecting ratio
+sequencequerying(Chaudharyetal.,2019;Rad-
+isbasedonthehypothesisthatareasonableratio
+mardetal.,2021),whichbringsfurthercomplex-
+shouldroughlycorrespondtothecurrentmodel’s
+ities. Sincewemainlyexploretaskswithshort
+errorrateonallthecandidates. Theintuitionisthat
+mentionspans,weadoptasimpleannotationpro-
+incorrectlypredictedsub-structuresarethemostin-
+tocol: Labelingthefullspanswhereanyinside
+formativeonesthatcanhelptocorrectthemodel’s
+token is queried. Note that for annotation cost
+mistakes.
+measurement,wealsoincludetheextralabeled
+Sincethequeriedinstancescomefromtheunla-
+tokensinadditiontothequeriedones.
+beledpoolwithoutannotations,theerrorratecan-
+• Modellearning. ForFA,weadoptthestandard notbedirectlyobtained,requiringestimation.2 We
+log-likelihood as the training loss. For PA, we adoptasimpleone-dimensionallogisticregression
+followpreviouswork(Schefferetal.,2001;Wan- modelforthispurpose. Theinputtothemodelis
+varie et al., 2011; Marcheggiani and Artières, theuncertaintyscore3andtheoutputisabinarypre-
+2014)andadoptmarginalizedlikelihoodtolearn dictionofwhetheritspredictionisconfidentlycor-
+fromincompleteannotations(Tsuboietal.,2008; rect4 ornot. Theestimatoristrainedusingallthe
+Greenberg et al., 2018). More details are pro- sub-structurestogetherwiththeircorrectnessonthe
+videdinAppendixC. developmentset5 andthenappliedtothequeried
+candidates. Foreachcandidatesub-structures,the
+2.2 AdaptivePartialSelection
+estimatorwillgiveitacorrectnessprobability. We
+PAadoptsasecondselectionstagetochoosehighly
+uncertain sub-structures within the selected sen- 2Directlyusinguncertaintyisanotheroption,butthemain
+troubleisthatthemodelisnotwell-calibrated.Wealsotried
+tences. One crucial question here is how many
+modelcalibrationbytemperaturescaling(Guoetal.,2017),
+1PleaserefertoAppendixD.1formoreresults.Notethat butdidnotfindbetterresults.
+ourmainfocusisonALforstructuredprediction,whereAL
+3Wetransformtheinputwithalogarithm,whichleadsto
+selectioninvolvesnotonlywhatinstancestoselect(acqui- betterestimationaccordingtopreliminaryexperiments.
+sition function), but also at what granularity to select and 4The specific criterion is that the argmax prediction
+annotate.IncontrastwithmostALworkthatfocusesonthe matchesthegoldoneanditsmarginisgreaterthan0.5.Since
+firstaspect(andclassificationtasks),wemainlyinvestigate neuralmodelsareusuallyover-confident,itishardtodecidea
+thesecondoneandexplorebetterpartialselectionstrategies. confidencethreshold.Nevertheless,wefind0.5areasonable
+Exploringmoreadvancedacquisitionfunctionsismostlyor- valuefortheratiodecisionhere.
+thogonaltoourmainfocusandislefttofuturework. 5Were-usethedevelopmentsetforthetaskmodeltraining.
+estimatetheoverallerrorrateasoneminustheaver- tonetal.,2015). Thischoiceisbecausewewantto
+agecorrectnessprobabilityoverallthecandidates avoidthepotentialnegativeinfluencesofambigu-
+inthequerysetQ(allsub-structuresintheselected ous predictions (mostly in completely unlabeled
+sentences),andsettheselectionratiorasthiserror instances). One way to mitigate this is to set an
+rate: uncertainty threshold and only utilize the highly-
+1 (cid:88) confident sub-structures. However, it is unclear
+r = 1− p(correct = 1|s)
+howtosetapropervalue,similartothescenarios
+n
+s∈Q inqueryselection. Therefore,wetakethemodel’s
+Inthisway, theselectionratiocanbesetadap- fulloutputpredictionsasthetrainingtargetswith-
+tivelyaccordingtothecurrentmodel’scapability. outfurtherprocessing.
+If the model is weak and makes many mistakes, Specifically,ourself-trainingobjectivefunction
+wewillhavealargerratiowhichcanleadtomore is the cross-entropy between the output distribu-
+denseannotationsandrichertrainingsignals. As tions predicted by the previous model m′ before
+the model is trained with more data and makes trainingandthecurrentmodelmbeingtrained:
+fewer errors, the ratio will be tuned down corre-
+(cid:88)
+spondinglytoavoidwastingannotationbudgeton L = − p m′(y|x)logp m(y|x)
+already-correctly-predictedsub-structures. Aswe y∈Y
+willseeinlaterexperiments,thisadaptivescheme
+Several points are notable here: 1) The previous
+issuitableforAL(§3.3).
+modeliskeptunchanged,andwecansimplycache
+itspredictionsbeforetraining;2)Overtheinstances
+2.3 Self-training
+thathavepartialannotations,thepredictionsshould
+Betterutilizationofunlabeleddataisapromising
+reflect these annotations by incorporating corre-
+directiontofurtherenhancemodeltraininginAL
+spondingconstraintsatinferencetime;3)Fortasks
+since unlabeled data are usually freely available
+withCRFbasedmodels,theoutputspaceY isusu-
+from the unlabeled pool. In this work, we adopt
+allyexponentiallylargeandinfeasibletoexplicitly
+self-training(Yarowsky,1995)forthispurpose.
+enumerate; we utilize special algorithms (Wang
+Themainideaofself-trainingistoenhancethe
+etal.,2021)todealwiththis,andmoredetailsare
+modeltrainingwithpseudolabelsthatarepredicted
+presentedinAppendixC.
+by the current model on the unlabeled data. It
+Finally,wefinditbeneficialtoincludeboththe
+has been shown effective for various NLP tasks
+pseudolabelsandtherealannotatedgoldlabelsfor
+(Yarowsky,1995;McCloskyetal.,2006;Heetal.,
+themodeltraining. Withthegolddata,theoriginal
+2020;Duetal.,2021). ForthetrainingofALmod-
+training loss is adopted, while the KD objective
+els, self-training can be seamlessly incorporated.
+isutilizedwiththepseudolabels. Wesimplymix
+For FA, the application of self-training is no dif-
+these two types of data with a ratio of 1:1 in the
+ferent than that in the conventional scenarios by
+trainingprocess,whichwefindworkswell.
+applyingthecurrentmodeltoalltheun-annotated
+instances in the unlabeled pool. The more inter- 3 Experiments
+estingcaseisonthepartiallyannotatedinstances
+3.1 MainSettings
+in the PA regime. The same motivation from the
+adaptiveratioscheme(§2.2)alsoapplieshere: We Tasksanddata. Ourexperiments6areconducted
+selectthehighly-uncertainsub-structuresthatare over four English tasks. The first two are named
+error-prone and the remaining un-selected parts entityrecognition(NER)anddependencyparsing
+are likely to be correctly predicted; therefore we (DPAR), which are representative structured pre-
+can trust the predictions on the un-selected sub- dictiontasksforpredictingsequenceandtreestruc-
+structuresandincludethemfortraining. Onemore tures. WeadopttheCoNLL-2003Englishdataset
+enhancementtoapplyhereisthatwecouldfurther (TjongKimSangandDeMeulder,2003)forNER
+performre-inferencebyincorporatingtheupdated and the English Web Treebank (EWT) from Uni-
+annotationsovertheselectedsub-structures,which versalDependenciesv2.10(Nivreetal.,2020)for
+can enhance the predictions of un-annotated sub- DPAR.Moreover,weexploretwomorecomplex
+structuresthroughoutputdependencies. IEtasks: Eventextractionandrelationextraction.
+In this work, we adopt a soft version of self-
+6Our implementation is available at https://github.
+trainingthroughknowledgedistillation(KD;Hin- com/zzsfornlp/zmsp/.
+Each task involves two pipelined sub-tasks: The 3.2 ComparisonScheme
+firstaimstoextracttheeventtriggerand/orentity
+SinceFAandPAannotateatdifferentgranularities,
+mentions, and the second predicts links between
+weneedacommoncostmeasurementtocompare
+these mentions as event arguments or entity rela-
+their effectiveness properly. A reasonable metric
+tions. WeutilizetheACE05dataset(Walkeretal.,
+is the number of the labeled sub-structures; for
+2006)fortheseIEtasks.
+instance,thenumberoflabeledtokensforsequence
+labeling or edges for dependency parsing. This
+AL. FortheALprocedure,weadoptsettingsfol-
+metriciscommonlyadoptedinpreviousPAwork
+lowingconventionalpractices. Weusetheoriginal
+(Tomanek and Hahn, 2009; Flannery and Mori,
+trainingsetastheunlabeleddatapooltoselectin-
+2015;Lietal.,2016;Radmardetal.,2021).
+stances. Unless otherwise noted, we set the AL
+Nevertheless,evaluatingonlybysub-structures
+batch size (for sentence selection) to 4K tokens,
+ignoresacrucialhiddencost: Thereadingtimeof
+whichroughlycorrespondsto2%ofthetotalpool
+the contexts. For example, in sequence labeling
+sizeformostofthedatasetsweuse. Theinitialseed
+withPA,althoughnoteverytokeninthesentence
+trainingsetandthedevelopmentsetarerandomly
+needstobetagged,theannotatormaystillneedto
+sampled (with FA) using this batch size. Unless
+readthewholesentencetounderstanditsmeaning.
+otherwisenoted,werun14ALcyclesforeachex-
+Therefore,ifperformingcomparisonsonlybythe
+periment. IneachALcycle,were-trainourmodel
+amountofannotatedsub-structures,itwillbeunfair
+since we find incremental updating does not per-
+fortheFAbaselinebecausemorecontextsmustbe
+form well. Following most AL work, annotation
+readtocarryoutPA.
+issimulatedbycheckingandassigningthelabels
+Inthiswork,weadoptasimpletwo-facetcom-
+from the original dataset. In FA, we annotate all
+parison scheme that considers both reading and
+thesub-structuresfortheselectedsentences. InPA,
+labeling costs. We first control the reading cost
+wefirstdecidetheselectionratioandapplyittothe
+selected sentences. We further adopt a heuristic7 by choosing the same size of contexts in the sen-
+tence selection step of each AL cycle (Line 4 in
+that selects the union of sentence-wise uncertain
+Algorithm 1). Then, we further compare by the
+sub-structures as well as global ones since both
+sub-structure labeling cost, measured by the sub-
+maycontaininformativesub-structures. Finally,all
+structureannotationcost. IfPAcanroughlyreach
+the presented results are averaged over five runs
+theFAperformancewiththesamereadingcostbut
+withdifferentrandomseeds.
+fewersub-structuresannotated,itwouldbefairto
+Modelandtraining. Forthemodels,weadopt saythatPAcanhelpreducecostoverFA.Abetter
+standard architectures by stacking task-specific comparing scheme should evaluate against a uni-
+structuredpredictorsoverpre-trainedRoBERTa fiedestimationoftherealannotationcosts(Settles
+base
+(Liuetal.,2019)andthefullmodelsarefine-tuned etal.,2008). Thisusuallyrequiresactualannota-
+ateachtrainingiteration. Afterobtainingnewan- tion exercises rather than simulations, which we
+notationsineachALcycle,wefirsttrainamodel leavetofuturework.
+based on all the available full or partial annota-
+3.3 NERandDPAR
+tions. When using self-training, we further ap-
+plythisnewlytrainedmodeltoassignpseudosoft Settings. Wecompareprimarilythreestrategies:
+labels to all un-annotated instances and combine FA, PA, and a baseline where randomly selected
+themwiththeexistingannotationstotrainanother sentencesarefullyannotated(Rand). Wealsoin-
+model. Comparedtousingtheoldmodelfromthe cludeasupervisedresult(Super.) whichisobtained
+last AL cycle, this strategy can give more accu- fromamodeltrainedwiththefulloriginaltraining
+ratepseudolabelssincethenewlyupdatedmodel set. Wemeasurereadingcostbythetotalnumber
+usuallyperformsbetterbylearningfrommorean- of tokens in the selected sentences. For labeling
+notations. ForPA,pseudosoftlabelsareassigned cost,wefurtheradoptmetricswithpracticalconsid-
+tobothun-selectedsentencesandtheun-annotated erations. InNER,lotsoftokens,suchasfunctional
+sub-structuresintheselectedsentences. words,canbeeasilyjudgedasthe‘O’(non-entity)
+tag. To avoid over-estimating the costs of such
+7Thisheuristicwillincreasetheactualselectingratio,but
+easytokensforFA,wefiltertokensbytheirpart-
+itwillonlybeslightlylargersincetherearelargeoverlapsbe-
+tweensentence-wiseandglobalhighly-rankedsub-structures. of-speech(POS)tagsandonlycounttheonesthat
+ 1 ( 5  5 H D G L Q J  & R V W  1 ( 5  / D E H O L Q J  & R V W
+     
+ 5 D Q G  5 D Q G
+     
+ 5 D Q G  6 7  5 D Q G  6 7
+    ) $     ) $
+ ) $  6 7  ) $  6 7
+    3 $     3 $
+    3 $  6 7     3 $  6 7
+ 6 X S H U   6 X S H U 
+     
+     
+                                                                                 
+ 7 R N H Q  & R X Q W  6 X E  V W U X F W X U H  & R X Q W
+ ' 3 $ 5  5 H D G L Q J  & R V W  ' 3 $ 5  / D E H O L Q J  & R V W
+    5 D Q G     5 D Q G
+ 5 D Q G  6 7  5 D Q G  6 7
+    ) $     ) $
+ ) $  6 7  ) $  6 7
+ 3 $  3 $
+     
+ 3 $  6 7  3 $  6 7
+ 6 X S H U   6 X S H U 
+     
+                                                                                                
+ 7 R N H Q  & R X Q W  6 X E  V W U X F W X U H  & R X Q W
+Figure2: Comparisonsaccordingtoreadingandlabelingcost. EachnodeindicatesoneALcycle. Forx-axis,
+readingcost(left)ismeasuredbytokennumbers,whilelabelingcost(right)istask-specific(§3.3). NERisevaluated
+withlabeledF1scoresonCoNLL-2003,whileDPARiswithLASscoresonUD-EWT.Resultsareaveragedover
+fiverunswithdifferentseeds,andtheshadedareasindicatestandarddeviations. Theoverallunlabeledpoolcontains
+around200Ktokens. UsingAL,goodperformancecanbeobtainedwithlessthan30%(60K)annotated.
+arelikelytobeinsideanentitymention.8 ForPA, Ratio Analysis. We further analyze the effec-
+westillcounteveryqueriedtoken. Forthetaskof tivenessofouradaptiveratioschemewithDPAR
+DPAR, similarly, different dependency links can asthecasestudy. Wecomparetheadaptivescheme
+havevariantannotationdifficulties. Weutilizethe toschemeswithfixedratior,andtheresults9 are
+surface distance between the head and modifier shown in Figure 3. For the fixed-ratio schemes,
+of the dependency edge as the measure of label- if the value is too small (such as 0.1), although
+ingcost,consideringthatthedecisionsforlonger itsimprovingspeedisthefastestatthebeginning,
+dependenciesareusuallyharder. itsperformancelagsbehindotherswiththesame
+readingcontextsduetofewersub-structuresanno-
+Main Results. The main test results are shown
+tated. Ifthevalueistoolarge(suchas0.5),itgrows
+in Figure 2, where the patterns on both tasks are
+slowly,probablybecausetoomanyuninformative
+similar. First,ALbringsclearimprovementsover
+sub-structures are annotated. The fixed scheme
+therandombaselineandcanroughlyreachthefully
+withr = 0.3seemsagoodchoice; however, itis
+supervisedperformancewithonlyasmallportion
+unclearhowtofindthissweetspotinrealisticAL
+of data annotated (around 18% for CoNLL-2003
+processes. Theadaptiveschemeprovidesareason-
+and 30% for UD-EWT). Moreover, self-training
+able solution by automatically deciding the ratio
+(+ST)ishelpfulforallthestrategies,boostingper-
+accordingtothemodelperformance.
+formancewithouttheneedforextramanualannota-
+tions. Finally,withthehelpofself-training,thePA ErrorandUncertaintyAnalysis. Wefurtheran-
+strategycanroughlymatchtheperformanceofFA alyzetheerrorratesanduncertaintiesofthequeried
+withthesameamountofreadingcost(accordingto sub-structures. WestilltakeDPARasacasestudy
+theleftfigures)whilelabelingfewersub-structures andFigure4showstheresultsalongtheALcycles
+(accordingtotherightfigures). Thisindicatesthat inPAmode. First,thoughadoptingasimplemodel,
+PAcanhelptofurtherreduceannotationcostsover theperformancepredictorcangivereasonablees-
+thestrongFAbaselines. timationsfortheoverallerrorrates. Moreover,by
+8ThePOStagsareassignedbyStanza(Qietal.,2020). furtherbreakingdowntheerrorratesintoselected
+ForCoNLL-2003,wefilterbyPROPNandADJ,whichcover
+morethan95%oftheentitytokens. 9Here,weuseself-training(+ST)forallthestrategies.
+   )
+  6 $ /
+   )
+  6 $ /
+ ' 3 $ 5  5 H D G L Q J  & R V W  S U H G  H U U R U  6   P D U J L Q
+ H U U R U  H U U R U  1   P D U J L Q  6 
+  
+ U     
+       
+ U     
+    U     
+ $ G D S W L Y H
+       
+    6 X S H U 
+          
+                                              
+ 7 R N H Q  & R X Q W
+       
+ ' 3 $ 5  / D E H O L Q J  & R V W
+            
+                             
+       
+ U     
+ U           Figure4: Analysesoferrorratesanduncertainties(mar-
+    U     
+     gins) of the DPAR sub-structures in the queried sen-
+ $ G D S W L Y H
+    6 X S H U       tences along the AL cycles (x-axis). Here, ‘pred’ de-
+notesthepredictederrorrate,‘error’denotestheactual
+    
+   errorrateand‘margin’denotestheuncertainty(margin)
+                                        scores. Forthesuffixes,‘(S)’indicatespartiallyselected
+ 6 X E  V W U X F W X U H  & R X Q W
+sub-structures, and ‘(N)’ indicates non-selected ones.
+‘Margin(N)’isomittedsinceitisalwayscloseto1.
+Figure3: Comparisonsofdifferentstrategiestodecide
+the partial ratio. The first three utilize fixed ratio r,
+approach by initializing the model from the one
+while“Adaptive”adoptsthedynamicscheme. Thegrey
+trainedwiththesourcedataandfurtherfine-tuning
+curve (corresponding to the right y-axis) denotes the
+actualselectionratioswiththeadaptivescheme. it with the target data. Since the target data size
+is small, we reduce the AL batch sizes for BTC
+and Tweebank to 2000 and 1000 tokens, respec-
+(S) and non-selected (N) groups, we can see that
+tively. Theresultsfortheseexperimentsareshown
+theselectedonescontainmanyerrors, indicating
+inFigure5. Intheseexperiments,wealsoinclude
+theneedformanualcorrections. Ontheotherhand,
+theno-transferresults,adoptingthe“FA+ST”but
+the error rates on the non-selected sub-structures
+withoutmodeltransfer. ForNER,withouttransfer
+aremuchlower,verifyingtheeffectivenessofus-
+learning,theresultsaregenerallyworse,especially
+ingmodel-predictedpseudolabelsontheminself-
+inearlyALstages,wherethereisasmallamountof
+training. Finally,theoverallmarginoftheselected
+annotateddatatoprovidetrainingsignals. Inthese
+sentences keeps increasing towards 1, indicating
+cases,knowledgelearnedfromthesourcedomain
+thattherearemanynon-ambiguoussub-structures
+canprovideextrainformationtoboosttheresults.
+even in highly-uncertain sentences. The margins
+ForDPAR,wecanseeevenlargerbenefitsofusing
+oftheselectedsub-structuresaremuchlower,sug-
+transferlearning;therearestillcleargapsbetween
+gesting that annotating them could provide more
+transferandno-transferstrategieswhentheformer
+informativesignalsformodeltraining.
+alreadyreachesthesupervisedperformance. These
+resultsindicatethatthebenefitsofALandtransfer
+Domain-transferExperiments. Wefurtherin-
+learning can be orthogonal, and combining them
+vestigateadomain-transferscenario: inadditionto
+canleadtopromisingresults.
+unlabeledin-domaindata,weassumeabundantout-
+of-domainannotateddataandperformALonthe
+3.4 InformationExtraction
+targetdomain. Weadopttweettextsasthetarget
+WefurtherexploremorecomplexIEtasksthatin-
+domain, using Broad Twitter Corpus (BTC; Der-
+volve multiple types of output. Specifically, we
+czynskietal.,2016)forNERandTweebank(Liu
+investigateeventextractionandrelationextraction.
+etal.,2018)forDPAR.Weassumewehavemodels
+Weadoptaclassicalpipelinedapproach,10 which
+trainedfromarichly-annotatedsourcedomainand
+splitsthefulltaskintotwosub-tasks: thefirstper-
+continueperformingALonthetargetdomain. The
+formsmentionextraction,whilethesecondexam-
+sourcedomainsarethedatasetsthatweutilizein
+ines mention pairs and predicts relations. While
+ourmainexperiments: CoNLL03forNERandUD-
+EWTforDPAR.Weadoptasimplemodel-transfer 10PleaserefertoAppendixAformoretask-specificdetails.
+  6 $ /
+  6 $ /
+ 1 ( 5  5 H D G L Q J  & R V W  1 ( 5  / D E H O L Q J  & R V W
+     
+ 5 D Q G  5 D Q G
+    5 D Q G  6 7     5 D Q G  6 7
+ ) $  ) $
+    ) $  6 7     ) $  6 7
+ 3 $  3 $
+ 3 $  6 7  3 $  6 7
+     
+ 1 R 7 U D Q V I H U  1 R 7 U D Q V I H U
+ 6 X S H U   6 X S H U 
+     
+                                                                               
+ 7 R N H Q  & R X Q W  6 X E  V W U X F W X U H  & R X Q W
+ ' 3 $ 5  5 H D G L Q J  & R V W  ' 3 $ 5  / D E H O L Q J  & R V W
+     
+ 5 D Q G  5 D Q G
+    5 D Q G  6 7     5 D Q G  6 7
+ ) $  ) $
+    ) $  6 7     ) $  6 7
+ 3 $  3 $
+ 3 $  6 7  3 $  6 7
+    1 R 7 U D Q V I H U     1 R 7 U D Q V I H U
+ 6 X S H U   6 X S H U 
+     
+                                                                          
+ 7 R N H Q  & R X Q W  6 X E  V W U X F W X U H  & R X Q W
+Figure 5: AL results in domain-transfer settings (CoNLL03 → BTC for NER and UD-EWT → Tweebank for
+DPAR).NotationsarethesameasinFigure2,exceptthatthereisonemorecurveof“NoTransfer”denotingthe
+settingwherenotransferlearningisapplied(FA+STalone).
+ ( Y H Q W $ U J X P H Q W  5 H D G L Q J  & R V W  ( Y H Q W $ U J X P H Q W  / D E H O L Q J  & R V W
+     
+ 5 D Q G  5 D Q G
+     
+ 5 D Q G  6 7  5 D Q G  6 7
+ ) $  ) $
+ ) $  6 7  ) $  6 7
+     
+ 3 $  3 $
+ 3 $  6 7  3 $  6 7
+ 6 X S H U   6 X S H U 
+     
+                                                                                      
+ 7 R N H Q  & R X Q W  6 X E  V W U X F W X U H  & R X Q W
+Figure6: ResultsofeventargumentextractiononACE05. NotationsarethesameasinFigure2.
+previousworkinvestigatesmulti-taskALwithFA relational sub-task depends on the mentions ex-
+(Reichartetal.,2008;Zhuetal.,2020;Rotmanand tractedfromthefirstsub-task,weutilizepredicted
+Reichart,2022),thisworkisthefirsttoexplorePA mentionsandvieweachfeasiblementionpairasa
+inthischallengingsetting. queryingcandidate. Aspecialannotationprotocol
+WeextendourPAschemetothismulti-tasksce- is adopted to deal with the incorrectly predicted
+nario with several modifications. First, for the mentions. Foreachqueriedrelation,wefirstexam-
+sentence-selectionstage,weobtainasentence-wise ine its mentions and perform corrections if there
+uncertaintyscoreUNC(x)withaweightedcombi- are mention errors that can be fixed by matching
+nationofthetwosub-tasks’uncertaintyscores: thegoldones. Ifneitherofthetwomentionscan
+becorrected,wediscardthisquery.
+UNC(x) = β ·UNC-Mention(x) Finally, to compensate for the influences of er-
++(1−β)·UNC-Relation(x) rorsinmentionextraction,weadoptfurtherheuris-
+ticsofincreasingthepartialratiobytheestimated
+FollowingRotmanandReichart(2022),wesetβ percentageofquerieswithincorrectmentions,as
+toarelativelylargevalue(0.9),whichisfoundto well as including a second annotation stage with
+behelpfulforthesecondrelationalsub-task. queries over newly annotated mentions. Please
+Moreover,forpartialselection,weseparatelyse- refertoAppendixA.2formoredetails.
+lectsub-structuresforthetwosub-tasksaccording Weshowtheresultsofeventargumentextraction
+totheadaptiveselectionscheme. Sincethesecond inFigure6,wheretheoveralltrendsaresimilarto
+   )
+  6 $ /
+   )
+   )
+  6 $ /
+   )
+those in NER and DPAR. Here, labeling cost is NLP,suchassequencelabeling(SettlesandCraven,
+simply measured as the number of candidate ar- 2008;Shenetal.,2018),parsing(Hwa,2004),se-
+gumentlinks. Overall,self-trainingishelpfulfor mantic role labeling (Wang et al., 2017; Myers
+allALstrategies,indicatingthebenefitsofmaking andPalmer,2021)andmachinetranslation(Haffari
+better use of unlabeled data. If measured by the etal.,2009;Zengetal.,2019). Whilemostprevi-
+labelingcost,PAlearnsthefastestandcostsonly ous work adopt FA, that is, annotating full struc-
+around half of the annotated arguments of FA to turedobjectsfortheinputs,PAcanhelptofurther
+reachthesupervisedresult. Ontheotherhand,PA reducetheannotationcost. TypicalexamplesofPA
+isalsocompetitiveconcerningreadingcostandcan sub-structuresincludetokensandsubsequencesfor
+generallymatchtheFAresultsinlaterALstages. tagging(MarcheggianiandArtières,2014;Chaud-
+ThereisstillagapbetweenPAandFAintheearlier haryetal.,2019;Radmardetal.,2021),word-wise
+ALstages,whichmaybeinfluencedbytheerrors headedgesfordependencyparsing(Flanneryand
+produced by the first sub-task of mention extrac- Mori,2015;Lietal.,2016)andmentionlinksfor
+tion. Weleavefurtherinvestigationsonimproving coreference resolution (Li et al., 2020; Espeland
+early AL stages to future work. The results for etal.,2020).
+therelationextractiontasksharesimilartrendsand
+arepresentedinAppendixD.2,togetherwiththe 5 Conclusion
+resultsofmentionextraction.
+In this work, we investigate better AL strategies
+4 RelatedWork forstructuredpredictioninNLP,adoptingaperfor-
+manceestimatortoautomaticallydecidesuitable
+Self-training. Self-training is a commonly uti-
+ratiosforpartialsub-structureselectionandutiliz-
+lizedsemi-supervisedmethodtoincorporateunla-
+ingself-trainingtomakebetteruseoftheavailable
+beleddata. Ithasbeenshowneffectiveforavariety
+unlabeleddatapool. Withcomprehensiveexperi-
+of NLP tasks, including word sense disambigua-
+ments on various tasks, we show that the combi-
+tion (Yarowsky, 1995), parsing (McClosky et al.,
+nation of PA and self-training can be more data-
+2006),namedentityrecognition(Mengetal.,2021;
+efficientthanstrongfullALbaselines.
+Huangetal.,2021),textgeneration(Heetal.,2020;
+Mehta et al., 2022) as well as natural language
+Limitations
+understanding (Du et al., 2021). Moreover, self-
+trainingcanbeespeciallyhelpfulforlow-resource
+This work has several limitations. First, the AL
+scenarios, suchasinfew-shotlearning(Vuetal.,
+experimentsinthisworkarebasedonsimulations
+2021; Chen et al., 2021). Self-training has also
+withexistingannotations,followingpreviousAL
+beenacommonlyadoptedstrategytoenhanceac-
+work. Our error estimator also requires a small
+tive learning (Tomanek and Hahn, 2009; Majidi
+developmentsetandthepropersettingofahyper-
+andCrane,2013;Yuetal.,2022).
+parameter. Nevertheless,wetriedourbesttomake
+thesettingspracticalandtheevaluationfair,espe-
+PA. Learning from incomplete annotations has
+ciallytakingreadingtimeintoconsideration. Sec-
+beenwell-exploredforstructuredprediction. For
+ond,inourexperiments,wemainlyfocusoninves-
+CRFmodels,takingthemarginallikelihoodasthe
+tigatinghowmuchdataisneededtoreachthefully-
+objective function has been one of the most uti-
+supervisedresultsandcontinuetheALcyclesuntil
+lized techniques (Tsuboi et al., 2008; Täckström
+thishappens. Inpractice,itmaybeinterestingto
+et al., 2013; Yang and Vozila, 2014; Greenberg
+morecarefullyexaminetheearlyALstages,where
+et al., 2018). There are also other methods to
+mostoftheperformanceimprovementshappen. Fi-
+deal with incomplete annotations, such as adopt-
+nally, for the IE tasks with multiple output types,
+ing local models (Neubig and Mori, 2010; Flan-
+wemainlyfocusonthesecondrelationalsub-task
+neryetal.,2011),max-marginobjective(Fernan-
+and adopt a simple weighting setting to combine
+desandBrefeld,2011), learningwithconstraints
+theuncertaintiesofthetwosub-tasks. Moreexplo-
+(Ningetal.,2018,2019;Mayhewetal.,2019)and
+rations on the dynamic balancing of the two sub-
+negativesampling(Lietal.,2022).
+tasksinpipelinedmodels(RothandSmall,2008)
+ALforstructuredprediction. ALhasbeenin- wouldbeaninterestingdirectionforfuturework.
+vestigatedforvariousstructuredpredictiontasksin
+References Eraldo R Fernandes and Ulf Brefeld. 2011. Learn-
+ing from partially annotated sequences. In Joint
+LeonardEBaum,TedPetrie,GeorgeSoules,andNor-
+European Conference on Machine Learning and
+manWeiss.1970. Amaximizationtechniqueoccur-
+KnowledgeDiscoveryinDatabases,pages407–422.
+ringinthestatisticalanalysisofprobabilisticfunc-
+Springer.
+tionsofmarkovchains. Theannalsofmathematical
+statistics,41(1):164–171. DanielFlannery,YusukeMiayo,GrahamNeubig,and
+ShinsukeMori.2011. Trainingdependencyparsers
+Aditi Chaudhary, Jiateng Xie, Zaid Sheikh, Graham frompartiallyannotatedcorpora. InProceedingsof
+Neubig,andJaimeCarbonell.2019. Alittleannota- 5thInternationalJointConferenceonNaturalLan-
+tiondoesalotofgood:Astudyinbootstrappinglow- guageProcessing,pages776–784,ChiangMai,Thai-
+resourcenamedentityrecognizers. InProceedings land.AsianFederationofNaturalLanguageProcess-
+ofthe2019ConferenceonEmpiricalMethodsinNat- ing.
+uralLanguageProcessingandthe9thInternational
+JointConferenceonNaturalLanguageProcessing Daniel Flannery and Shinsuke Mori. 2015. Combin-
+(EMNLP-IJCNLP),pages5164–5174,HongKong, ingactivelearningandpartialannotationfordomain
+China.AssociationforComputationalLinguistics. adaptationofaJapanesedependencyparser. InPro-
+ceedings of the 14th International Conference on
+YimingChen,YanZhang,ChenZhang,GrandeeLee, Parsing Technologies, pages 11–19, Bilbao, Spain.
+RanCheng,andHaizhouLi.2021. Revisitingself- AssociationforComputationalLinguistics.
+training for few-shot learning of language model.
+In Proceedings of the 2021 Conference on Empir- NathanGreenberg,TrapitBansal,PatrickVerga,andAn-
+icalMethodsinNaturalLanguageProcessing,pages drewMcCallum.2018. Marginallikelihoodtraining
+9125–9135,OnlineandPuntaCana,DominicanRe- ofBiLSTM-CRFforbiomedicalnamedentityrecog-
+public.AssociationforComputationalLinguistics. nitionfromdisjointlabelsets. InProceedingsofthe
+2018ConferenceonEmpiricalMethodsinNatural
+LeonDerczynski,KalinaBontcheva,andIanRoberts. Language Processing, pages 2824–2829, Brussels,
+2016. BroadTwittercorpus: Adiversenamedentity Belgium.AssociationforComputationalLinguistics.
+recognition resource. In Proceedings of COLING
+2016,the26thInternationalConferenceonCompu- ChuanGuo,GeoffPleiss,YuSun,andKilianQWein-
+tationalLinguistics: TechnicalPapers,pages1169– berger.2017. Oncalibrationofmodernneuralnet-
+1179,Osaka,Japan.TheCOLING2016Organizing works. InInternationalconferenceonmachinelearn-
+Committee.
+ing,pages1321–1330.PMLR.
+Gholamreza Haffari, Maxim Roy, and Anoop Sarkar.
+Jacob Devlin, Ming-Wei Chang, Kenton Lee, and
+2009. Active learning for statistical phrase-based
+Kristina Toutanova. 2019. BERT: Pre-training of
+machinetranslation. InProceedingsofHumanLan-
+deepbidirectionaltransformersforlanguageunder-
+guageTechnologies: The2009AnnualConferenceof
+standing. InProceedingsofthe2019Conferenceof
+theNorthAmericanChapteroftheAssociationfor
+theNorthAmericanChapteroftheAssociationfor
+ComputationalLinguistics,pages415–423,Boulder,
+ComputationalLinguistics: HumanLanguageTech-
+Colorado. Association for Computational Linguis-
+nologies,Volume1(LongandShortPapers),pages
+tics.
+4171–4186,Minneapolis,Minnesota.Associationfor
+ComputationalLinguistics.
+JunxianHe,JiataoGu,JiajunShen,andMarc’Aurelio
+Ranzato. 2020. Revisiting self-training for neural
+Timothy Dozat and Christopher D. Manning. 2017.
+sequencegeneration. InInternationalConferenceon
+Deepbiaffineattentionforneuraldependencypars-
+LearningRepresentations.
+ing. InICLR.
+GeoffreyHinton,OriolVinyals,JeffDean,etal.2015.
+JingfeiDu,EdouardGrave,BelizGunel,VishravChaud-
+Distillingtheknowledgeinaneuralnetwork. arXiv
+hary,OnurCelebi,MichaelAuli,VeselinStoyanov,
+preprintarXiv:1503.02531,2(7).
+andAlexisConneau.2021. Self-trainingimproves
+pre-trainingfornaturallanguageunderstanding. In NeilHoulsby,FerencHuszár,ZoubinGhahramani,and
+Proceedings of the 2021 Conference of the North Máté Lengyel. 2011. Bayesian active learning for
+AmericanChapteroftheAssociationforComputa- classificationandpreferencelearning. arXivpreprint
+tionalLinguistics: HumanLanguageTechnologies, arXiv:1112.5745.
+pages5408–5418,Online.AssociationforComputa-
+tionalLinguistics. JiaxinHuang,ChunyuanLi,KrishanSubudhi,Damien
+Jose,ShobanaBalakrishnan,WeizhuChen,Baolin
+VebjørnEspeland,BeatriceAlex,andBenjaminBach. Peng, Jianfeng Gao, and Jiawei Han. 2021. Few-
+2020. Enhanced labelling in active learning for shotnamedentityrecognition: Anempiricalbaseline
+coreference resolution. In Proceedings of the study. In Proceedings of the 2021 Conference on
+Third Workshop on Computational Models of Ref- Empirical Methods in Natural Language Process-
+erence,AnaphoraandCoreference,pages111–121, ing, pages 10408–10423, Online and Punta Cana,
+Barcelona,Spain(online).AssociationforComputa- DominicanRepublic.AssociationforComputational
+tionalLinguistics. Linguistics.
+Rebecca Hwa. 2004. Sample selection for statistical Proceedingsofthe13thInternationalConferenceon
+parsing. ComputationalLinguistics,30(3):253–276. ParsingTechnologies(IWPT2013), pages98–105,
+Nara,Japan.AssocationforComputationalLinguis-
+Terry Koo, Amir Globerson, Xavier Carreras, and tics.
+MichaelCollins.2007. Structuredpredictionmodels
+viathematrix-treetheorem. InProceedingsofthe Diego Marcheggiani and Thierry Artières. 2014. An
+2007JointConferenceonEmpiricalMethodsinNat- experimentalcomparisonofactivelearningstrategies
+uralLanguageProcessingandComputationalNat- for partially labeled sequences. In Proceedings of
+ural Language Learning (EMNLP-CoNLL), pages the2014ConferenceonEmpiricalMethodsinNatu-
+141–150, Prague, CzechRepublic.Associationfor ralLanguageProcessing(EMNLP),pages898–906,
+ComputationalLinguistics. Doha,Qatar.AssociationforComputationalLinguis-
+tics.
+JohnDLafferty,AndrewMcCallum,andFernandoCN
+Pereira. 2001. Conditional random fields: Proba- StephenMayhew,SnigdhaChaturvedi,Chen-TseTsai,
+bilisticmodelsforsegmentingandlabelingsequence andDanRoth.2019. Namedentityrecognitionwith
+data. InProceedingsoftheEighteenthInternational partially annotated training data. In Proceedings
+ConferenceonMachineLearning,pages282–289. of the 23rd Conference on Computational Natural
+LanguageLearning(CoNLL),pages645–655,Hong
+BelindaZ.Li,GabrielStanovsky,andLukeZettlemoyer. Kong,China.AssociationforComputationalLinguis-
+2020. Activelearningforcoreferenceresolutionus- tics.
+ingdiscreteannotation. InProceedingsofthe58th
+AnnualMeetingoftheAssociationforComputational DavidMcClosky,EugeneCharniak,andMarkJohnson.
+Linguistics,pages8320–8331,Online.Association 2006. Effectiveself-trainingforparsing. InProceed-
+forComputationalLinguistics. ingsoftheHumanLanguageTechnologyConference
+of the NAACL, Main Conference, pages 152–159,
+YangmingLi,LemaoLiu,andShumingShi.2022. Re- NewYorkCity,USA.AssociationforComputational
+thinkingnegativesamplingforhandlingmissingen- Linguistics.
+tityannotations. InProceedingsofthe60thAnnual
+Meeting of the Association for Computational Lin- Ryan McDonald and Giorgio Satta. 2007. On the
+guistics(Volume1: LongPapers),pages7188–7197, complexityofnon-projectivedata-drivendependency
+Dublin,Ireland.AssociationforComputationalLin- parsing. InProceedingsoftheTenthInternational
+guistics. ConferenceonParsingTechnologies,pages121–132,
+Prague,CzechRepublic.AssociationforComputa-
+ZhenghuaLi,MinZhang,YueZhang,ZhanyiLiu,Wen- tionalLinguistics.
+liangChen,HuaWu,andHaifengWang.2016. Ac-
+tivelearningfordependencyparsingwithpartialan- SanketVaibhavMehta,JinfengRao,YiTay,MihirKale,
+notation. InProceedingsofthe54thAnnualMeeting AnkurParikh,andEmmaStrubell.2022. Improving
+oftheAssociationforComputationalLinguistics(Vol- compositional generalization with self-training for
+ume1: LongPapers),pages344–354,Berlin,Ger- data-to-textgeneration. InProceedingsofthe60th
+many.AssociationforComputationalLinguistics. AnnualMeetingoftheAssociationforComputational
+Linguistics (Volume 1: Long Papers), pages 4205–
+YingLin,HengJi,FeiHuang,andLingfeiWu.2020. 4219,Dublin,Ireland.AssociationforComputational
+Ajointneuralmodelforinformationextractionwith Linguistics.
+globalfeatures. InProceedingsofthe58thAnnual
+Meeting of the Association for Computational Lin- Yu Meng, Yunyi Zhang, Jiaxin Huang, Xuan Wang,
+guistics,pages7999–8009,Online.Associationfor YuZhang,HengJi,andJiaweiHan.2021. Distantly-
+ComputationalLinguistics. supervised named entity recognition with noise-
+robustlearningandlanguagemodelaugmentedself-
+Yijia Liu, Yi Zhu, Wanxiang Che, Bing Qin, Nathan training. InProceedingsofthe2021Conferenceon
+Schneider,andNoahA.Smith.2018. Parsingtweets Empirical Methods in Natural Language Process-
+intoUniversalDependencies. InProceedingsofthe ing, pages 10367–10378, Online and Punta Cana,
+2018ConferenceoftheNorthAmericanChapterof DominicanRepublic.AssociationforComputational
+theAssociationforComputationalLinguistics: Hu- Linguistics.
+man Language Technologies, Volume 1 (Long Pa-
+pers),pages965–975,NewOrleans,Louisiana.As- SeyedAbolghasemMirroshandelandAlexisNasr.2011.
+sociationforComputationalLinguistics. Active learning for dependency parsing using par-
+tially annotated sentences. In Proceedings of the
+YinhanLiu,MyleOtt,NamanGoyal,JingfeiDu,Man- 12thInternationalConferenceonParsingTechnolo-
+dar Joshi, Danqi Chen, Omer Levy, Mike Lewis, gies,pages140–149,Dublin,Ireland.Associationfor
+Luke Zettlemoyer, and Veselin Stoyanov. 2019. ComputationalLinguistics.
+Roberta: A robustly optimized bert pretraining ap-
+proach. arXivpreprintarXiv:1907.11692. SkatjeMyersandMarthaPalmer.2021. Tuningdeep
+active learning for semantic role labeling. In Pro-
+SaeedMajidiandGregoryCrane.2013. Activelearning ceedings of the 14th International Conference on
+fordependencyparsingbyacommitteeofparsers. In Computational Semantics (IWCS), pages 212–221,
+Groningen, The Netherlands (online). Association 861–869,Columbus,Ohio.AssociationforCompu-
+forComputationalLinguistics. tationalLinguistics.
+GrahamNeubigandShinsukeMori.2010. Word-based DanRothandKevinSmall.2008. Activelearningfor
+partialannotationforefficientcorpusconstruction. In pipelinemodels. InAAAI,pages683–688.
+ProceedingsoftheSeventhInternationalConference
+GuyRotmanandRoiReichart.2022. Multi-taskactive
+onLanguageResourcesandEvaluation(LREC’10),
+learning for pre-trained transformer-based models.
+Valletta,Malta.EuropeanLanguageResourcesAsso-
+TransactionsoftheAssociationforComputational
+ciation(ELRA).
+Linguistics,10:1209–1228.
+QiangNing,HangfengHe,ChuchuFan,andDanRoth.
+Manabu Sassano and Sadao Kurohashi. 2010. Using
+2019. Partial or complete, that’s the question. In
+smallerconstituentsratherthansentencesinactive
+Proceedings of the 2019 Conference of the North
+learning for Japanesedependencyparsing. In Pro-
+AmericanChapteroftheAssociationforComputa-
+ceedingsofthe48thAnnualMeetingoftheAssocia-
+tionalLinguistics: HumanLanguageTechnologies,
+tionforComputationalLinguistics,pages356–365,
+Volume1(LongandShortPapers),pages2190–2200,
+Uppsala, Sweden. Association for Computational
+Minneapolis,Minnesota.AssociationforComputa-
+Linguistics.
+tionalLinguistics.
+TobiasScheffer,ChristianDecomain,andStefanWro-
+QiangNing,ZhongzhiYu,ChuchuFan,andDanRoth.
+bel.2001. Activehiddenmarkovmodelsforinfor-
+2018. Exploitingpartiallyannotateddataintemporal
+mation extraction. In International Symposium on
+relation extraction. In Proceedings of the Seventh
+IntelligentDataAnalysis,pages309–318.Springer.
+JointConferenceonLexicalandComputationalSe-
+mantics, pages 148–153, New Orleans, Louisiana. BurrSettles.2009. Activelearningliteraturesurvey.
+AssociationforComputationalLinguistics.
+Burr Settles and Mark Craven. 2008. An analysis of
+JoakimNivre,Marie-CatherinedeMarneffe,FilipGin- activelearningstrategiesforsequencelabelingtasks.
+ter, Jan Hajicˇ, Christopher D. Manning, Sampo In Proceedings of the 2008 Conference on Empiri-
+Pyysalo, Sebastian Schuster, Francis Tyers, and calMethodsinNaturalLanguageProcessing,pages
+Daniel Zeman. 2020. Universal Dependencies v2: 1070–1079,Honolulu,Hawaii.AssociationforCom-
+Anevergrowingmultilingualtreebankcollection. In putationalLinguistics.
+ProceedingsoftheTwelfthLanguageResourcesand
+EvaluationConference,pages4034–4043,Marseille, BurrSettles,MarkCraven,andLewisFriedland.2008.
+France.EuropeanLanguageResourcesAssociation. Active learning with real annotation costs. In Pro-
+ceedings of the NIPS workshop on cost-sensitive
+MatthewE.Peters,MarkNeumann,MohitIyyer,Matt learning,volume1.
+Gardner,ChristopherClark,KentonLee,andLuke
+Dan Shen, Jie Zhang, Jian Su, Guodong Zhou, and
+Zettlemoyer.2018. Deepcontextualizedwordrepre-
+Chew-Lim Tan. 2004. Multi-criteria-based active
+sentations. InProceedingsofthe2018Conferenceof
+learningfornamedentityrecognition. InProceed-
+theNorthAmericanChapteroftheAssociationfor
+ingsofthe42ndAnnualMeetingoftheAssociation
+ComputationalLinguistics: HumanLanguageTech-
+forComputationalLinguistics(ACL-04),pages589–
+nologies,Volume1(LongPapers),pages2227–2237,
+596,Barcelona,Spain.
+NewOrleans,Louisiana.AssociationforComputa-
+tionalLinguistics.
+YanyaoShen,HyokunYun,ZacharyC.Lipton,Yakov
+Kronrod,andAnimashreeAnandkumar.2018. Deep
+PengQi,YuhaoZhang,YuhuiZhang,JasonBolton,and
+activelearningfornamedentityrecognition. InInter-
+Christopher D. Manning. 2020. Stanza: A python
+nationalConferenceonLearningRepresentations.
+naturallanguageprocessingtoolkitformanyhuman
+languages. InProceedingsofthe58thAnnualMeet- DavidA.SmithandNoahA.Smith.2007. Probabilistic
+ingoftheAssociationforComputationalLinguistics: modelsofnonprojectivedependencytrees. InPro-
+SystemDemonstrations,pages101–108,Online.As- ceedingsofthe2007JointConferenceonEmpirical
+sociationforComputationalLinguistics. MethodsinNaturalLanguageProcessingandCom-
+putational Natural Language Learning (EMNLP-
+PuriaRadmard,YassirFathullah,andAldoLipani.2021.
+CoNLL), pages 132–140, Prague, Czech Republic.
+Subsequencebaseddeepactivelearningfornamed
+AssociationforComputationalLinguistics.
+entityrecognition. InProceedingsofthe59thAnnual
+Meeting of the Association for Computational Lin- Noah A Smith. 2011. Linguistic structure prediction.
+guisticsandthe11thInternationalJointConference Synthesislecturesonhumanlanguagetechnologies,
+onNaturalLanguageProcessing(Volume1: Long 4(2):1–274.
+Papers),pages4310–4321,Online.Associationfor
+ComputationalLinguistics. OscarTäckström,DipanjanDas,SlavPetrov,RyanMc-
+Donald, and Joakim Nivre. 2013. Token and type
+RoiReichart,KatrinTomanek,UdoHahn,andAriRap- constraintsforcross-lingualpart-of-speechtagging.
+poport.2008. Multi-taskactivelearningforlinguistic TransactionsoftheAssociationforComputational
+annotations. InProceedingsofACL-08: HLT,pages Linguistics,1:1–12.
+Erik F. Tjong Kim Sang and Fien De Meulder. Xlnet: Generalizedautoregressivepretrainingforlan-
+2003. IntroductiontotheCoNLL-2003sharedtask: guageunderstanding. Advancesinneuralinforma-
+Language-independentnamedentityrecognition. In tionprocessingsystems,32.
+ProceedingsoftheSeventhConferenceonNatural
+LanguageLearningatHLT-NAACL2003,pages142– DavidYarowsky.1995. Unsupervisedwordsensedis-
+147. ambiguation rivaling supervised methods. In 33rd
+Annual Meeting of the Association for Computa-
+KatrinTomanekandUdoHahn.2009. Semi-supervised tionalLinguistics,pages189–196,Cambridge,Mas-
+activelearningforsequencelabeling. InProceedings sachusetts,USA.AssociationforComputationalLin-
+oftheJointConferenceofthe47thAnnualMeeting guistics.
+of the ACL and the 4th International Joint Confer-
+YueYu, LingkaiKong, JieyuZhang, RongzhiZhang,
+enceonNaturalLanguageProcessingoftheAFNLP,
+andChaoZhang.2022. AcTune: Uncertainty-based
+pages 1039–1047, Suntec, Singapore. Association
+activeself-trainingforactivefine-tuningofpretrained
+forComputationalLinguistics.
+languagemodels. InProceedingsofthe2022Con-
+ference of the North American Chapter of the As-
+YutaTsuboi,HisashiKashima,ShinsukeMori,Hiroki
+sociation for Computational Linguistics: Human
+Oda, and Yuji Matsumoto. 2008. Training condi-
+LanguageTechnologies,pages1422–1436,Seattle,
+tional random fields using incomplete annotations.
+United States. Association for Computational Lin-
+InProceedingsofthe22ndInternationalConference
+guistics.
+onComputationalLinguistics(Coling2008),pages
+897–904,Manchester,UK.Coling2008Organizing
+Xiangkai Zeng, Sarthak Garg, Rajen Chatterjee, Ud-
+Committee.
+hyakumar Nallasamy, and Matthias Paulik. 2019.
+Empiricalevaluationofactivelearningtechniquesfor
+TuVu,Minh-ThangLuong,QuocLe,GradySimon,and
+neuralMT. InProceedingsofthe2ndWorkshopon
+MohitIyyer.2021. STraTA:Self-trainingwithtask
+DeepLearningApproachesforLow-ResourceNLP
+augmentation for better few-shot learning. In Pro-
+(DeepLo 2019), pages 84–93, Hong Kong, China.
+ceedingsofthe2021ConferenceonEmpiricalMeth-
+AssociationforComputationalLinguistics.
+ods in Natural Language Processing, pages 5715–
+5731,OnlineandPuntaCana,DominicanRepublic.
+HuaZhu,WuYe,SihanLuo,andXidongZhang.2020.
+AssociationforComputationalLinguistics.
+A multitask active learning framework for natural
+languageunderstanding. InProceedingsofthe28th
+ChristopherWalker,StephanieStrassel,JulieMedero,
+InternationalConferenceonComputationalLinguis-
+andKazuakiMaeda.2006. ACE2005multilingual
+tics, pages 4900–4914, Barcelona, Spain (Online).
+trainingcorpus. LinguisticDataConsortium,57.
+InternationalCommitteeonComputationalLinguis-
+tics.
+Chenguang Wang, Laura Chiticariu, and Yunyao Li.
+2017. Activelearningforblack-boxsemanticrole
+labelingwithneuralfactors. InIJCAI.
+Xinyu Wang, Yong Jiang, Zhaohui Yan, Zixia Jia,
+Nguyen Bach, Tao Wang, Zhongqiang Huang, Fei
+Huang,andKeweiTu.2021. Structuralknowledge
+distillation: Tractablydistillinginformationforstruc-
+turedpredictor. InProceedingsofthe59thAnnual
+Meeting of the Association for Computational Lin-
+guisticsandthe11thInternationalJointConference
+onNaturalLanguageProcessing(Volume1: Long
+Papers), pages 550–564, Online. Association for
+ComputationalLinguistics.
+DittayaWanvarie,HiroyaTakamura,andManabuOku-
+mura.2011. Activelearningwithsubsequencesam-
+plingstrategyforsequencelabelingtasks. Informa-
+tionandMediaTechnologies,6(3):680–700.
+FanYangandPaulVozila.2014. Semi-supervisedChi-
+nesewordsegmentationusingpartial-labellearning
+withconditionalrandomfields. InProceedingsofthe
+2014ConferenceonEmpiricalMethodsinNatural
+LanguageProcessing(EMNLP),pages90–98,Doha,
+Qatar.AssociationforComputationalLinguistics.
+Zhilin Yang, Zihang Dai, Yiming Yang, Jaime Car-
+bonell,RussRSalakhutdinov,andQuocVLe.2019.
+A MoreDetailsofTaskSettings layersasthesharedencodingmodulewhoseout-
+put representations are used for both sub-tasks.
+A.1 DPAR
+Each sub-task further adopts a private encoder
+• Model. Similar to NER, we utilize a BERT- thatisinitializedwiththeremainingpre-trained
+based module to provide contextualized repre- layers and is trained with task-specific signals.
+sentations. We further stack a standard first- WesimplysetN to6,whiletheresultsaregen-
+order non-projective graph-based parsing mod- erallynotsensitivetothishyper-parameter. Final
+ule based on a biaffine scorer (Dozat and Man- task-specificpredictorsarefurtherstackedupon
+ning, 2017). The marginals for each token’s thecorrespondingprivateencoders. Weadopta
+headdecisioncanbefeasiblycalculatedbythe CRFlayerformentionextractionandapairwise
+Matrix-Treealgorithm(Kooetal.,2007;Smith localpredictorwithabiaffinescorerforrelation
+andSmith,2007;McDonaldandSatta,2007). orargumentextraction.
+• QueryandSelection. Followingpreviousworks
+• Sentenceselection. Foranunlabeledsentence,
+(Flannery and Mori, 2015; Li et al., 2016), we
+there is an uncertainty score for each sub-task.
+viewDPARasahead-wordfindingproblemand
+Formentions,theuncertaintyistheaveragemar-
+regard each token and its head decision as the
+ginasintheNERtask. Forrelations,wefindthat
+sub-structure unit. In this case, the query and
+averaginguncertaintiesoverallmentionpairshas
+selection for DPAR are almost identical to the
+a bias towards sentences with fewer mentions.
+NER task because of this token-wise decision
+Tomitigatesuchbias, wefirstaggregateanun-
+scheme. Therefore, the same AL strategies in
+certainty score for each mention by taking the
+NERcanbeadoptedhere.
+maximumscorewithinalltherelationsthatlink
+toitandthenaveragingoverallthementionsfor
+• Annotation. InDPAR,therearenospecialspan-
+sentence-levelscores. Finally,thescoresofthe
+based annotations as in NER; thus, we simply
+twosub-tasksarelinearlycombinedtoformthe
+annotateinaword-basedscheme.
+sentence-leveluncertainty.
+• Modellearning. SimilartoNER,weadoptthe
+• Partialselection. ForPAselection,thetwosub-
+log-likelihoodofthegoldparsetreeasthetrain-
+tasks are handled separately according to the
+inglossinFAandmarginalizedlikelihoodinPA
+adaptive ratio scheme. We further adopt two
+(Lietal.,2016).
+heuristics for the relational task to compensate
+forerrorsinthementionextraction. First,since
+A.2 IE there can be over-predicted mentions that lead
+to discarded relation queries, we adjust the PA
+• Tasks. Wetackleeventextraction(EE)andrela-
+ratio by estimating how many candidate rela-
+tionextraction(RE)usingatwo-steppipelined
+tions contain such errors in the mentions. We
+approach. The first step aims to extract entity
+again train a logistic regression model to pre-
+mentionsforRE,andentitymentionsandevent
+dict whether a token is NIL (or ‘O’ in the BIO
+triggersforEE.Weadoptsequencelabelingfor
+scheme,meaningnotcontainedinsideanygold
+mentionextractionsasintheNERtask. Basedon
+mentions)basedonitsNILprobability. Thenfor
+thementionsextractedinthefirststep,thesecond
+eachcandidaterelation,wecalculatetheproba-
+step examines each feasible candidate mention
+bilitythatanytokenwithinitsmentionsisNIL.
+pair(entitypairforREandevent-entitypairfor
+By averaging this probability of all the candi-
+EE)anddecidestherelation(entityrelationfor
+dates, we obtain a rough estimation of the per-
+REandeventargumentrelationforEE)forthem.
+centageofproblematicrelations,whichwecall
+Since event argument links can be regarded as
+itα. FinallythePAselectionratioisadjustedby:
+relationsbetweeneventtriggersandentities,for
+r = α·r +(1−α)·r . Here,r
+simplicitywewillusetherelationalsub-taskto adjust problem origin origin
+denotestheoriginalselectionratioobtainedfrom
+refertobothrelationandargumentextraction.
+theadaptivescheme,andr denotesthese-
+problem
+• Model. Weadoptamulti-taskmodelsimilarto lectionratioofproblematicrelations,whichwe
+theoneutilizedin(RotmanandReichart,2022). conservatively set to 1. Secondly, since there
+With a pre-trained encoder, we take the first N canalsobeunder-predictedmentions,weadda
+Data Split #Sent. #Token #Event #Entity #Argument #Relation
+train 14.0K 203.6K - 23.5K - -
+CoNLL03 dev 3.3K 51.4K - 5.9K - -
+test 3.5K 46.4K - 5.6K - -
+train 12.5K 204.6K - - - -
+UD-EWT dev 2.0K 25.1K - - - -
+test 2.1K 25.1K - - - -
+train 14.4K 215.2K 3.7K 38.0K 5.7K 6.2K
+ACE05 dev 2.5K 34.5K 0.5K 6.0K 0.7K 0.8K
+test 4.0K 61.5K 1.1K 10.8K 1.7K 1.7K
+Table1: Datastatistics.
+secondstageofqueryingandannotationineach andmentiontasks. WefollowLinetal.(2020)for
+AL cycle based on the annotated mentions in the pre-processing15 of the ACE dataset. For the
+thefirststage. Thisextrastageonlyselectsrela- IEtasksonACE,wefindthattheconventionaltest
+tionsthatinvolvethenewlyaddedorcorrected set contains only newswire documents while the
+mentions. We simply reuse the selection ratio trainingsetconsistsofvariousgenres(suchasfrom
+determined from the first stage and apply it to conversationandweb). Suchmismatchesbetween
+each sentence that contains such mentions. In the AL pool and the final testing set are nontriv-
+thisway,thesecondstageislightweightandonly ial to handle with the classical AL protocol, and
+requires relatively cheap re-inference for each wethusrandomlyre-splittheACEdataset(witha
+queriedsentenceindividually. ratioof7:1:2fortraining,dev,andtestsets,respec-
+tively). Table1showsdatastatistics. ForeachAL
+• Annotation. Theannotationofthementionsis
+experiment,wetaketheoriginaltrainingsetasthe
+thesameasintheNERtask,whilefortheannota-
+unlabeled pool, down-sample a dev set from the
+tionofrelationalqueries,theirmentionsarefirst
+originaldevset,andevaluateonthefulltestset.
+examinedandcorrectedifneeded,asexplained
+in§3.4. Wemeasurethelabelingcostbythefi- MoreSettings. Allofourmodelsarebasedon
+nalannotateditems;thus,theseextraexamined the pre-trained RoBERTa base as the contextual-
+mentionedwillalsobeproperlycounted. ized encoder. We further fine-tune it with the
+task-specific decoder in all the experiments. The
+• Modellearning. Forthementionextractionsub- numberofmodelparametersisroughly124Mfor
+task,thetrainingobjectiveisthesameasinNER. single-outputtasksandaround186Mformulti-task
+For the relational sub-task, we simply adopt a IE tasks. For other hyper-parameter settings, we
+local pairwise model with the standard cross- mostlyfollowcommonpractices. Adamisutilized
+entropy loss. Since the relation model is local, foroptimization,withaninitiallearningrateof1e-
+nospecialtreatmentisneededforPA. 5forNERand2e-5forDPARandIE.Thelearning
+rateislinearlydecayedto10%oftheinitialvalue
+B DataStatisticsandMoreSettings throughout the training process. The models are
+tuned for 10K steps with a batch size of roughly
+Data. Our main experiments are conducted us-
+512tokens. Weevaluatethemodelonthedevset
+ing the CoNLL-2003 English dataset11 (Tjong
+every1Kstepstochoosethebestcheckpoint. The
+Kim Sang and De Meulder, 2003) for NER, the
+experiments are run with one 2080Ti GPU. The
+EnglishWebTreebank(EWT)fromUniversalDe-
+training of one AL cycle usually takes only one
+pendencies12 v2.10(Nivreetal.,2020)forDPAR,
+or two hours, and the full simulation of one AL
+andEnglishportionofACE200513 (Walkeretal.,
+runcanbefinishedwithinoneday. Weadoptstan-
+2006)forIE.WeutilizeStanza14 (Qietal.,2020)
+dard evaluation metrics for the tasks: labeled F1
+toassignPOStagsforcostmeasurementinNER
+scoreforNER,labeledattachmentscore(LAS)for
+11https://www.clips.uantwerpen.be/conll2003/ DPAR,labeledargumentandrelationF1scorefor
+ner/ eventargumentsandrelations(Linetal.,2020).
+12https://universaldependencies.org/
+13https://catalog.ldc.upenn.edu/LDC2006T06 15http://blender.cs.illinois.edu/software/
+14https://stanfordnlp.github.io/stanza/ oneie/
+C DetailsofAlgorithms labeling (Baum et al., 1970) or Matrix-tree for
+non-projective dependency parsing (Koo et al.,
+In this section, we provide more details ofthe al-
+2007;SmithandSmith,2007;McDonaldandSatta,
+gorithms for CRF-styled models (Lafferty et al.,
+2007).
+2001). Foraninputinstancex(forexample,asen-
+tence), the model assigns a globally normalized Learningwithincompleteannotations. Follow-
+probabilitytoeachpossibleoutputstructuredob- ing previous works (Tsuboi et al., 2008; Li et al.,
+jecty (forexample,atagsequenceoraparsetree) 2016; Greenberg et al., 2018), for the instances
+inthetargetspaceY: with incomplete annotations, we utilize the loga-
+rithm of the marginal likelihood as the learning
+exps(y|x)
+p(y|x) = objective:
+(cid:80) exps(y′|x)
+y′∈Y
+(cid:80) (cid:88)
+exp s(f|x) L = −log p(y|x)
+f∈y
+=
+(cid:80) y′∈Y(cid:80) f′∈y′s(f′|x) y∈YC
+(cid:88) exps(y|x)
+Here,s(y|x)denotestheun-normalizedrawscores = −log (cid:80)
+exps(y|x)
+assignedtoy,whichisfurtherfactorizedintothe y∈YC y∈Y
+(cid:88)
+sumofthesub-structurescoress(f|x).16 Inplain = −log exps(y|x)+logZ(x)
+likelihoodtrainingforCRF,wetakethenegative
+y∈YC
+log-probabilityasthetrainingobjective:
+Here,Y denotestheconstrainedsetoftheoutput
+C
+L = −logp(y|x) objectsthatagreewiththeexistingpartialannota-
+= −s(y|x)+log (cid:88) exps(y′|x) tions. Inthisobjectivefunction,theseconditemis
+exactlythesameasinstandardCRF,whilethefirst
+y′∈Y
+onecanbecalculated17 inamodifiedway(Tsuboi
+Forbrevity,intheremaining,weuselogZ(x)to etal.,2008).
+denotethesecondtermofthelogpartitionfunction.
+Knowledge distillation. As described in the
+Formodeltraining,weneedtocalculatethegradi-
+maincontext,weadopttheknowledgedistillation
+entsofthemodelparametersθ tothelossfunction.
+objective for self-training with soft labels. For
+Thefirstitemiseasytodealwithsinceitonlyin-
+brevity, we denote the probabilities from the last
+volvesonestructuredobject,whilelogZ(x)needs
+modelasp′(y|x)andkeepusingp(y|x)todenote
+somereorganizationaccordingtothefactorization:
+theonesfromthecurrentmodel. FollowingWang
+(cid:80) y′∈Yexps(y′|x)∇ θs(y′|x)
+etal.(2021),thelosscanbecalculatedby:
+∇ logZ =
+θ (cid:80) exps(y′′|x)
+y′′∈Y (cid:88)
+(cid:88) L = − p′(y|x)logp(y|x)
+= p(y′|x)∇ s(y′|x)
+θ y∈Y
+y′∈Y (cid:88)
+= − p′(y|x)s(y|x)+logZ(x)
+(cid:88) (cid:88)
+= p(y′|x) ∇ s(f′|x)
+θ y∈Y
+y′∈Y f′∈y′ (cid:88) (cid:88)
+= − p′(y|x) s(f′|x)+logZ(x)
+(cid:88) (cid:88)
+= ∇ s(f′|x) p(y′|x)
+θ y∈Y f′∈y′
+f′ y′∈Y f′ = −(cid:88) s(f′|x) (cid:88) p′(y′|x)+logZ(x)
+Thelaststepisobtainedbyswappingtheorderof f′ y′∈Y f′
+thetwosummations,andfinally,theproblemisre-
+ducedtocalculatingeachsub-structure’smarginal The loss function is broken down into two items
+probability (cid:80) p(y′|x). Here, Y denotes whose gradients can be obtained by calculating
+y′∈Y f′ f′
+marginalsaccordingtothelastmodelorthecurrent
+all the output structured objects that contain the
+sub-structure f′, and the marginals can usually one,respectively.
+becalculatedbyclassicalstructuredpredictional- 17Inourimplementation,weadoptasimplemethodtoen-
+gorithmssuchasforward-backwardforsequence forcetheconstraintsbyaddingnegative-infinitetothescores
+oftheimpossiblelabels.Inthiscase,thestructuresthatvio-
+16Suchasunaryandpairwisescoresforsequencelabeling latestheconstraintswillhaveascoreofnegative-infinite(and
+ortoken-wiseedgescoresfordependencyparsing. aprobabilityofzero)andwillthusbeexcluded.
+ ' $ 3 5  5 H D G L Q J  & R V W  ' $ 3 5  / D E H O L Q J  & R V W
+    5 $ 1 '     5 $ 1 '
+ ) $  0  ) $  0
+ 3 $  0  3 $  0
+    3 $  / &     3 $  / &
+ 3 $  (  3 $  (
+    3 $  %     3 $  %
+ 6 X S H U   6 X S H U 
+     
+                                                                                                
+ 7 R N H Q  & R X Q W  6 X E  V W U X F W X U H  & R X Q W
+Figure7: Comparisonsofdifferentacquisitionfunctionsforpartialannotation: “-M”denotesmargin-based,“-LC”
+denotesleast-confident,“-E”denotesentropy-based,and“-B”indicatesBALD.
+tions,suchasthoseconsideringrepresentativeness.
+ ' $ 3 5  5 H D G L Q J  & R V W
+D.2 IEExperiments
+  
+ 5 $ 1 '
+ ) $  0 In this section, we present more results of the IE
+    ) $  / & experiments. First, Figure 9 shows the mention
+ ) $  (
+ ) $  % extractionresultsfortheeventextractiontask. The
+    6 X S H U 
+overall trends are very similar to those in NER:
+   PAcanobtainsimilarresultstoFAwiththesame
+                                               reading texts and less mention labeling cost. In
+ 7 R N H Q  & R X Q W
+Figure 10, we show the results for mention and
+Figure8:Comparisonsofdifferentacquisitionfunctions relationextractions. IntheACEdataset,relations
+for full annotation. Notations of the methods are the areverysparselyannotated,andaround97%ofthe
+sameasinFigure7. entities are linked with less or equal to two rela-
+tions. Considering this fact, we measure the cost
+of FA relation extraction by two times the anno-
+D ExtraResults
+tatedentities,whilePAstillcountsthenumberof
+thequeriedrelations. Therelationresultsaresim-
+D.1 UsingDifferentAcquisitionFunctions
+ilar to the patterns for event argument extraction,
+Inthemainexperiments,ouracquisitionfunction
+showing the benefits of selecting and annotating
+is based on margin-based uncertainty, that is, se-
+withpartialsub-structures. Noticethatinsomeof
+lectingtheinstancesthathavethelargestmarginal
+the mention extraction results, there seems to be
+differencesbetweenthemostandsecond-mostcon-
+lessobviousdifferencesbetweentheALstrategies
+fident predictions. Here, we compare it with var-
+overtherandombaseline. Thismaybeduetoour
+ious other acquisition functions, including least-
+focusonthesecondsub-taskforrelations(orevent
+confident (-LC), max-entropy (-E) and BALD (-
+arguments), directly reflected by its high weight
+B) (Houlsby et al., 2011). We take DPAR as the
+(β)incalculatingsentenceuncertainty. Itwillbe
+studying case and the results for full annotation
+interestingtoexplorebetterwaystoenhanceboth
+and partial annotation are shown in Figure 8 and
+sub-tasks,probablywithanadaptivecombination
+7,respectively. Generally,therearenolargediffer-
+scheme(RothandSmall,2008).
+encesbetweentheadoptedqueryingmethodsand
+the margin-based method can obtain the overall
+bestresults. Noticethatregardlessoftheadopted
+acquisitionfunction,wecanseetheeffectiveness
+of our partial selection scheme: it requires lower
+labelingcostthanfullannotationtoreachtheupper
+bound. This shows that our method is extensible
+todifferentALqueryingmethodsanditwillbein-
+terestingtoexplorethecombinationofourmethod
+withmorecomplexandadvancedacquisitionfunc-
+  6 $ /
+  6 $ /   6 $ /
+ 0 H Q W L R Q ( Q W L W \  5 H D G L Q J  & R V W  0 H Q W L R Q ( Q W L W \  / D E H O L Q J  & R V W
+     
+ 5 D Q G  5 D Q G
+ 5 D Q G  6 7  5 D Q G  6 7
+     
+ ) $  ) $
+ ) $  6 7  ) $  6 7
+    3 $     3 $
+ 3 $  6 7  3 $  6 7
+    6 X S H U      6 X S H U 
+     
+                                                                                   
+ 7 R N H Q  & R X Q W  6 X E  V W U X F W X U H  & R X Q W
+ 0 H Q W L R Q 7 U L J J H U  5 H D G L Q J  & R V W  0 H Q W L R Q 7 U L J J H U  / D E H O L Q J  & R V W
+     
+    5 D Q G     5 D Q G
+ 5 D Q G  6 7  5 D Q G  6 7
+    ) $     ) $
+ ) $  6 7  ) $  6 7
+ 3 $  3 $
+     
+ 3 $  6 7  3 $  6 7
+ 6 X S H U   6 X S H U 
+     
+                                                                                   
+ 7 R N H Q  & R X Q W  6 X E  V W U X F W X U H  & R X Q W
+Figure9: Results(F1)ofmentionextraction(entitiesandeventtriggers)fortheeventextractiontaskonACE05
+(argumentresultsareshowninFigure6).
+ 0 H Q W L R Q ( Q W L W \  5 H D G L Q J  & R V W  0 H Q W L R Q ( Q W L W \  / D E H O L Q J  & R V W
+     
+ 5 D Q G  5 D Q G
+    5 D Q G  6 7     5 D Q G  6 7
+ ) $  ) $
+    ) $  6 7     ) $  6 7
+ 3 $  3 $
+    3 $  6 7     3 $  6 7
+ 6 X S H U   6 X S H U 
+     
+                                                                       
+ 7 R N H Q  & R X Q W  6 X E  V W U X F W X U H  & R X Q W
+ 5 H O D W L R Q  5 H D G L Q J  & R V W  5 H O D W L R Q  / D E H O L Q J  & R V W
+     
+     
+ 5 D Q G  5 D Q G
+    5 D Q G  6 7     5 D Q G  6 7
+ ) $  ) $
+    ) $  6 7     ) $  6 7
+ 3 $  3 $
+    3 $  6 7     3 $  6 7
+ 6 X S H U   6 X S H U 
+     
+     
+                                                                       
+ 7 R N H Q  & R X Q W  6 X E  V W U X F W X U H  & R X Q W
+Figure10: Results(F1)oftheextractionofentitymentionsandrelationsfortherelationextractiontaskonACE05.
+   )
+   )
+   )
+   )
+   )
+   )
+   )
+   )

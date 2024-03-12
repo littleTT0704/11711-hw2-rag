@@ -1,0 +1,949 @@
+Generated Knowledge Prompting for Commonsense Reasoning
+JiachengLiu♥ AlisaLiu♥ XimingLu♥♠ SeanWelleck♥♠
+PeterWest♥♠ RonanLeBras♠ YejinChoi♥♠ HannanehHajishirzi♥♠
+♥PaulG.AllenSchoolofComputerScience&Engineering,UniversityofWashington
+♠AllenInstituteforArtificialIntelligence
+liujc@cs.washington.edu
+Abstract
+It remains an open question whether incorpo-
+rating external knowledge benefits common-
+sense reasoning while maintaining the flexi-
+bility of pretrained sequence models. To in-
+vestigate this question, we develop generated
+knowledge prompting, which consists of gen-
+erating knowledge from a language model,
+thenprovidingtheknowledgeasadditionalin-
+put when answering a question. Our method
+does not require task-specific supervision for
+knowledge integration, or access to a struc-
+tured knowledge base, yet it improves perfor-
+Figure 1: Generated knowledge prompting involves
+mance of large-scale, state-of-the-art models
+(i)usingfew-shotdemonstrationstogeneratequestion-
+onfourcommonsensereasoningtasks,achiev-
+related knowledge statements from a language model;
+ing state-of-the-art results on numerical com-
+(ii) using a second language model to make predic-
+monsense (NumerSense), general common-
+tionswitheachknowledgestatement,thenselectingthe
+sense (CommonsenseQA 2.0), and scientific
+highest-confidenceprediction.
+commonsense (QASC) benchmarks. Gener-
+ated knowledge prompting highlights large-
+scale language models as flexible sources of
+edge,asmanybenchmarkscurrentlylackappropri-
+external knowledge for improving common-
+ateknowledgebaseswithsufficientcoverage. Fur-
+sense reasoning. Our code is available at
+github.com/liujch1998/GKP thermore,priormethodsoftenrequiretask-specific,
+customsupervisionforknowledgeintegration(Mi-
+1 Introduction traetal.,2019;Changetal.,2020),introducinga
+burdenforrapidlyadaptingnewpretrainedmodels
+Itremainsanopenresearchquestionwhetherexter-
+toawidevarietyoftasks.
+nalknowledgeisneededforcommonsensereason-
+ing. Ononehand,asubstantialbodyofpriorwork In this paper, we investigate whether external
+has reported that integrating external knowledge knowledge can be helpful for commonsense rea-
+can help improve task performance (Mitra et al., soning, even on top of the largest state-of-the-art
+2019;Bianetal.,2021,interalia),especiallyifthe pretrainedmodels(e.g. T5-11b(Raffeletal.,2019)
+knowledgeishighquality(e.g. hand-craftedbyex- anditsvariants),withafocusonfourrecentcom-
+perts). Ontheotherhand,recentleaderboardsare monsense benchmarks. To facilitate easier adap-
+oftendominatedbylarge-scalepretrainedmodels tationwithanyzero-shotorfinetunedmodels,we
+thatarefine-tunedonatargetbenchmark(Khashabi proposeanapproachthatdoesnotrequireaccess
+et al., 2020; Lourie et al., 2021), suggesting that toastructuredknowledgebaseorjointfinetuning
+thebenefitsofexternalknowledgemaywashaway forknowledgeintegration.
+astheunderlyingmodelsincreaseinsizeandare Thekeyinsightbehindourmethod,Generated
+pretrainedoneverlargeramountsofrawtext. Knowledge Prompting (sketched in Figure 1), is
+Even if external knowledge is found to be ef- thatwecangenerateusefulknowledgefromalan-
+fective on a particular task, flexibility remains a guagemodel,thenprovidetheknowledgeasanin-
+fundamentalhurdletointegratingexternalknowl- putpromptthatisconcatenatedwithaquestion. To
+3154
+Proceedingsofthe60thAnnualMeetingoftheAssociationforComputationalLinguistics
+Volume1:LongPapers,pages3154-3169
+May22-27,2022(cid:13)c2022AssociationforComputationalLinguistics
+Dataset Question/Knowledge Prediction Score
+thewordchildrenmeans[M]ormorekids. one 0.37|0.35
+NumerSense
+Thewordchildmeansonekid. two 0.91
+Shewasalwayshelpingattheseniorcenter,itbroughtherwhat? feelbetter 0.97|0.02
+CSQA
+Peoplewhohelpothersareusuallyhappier. happiness 0.98
+Partofgolfistryingtogetahigherpointtotalthanothers. yes 1.00|0.00
+CSQA2
+Theplayerwiththelowestscorewins. no 1.00
+Spongeseatprimarily cartilage 0.95|0.00
+QASC
+Spongeseatbacteriaandothertinyorganisms. krillandplankton 0.99
+Table1: Exampleswherepromptingwithgeneratedknowledgerectifiesmodelprediction. Eachsectionshowsthe
+correctansweringreen,theincorrectanswerinred,andthepredictionscoresfromtheinferencemodelthatonly
+seesthequestion(top)andthesamemodelthatseesthequestionpromptedwiththegivenknowledge(bottom).
+supportavarietyofsettingswithoutfinetuning,the tion q ∈ Q, where the set of choices A is finite
+q
+qualityandflexibilityofknowledgeiscrucial. We andcanvarybyquestion,andbothquestionsand
+proposeasimple,yeteffective,methodthatelicits answers are variable-length text sequences. Our
+knowledge statements (i.e. knowledge expressed method answers commonsense questions in two
+asnaturallanguagestatements)fromgenericlan- steps.
+guagemodelsinafew-shotsetting. Comparedto Thefirststepisknowledgegeneration,wherewe
+priorworkthatelicitsknowledgeviaclarification usealanguagemodelp (k|q)togenerateknowl-
+G
+questions(Shwartzetal.,2020)orcontrastiveex- edgestatementsconditionedonthequestion:
+planations (Paranjape et al., 2021), our approach
+K = {k : k ∼ p (k|q),m = 1...M},
+cangenerateknowledgeflexibly,beyondthescope q m m G
+ofpre-definedtemplates(Table1).
+whereeachknowledgestatementk isavariable-
+m
+Experiments show that our method improves
+length text sequence. Intuitively, each statement
+both zero-shot and finetuned models on numeri-
+containsinformationthatishelpfulforanswering
+calcommonsense(NumerSense(Linetal.,2020)),
+thequestion(e.g. Table1).
+generalcommonsense(CommonsenseQA(Talmor
+Thesecondstepisknowledgeintegration,where
+etal.,2019),CommonsenseQA2.0(Talmoretal.,
+generatedknowledgeisintegratedintothedecision
+2021)),andscientificcommonsense(QASC(Khot
+processofalanguagemodelusedforinference,
+et al., 2020)) benchmarks, setting a new state-of-
+the-art on three of these datasets. It outperforms aˆ = argmaxp (a|q,K )
+I q
+thetemplate-basedknowledgegenerationmethod a∈Aq
+self-talk (Shwartzetal.,2020),whileperforming
+In contrast, the vanilla setting of using the infer-
+comparablytoretrieval-basedsystems.
+ence model without knowledge is represented by
+We find three factors contribute to the perfor-
+aˆ = argmax p (a|q).
+manceofgeneratedknowledgeprompting: (i)the
+a∈Aq I
+Next,wedescribetheknowledgegenerationand
+quality of knowledge, (ii) the quantity of knowl-
+integrationstepsindetail.
+edgewheretheperformanceimproveswithmore
+knowledge statements, and (iii) the strategy for 2.1 KnowledgeGeneration
+integratingknowledgeduringinference. Ourquali- We generate question-related knowledge state-
+tativeanalysissuggeststhatthegeneratedknowl- mentsbypromptingalanguagemodel. Theprompt
+edgestatementscoveravarietyoftypes,andcan consistsofaninstruction,afewdemonstrationsthat
+transformcommonsensequestionansweringtoex- arefixedforeachtask,andanew-questionplace-
+plicitreasoningprocedures,e.g. deduction,thatare holder. Thedemonstrationsarehuman-written,and
+supportedbyoff-the-shelfandfinetunedlanguage eachconsistsofaquestioninthestyleofthetask
+models. and a knowledge statement that is helpful for an-
+swering this question. For a given task, we write
+2 GeneratedKnowledgePrompting
+fivedemonstrationsusingtheformatinTable2.
+A multiple-choice commonsense reasoning task Wewritequestions(orselectthemfromthetrain-
+involvespredictingananswera ∈ A givenaques- ingset,whenavailable)thatarerepresentativeof
+q
+3155
+Task NumerSense QASC
+Prompt Generatesomenumericalfactsaboutobjects.Examples: Generatesomeknowledgeabouttheinput.Examples:
+Input:penguinshave<mask>wings. Input:Whattypeofwaterformationisformedbyclouds?
+Knowledge:Birdshavetwowings.Penguinisakindofbird. Knowledge:Cloudsaremadeofwatervapor.
+... ...
+Input:atypicalhumanbeinghas<mask>limbs. Input:Theprocessbywhichgenesarepassedis
+Knowledge:Humanhastwoarmsandtwolegs. Knowledge:Genesarepassedfromparenttooffspring.
+Input:{question} Input:{question}
+Knowledge: Knowledge:
+Table2: Promptsforknowledgegenerationfortwoofourtasks,NumerSenseandQASC.Thepromptconsistsof
+aninstruction,fivedemonstrationsofquestion-knowledgepairs,andanewquestionplaceholder. Forfullprompts
+onallthetasksweevaluateon,seeAppendixA.2.
+challengesposedbythetask(e.g. numericalcom- Thepredictedansweristhen,
+monsense,scientificcommonsense). Wepaireach
+aˆ = argmax max p (a|q ),
+I m
+questionwithaknowledgestatementthatturnsthe a∈Aq 0≤m≤M
+commonsenseproblemposedbythequestioninto
+whichisthechoicethatgetsmostsupportfromone
+an explicit reasoning procedure, without directly
+oftheknowledgestatements. Thispredictionuses
+answering the question. For example, the knowl-
+asingleknowledgestatement,whichwerefertoas
+edgestatementBirdshavetwowings. Penguinisa
+theselectedknowledge:
+kindofbird. ishelpfulforthequestionPenguins
+have<mask>wings,becauseitturnstheproblem kˆ = k mˆ wheremˆ = argmaxmaxp I(a|q m).
+into deductive reasoning. Meanwhile, Penguins 0≤m≤M a∈Aq
+havetwowings. wouldbeapoorknowledgestate- The inference model may be any existing lan-
+menttodemonstrateaccordingtoourguideline. guagemodeltakenoff-the-shelf(i.e. zero-shot)or
+Whengeneratingknowledgeforanewquestion finetuned on the task. We do not do any further
+q, we plug the question into the placeholder, and finetuningwithknowledgeprompting.
+repeatedlysamplegeneratedcontinuationsofthis
+3 ExperimentalSetup
+prompt to obtain a set of knowledge statements
+K = {k ,k ,...,k }. For full prompts on all Here, we describe the implementation details of
+q 1 2 M
+thetasksweevaluateon,seeAppendixA.2. ourmethodandhowtheyareadaptedtoeachtask.
+For knowledge generation, we use GPT-3
+2.2 KnowledgeIntegrationviaPrompting (Brown et al., 2020) as the underlying language
+model, where our few-shot prompting method is
+In the knowledge integration step, we use a lan-
+most effective. We generate M = 20 knowledge
+guage model – called the inference model – to
+statementsforeachquestionwithnucleussampling
+makepredictionswitheachgeneratedknowledge
+p = 0.5(Holtzmanetal.,2019),anddiscardrepe-
+statement,thenselectthehighest-confidencepre-
+titionsandemptystrings. Generationisterminated
+diction. Specifically,weuseeachknowledgestate-
+whenitexceeds64tokensorhitsthe\ntoken.1
+menttopromptthemodel,formingM knowledge-
+For inference, we use off-the-shelf T5 (Raffel
+augmentedquestions:
+etal.,2019)andGPT-3,aswellasfinetunedmodels
+thatarestate-of-the-artoneachdataset,including
+q = q,q = [k ||q],...,q = [k ||q]
+0 1 1 M M
+UnifiedQA(UQA)(Khashabietal.,2020)andUni-
+corn (Lourie et al., 2021). See details in the task
+where[·||·]denotestextconcatenation.
+setupbelow.
+Wecomputeanaggregatedscoreforeachanswer
+choice a using the augmented question that best
+3.1 DatasetsandTaskSetup
+supportsitundertheinferencemodel:
+Weevaluateourmethodonfourcommonsenserea-
+soningdatasetswhichcoveravarietyofchallenges
+p (a|q,K ) ∝ max p (a|q ). (1)
+I q I m
+0≤m≤M andproblemformats.
+1AnexceptioniswiththeCSQA2dataset,whereforthe
+Intuitively,thisfavorsknowledgestatementsthat
+bestresultswechooseM =5andallowforupto128tokens
+stronglysupportoneofthechoices. ineachgeneration.
+3156
+NumerSense(Linetal.,2020)consistsofnumer- alsousingGPT-3,withthesamehyperparameters).
+ical statements about common objects and con- Context sentences (C) Sampling sentences
+ceptswhereforeachsentenceweneedtorecover from the context of the question. This is imple-
+amaskednumberword. Thechoicesareintegers mentedbysamplingtextcontinuationsoftheques-
+ranging from zero to ten, plus the word no, so tion from the language model. We use the same
+thetaskcanbeframedasamultiple-choiceprob- implementationsetupasourknowledgegeneration
+lem. SinceNumerSenseisadiagnosticdataset,we method.
+onlyusezero-shotinferencemodels,whichisthe
+Template-generated knowledge (T) Self-talk
+currentSOTA.WefollowZhang(2021)whouses
+(Shwartzetal.,2020)usesmanually-designedtem-
+thestate-of-the-artzero-shotT5withtext-infilling
+platestoelicitknowledgestatementsfromlanguage
+setupandselectthechoicewithhighestlikelihood
+models. Forfaircomparison,weuseGPT-3asthe
+onitstoken(s). Wealsoimplementzero-shotGPT-
+knowledge generator in self-talk, and bound the
+3 inference, where we plug in each choice to the
+number of generations to M = 20 per question.
+questionandcomputethechoiceprobabilityasthe
+Templatesandotherhyperparametersarekeptthe
+generativeprobabilityoftheentiresentence, nor-
+sameastheiroriginalpaper.
+malizedoverallthechoices.
+Retrieval-basedknowledge(IR) Insteadofbe-
+CommonsenseQA(CSQA)(Talmoretal.,2019) ing generated, knowledge can be retrieved from
+isa5-waymultiple-choiceQAdatasetaboutcom- appropriate sources. We consider the following
+mon world scenarios. We do inference with the retrieval-basedmethods. ForNumerSense,knowl-
+zero-shotandfinetunedT5models. Forzero-shot edgeisretrievedfromsentencesinWikipediaand
+T5,weformatthequestionastext-infilling,andpre- GenericsKB.ForCSQA2,weusesnippetsreturned
+dictthechoicewithhighestsequence-to-sequence byGooglewhenqueryingthequestion. ForQASC,
+languagemodelingprobability. ForfinetunedT5 weusetheassociatedfactsentencesthatareused
+(includingUnifiedQAwhichisSOTA),weusethe tocreateeachquestion.
+samesetupasKhashabietal.(2020).
+Answers (A) Instead of generating knowledge,
+CommonsenseQA 2.0 (CSQA2) (Talmor et al., GPT-3canbepromptedtogeneratedirectanswers
+2021) is a binary classification dataset where we to questions. In the prompts, we use the same
+needtojudgewhethercommonsensestatementsare inputquestionsasthoseinknowledgegeneration,
+true or false. We only do inference with the fine- whilereplacingtheknowledgestatementwiththe
+tunedmodel,duetopoorcalibrationofzero-shot ground truth answer. We consider two baselines:
+modelsonthisdataset. WeusefinetunedUnicorn (1)Generateoneanswerperquestionandusethis
+(Lourie et al., 2021), which is the current SOTA, tomeasuretheperformanceofthefew-shotGPT-3
+followingthesetupinTalmoretal.(2021). inference model; (2) Generate M = 20 answers
+QASC (Khot et al., 2020) is an 8-way multiple- perquestion,andusetheseanswerstopromptthe
+choiceQAdatasetaboutgradeschoolscience. This SOTAinferencemodels.
+dataset also includes two pieces of background
+4 ExperimentalResults
+knowledgeperquestion,whosecompositionfully
+answersthequestion. Wedoinferencewithzero- Aswewillshow,ourgeneratedknowledgeprompt-
+shot T5 and finetuned T5 (including UnifiedQA ingmethodsetsnewstate-of-the-artresultsonmost
+whichisSOTA),usingthesamesetupsasCSQA. datasetsweevaluateon,andworkswellunderboth
+zero-shotandfinetunedsettings. Inparticular,our
+3.2 KnowledgeGenerationBaselines
+knowledgegenerationoutperformsnaivebaselines
+Westudytheimpactofourknowledgegeneration as well as template-based knowledge generation,
+method(shorthandedasK)bycomparingwiththe andison-parwithretrieval-basedsystems.
+followingbaselines:
+Noknowledge(∅) Werefertoinferencewithout 4.1 OverallPerformance
+anyknowledgestatementsasthevanillabaseline. Table3showstheresultsonzero-shotandfinetuned
+Random sentences (R) Sampling random sen- modelsfollowingourtasksetups.
+tencesfromthelanguagemodelwithoutcondition- New state-of-the-art. We apply our method on
+ingonthequestion. Weusethesameimplementa- topofthesameinferencemodelusedintheprevi-
+tionsetupasourknowledgegenerationmethod(i.e. ousstate-of-the-art. OnNumerSense,weachievea
+3157
+A B B C D D
+1 2 1 2
+Dataset NumerSense CSQA CSQA CSQA2 QASC QASC
+InferenceModel T5-11b T5-11b UQA-11b-ft Unicorn-ft T5-11b UQA-11b-ft
+dev test test dev dev dev test dev test dev test
+core all
+(∅)Vanillabaseline 67.5 70.23 64.05 39.89 85.18 69.9 70.2† 48.16 44.89 81.75 76.74
+(R)Randomsentences 68.5 – – 21.79 85.42 70.37 – 49.35 – 82.18 –
+(C)Contextsentences 70.5 – – 42.51 85.34 70.92 – 55.83 – 82.61 –
+(T)Template-based – – – 45.37 – – – – – – –
+(IR)Retrieval-based – 70.41 65.10∗∗ – – 74.0 73.3†† 76.89 – 90.06 –
+(A)Answers 73.0 – – 51.84 84.93 69.22 – 52.48 – 81.53 –
+(K)Ours 78.0 79.24 72.47 47.26 85.34 72.37 73.03 58.32 55.00 84.02 80.33
+prev.SOTA(noIR) – 72.61 66.18∗ – 79.1(test)# 69.9 70.2† – – 81.75 76.74‡
+Few-shotGPT-3Infer. 60.5 – – – 71.58 53.80 – – – 66.09 –
+Table3: Experimentalresultsofapplyingdifferentknowledgegenerationmethodsonvarioustasksandinference
+models. T5-11bisthezero-shotinferencemodel,whereasotherinferencemodelsarefinetunedbasedonT5-11b.
+We bold the best and underline the second best numbers. Previous SOTA and retrieval-based methods are also
+basedontheinferencemodelintheircorrespondingcolumn: *T5-11b1.1+digits(SubmissionbyISIWaltham);
+** T5-11b + IR (Yan, 2021); # UQA-11b-ft (Khashabi et al., 2020) (SOTA of single-model methods without
+referencingConceptNet);†Unicorn-ft(Talmoretal.,2021);††Unicorn-ft+Googlesnippets(Talmoretal.,2021);
+‡UQA-11b-ft(Khashabietal.,2020).
+6%(66.18→72.47)improvementovertheprevi- commonsensequestions,underperformingourbest
+ousbestmethodbasedonthezero-shotT5model. models by 14% to 20% across all tasks. Even
+Thepreviousstate-of-the-artamongnon-retrieval whenweuseanswersgeneratedbyfew-shotGPT-3
+methodsonCSQA2isbasedonthefinetunedUni- to prompt the SOTA inference models, this still
+cornmodel,uponwhichweimproveby2%(70.2 significantly falls behind our method on almost
+→ 73.03). For QASC, the previous best is based all the tasks and models we consider (with one
+onthefinetunedUnifiedQAmodel,uponwhichwe exception–CSQAwithT5inference). Throughthe
+improveby3%(76.74→80.33). mediumofknowledge,ourmethodcaneffectively
+Zero-shot settings. Columns A, B , and D leverage useful information possessed by GPT-3
+1 1
+tohelpimproveeventheSOTAmodelsonvarious
+in Table 3 show that our method substantially
+commonsensereasoningtasks.
+improves zero-shot inference models, by 7% to
+10%acrossNumerSense(64.05→72.47),CSQA Ourknowledgeoutperformtemplategenerated
+(39.89→47.26),andQASC(44.89→55.00). knowledge. We compare our knowledge gener-
+Finetunedsettings. ColumnsB ,C,andD in ationmethodwiththetemplate-basedself-talkon
+2 2
+Table 3 indicate that our method consistently im- the CSQA dev set. (CSQA is the only task we
+proves upon the vanilla baseline set by finetuned experimentwiththathasself-talktemplatesavail-
+inferencemodels(thoughbysmallermarginsthan able.) Ourmethodleadstoalargerimprovement
+inthezero-shotsettings). overtheT5-11bbaselinethanself-talk(by1.89%),
+showingthatitisbetteratelicitinghelpfulknowl-
+4.2 KnowledgeGenerationMethods edgefrommodels.
+Table 3 reports the performance with different Our knowledge is comparable with retrieval-
+knowledge generation baselines. Generally, ran- based knowledge. On NumerSense, the re-
+dom sentences barely help and even hurt the in-
+trieved knowledge only improves inference per-
+ference model, whereas context sentences of the
+formance by 0.18% on test-core and 1.02% on
+question provide some gain. In contrast, knowl-
+test-all, while our method further outperforms it
+edge generated by our method consistently leads
+by 8.83% and 7.37%, respectively. This shows
+to substantial performance improvements, which
+that knowledge retrieved from a loosely-related
+impliesthatourknowledgeisofhighquality.
+knowledge base can be far less useful than our
+Knowledgeisanessentialfactor. Thefew-shot generated knowledge. On CSQA2, although we
+GPT-3modelispoorlycalibratedtodirectlyanswer arenotabletobeattheweb-retrievedknowledge,
+3158
+.neGegdelwonK
+Figure 2: Performance with different number of gen-
+erated knowledge statements per question (QASC dev
+set,T5-11binferencemodel).
+Figure 3: Improvement on top of different sizes of in-
+Integrationmethod QASC-dev ferencemodel(Numersensedevset).
+ours 58.32
+Mixture-of-Experts 56.26
+Product-of-Experts 55.94
+Table4:Performancewithdifferentknowledgeintegra-
+tionmethods(QASCdevset,T5-11binferencemodel).
+ourmethodstillbridgestheperformancegapwith-
+out referring to Google search. For QASC, the
+Figure4:Improvementbydifferentsizesofknowledge
+“retrieved”knowledgeisactuallygoldknowledge
+generation model (Numersense dev set, T5-11b infer-
+fromaknowledgebasethatwasusedtoconstruct encemodel).
+thedataset. Asaresult,ourgeneratedknowledge
+fallssignificantlyshortoftheretrievedknowledge.
+TheresultsinTable4indicatethatourknowledge
+Insummary,ourgeneratedknowledgeisroughly
+integrationmethod–i.e. adaptivelychoosingthe
+comparablewithretrievedknowledgeintermsof
+bestknowledgetorelyon–isbestamongthethree.
+downstream performance, and is most valuable
+whenthereisnoappropriatein-domainknowledge Lightweight inference models and amplifica-
+basetoretrievefrom. tion. Wefoundthatthesizeofinferencemodel
+affects the magnitude of improvement. Figure 3
+4.3 Analysis shows the NumerSense performance gain on top
+of different sizes of inference model. As we use
+Better performance with more knowledge.
+smallerinferencemodels,theperformancegainin-
+Weanalyzetheimpactofthenumberofgenerated
+creasesdrastically. Inparticular,withourmethod
+knowledge statements, M, and show the results
+thesmallestT5modelisaspowerfulastheT5-3b
+inFigure2. Generally,theperformanceincreases
+baseline,andT5-largeoutperformstheGPT-3base-
+withthequantityofknowledgestatements. Itsatu-
+line. This indicates that model-generated knowl-
+ratesatM = 20andbeginstodeclinewhenmore
+edgecanenablehighperforming,yetlightweight,
+knowledgestatementsareintroduced,whichmay
+inferencemodels. Furthermore,theimprovement
+bebecausemorenoisyknowledgeisgenerated.
+doesnotdiminishastheinferencemodelbecomes
+The knowledge integration method. In addi-
+asbigastheknowledgegenerationmodel,asthe
+tiontotheknowledgeintegrationmethoddescribed
+inferencebyGPT-3canbenefitby9.0%fromthe
+in §2.2, we experiment with two alternatives:
+knowledgeelicitedfromitself. Thisindicatesthat
+Mixture-of-Experts(MoE)andProduct-of-Experts
+ourmethodcansomewhatamplifytheusefulknowl-
+(PoE) (Hinton, 2002). These make the following
+edge already possessed by the model, leading to
+modificationstoEquation1,respectively:
+betterpredictions.
+(cid:88) The size of knowledge generation model. Fig-
+MoE:p (a|q,K ) ∝ p (a|q ), (2)
+I q I m ure 4 shows the NumerSense performance gain
+0≤m≤M
+whenusingdifferentsizesofGPT-3astheknowl-
+(cid:89)
+PoE:p I(a|q,K q) ∝ p I(a|q m). (3) edge generation model. On top of the T5-11b in-
+0≤m≤M ferencemodel,The6.7Bknowledgemodelgives
+3159
+Figure5: Humanevaluationofgeneratedknowledge. Left: Percentageofgoodknowledgestatementsalongeach
+axis. Right: Agreementbetweenhumanandmachineonhelpfulnessofselectedknowledge.
+a5.0%improvement,narrowerthanthe10.5%im- Results. Figure 5 summarizes the results. The
+provement given by the 175B knowledge model. vastmajorityofselectedknowledgearegrammati-
+The1.3Band0.4Bknowledgemodelsdonotgive calandrelevanttothequestion,and83%ofthem
+a significant improvement. Therefore, we do not arefactuallycorrect. 72%areseenasbeinghelpful
+necessarilyneedthelargestversionofGPT-3asthe for answering the question according the human
+knowledgesource,thoughwedoneedthemodelto evaluators, whereas 13% are harmful. Out of the
+berelativelylargeinordertogenerateusefuland knowledge statements that rectify the model pre-
+reliableknowledge. dictions,93%arelabeledashelpfulbythehuman
+evaluators;incontrast,whentheknowledgestate-
+4.4 HumanEvaluation ment misleads the model, only 21% are labeled
+as helpful, and 39% harmful. Of the knowledge
+We conduct a human evaluation on NumerSense
+deemedhelpfulbyhumanand rectifiesmodelpre-
+andQASCtostudythequalityofgeneratedknowl-
+diction, 95% are factual, while of those deemed
+edgeandtheinterpretabilityofitsimpactontask
+harmfulbyhumanand misleadsmodelprediction,
+performance.
+86% are non-factual, suggesting that improving
+knowledgefactualityisapromisingpathtowards
+Evaluation. Wereportthequalityofknowledge
+morehelpfulknowledge. Wealsoanalyzedthenon-
+statements along four axes: (1) Grammaticality:
+selectedknowledgeandfoundthatthesestatements
+whetheritisgrammatical;(2)Relevance: whether
+haveslightlylowerfactualityandhelpfulnessthan
+itisrelevanttothetopicorconceptsmentionedon
+theselectedknowledge.
+thequestion;(3)Factuality: whetheritis(mostly)
+factuallycorrect; and(4)Helpfulness: whetherit
+helpsansweringthequestioninaneitherdirector
+indirectway,andmayfallintooneofthethreecat-
+4.5 QualitativeExamples
+egories: helpful(i.e. supportsthecorrectanswer),
+harmful(i.e. negatesthecorrectanswerorsupports
+anincorrectanswer),orneutral(neitherhelpfulnor Table 5 shows a few examples where the gener-
+harmful). ThesemetricsareadaptedfromShwartz atedknowledgerectifiesmodelprediction. Dueto
+etal.(2020)andaredefinedinAppendixA.3. spaceconstraintsweonlyshowtheselectedknowl-
+edge (§2.2) for each question. In all examples,
+Fromeachdataset,wesampleupto50selected
+themodelwithoutpromptedknowledgeassignsa
+knowledge (§2.2) that change the correctness of
+higher score to an incorrect answer than the cor-
+T5-11b’sprediction(i.e. rectifiesmodelprediction
+rectanswer,whilewithknowledgeprompting,the
+fromwrongtoright,ormisleadsmodelprediction
+correct answer is assigned a much higher score.
+fromrighttowrong). Theknowledgearelabeled
+Prompting with generated knowledge can trans-
+bytwoNLPexpertsandamoderatelevelofagree-
+formcommonsensereasoningintoexplicitreason-
+mentwasreached(FleissKappaκ = 0.57(Landis
+ing procedures such as paraphrasing, induction,
+and Koch, 1977)). To ensure objectivity, it is not
+deduction, analogy, abductive reasoning, logical
+revealedtotheannotatorswhethertheknowledge
+elimination,negation,andnumericalreasoning.
+rectifiesormisleadsthemodelprediction.
+3160
+Dataset Question/Knowledge Prediction Score Reasoning
+clamshaveevolvedtohave[M]shells. no 0.37|0.18 Commonsense
+NumerSense
+Clamshaveabivalveshell. two 0.89 Paraphrasing
+aneaselcanhave[M]orfourlegs. two 0.45|0.45 Commonsense
+NumerSense
+Atripodisakindofeasel. three 0.46 Induction
+Wheredoesaheifer’smasterlive? slaughterhouse 0.89|0.01 Commonsense
+CSQA
+Themasterofaheiferisafarmer. farmhouse 0.92 Deduction
+Asidefromwaterandnourishmentwhatdoesyour walked 0.55|0.04 Commonsense
+CSQA
+dogneed?
+Dogsneedattentionandaffection. lotsofattention 0.91 Elimination
+Ididnotneedaservant.Iwasnotawhat? incharge 0.47|0.32 Commonsense
+CSQA
+Peoplewhohaveservantsarerich. richperson 0.99 Abduction
+Partofgolfistryingtogetahigherpointtotalthan yes 1.00|0.00 Commonsense
+CSQA2
+others.
+Theplayerwiththelowestscorewins. no 1.00 Negation
+Eighthpluseightissmallerthanfifteen. yes 0.97|0.03 Commonsense
+CSQA2
+Eighthpluseightissixteen,whichislargerthan no 1.00 Numerical
+fifteen.
+[M]isusedfortransportation. plastic 0.41|0.12 Commonsense
+QASC
+Bicyclesareusedfortransportation. boats 0.74 Analogy
+Table5: Moreexampleswherepromptingwithgeneratedknowledgereducesthereasoningtypeandrectifiesthe
+prediction. The first row of each section is the original question and the inference results associated with it; the
+secondrowisamodel-generatedknowledgestatementthatpromptstheinferencemodel.Weshowcorrectanswers
+ingreen,incorrectanswersinred,andtheircorrespondingscoresassignedbytheinferencemodel.
+5 RelatedWork rectionistogroundthequestionintoaknowledge
+graphanddoinferencewithgraph-basedreasoning
+Knowledgecanbeelicitedfrompretrainedlan-
+(Lin et al., 2019; Lv et al., 2020; Yasunaga et al.,
+guagemodels. Numerousworkshaveshownthat
+2021).
+pretrained language models implicitly contain a
+large amount of knowledge that can be queried A common prerequisite of these methods is a
+via conditional generation (Davison et al., 2019; high-quality, high-coverage, in-domaincommon-
+Petroni et al., 2019; Jiang et al., 2020). Conse- sense knowledge base (Ma et al., 2019). Some
+quently, these models can directly perform infer- commonsensereasoningdatasetsarederivedfrom
+enceontaskslikecommonsensereasoning(Trinh existingknowledgebases;forexample,Common-
+and Le, 2018; Yang et al., 2020), text classifica- senseQA (Talmor et al., 2019) is derived from
+tion(Shinetal.,2020;PuriandCatanzaro,2019), ConceptNet (Speer et al., 2017), and Social IQA
+andnaturallanguageinference(Shinetal.,2020; (Sapetal.,2019b)isderivedfromATOMIC(Sap
+SchickandSchütze,2021). Inspiredbytheseobser- et al., 2019a). For such datasets, it is natural to
+vations,weelicitquestion-relatedknowledgeinan elicitrelatedknowledgefromtheunderlyingknowl-
+explicitformfromlanguagemodelsandusethem edge base that derived them, and typically this
+toguidetheinference. woulddemonstrateconsiderablegains(Mitraetal.,
+Leveraging external knowledge for common- 2019; Chang et al., 2020). However, if there is
+sensereasoning. Someworkusesexternalcom- a domain mismatch between the dataset and the
+monsenseknowledgebasestomakeimprovements knowledgebase,suchgainstendtodiminish(Mi-
+onvariousNLPtasks,includingcommonsenserea- traetal.,2019;Maetal.,2019). Thisbecomesa
+soning. One approach is to inject commonsense bottleneck when encountering datasets that have
+knowledgeintolanguagemodels,eitherbypretrain- nosuitableknowledgebase(e.g. NumerSense(Lin
+ing on knowledge bases (Ma et al., 2021; Chang et al., 2020) and CommonsenseQA 2.0 (Talmor
+etal.,2020;Mitraetal.,2019;Zhongetal.,2019) etal.,2021)),orwhenthesystemneedstohandle
+orfinetuningthemodelsothatitcanreasonwith commonsensequeriesthatdonotfitinanyofthe
+additionalretrievedknowledge(Changetal.,2020; commonsensedomainsrepresentedbyanexisting
+Mitraetal., 2019;Bianetal., 2021). Anotherdi- knowledge base. Our work overcomes this diffi-
+3161
+cultybyleveragingpretrainedlanguagemodelsas flexible,high-qualityknowledgeforcommonsense
+thesourceofcommonsenseknowledge. reasoning.
+Adding generated text during inference. Re-
+Acknowledgements
+cently,severalworksshowthatmodelperformance
+oncommonsensereasoningcanbeboostedbyaug- This work was funded in part by the Natural Sci-
+menting the question with model-generated text, encesandEngineeringResearchCouncilofCanada
+such as clarifications, explanations, and implica- (NSERC)(fundingreferencenumber401233309),
+tions. Self-talk(Shwartzetal.,2020)elicitsclari- DARPA MCS program through NIWC Pacific
+ficationstoconceptsinthequestionandappends (N66001-19-2-4031), and the Allen Institute for
+them to the inference model input. Contrastive AI.WealsothankGoogleCloudCompute,aswell
+explanations(Paranjapeetal.,2021)promptsinfer- asOpenAI.
+encemodelswithgeneratedexplanationsthatcon- WethankDanielKhashabi,VeredShwartz,Bhar-
+trastbetweentwoanswerchoices. Theaforemen- gaviParanjape,BillYuchenLin,JonathanHerzig
+tionedmethodsdependontask-specifictemplates fortheirhelpwiththeexperimentsandevaluation.
+toinquirethegenerator,whichmeanstheyareonly
+capableofelicitingalimitedvarietyofknowledge
+References
+andrequirecarefulhand-craftingtotransfertonew
+tasks. Otherexplanation-basedmethods(Latcinnik Ning Bian, Xianpei Han, Bo Chen, and Le Sun. 2021.
+Benchmarking knowledge-enhanced commonsense
+andBerant,2020;Rajanietal.,2019)finetunethe
+question answering via knowledge-to-text transfor-
+generator model so that it produces explanations
+mation. arXivpreprintarXiv:2101.00760.
+thatareusedforquestionaugmentation. DynaGen
+Antoine Bosselut, Ronan Le Bras, and Yejin Choi.
+(Bosselut et al., 2021) uses pretrained common-
+2021. Dynamic neuro-symbolic knowledge graph
+sensemodelstogenerateimplicationsofaquestion
+construction for zero-shot commonsense question
+andexpandstheinferenceinputwiththesegener- answering. In Proceedings of the 35th AAAI
+ations. However, its usage of COMeT (Bosselut ConferenceonArtificialIntelligence(AAAI).
+et al., 2019) as the generator confines its appli-
+Antoine Bosselut, Hannah Rashkin, Maarten Sap,
+cability to the social commonsense domain. Our Chaitanya Malaviya, Asli Celikyilmaz, and Yejin
+workcontributestothisgenerallineofresearch,yet Choi. 2019. COMET: Commonsense transformers
+different from these previous methods that elicit for automatic knowledge graph construction. In
+Proceedings of the 57th Annual Meeting of the
+knowledge with task-specific templates or from
+Association for Computational Linguistics, pages
+finetuned knowledge generators, our method re-
+4762–4779,Florence,Italy.AssociationforCompu-
+quiresonlyafewhuman-writtendemonstrationsin tationalLinguistics.
+thestyleofthetask,makingitmuchmoreflexible,
+TomBBrown, BenjaminMann, NickRyder, Melanie
+easy-to-transfer,andengineering-efficient.
+Subbiah, Jared Kaplan, Prafulla Dhariwal, Arvind
+Neelakantan,PranavShyam,GirishSastry,Amanda
+6 Conclusion Askell, et al. 2020. Language models are few-shot
+learners. arXivpreprintarXiv:2005.14165.
+We introduce generated knowledge prompting, a
+Ting-Yun Chang, Yang Liu, Karthik Gopalakrish-
+simple method to elicit and integrate knowledge
+nan, Behnam Hedayatnia, Pei Zhou, and Dilek
+from language models so as to improve perfor- Hakkani-Tur. 2020. Incorporating commonsense
+manceoncommonsensereasoningtasks. Inpartic- knowledge graph in pretrained models for social
+commonsense tasks. In Proceedings of Deep
+ular,wegenerateknowledgestatementsbyprompt-
+LearningInsideOut(DeeLIO):TheFirstWorkshop
+ing a language model with task-specific, human-
+on Knowledge Extraction and Integration for Deep
+written, few-shot demonstrations of question- LearningArchitectures,pages74–79,Online.Asso-
+knowledge pairs. We show that knowledge can ciationforComputationalLinguistics.
+beintegratedbysimplypluggingitinatinference
+Joe Davison, Joshua Feldman, and Alexander Rush.
+time,withnoneedtofinetunethemodelforknowl- 2019. Commonsense knowledge mining from
+edgeintegration. Ourmethodshowseffectiveness pretrained models. In Proceedings of the 2019
+acrossmultipledatasets,setsthenewstate-of-the- Conference on Empirical Methods in Natural
+Language Processing and the 9th International
+art on three commonsense reasoning tasks, and
+Joint Conference on Natural Language Processing
+works under a variety of settings. The method’s
+(EMNLP-IJCNLP), pages 1173–1178, Hong Kong,
+successhighlightslanguagemodelsassourcesof China.AssociationforComputationalLinguistics.
+3162
+Geoffrey E Hinton. 2002. Training products of ex- Kaixin Ma, Jonathan Francis, Quanyang Lu, Eric Ny-
+pertsbyminimizingcontrastivedivergence. Neural berg, and Alessandro Oltramari. 2019. Towards
+computation,14(8):1771–1800. generalizableneuro-symbolic systemsfor common-
+sense question answering. In Proceedings of
+AriHoltzman, JanBuys, LiDu, MaxwellForbes, and the First Workshop on Commonsense Inference in
+Yejin Choi. 2019. The curious case of neural text Natural Language Processing, pages 22–32, Hong
+degeneration. arXivpreprintarXiv:1904.09751. Kong, China. Association for Computational Lin-
+guistics.
+ZhengbaoJiang, FrankF.Xu, JunAraki, andGraham
+Neubig. 2020. How can we know what language
+Kaixin Ma, Filip Ilievski, Jonathan Francis, Yonatan
+models know? Transactions of the Association for
+Bisk,EricNyberg,andAlessandroOltramari.2021.
+ComputationalLinguistics,8:423–438.
+Knowledge-driven data construction for zero-shot
+evaluationincommonsensequestionanswering. In
+Daniel Khashabi, Sewon Min, Tushar Khot, Ashish
+35thAAAIConferenceonArtificialIntelligence.
+Sabharwal, Oyvind Tafjord, Peter Clark, and Han-
+naneh Hajishirzi. 2020. UNIFIEDQA: Crossing
+Arindam Mitra, Pratyay Banerjee, Kuntal Kumar Pal,
+format boundaries with a single QA system. In
+Swaroop Mishra, and Chitta Baral. 2019. How ad-
+Findings of the Association for Computational
+ditional knowledge can improve natural language
+Linguistics: EMNLP 2020, pages 1896–1907, On-
+commonsense question answering? arXiv preprint
+line.AssociationforComputationalLinguistics.
+arXiv:1909.08855.
+Tushar Khot, Peter Clark, Michal Guerquin, Peter
+Jansen, and Ashish Sabharwal. 2020. Qasc: A Bhargavi Paranjape, Julian Michael, Marjan
+dataset for question answering via sentence compo- Ghazvininejad, Hannaneh Hajishirzi, and Luke
+sition. In Proceedings of the AAAI Conference on Zettlemoyer. 2021. Prompting contrastive explana-
+ArtificialIntelligence,volume34,pages8082–8090. tionsforcommonsensereasoningtasks. InFindings
+of the Association for Computational Linguistics:
+J Richard Landis and Gary G Koch. 1977. The mea- ACL-IJCNLP 2021, pages 4179–4192, Online.
+surementofobserveragreementforcategoricaldata. AssociationforComputationalLinguistics.
+biometrics,pages159–174.
+Fabio Petroni, Tim Rocktäschel, Sebastian Riedel,
+Veronica Latcinnik and Jonathan Berant. 2020. Ex- Patrick Lewis, Anton Bakhtin, Yuxiang Wu, and
+plaining question answering models through text Alexander Miller. 2019. Language models as
+generation. arXivpreprintarXiv:2004.05569. knowledge bases? In Proceedings of the
+2019 Conference on Empirical Methods in Natural
+BillYuchenLin,XinyueChen,JaminChen,andXiang
+Language Processing and the 9th International
+Ren. 2019. KagNet: Knowledge-aware graph net-
+Joint Conference on Natural Language Processing
+worksforcommonsensereasoning. InProceedings
+(EMNLP-IJCNLP), pages 2463–2473, Hong Kong,
+of the 2019 Conference on Empirical Methods
+China.AssociationforComputationalLinguistics.
+in Natural Language Processing and the 9th
+InternationalJointConferenceonNaturalLanguage
+Raul Puri and Bryan Catanzaro. 2019. Zero-shot
+Processing (EMNLP-IJCNLP), pages 2829–2839,
+text classification with generative language models.
+Hong Kong, China. Association for Computational
+arXivpreprintarXiv:1912.10165.
+Linguistics.
+ColinRaffel,NoamShazeer,AdamRoberts,Katherine
+Bill Yuchen Lin, Seyeon Lee, Rahul Khanna, and Xi-
+Lee, Sharan Narang, Michael Matena, Yanqi Zhou,
+angRen.2020. Birdshavefourlegs?! NumerSense:
+WeiLi, andPeterJLiu.2019. Exploringthelimits
+Probing Numerical Commonsense Knowledge of
+of transfer learning with a unified text-to-text trans-
+Pre-Trained Language Models. In Proceedings
+former. arXivpreprintarXiv:1910.10683.
+of the 2020 Conference on Empirical Methods
+in Natural Language Processing (EMNLP), pages
+Nazneen Fatema Rajani, Bryan McCann, Caiming
+6862–6868, Online. Association for Computational
+Xiong,andRichardSocher.2019. Explainyourself!
+Linguistics.
+leveraging language models for commonsense rea-
+NicholasLourie,RonanLeBras,ChandraBhagavatula, soning. InProceedingsofthe57thAnnualMeeting
+and Yejin Choi. 2021. Unicorn on rainbow: A uni- of the Association for Computational Linguistics,
+versalcommonsensereasoningmodelonanewmul- pages 4932–4942, Florence, Italy. Association for
+titaskbenchmark. arXivpreprintarXiv:2103.13009. ComputationalLinguistics.
+Shangwen Lv, Daya Guo, Jingjing Xu, Duyu Tang, Maarten Sap, Ronan Le Bras, Emily Allaway, Chan-
+Nan Duan, Ming Gong, Linjun Shou, Daxin Jiang, draBhagavatula,NicholasLourie,HannahRashkin,
+Guihong Cao, and Songlin Hu. 2020. Graph- Brendan Roof, Noah A Smith, and Yejin Choi.
+basedreasoningoverheterogeneousexternalknowl- 2019a. Atomic: Anatlasofmachinecommonsense
+edge for commonsense question answering. In for if-then reasoning. In Proceedings of the AAAI
+Proceedings of the AAAI Conference on Artificial Conference on Artificial Intelligence, volume 33,
+Intelligence,volume34,pages8449–8456. pages3027–3035.
+3163
+Maarten Sap, Hannah Rashkin, Derek Chen, Ro- sequence-to-sequence models. In Proceedings of
+nan Le Bras, and Yejin Choi. 2019b. Social the28thInternationalConferenceonComputational
+IQa: Commonsense reasoning about social interac- Linguistics, pages 3449–3453, Barcelona, Spain
+tions. In Proceedings of the 2019 Conference on (Online). International Committee on Computa-
+EmpiricalMethodsinNaturalLanguageProcessing tionalLinguistics.
+and the 9th International Joint Conference on
+Natural Language Processing (EMNLP-IJCNLP), Michihiro Yasunaga, Hongyu Ren, Antoine Bosselut,
+pages 4463–4473, Hong Kong, China. Association Percy Liang, and Jure Leskovec. 2021. QA-GNN:
+forComputationalLinguistics. Reasoning with language models and knowledge
+graphs for question answering. In Proceedings of
+Timo Schick and Hinrich Schütze. 2021. Exploiting the2021ConferenceoftheNorthAmericanChapter
+cloze-questions for few-shot text classification and of the Association for Computational Linguistics:
+natural language inference. In Proceedings of the Human Language Technologies, pages 535–546,
+16th Conference of the European Chapter of the Online.AssociationforComputationalLinguistics.
+Association for Computational Linguistics: Main
+Volume, pages 255–269, Online. Association for Yuhui Zhang. 2021. Stanford submission on nu-
+ComputationalLinguistics. mersense.
+WanjunZhong,DuyuTang,NanDuan,MingZhou,Ji-
+Taylor Shin, Yasaman Razeghi, Robert L. Logan IV,
+ahaiWang,andJianYin.2019. Improvingquestion
+Eric Wallace, and Sameer Singh. 2020. Auto-
+answering by commonsense-based pre-training. In
+Prompt: ElicitingKnowledgefromLanguage Mod-
+CCFInternationalConferenceonNaturalLanguage
+els with Automatically Generated Prompts. In
+Processing and Chinese Computing, pages 16–28.
+Proceedings of the 2020 Conference on Empirical
+Springer.
+MethodsinNaturalLanguageProcessing(EMNLP),
+pages4222–4235,Online.AssociationforComputa-
+tionalLinguistics.
+Vered Shwartz, Peter West, Ronan Le Bras, Chandra
+Bhagavatula, and Yejin Choi. 2020. Unsupervised
+commonsensequestionansweringwithself-talk. In
+Proceedings of the 2020 Conference on Empirical
+MethodsinNaturalLanguageProcessing(EMNLP),
+pages4615–4629,Online.AssociationforComputa-
+tionalLinguistics.
+RobynSpeer,JoshuaChin,andCatherineHavasi.2017.
+Conceptnet5.5: Anopenmultilingualgraphofgen-
+eralknowledge. InThirty-firstAAAIconferenceon
+artificialintelligence.
+Alon Talmor, Jonathan Herzig, Nicholas Lourie, and
+Jonathan Berant. 2019. CommonsenseQA: A ques-
+tion answering challenge targeting commonsense
+knowledge. InProceedingsofthe2019Conference
+of the North American Chapter of the Association
+for Computational Linguistics: Human Language
+Technologies, Volume 1 (Long and Short Papers),
+pages4149–4158,Minneapolis,Minnesota.Associ-
+ationforComputationalLinguistics.
+AlonTalmor,OriYoran,RonanLeBras,ChandraBha-
+gavatula, Yoav Goldberg, Yejin Choi, and Jonathan
+Berant. 2021. Commonsenseqa 2.0: Exposing the
+limitsofaithroughgamification.
+Trieu H Trinh and Quoc V Le. 2018. A simple
+methodforcommonsensereasoning. arXivpreprint
+arXiv:1806.02847.
+JunYan.2021. Uscinksubmissiononnumersense.
+Jheng-Hong Yang, Sheng-Chieh Lin, Rodrigo
+Nogueira, Ming-Feng Tsai, Chuan-Ju Wang, and
+Jimmy Lin. 2020. Designing templates for elic-
+iting commonsense knowledge from pretrained
+3164
+A Appendix B.2 Computation
+Wedonottrainanynewmodelinthispaper. Infer-
+A.1 ComparisonwithPriorMethods
+enceisconductedonQuadroRTX8000GPUsand
+Table 6 summarizes the comparison between our costs about 200 GPU hours in total. Knowledge
+generatedknowledgepromptingmethodandprior generation is done with the OpenAI GPT-3 API,
+methods that add generated text to an inference withanapproximatecostof$500.
+model for commonsense reasoning tasks. Our OurmethodisimplementedwithPyTorchand
+methodisuniquebecauseitusesfew-shotdemon- theHuggingfaceTransformerslibrary.
+strationstopromptforknowledgegeneration,and
+can apply to finetuned inference models without
+jointfinetuningwithknowledge.
+A.2 PromptsforKnowledgeGeneration
+Table 7 through 10 shows the full prompts for
+knowledge generation that we use for each eval-
+uated task: NumerSense, CSQA, CSQA2, and
+QASC.
+A.3 HumanEvaluationGuidelines
+Table11and12showsthedetailedguidelineswe
+useforhumanevaluationofgeneratedknowledge.
+B Checklist
+B.1 LimitationsandRisks
+Limitations. Ourmethodistestedonarepresen-
+tative selection of commonsense reasoning tasks
+anddatasets. Applyingthismethodtoothertasks
+mayrequirepeoplewithmoderateexpertisetocraft
+atask-specificprompttofeedintothemethod.
+Risks. It is possible that our proposed method
+maylowertheperformanceofcommonsenserea-
+soning systems, if not implemented properly or
+using badly-designed prompts. Such risk can be
+mitigated by following the prompt design guide-
+linesinthispaper(§2.1).
+Method KnowledgeGenerator InferenceModel
+CAGE(Rajanietal.,2019) task-finetuned joint-finetuned
+LatcinnikandBerant(2020) task-finetuned joint-finetuned
+DynaGen(Bosselutetal.,2021) task-finetuned joint-finetuned
+Self-talk(Shwartzetal.,2020) template-prompted 0-shot
+Contrastiveexpl.(Paranjapeetal.,2021) template-prompted 0-shot&joint-finetuned
+Generatedknowledgeprompting(ours) demonstrations-prompted 0-shot&task-finetuned
+Table 6: Comparison of methods that add generated text to an inference model. Knowledge Generator: task-
+finetuned–amodelfinetunedtogeneratetask-specificknowledge;template-prompted–anoff-the-shelfLMfrom
+whichknowledgestatementsareelicitedviatemplates;demonstration-prompted–anoff-the-shelfLMfromwhich
+knowledgestatementsareelicitedviafew-shotdemonstrations(§2.1). InferenceModel: 0-shot–anoff-the-shelf
+LM that is set up to make predictions; task-finetuned – a model finetuned with task training data (and without
+seeingextraknowledge);joint-finetuned–amodelfinetunedwithtasktrainingdataandgeneratedknowledge.
+3165
+Task Prompt
+NumerSense Generatesomenumericalfactsaboutobjects.Examples:
+Input:penguinshave<mask>wings.
+Knowledge:Birdshavetwowings.Penguinisakindofbird.
+Input:aparallelogramhas<mask>sides.
+Knowledge:Arectangularisaparallelogram.Asquareisaparallelogram.
+Input:thereare<mask>feetinayard.
+Knowledge:Ayardisthreefeet.
+Input:watercanexistin<mask>states.
+Knowledge:Therestatesformatteraresolid,liquid,andgas.
+Input:atypicalhumanbeinghas<mask>limbs.
+Knowledge:Humanhastwoarmsandtwolegs.
+Input:{question}
+Knowledge:
+Table7:PromptforknowledgegenerationonNumerSense. Demonstrationexamplesaremanuallywrittenandthe
+knowledgeenablesexplicitreasoningprocedurestoanswertheinputquestion.
+Task Prompt
+CSQA Generatesomeknowledgeabouttheconceptsintheinput.Examples:
+Input:GoogleMapsandotherhighwayandstreetGPSserviceshavereplacedwhat?
+Knowledge:Electronicmapsarethemodernversionofpaperatlas.
+Input:Thefoxwalkedfromthecityintotheforest,whatwasitlookingfor?
+Knowledge:Naturalhabitatsareusuallyawayfromcities.
+Input:Youcansharefileswithsomeoneifyouhaveaconnectiontoawhat?
+Knowledge:FilescanbesharedovertheInternet.
+Input:Toomanypeoplewantexoticsnakes.Thedemandisdrivingwhattocarrythem?
+Knowledge:Somepeopleraisesnakesaspets.
+Input:Thebodyguardwasgoodathisduties,hemadethepersonwhohiredhimwhat?
+Knowledge:Thejobofbodyguardsistoensurethesafetyandsecurityoftheemployer.
+Input:{question}
+Knowledge:
+Table8: PromptforknowledgegenerationonCSQA.DemonstrationexamplesareselectedfromtheCSQAtrain-
+ingset;wemanuallywriterelevantknowledgeforeachinputquestion.
+3166
+Task Prompt
+CSQA2 Generatesomeknowledgeabouttheinput.Examples:
+Input:Greeceislargerthanmexico.
+Knowledge:Greeceisapproximately131,957sqkm,whileMexicoisapproximately1,964,375
+sqkm,makingMexico1,389%largerthanGreece.
+Input:Glassesalwaysfogup.
+Knowledge:Condensationoccursoneyeglasslenseswhenwatervaporfromyoursweat,breath,
+andambienthumiditylandsonacoldsurface,cools,andthenchangesintotinydropsofliquid,
+formingafilmthatyouseeasfog.Yourlenseswillberelativelycoolcomparedtoyourbreath,
+especiallywhentheoutsideairiscold.
+Input:Afishiscapableofthinking.
+Knowledge:Fisharemoreintelligentthantheyappear.Inmanyareas,suchasmemory,their
+cognitivepowersmatchorexceedthoseof’higher’vertebratesincludingnon-humanprimates.
+Fish’slong-termmemorieshelpthemkeeptrackofcomplexsocialrelationships.
+Input: A common effect of smoking lots of cigarettes in one’s lifetime is a higher than
+normalchanceofgettinglungcancer.
+Knowledge:Thosewhoconsistentlyaveragedlessthanonecigaretteperdayovertheirlifetime
+hadninetimestheriskofdyingfromlungcancerthanneversmokers.Amongpeoplewhosmoked
+betweenoneand10cigarettesperday,theriskofdyingfromlungcancerwasnearly12times
+higherthanthatofneversmokers.
+Input:Arockisthesamesizeasapebble.
+Knowledge:Apebbleisaclastofrockwithaparticlesizeof4to64millimetresbasedonthe
+Udden-Wentworthscaleofsedimentology.Pebblesaregenerallyconsideredlargerthangranules
+(2to4millimetresdiameter)andsmallerthancobbles(64to256millimetresdiameter).
+Input:{question}
+Knowledge:
+Table 9: Prompt for knowledge generation on CSQA2. Demonstration examples are selected from the CSQA2
+trainingset;weusetheannotatedGooglefeaturedsnippetastheknowledge.
+Task Prompt
+QASC Generatesomeknowledgeabouttheinput.Examples:
+Input:Whattypeofwaterformationisformedbyclouds?
+Knowledge:Cloudsaremadeofwatervapor.
+Input:Whatcanpreventfoodspoilage?
+Knowledge:Dehydratingfoodisusedforpreservingfood.
+Input:Theprocessbywhichgenesarepassedis
+Knowledge:Genesarepassedfromparenttooffspring.
+Input:Thestomachdoeswhatinthebody?
+Knowledge:Thestomachispartofthedigestivesystem.
+Input:Whatcancauserockstobreakdown?
+Knowledge:Mechanicalweatheringiswhenrocksarebrokendownbymechanicalmeans.
+Input:{question}
+Knowledge:
+Table 10: Prompt for knowledge generation on QASC. Demonstration examples are selected from the QASC
+trainingset;weuseoneofthegoldseparatefactsastheknowledge.
+3167
+Attribute Options DescriptionandExamples
+Grammaticality grammarical; Whethertheknowledgestatementisgrammatical. Weareawarethatsomeof
+ungrammatical thestatementsarenotfullygrammatical. Ifyoucanstillunderstandwhatthe
+but understand- statementsays,evenifit’sanincompletesentenceorslightlyungrammatical,
+able; completely pleaseselectthe"ungrammaticalbutunderstandable"option.
+gibberish
+Relevance relevant; not rele- Whetheraknowledgestatementisrelevanttothegivenquestion.Astatement
+vant isrelevantifitcoversonethesametopicsasthequestion,orcontainsasalient
+conceptthatissameorsimilartooneinthequestion.Examples:
+[Question]youmaytakethesubwaybackandforthtowork<mask>daysa
+week.
+[Knowledge]Youtakethesubwaybackandforthtoworkfivedaysaweek.
+[Judgment]Relevant,becausethequestionandknowledgearebothaboutthe
+topicofbusinessdays.
+[Question]abradypustorquatusisnativetobrazilandhas<mask>toesoneach
+limb.
+[Knowledge]Abradypustorquatusisakindofmammal.Amammalhasfour
+limbs.
+[Judgment] Relevant, because the question and knowledge share a common
+salientconcept"bradypustorquatus".
+Factuality factual;notfactual Whetheraknowledgestatementis(mostly)factuallycorrectornot.Ifthereare
+exceptionsorcornercases,itcanstillbeconsideredfactualiftheyarerareor
+unlikely.Examples:
+[Knowledge]Alimousinehasfourdoors.
+[Judgment]Factual.
+[Knowledge]Ahumanhandhasfourfingersandathumb.
+[Judgment]Factual,despitethatthereareexceptions–peoplewithdisabilities
+mayhavelessormorefingers.
+[Knowledge]Arectangleisashapewithtwoequalsides.
+[Judgment]Notfactual,becausearectanglehasfoursides.
+Table11: Humanevaluationguidelines. ContinuedinTable12.
+3168
+Attribute Options DescriptionandExamples
+Helpfulness helpful; neutral; Whether a knowledge statement provides useful information in support OR
+harmful contradictionoftheanswer. Astatementishelpfulifitsupportstheanswer
+eitherdirectlyorindirectly.Moreonindirectsupport–Thestatementmightnot
+directlyanswerthequestiondirectly,yetitmaysupportanindirectreasoning
+paththatreachestheanswer.Astatementisharmfulifitnegatestheansweror
+supportsanalternativepotentialanswereitherdirectlyorindirectly.Astatement
+isneutralifitisneitherhelpfulnorharmful.Examples:
+[Question]youmaytakethesubwaybackandforthtowork<mask>daysa
+week.
+[Answer]five
+[Knowledge]Youtakethesubwaybackandforthtoworkfivedaysaweek.
+[Judgment]Helpful.Becausethestatementdirectlysupportstheanswer.
+[Question]spidershave<mask>legs.
+[Answer]eight
+[Knowledge]Arachnidshaveeightlegs.
+[Judgment]Helpful.Althoughthestatementdoesnotdirectlyrefertospiders,
+together with the fact that "spiders are a kind of arachnids" it completes a
+reasoningchaininderivingtheanswer.
+[Question]agameofchessmayhave<mask>outcomes.
+[Answer]three
+[Knowledge]Agameofchesshastwooutcomes.
+[Judgment]Harmful.Sincethestatementsupportsanswering"two"insteadof
+"three".
+[Question]abradypustorquatusisnativetobrazilandhas<mask>toesoneach
+limb.
+[Answer]three
+[Knowledge]Abradypustorquatusisakindofmammal.Amammalhasfour
+limbs.
+[Judgment]Neutral. Thestatementdoesnotprovideinformationinfavoror
+contrastoftheanswer.
+Table12: (continued)Humanevaluationguidelines.
+3169
