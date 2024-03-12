@@ -1,6 +1,7 @@
 from haystack import Pipeline
 from haystack.schema import Document
 from typing import List, Tuple
+from transformers import GPT2TokenizerFast
 import os
 import tqdm
 
@@ -9,6 +10,16 @@ from evaluation import normalize_answer, f1_score, exact_match_score
 
 
 def load_documents(data_dir: str) -> List[str]:
+    # Faculty @ LTI
+    papers = []
+    for root, dirs, files in os.walk(os.path.join(data_dir, "papers")):
+        for file in files:
+            if file.endswith(".txt"):
+                file_path = os.path.join(root, file)
+                with open(file_path, "r", encoding="utf-8") as f:
+                    # Read the content of the chunk and add it to the list
+                    papers.append(f.read())
+
     # Courses @ CMU
     courses = []
     for root, dirs, files in os.walk(os.path.join(data_dir, "Courses")):
@@ -18,6 +29,27 @@ def load_documents(data_dir: str) -> List[str]:
                 print(file_path)
                 with open(file_path, "r") as f:
                     courses += f.read().split("\n\n\n")
+
+    # Academics @ LTI
+    program = []
+    tokenizer = GPT2TokenizerFast.from_pretrained("gpt2")
+    max_tokens = 512
+    for root, dirs, files in os.walk(os.path.join(data_dir, "program")):
+        for file in files:
+            if file.endswith(".txt"):
+                file_path = os.path.join(root, file)
+                with open(file_path, "r", encoding="utf-8") as file:
+                    text = file.read()
+
+                tokens = tokenizer.encode(text)
+                chunks = [
+                    tokens[i : i + max_tokens]
+                    for i in range(0, len(tokens), max_tokens)
+                ]
+
+            for chunk in chunks:
+                chunk_text = tokenizer.decode(chunk)
+                program.append(chunk_text)
 
     # Events @ CMU
     events = []
@@ -29,7 +61,15 @@ def load_documents(data_dir: str) -> List[str]:
                 with open(file_path, "r") as f:
                     events += f.read().split("\n\n\n")
 
-    res = courses + events
+    # History @ SCS and CMU
+    history = []
+    for root, dirs, files in os.walk(os.path.join(data_dir, "history")):
+        for file in files:
+            file_path = os.path.join(root, file)
+            with open(file_path, "r") as f:
+                history += f.read().split("\n\n\n")
+
+    res = papers + courses + program + events + history
     return [Document(content=s) for s in res]
 
 
