@@ -91,7 +91,8 @@ def read_soc(soc_file: str, output_file: str):
             department = d["department"]
             for c in d["courses"]:
                 t = [f"Semester: {semester}", f"Department: {department}"]
-                t.append(f"Course: {c['number'][:2]}-{c['number'][2:]}")
+                # t.append(f"Course: {c['number'][:2]}-{c['number'][2:]}")
+                t.append(f"Course: {c['number']}")
                 t.append(f"Title: {c['name']}")
                 t.append(f"Units: {c['units']}")
                 t.append("Sections")
