@@ -19,9 +19,9 @@ def baseline(documents: List[Document]) -> Pipeline:
         model_name_or_path="cross-encoder/ms-marco-MiniLM-L-12-v2", top_k=1
     )
 
-    answer_parser = AnswerParser(pattern=r"\s+(.*)")
+    answer_parser = AnswerParser()#pattern=r"\s+(.*)")
     lfqa_prompt = PromptTemplate(
-        prompt="Answer the question using the provided context. Please answer as concisely as possible.\n\nContext: {join(documents)}\n\nQuestion: {query}\n\nAnswer:",
+        prompt="Answer the question using the provided context.\n\nContext: {join(documents)}\n\nQuestion: {query}\n\nAnswer (a few words or a phrase):",
         output_parser=answer_parser,
     )
     prompter = PromptNode(
