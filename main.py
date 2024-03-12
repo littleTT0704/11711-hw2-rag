@@ -5,7 +5,7 @@ from transformers import GPT2TokenizerFast
 import os
 import tqdm
 
-from models import baseline
+from models import *
 from evaluation import normalize_answer, f1_score, exact_match_score
 
 
@@ -124,15 +124,17 @@ def evaluate(output: List[str], truth: List[str]) -> Tuple[float, float, float]:
 
 if __name__ == "__main__":
     docs = load_documents("data")
-    questions, answers = load_qa("dev/questions.txt", "dev/reference_answers.txt")
-
-    p = baseline(docs)
-    prediction = predict(p, questions, "test/prediction.txt")
-
-    f1, recall, em = evaluate(prediction, answers)
-    print(f"F1: {f1}, Recall: {recall}, EM: {em}")
+    p = squad(docs)
 
     if False:
+        questions, answers = load_qa("dev/questions.txt", "dev/reference_answers.txt")
+        prediction = predict(p, questions, "dev/prediction.txt")
+
+        f1, recall, em = evaluate(prediction, answers)
+        print(f"F1: {f1}, Recall: {recall}, EM: {em}")
+
+    else:
+        questions = []
         with open("test/questions.txt", "r") as fq:
             for lineq in fq:
                 q = lineq.strip()
