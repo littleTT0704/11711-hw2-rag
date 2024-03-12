@@ -90,7 +90,12 @@ def predict(p: Pipeline, queries: List[str], output_file: str) -> List[str]:
     res = []
     with open(output_file, "w") as f:
         for query in tqdm.tqdm(queries):
-            answer = p.run(query=query)
+            answer = p.run(
+                query=query,
+                params={
+                    "generation_kwargs": {"do_sample": False, "max_new_tokens": 50},
+                },
+            )
             ans = answer["answers"][0].answer
             res.append(ans)
             f.write(ans + "\n")
@@ -121,6 +126,7 @@ def evaluate(output: List[str], truth: List[str]) -> Tuple[float, float, float]:
         print(f"F1: {f1_}, Recall: {recall_}, EM: {em_}")
 
     return f1 / len(output), recall / len(output), em / len(output)
+
 
 if __name__ == "__main__":
     docs = load_documents("data")
