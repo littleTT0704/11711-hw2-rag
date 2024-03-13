@@ -62,7 +62,7 @@ def load_qa(question_file: str, answer_file: str) -> Tuple[List[str], List[str]]
     answers = []
     with open(question_file, "r") as fq, open(answer_file, "r") as fa:
         for lineq, linea in zip(fq, fa):
-            if lineq[0] == "#":
+            if lineq.startswith("# "):
                 continue
             q, a = lineq.strip(), linea.strip()
             questions.append(q)
@@ -83,7 +83,7 @@ def predict(p: Pipeline, queries: List[str], output_file: str) -> List[str]:
 
 
 def evaluate(output: List[str], truth: List[str]) -> Tuple[float, float, float]:
-    assert len(output) == len(truth)
+    assert len(output) == len(truth), f"length of predictions ({len(output)}) does not match length of answers ({len(truth)})"
 
     f1 = 0
     recall = 0
@@ -100,16 +100,16 @@ def evaluate(output: List[str], truth: List[str]) -> Tuple[float, float, float]:
         recall += recall_
         em += em_
 
-        print(f"Prediction: {o}")
-        print(f"Truth: {t}")
-        print(f"F1: {f1_}, Recall: {recall_}, EM: {em_}")
+        # print(f"Prediction: {o}")
+        # print(f"Truth: {t}")
+        # print(f"F1: {f1_}, Recall: {recall_}, EM: {em_}")
 
     return f1 / len(output), recall / len(output), em / len(output)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--mode", type=str, choices={"dev", "test"}, default="test")
+    parser.add_argument("--mode", type=str, choices={"dev", "test", "eval"}, default="test")
     parser.add_argument("--data_dir", type=str, default="data")
     parser.add_argument("--output", type=str, default="prediction.txt")
     parser.add_argument("--model", type=str, default="baseline")
@@ -121,22 +121,47 @@ if __name__ == "__main__":
         default=("dev/questions.txt", "dev/reference_answers.txt"),
     )
     parser.add_argument("--test", type=str, default="test/questions.txt")
+    parser.add_argument(
+        "--eval",
+        type=str,
+        nargs=2,
+        default=("dev/reference_answers.txt", "dev/prediction.txt"),
+    )
     args = parser.parse_args()
 
-    docs = load_documents(args.data_dir)
-    p = eval(args.model)(docs, use_gpu=args.use_gpu)
-
-    if args.mode == "dev":
-        questions, answers = load_qa(*args.dev)
-        prediction = predict(p, questions, args.output)
-
+    if args.mode == "eval":
+        answers = []
+        with open(args.eval[0], "r") as f:
+            for line in f:
+                if line.startswith("# "):
+                    continue
+                a = line.strip()
+                answers.append(a)
+        prediction = []
+        with open(args.eval[1], "r") as f:
+            for line in f:
+                p = line.strip()
+                if p != "":
+                    prediction.append(p)
+        print(prediction[-1], len(prediction), len(answers))
         f1, recall, em = evaluate(prediction, answers)
         print(f"F1: {f1}, Recall: {recall}, EM: {em}")
     else:
-        questions = []
-        with open(args.test, "r") as fq:
-            for lineq in fq:
-                q = lineq.strip()
-                if q != "":
-                    questions.append(q)
-        prediction = predict(p, questions, args.output)
+        docs = load_documents(args.data_dir)
+        p = eval(args.model)(docs, use_gpu=args.use_gpu)
+
+        if args.mode == "dev":
+            questions, answers = load_qa(*args.dev)
+            prediction = predict(p, questions, args.output)
+
+            f1, recall, em = evaluate(prediction, answers)
+            print(f"F1: {f1}, Recall: {recall}, EM: {em}")
+        
+        else:
+            questions = []
+            with open(args.test, "r") as fq:
+                for lineq in fq:
+                    q = lineq.strip()
+                    if q != "":
+                        questions.append(q)
+            prediction = predict(p, questions, args.output)
