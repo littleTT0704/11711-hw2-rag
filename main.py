@@ -83,7 +83,9 @@ def predict(p: Pipeline, queries: List[str], output_file: str) -> List[str]:
 
 
 def evaluate(output: List[str], truth: List[str]) -> Tuple[float, float, float]:
-    assert len(output) == len(truth), f"length of predictions ({len(output)}) does not match length of answers ({len(truth)})"
+    assert len(output) == len(
+        truth
+    ), f"length of predictions ({len(output)}) does not match length of answers ({len(truth)})"
 
     f1 = 0
     recall = 0
@@ -109,7 +111,9 @@ def evaluate(output: List[str], truth: List[str]) -> Tuple[float, float, float]:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--mode", type=str, choices={"dev", "test", "eval"}, default="test")
+    parser.add_argument(
+        "--mode", type=str, choices={"dev", "test", "eval"}, default="test"
+    )
     parser.add_argument("--data_dir", type=str, default="data")
     parser.add_argument("--output", type=str, default="prediction.txt")
     parser.add_argument("--model", type=str, default="baseline")
@@ -131,19 +135,21 @@ if __name__ == "__main__":
 
     if args.mode == "eval":
         answers = []
-        with open(args.eval[0], "r") as f:
+        with open(args.eval[0], "r", encoding="utf-8-sig") as f:
             for line in f:
                 if line.startswith("# "):
                     continue
                 a = line.strip()
-                answers.append(a)
+                if a != "":
+                    answers.append(a)
         prediction = []
-        with open(args.eval[1], "r") as f:
+        with open(args.eval[1], "r", encoding="utf-8-sig") as f:
             for line in f:
+                if line.startswith("# "):
+                    continue
                 p = line.strip()
                 if p != "":
                     prediction.append(p)
-        print(prediction[-1], len(prediction), len(answers))
         f1, recall, em = evaluate(prediction, answers)
         print(f"F1: {f1}, Recall: {recall}, EM: {em}")
     else:
@@ -156,7 +162,7 @@ if __name__ == "__main__":
 
             f1, recall, em = evaluate(prediction, answers)
             print(f"F1: {f1}, Recall: {recall}, EM: {em}")
-        
+
         else:
             questions = []
             with open(args.test, "r") as fq:
