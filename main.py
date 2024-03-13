@@ -1,76 +1,59 @@
 from haystack import Pipeline
 from haystack.schema import Document
 from typing import List, Tuple
-from transformers import GPT2TokenizerFast
 import os
 import tqdm
+import json
+from haystack.nodes import PreProcessor, PDFToTextConverter
+
 
 from models import *
 from evaluation import normalize_answer, f1_score, exact_match_score
 
 
 def load_documents(data_dir: str) -> List[str]:
-    # Faculty @ LTI
-    papers = []
-    for root, dirs, files in os.walk(os.path.join(data_dir, "papers")):
+    with open(os.path.join(data_dir, "metadata.json"), "r") as f:
+        metadata_raw = json.load(f)
+    metadatas = dict()
+    for metadata in metadata_raw:
+        m = metadata.copy()
+        filename = m.pop("filename")
+        metadatas[filename] = m
+
+    txts = []
+    pdfs = []
+    pdf = PDFToTextConverter()
+    pre = PreProcessor()
+    for root, dirs, files in os.walk(data_dir):
         for file in files:
-            if file.endswith(".txt"):
-                file_path = os.path.join(root, file)
-                with open(file_path, "r", encoding="utf-8") as f:
-                    # Read the content of the chunk and add it to the list
-                    papers.append(f.read())
-
-    # Courses @ CMU
-    courses = []
-    for root, dirs, files in os.walk(os.path.join(data_dir, "Courses")):
-        for file in files:
-            if file.endswith(".txt"):
-                file_path = os.path.join(root, file)
-                print(file_path)
-                with open(file_path, "r") as f:
-                    courses += f.read().split("\n\n\n")
-
-    # Academics @ LTI
-    program = []
-    tokenizer = GPT2TokenizerFast.from_pretrained("gpt2")
-    max_tokens = 512
-    for root, dirs, files in os.walk(os.path.join(data_dir, "program")):
-        for file in files:
-            if file.endswith(".txt"):
-                file_path = os.path.join(root, file)
-                with open(file_path, "r", encoding="utf-8") as file:
-                    text = file.read()
-
-                tokens = tokenizer.encode(text)
-                chunks = [
-                    tokens[i : i + max_tokens]
-                    for i in range(0, len(tokens), max_tokens)
-                ]
-
-            for chunk in chunks:
-                chunk_text = tokenizer.decode(chunk)
-                program.append(chunk_text)
-
-    # Events @ CMU
-    events = []
-    for root, dirs, files in os.walk(os.path.join(data_dir, "Events")):
-        for file in files:
-            if file.endswith(".txt"):
-                file_path = os.path.join(root, file)
-                print(file_path)
-                with open(file_path, "r") as f:
-                    events += f.read().split("\n\n\n")
-
-    # History @ SCS and CMU
-    history = []
-    for root, dirs, files in os.walk(os.path.join(data_dir, "history")):
-        for file in files:
-            file_path = os.path.join(root, file)
-            with open(file_path, "r") as f:
-                history += f.read().split("\n\n\n")
-
-    res = papers + courses + program + events + history
-    return [Document(content=s) for s in res]
+            if file.endswith(".txt") or file.endswith(".pdf"):
+                if file not in metadatas:
+                    print(f"File {os.path.join(root, file)} not in metadata")
+                else:
+                    metadata = metadatas[file]
+                    if file.endswith(".txt"):
+                        with open(os.path.join(root, file), "r") as f:
+                            raw = f.read().strip()
+                        txts.append(Document(content=raw, meta=metadata))
+                    else:
+                        doc = pdf.convert(
+                            os.path.join(root, file),
+                            meta=metadata,
+                            remove_numeric_tables=False,
+                            valid_languages=["en"],
+                        )
+                        pdfs += doc
+    res = pdfs
+    res += pre.process(
+        txts,
+        split_by="passage",
+        split_length=1,
+        split_respect_sentence_boundary=False,
+    )
+    res = pre.process(
+        res, split_by="word", split_length=200, split_respect_sentence_boundary=True
+    )
+    return res
 
 
 def load_qa(question_file: str, answer_file: str) -> Tuple[List[str], List[str]]:
@@ -90,12 +73,7 @@ def predict(p: Pipeline, queries: List[str], output_file: str) -> List[str]:
     res = []
     with open(output_file, "w") as f:
         for query in tqdm.tqdm(queries):
-            answer = p.run(
-                query=query,
-                params={
-                    "generation_kwargs": {"do_sample": False, "max_new_tokens": 50},
-                },
-            )
+            answer = p.run(query=query)
             ans = answer["answers"][0].answer
             res.append(ans)
             f.write(ans + "\n")
@@ -130,7 +108,7 @@ def evaluate(output: List[str], truth: List[str]) -> Tuple[float, float, float]:
 
 if __name__ == "__main__":
     docs = load_documents("data")
-    p = squad(docs)
+    p = baseline(docs)
 
     if False:
         questions, answers = load_qa("dev/questions.txt", "dev/reference_answers.txt")
