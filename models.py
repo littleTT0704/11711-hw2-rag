@@ -12,6 +12,7 @@ from haystack.nodes.prompt import PromptNode
 from haystack.nodes.prompt.prompt_template import PromptTemplate
 from fastrag.prompters.invocation_layers.llama_cpp import LlamaCPPInvocationLayer
 import torch
+import os
 from typing import List
 
 
@@ -114,7 +115,7 @@ def squad(documents: List[Document], use_gpu: bool = False) -> Pipeline:
     return p
 
 
-def llama(documents: List[Document], use_gpu: bool = False) -> Pipeline:
+def llama_old(documents: List[Document], use_gpu: bool = False) -> Pipeline:
     document_store = InMemoryDocumentStore(use_gpu=use_gpu, use_bm25=True)
     document_store.write_documents(documents)
     retriever = BM25Retriever(document_store=document_store, top_k=100)
@@ -128,31 +129,97 @@ def llama(documents: List[Document], use_gpu: bool = False) -> Pipeline:
     answer_parser = AnswerParser()  # pattern=r"\s+(.*)")
     lfqa_prompt = PromptTemplate(
         prompt="""Answer the question using the provided context.
-For example:
+Example:
 Question: Who is teaching 11-711 in Spring 2024?
 
 Answer: Neubig.
 
-Now it's your turn.
 Context: {join(documents)}
 
 Question: {query}
 
-Please answer as concisely as possible.
 Answer: """,
         output_parser=answer_parser,
     )
-    prompt_model = PromptModel(
-        model_name_or_path="marcoroni-7b-v3.Q4_K_M.gguf",
-        invocation_layer_class=LlamaCPPInvocationLayer,
-        model_kwargs=dict(max_new_tokens=50),
-        use_gpu=use_gpu,
-    )
     prompter = PromptNode(
-        model_name_or_path=prompt_model,
+        model_name_or_path="TinyLlama/TinyLlama-1.1B-Chat-v1.0",
         default_prompt_template=lfqa_prompt,
-        use_gpu=use_gpu,
+        model_kwargs={"model_max_length": 2048, "torch_dtype": torch.bfloat16},
+        use_gpu=True
     )
+
+    p = Pipeline()
+    p.add_node(component=retriever, name="Retriever", inputs=["Query"])
+    p.add_node(component=reranker, name="Reranker", inputs=["Retriever"])
+    p.add_node(component=prompter, name="prompt_node", inputs=["Reranker"])
+    return p
+
+
+def llama(documents: List[Document], use_gpu=False) -> Pipeline:
+    document_store = InMemoryDocumentStore(use_gpu=use_gpu, use_bm25=True)
+    document_store.write_documents(documents)
+    retriever = BM25Retriever(document_store=document_store, top_k=100)
+
+    reranker = SentenceTransformersRanker(
+        model_name_or_path="cross-encoder/ms-marco-MiniLM-L-12-v2", top_k=1, use_gpu=use_gpu
+    )
+
+    answer_parser = AnswerParser()  # pattern=r"\s+(.*)")
+    lfqa_prompt = PromptTemplate(
+        prompt="""Answer the question using the provided context. Please answer as concisely as possible.
+
+Context: {join(documents)}
+
+Question: {query}
+
+Answer: """,
+        output_parser=answer_parser,
+    )
+    # prompt_model = PromptModel(
+    #     model_name_or_path="../marcoroni-7b-v3.Q4_K_M.gguf",
+    #     invocation_layer_class=LlamaCPPInvocationLayer,
+    #     model_kwargs=dict(max_new_tokens=50, model_max_length=1024),
+    #     use_gpu=True
+    # )
+    # prompter = PromptNode(model_name_or_path=prompt_model, default_prompt_template=lfqa_prompt, use_gpu=True)
+    prompter = PromptNode(model_name_or_path="gpt-3.5-turbo", default_prompt_template=lfqa_prompt, api_key=os.environ.get("OPENAI_API_KEY"))
+
+    p = Pipeline()
+    p.add_node(component=retriever, name="Retriever", inputs=["Query"])
+    p.add_node(component=reranker, name="Reranker", inputs=["Retriever"])
+    p.add_node(component=prompter, name="Prompter", inputs=["Reranker"])
+    return p
+
+def llama_few(documents: List[Document], use_gpu=False) -> Pipeline:
+    document_store = InMemoryDocumentStore(use_gpu=use_gpu, use_bm25=True)
+    document_store.write_documents(documents)
+    retriever = BM25Retriever(document_store=document_store, top_k=100)
+
+    reranker = SentenceTransformersRanker(
+        model_name_or_path="cross-encoder/ms-marco-MiniLM-L-12-v2", top_k=1, use_gpu=use_gpu
+    )
+
+    answer_parser = AnswerParser()  # pattern=r"\s+(.*)")
+    lfqa_prompt = PromptTemplate(
+        prompt="""Answer the question using the provided context. Please answer as concisely as possible.
+For example:
+Question: Who is teaching 11-711 in Spring 2024?
+Answer: Neubig.
+
+
+Context: {join(documents)}
+Question: {query}
+Answer: """,
+        output_parser=answer_parser,
+    )
+    # prompt_model = PromptModel(
+    #     model_name_or_path="../marcoroni-7b-v3.Q4_K_M.gguf",
+    #     invocation_layer_class=LlamaCPPInvocationLayer,
+    #     model_kwargs=dict(max_new_tokens=50, model_max_length=1024),
+    #     use_gpu=True
+    # )
+    # prompter = PromptNode(model_name_or_path=prompt_model, default_prompt_template=lfqa_prompt, use_gpu=True)
+    prompter = PromptNode(model_name_or_path="gpt-3.5-turbo", default_prompt_template=lfqa_prompt, api_key=os.environ.get("OPENAI_API_KEY"))
 
     p = Pipeline()
     p.add_node(component=retriever, name="Retriever", inputs=["Query"])
