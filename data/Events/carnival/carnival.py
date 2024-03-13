@@ -1,6 +1,8 @@
 from bs4 import BeautifulSoup
 import json
 
+# TODO: carnival description and weekend highlights?
+
 input_file = "Schedule - Spring Carnival 2024.html"
 with open(input_file, "r", encoding="utf-8") as f:
     soup = BeautifulSoup(f.read())
@@ -61,30 +63,35 @@ CMU Feminists Engaged in Multicultural Matters and Education Panel (FEMME)
 Street Styles performances
 
 
+2024 Spring Carnival
 Weekend Highlights
 Booth, Rides and Dog Houses
 Thursday: 3-11 p.m.
 Friday & Saturday: 11 a.m.-11 p.m. 
 
 
+2024 Spring Carnival
 Weekend Highlights
 Carnival Headquarters Tent
 Check-In & Registration
 Thursday, Friday and Saturday: 8 a.m.-7 p.m.
 
 
+2024 Spring Carnival
 Weekend Highlights
 Activities, Wellness and Kidzone tents
 Thursday: 3-7 p.m.
 Friday and Saturday: 8 a.m.-7 p.m.
 
 
+2024 Spring Carnival
 Weekend Highlights
 Buggy Races and Donut Tent
 Friday's Preliminary Sweepstakes Race: 8 a.m.-Noon
 Saturday's Final Sweepstakes Race: 8 a.m.-Noon
 
 
+2024 Spring Carnival
 Weekend Highlights
 Scotch'n'Soda Performance of The Little Mermaid
 Thursday: 7-9:30 p.m.
@@ -97,6 +104,7 @@ Saturday: 3-5:30 p.m. and 7-9:30 p.m.
     for event in res:
         date = event["date"]
         for e in event["events"]:
+            f.write("2024 Spring Carnival\n")
             f.write(f"{e['title']}\n")
             if "span_date" in e:
                 f.write(f"{e['span_date']}\n")
