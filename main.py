@@ -62,8 +62,6 @@ def load_qa(question_file: str, answer_file: str) -> Tuple[List[str], List[str]]
     answers = []
     with open(question_file, "r") as fq, open(answer_file, "r") as fa:
         for lineq, linea in zip(fq, fa):
-            if lineq.startswith("# "):
-                continue
             q, a = lineq.strip(), linea.strip()
             questions.append(q)
             answers.append(a)
@@ -156,16 +154,12 @@ if __name__ == "__main__":
         answers = []
         with open(args.eval[0], "r", encoding="utf-8-sig") as f:
             for line in f:
-                if line.startswith("# "):
-                    continue
                 a = line.strip()
                 if a != "":
                     answers.append(a)
         prediction = []
         with open(args.eval[1], "r", encoding="utf-8-sig") as f:
             for line in f:
-                if line.startswith("# "):
-                    continue
                 p = line.strip()
                 if p != "":
                     prediction.append(p)
