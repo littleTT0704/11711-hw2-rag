@@ -90,22 +90,21 @@ def read_soc(soc_file: str, output_file: str):
         for d in res:
             department = d["department"]
             for c in d["courses"]:
-                t = [f"Department: {department} ({c['number'][:2]})"]
+                t = [f"Semester: {semester}", f"Department: {department}"]
+                # t.append(f"Course: {c['number'][:2]}-{c['number'][2:]}")
                 t.append(f"Course: {c['number']}")
                 t.append(f"Title: {c['name']}")
                 t.append(f"Units: {c['units']}")
                 t.append("Sections")
                 for s in c["sections"]:
-                    if s["lec_sec"] == "Lec":
-                        t.append(f"Lecture/Section: Lecture")
-                    else:
-                        t.append(f"Lecture/Section: Section {s['lec_sec']}")
+                    t.append(f"Lec/Sec: {s['lec_sec']}")
                     t.append(f"Days: {s['days']}")
                     t.append(f"Begin: {s['begin']}")
                     t.append(f"End: {s['end']}")
                     t.append(f"Room: {s['room']}")
                     t.append(f"Location: {s['location']}")
                     t.append(f"Instructor: {s['instructor']}")
+                    t.append("")
                 f.write("\n".join(t) + "\n\n")
 
 
