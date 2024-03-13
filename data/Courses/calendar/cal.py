@@ -1,5 +1,6 @@
 import pandas as pd
 import re
+from collections import defaultdict
 
 
 def read_calendar(calendar_file: str, output_file: str):
@@ -44,7 +45,7 @@ def read_calendar(calendar_file: str, output_file: str):
             # day counts
             j = i
             while not pd.isna(df.iloc[j]["event"]):
-                s = f"{calendar_name}\n{semester_name}\n{day_count(df.iloc[j]['event'], name)}\n"
+                s = f"{semester_name}\n{day_count(df.iloc[j]['event'], name)}\n"
                 l.append(re.sub("(\*+)", r" (\1)", s))
                 j += 1
 
@@ -61,11 +62,11 @@ def read_calendar(calendar_file: str, output_file: str):
             event = row["event"].replace("  ", " ")
             date = row["date"].strftime("%Y-%m-%d (%A)")
             if pd.isna(row["date_to"]):
-                s = f"{calendar_name}\n{semester_name}\n{date}: {event}\n"
+                s = f"{semester_name}\n{date}: {event}\n"
                 l.append(re.sub("(\*+)", r" (\1)", s))
             else:
                 date_to = row["date_to"].strftime("%Y-%m-%d (%A)")
-                s = f"{calendar_name}\n{semester_name}\n{date} to {date_to}: {event}\n"
+                s = f"{semester_name}\n{date} to {date_to}: {event}\n"
                 l.append(re.sub("(\*+)", r" (\1)", s))
             i += 1
 
@@ -77,13 +78,31 @@ def read_calendar(calendar_file: str, output_file: str):
                 event = row["event"].replace("\n", "")
                 footnotes[f" ({marker})"] = event
 
-    with open(output_file, "w") as f:
-        for s in l:
-            for marker, event in footnotes.items():
-                if marker in s:
-                    s = s.replace(marker, "") + event + "\n"
+    d = defaultdict(list)
+    for s in l:
+        for marker, event in footnotes.items():
+            if marker in s:
+                s = s.replace(marker, "") + event + "\n"
+        lines = s.split("\n")
+        d[lines[0]].append("\n".join(lines[1:]))
 
-            f.write(s + "\n\n")
+    for semester, events in d.items():
+        semester_file = (
+            output_file.replace("list-view", semester.split(" (")[0])
+            .replace(" ", "-")
+            .replace("-", "_")
+        )
+        with open(semester_file, "w") as f:
+            for event in events:
+                if (
+                    "Summer Semester includes semester-length courses, as well as mini-5 and mini-6. Courses previously offered as Summer Session One (6-weeks) correspond & follow the Mini-5 dates and deadlines.  Summer Semester Two courses (6-weeks) correspond & follow their separate dates."
+                    in event
+                ):
+                    event = event.replace(
+                        "Summer Semester includes semester-length courses, as well as mini-5 and mini-6. Courses previously offered as Summer Session One (6-weeks) correspond & follow the Mini-5 dates and deadlines.  Summer Semester Two courses (6-weeks) correspond & follow their separate dates. \n",
+                        "",
+                    )
+                f.write(event + "\n")
 
 
 if __name__ == "__main__":
