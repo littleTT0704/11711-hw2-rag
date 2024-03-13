@@ -1,6 +1,6 @@
 from haystack import Pipeline
 from haystack.schema import Document
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 import os
 import tqdm
 import json
@@ -70,12 +70,22 @@ def load_qa(question_file: str, answer_file: str) -> Tuple[List[str], List[str]]
     return questions, answers
 
 
-def predict(p: Pipeline, queries: List[str], output_file: str) -> List[str]:
+def predict(
+    p: Pipeline, queries: List[str], output_file: str, few_shot_p: Optional[Pipeline]
+) -> List[str]:
     res = []
     with open(output_file, "w") as f:
         for query in tqdm.tqdm(queries):
-            answer = p.run(query=query)
-            ans = answer["answers"][0].answer
+            meta = {"few_shot_example": ""}
+            if few_shot_p:
+                context = few_shot_p.run(query=query)
+                meta["few_shot_example"] = "\n".join(
+                    f"Example {i+1}:\nQuestion: {document.content}\n\nAnswer: {document.meta['answer']}\n\n"
+                    for i, document in enumerate(context["documents"])
+                )
+
+            answer = p.run(query=query, meta=meta)
+            ans = answer["results"][0].strip().split("\n")[0]
             res.append(ans)
             f.write(ans + "\n")
             f.flush()
@@ -102,10 +112,6 @@ def evaluate(output: List[str], truth: List[str]) -> Tuple[float, float, float]:
         recall += recall_
         em += em_
 
-        # print(f"Prediction: {o}")
-        # print(f"Truth: {t}")
-        # print(f"F1: {f1_}, Recall: {recall_}, EM: {em_}")
-
     return f1 / len(output), recall / len(output), em / len(output)
 
 
@@ -115,7 +121,7 @@ if __name__ == "__main__":
         "--mode", type=str, choices={"dev", "test", "eval"}, default="test"
     )
     parser.add_argument("--data_dir", type=str, default="data")
-    parser.add_argument("--output", type=str, default="prediction.txt")
+    parser.add_argument("--out_dir", type=str, default=".")
     parser.add_argument("--model", type=str, default="baseline")
     parser.add_argument("--use_gpu", action="store_true")
     parser.add_argument(
@@ -131,7 +137,20 @@ if __name__ == "__main__":
         nargs=2,
         default=("dev/reference_answers.txt", "dev/prediction.txt"),
     )
+    parser.add_argument(
+        "--train",
+        type=str,
+        nargs=2,
+        default=("train/questions.txt", "train/reference_answers.txt"),
+    )
+    parser.add_argument("--few_shot", type=int, default=0)
+    parser.add_argument("--n_doc", type=int, default=1)
     args = parser.parse_args()
+
+    output_filename = (
+        f"prediction_{args.mode}_{args.model}_{args.few_shot}_shot_k_{args.n_doc}.txt"
+    )
+    output_path = os.path.join(args.out_dir, output_filename)
 
     if args.mode == "eval":
         answers = []
@@ -153,12 +172,19 @@ if __name__ == "__main__":
         f1, recall, em = evaluate(prediction, answers)
         print(f"F1: {f1}, Recall: {recall}, EM: {em}")
     else:
+        few_shot_p = None
+        if args.few_shot > 0:
+            train_q, train_a = load_qa(*args.train)
+            few_shot_p = few_shot_pipeline(
+                train_q, train_a, args.few_shot, args.use_gpu
+            )
+
         docs = load_documents(args.data_dir)
-        p = eval(args.model)(docs, use_gpu=args.use_gpu)
+        p = eval(args.model)(docs, use_gpu=args.use_gpu, top_k=args.n_doc)
 
         if args.mode == "dev":
             questions, answers = load_qa(*args.dev)
-            prediction = predict(p, questions, args.output)
+            prediction = predict(p, questions, output_path, few_shot_p)
 
             f1, recall, em = evaluate(prediction, answers)
             print(f"F1: {f1}, Recall: {recall}, EM: {em}")
@@ -170,4 +196,4 @@ if __name__ == "__main__":
                     q = lineq.strip()
                     if q != "":
                         questions.append(q)
-            prediction = predict(p, questions, args.output)
+            prediction = predict(p, questions, output_path, few_shot_p)
