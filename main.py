@@ -4,6 +4,7 @@ from typing import List, Tuple
 import os
 import tqdm
 import json
+import argparse
 from haystack.nodes import PreProcessor, PDFToTextConverter
 
 
@@ -107,21 +108,35 @@ def evaluate(output: List[str], truth: List[str]) -> Tuple[float, float, float]:
 
 
 if __name__ == "__main__":
-    docs = load_documents("data")
-    p = baseline(docs)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--mode", type=str, choices={"dev", "test"}, default="test")
+    parser.add_argument("--data_dir", type=str, default="data")
+    parser.add_argument("--output", type=str, default="prediction.txt")
+    parser.add_argument("--model", type=str, default="baseline")
+    parser.add_argument("--use_gpu", action="store_true")
+    parser.add_argument(
+        "--dev",
+        type=str,
+        nargs=2,
+        default=("dev/questions.txt", "dev/reference_answers.txt"),
+    )
+    parser.add_argument("--test", type=str, default="test/questions.txt")
+    args = parser.parse_args()
 
-    if False:
-        questions, answers = load_qa("dev/questions.txt", "dev/reference_answers.txt")
-        prediction = predict(p, questions, "dev/prediction.txt")
+    docs = load_documents(args.data_dir)
+    p = eval(args.model)(docs, use_gpu=args.use_gpu)
+
+    if args.mode == "dev":
+        questions, answers = load_qa(*args.dev)
+        prediction = predict(p, questions, args.output)
 
         f1, recall, em = evaluate(prediction, answers)
         print(f"F1: {f1}, Recall: {recall}, EM: {em}")
-
     else:
         questions = []
-        with open("test/questions.txt", "r") as fq:
+        with open(args.test, "r") as fq:
             for lineq in fq:
                 q = lineq.strip()
                 if q != "":
                     questions.append(q)
-        prediction = predict(p, questions, "test/prediction.txt")
+        prediction = predict(p, questions, args.output)

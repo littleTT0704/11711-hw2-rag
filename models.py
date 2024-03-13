@@ -1,23 +1,29 @@
 from haystack import Pipeline
 from haystack.schema import Document
 from haystack.document_stores import InMemoryDocumentStore
-from haystack.nodes import BM25Retriever, SentenceTransformersRanker, EmbeddingRetriever
+from haystack.nodes import (
+    BM25Retriever,
+    SentenceTransformersRanker,
+    EmbeddingRetriever,
+    PromptModel,
+    AnswerParser,
+)
 from haystack.nodes.prompt import PromptNode
-from haystack.nodes import PromptModel
-from haystack.nodes import AnswerParser
 from haystack.nodes.prompt.prompt_template import PromptTemplate
 from fastrag.prompters.invocation_layers.llama_cpp import LlamaCPPInvocationLayer
 import torch
 from typing import List
 
 
-def baseline(documents: List[Document]) -> Pipeline:
-    document_store = InMemoryDocumentStore(use_gpu=False, use_bm25=True)
+def baseline(documents: List[Document], use_gpu: bool = False) -> Pipeline:
+    document_store = InMemoryDocumentStore(use_gpu=use_gpu, use_bm25=True)
     document_store.write_documents(documents)
     retriever = BM25Retriever(document_store=document_store, top_k=100)
 
     reranker = SentenceTransformersRanker(
-        model_name_or_path="cross-encoder/ms-marco-MiniLM-L-12-v2", top_k=1
+        model_name_or_path="cross-encoder/ms-marco-MiniLM-L-12-v2",
+        top_k=1,
+        use_gpu=use_gpu,
     )
 
     answer_parser = AnswerParser()  # pattern=r"\s+(.*)")
@@ -29,6 +35,7 @@ def baseline(documents: List[Document]) -> Pipeline:
         model_name_or_path="MBZUAI/LaMini-Flan-T5-783M",
         default_prompt_template=lfqa_prompt,
         model_kwargs={"model_max_length": 2048, "torch_dtype": torch.bfloat16},
+        use_gpu=use_gpu,
     )
 
     p = Pipeline()
@@ -38,8 +45,8 @@ def baseline(documents: List[Document]) -> Pipeline:
     return p
 
 
-def embed_meta(documents: List[Document]) -> Pipeline:
-    document_store = InMemoryDocumentStore(use_gpu=False)
+def embed_meta(documents: List[Document], use_gpu: bool = False) -> Pipeline:
+    document_store = InMemoryDocumentStore(use_gpu=use_gpu)
     document_store.write_documents(documents)
 
     retriever = EmbeddingRetriever(
@@ -48,11 +55,14 @@ def embed_meta(documents: List[Document]) -> Pipeline:
         model_format="sentence_transformers",
         top_k=20,
         embed_meta_fields=["title"],
+        use_gpu=use_gpu,
     )
     document_store.update_embeddings(retriever=retriever)
 
     reranker = SentenceTransformersRanker(
-        model_name_or_path="cross-encoder/qnli-distilroberta-base", top_k=1
+        model_name_or_path="cross-encoder/qnli-distilroberta-base",
+        top_k=1,
+        use_gpu=use_gpu,
     )
 
     answer_parser = AnswerParser()  # pattern=r"\s+(.*)")
@@ -64,6 +74,7 @@ def embed_meta(documents: List[Document]) -> Pipeline:
         model_name_or_path="MBZUAI/LaMini-Flan-T5-783M",
         default_prompt_template=lfqa_prompt,
         model_kwargs={"model_max_length": 2048, "torch_dtype": torch.bfloat16},
+        use_gpu=use_gpu,
     )
 
     p = Pipeline()
@@ -73,13 +84,15 @@ def embed_meta(documents: List[Document]) -> Pipeline:
     return p
 
 
-def squad(documents: List[Document]) -> Pipeline:
-    document_store = InMemoryDocumentStore(use_gpu=False, use_bm25=True)
+def squad(documents: List[Document], use_gpu: bool = False) -> Pipeline:
+    document_store = InMemoryDocumentStore(use_gpu=use_gpu, use_bm25=True)
     document_store.write_documents(documents)
     retriever = BM25Retriever(document_store=document_store, top_k=100)
 
     reranker = SentenceTransformersRanker(
-        model_name_or_path="cross-encoder/qnli-distilroberta-base", top_k=1
+        model_name_or_path="cross-encoder/qnli-distilroberta-base",
+        top_k=1,
+        use_gpu=use_gpu,
     )
 
     answer_parser = AnswerParser()  # pattern=r"\s+(.*)")
@@ -91,6 +104,7 @@ def squad(documents: List[Document]) -> Pipeline:
         model_name_or_path="MBZUAI/LaMini-Flan-T5-783M",
         default_prompt_template=lfqa_prompt,
         model_kwargs={"model_max_length": 2048, "torch_dtype": torch.bfloat16},
+        use_gpu=use_gpu,
     )
 
     p = Pipeline()
@@ -100,13 +114,15 @@ def squad(documents: List[Document]) -> Pipeline:
     return p
 
 
-def llama(documents: List[Document]) -> Pipeline:
-    document_store = InMemoryDocumentStore(use_gpu=False, use_bm25=True)
+def llama(documents: List[Document], use_gpu: bool = False) -> Pipeline:
+    document_store = InMemoryDocumentStore(use_gpu=use_gpu, use_bm25=True)
     document_store.write_documents(documents)
     retriever = BM25Retriever(document_store=document_store, top_k=100)
 
     reranker = SentenceTransformersRanker(
-        model_name_or_path="cross-encoder/ms-marco-MiniLM-L-12-v2", top_k=1
+        model_name_or_path="cross-encoder/ms-marco-MiniLM-L-12-v2",
+        top_k=1,
+        use_gpu=use_gpu,
     )
 
     answer_parser = AnswerParser()  # pattern=r"\s+(.*)")
@@ -127,12 +143,15 @@ Answer: """,
         output_parser=answer_parser,
     )
     prompt_model = PromptModel(
-        model_name_or_path="./fastRAG/models/marcoroni-7b-v3.Q4_K_M.gguf",
+        model_name_or_path="marcoroni-7b-v3.Q4_K_M.gguf",
         invocation_layer_class=LlamaCPPInvocationLayer,
         model_kwargs=dict(max_new_tokens=50),
+        use_gpu=use_gpu,
     )
     prompter = PromptNode(
-        model_name_or_path=prompt_model, default_prompt_template=lfqa_prompt
+        model_name_or_path=prompt_model,
+        default_prompt_template=lfqa_prompt,
+        use_gpu=use_gpu,
     )
 
     p = Pipeline()
