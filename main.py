@@ -1,11 +1,13 @@
 from haystack import Pipeline
 from haystack.schema import Document
+from haystack.nodes import PreProcessor, PDFToTextConverter
+
 from typing import List, Tuple, Optional
 import os
 import tqdm
 import json
 import argparse
-from haystack.nodes import PreProcessor, PDFToTextConverter
+import pandas as pd
 
 
 from models import *
@@ -95,6 +97,8 @@ def evaluate(output: List[str], truth: List[str]) -> Tuple[float, float, float]:
         truth
     ), f"length of predictions ({len(output)}) does not match length of answers ({len(truth)})"
 
+    fs, rs, es = [], [], []
+
     f1 = 0
     recall = 0
     em = 0
@@ -109,6 +113,13 @@ def evaluate(output: List[str], truth: List[str]) -> Tuple[float, float, float]:
         f1 += f1_
         recall += recall_
         em += em_
+
+        fs.append(f1_)
+        rs.append(recall_)
+        es.append(em_)
+
+    df = pd.DataFrame({"F1": fs, "Recall": rs, "EM": es})
+    df.to_csv("evaluation.csv", index=False)
 
     return f1 / len(output), recall / len(output), em / len(output)
 
