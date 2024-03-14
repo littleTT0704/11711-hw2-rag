@@ -29,8 +29,8 @@ All raw data are available in the `data` directory in our GitHub repository.
 
 ### Data Extraction
 
-Use the `faculty_info_extraction.py` script to scrape and process HTML documents, faculty papers. 
-Use 'Scrape.py' for scrape and process academic and history.
+Use the `faculty_info_extraction.py` and `download_paper_metadata.py` script to scrape and process HTML documents, faculty papers. 
+Use `Scrape.py` for scrape and process academic and history.
 
 ### Data Annotation
 
