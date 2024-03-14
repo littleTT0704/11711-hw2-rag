@@ -38,7 +38,7 @@ We use Doccano for initial sentence composition annotation. Post-annotation proc
 
 ### Question Answering
 
-Run the `answer_questions.py` script to query the system. The script utilizes our end-to-end pipeline to retrieve information, re-rank relevant documents, and generate concise answers.
+Run the `main.py` script to query the system. The script utilizes our end-to-end pipeline to retrieve information, re-rank relevant documents, and generate concise answers.
 
 ## Models
 
