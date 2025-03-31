@@ -2,7 +2,7 @@ import requests
 from bs4 import BeautifulSoup
 
 # Your Semantic Scholar API key
-API_KEY = '0OnRRg9xiz24obk7Om2IOaCeOlSVDfMbpYBohJme'  # Replace with your actual Semantic Scholar API key
+API_KEY = ''  # Replace with your actual Semantic Scholar API key
 
 # Headers to include in every API request
 HEADERS = {
@@ -89,7 +89,7 @@ import urllib3
 urllib3.disable_warnings()
 
 # Your Semantic Scholar API key
-S2_API_KEY = os.environ.get('S2_API_KEY', '0OnRRg9xiz24obk7Om2IOaCeOlSVDfMbpYBohJme')  # Replace 'Your API Key Here' with your actual Semantic Scholar API key
+S2_API_KEY = os.environ.get('S2_API_KEY', '')  # Replace 'Your API Key Here' with your actual Semantic Scholar API key
 
 def get_author_papers(author_name: str) -> list[str]:
     """Fetch paper IDs for the given author."""
