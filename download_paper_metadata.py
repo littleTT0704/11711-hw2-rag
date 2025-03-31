@@ -171,8 +171,6 @@ import urllib3
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-api_key = ''
-
 
 def get_paper_metadata(paper_id: str) -> dict:
     fields = 'paperId,title,abstract,authors,venue,year,tldr'
@@ -282,8 +280,6 @@ import json
 import urllib3
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-
-api_key = '0OnRRg9xiz24obk7Om2IOaCeOlSVDfMbpYBohJme'
 
 
 def get_paper(session: Session, paper_id: str, fields: str = 'paperId,title', **kwargs) -> dict:
